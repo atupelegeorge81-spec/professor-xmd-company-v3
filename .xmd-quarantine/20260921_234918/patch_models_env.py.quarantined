@@ -1,0 +1,25 @@
+import re
+import os
+
+env_path = "src/lib/env.ts" if os.path.exists("src/lib/env.ts") else "env.ts"
+
+if os.path.exists(env_path):
+    with open(env_path, "r", encoding="utf-8") as f:
+        env_content = f.read()
+
+    # 1. Badilisha mifano ya zamani ya Groq kuwa groq/compound na groq/compound-mini
+    # Badilisha openai/gpt-oss-120b kuondoka kwenye Groq list
+    if "openai/gpt-oss-120b" in env_content:
+        env_content = env_content.replace('"openai/gpt-oss-120b"', '"groq/compound"')
+        print("✅ openai/gpt-oss-120b imebadilishwa kuwa groq/compound kwenye env.ts")
+
+    # Hakikisha compound-mini ipo kama secondary kwenye Groq
+    if '"groq/compound"' in env_content and '"groq/compound-mini"' not in env_content:
+        env_content = env_content.replace('["groq/compound"]', '["groq/compound", "groq/compound-mini"]')
+        print("✅ groq/compound-mini imeongezwa kwenye orodha ya Groq")
+
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.write(env_content)
+    print("🎉 env.ts imesawazishwa kikamilifu!")
+else:
+    print(f"⚠️ Faili la {env_path} halikupatikana, tafadhali thibitisha njia yake.")

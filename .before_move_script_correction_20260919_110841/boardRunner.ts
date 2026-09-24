@@ -1,8 +1,16 @@
 import OpenAI from "openai";
 import { getAgent, AGENTS } from "./agents";
-import { groqKeyFor, AGENT_MODELS } from "./env";
+import { applyReviewFixes } from "./scriptCorrection";
+import {
+  groqKeyFor,
+  AGENT_MODELS,
+  apiKeyFor,
+  apiModelsFor,
+  apiBaseUrlFor,
+  type ApiStage,
+} from "./env";
 import { searchWeb, searchWebDirect, type SearchResult } from "./search";
-import { saveReport, saveSession, updateSessionItems, type SessionItem } from "./reports";
+import { saveReport, saveSession, updateSessionItems, getConversation, type SessionItem } from "./reports";
 import { saveLedgerEntry, finalBoardResolution, markSuperseded, type LedgerObjection } from "./ledger";
 import { generateAgenda, type AgendaItem } from "./agenda";
 import type { BoardEvent } from "./types";
@@ -15,6 +23,9 @@ export interface Runner {
   buffer: BoardEvent[];
   subs: Set<(e: BoardEvent) => void>;
   startedAt: number;
+  agenda?: AgendaItem[];
+  sessionId?: string | null;
+  apiCycle?: Record<string, ApiStage>;
 }
 
 const g: any = globalThis;
@@ -23,7 +34,7 @@ const runners: Map<string, Runner> = g.__boardRunners;
 
 const nid = () => Math.random().toString(36).slice(2, 10);
 const MAX_RETRIES = 2;
-const MAX_TURNS = 8; // deliberation safety ceiling; NOT a search cap
+const MAX_TURNS = 40; // usalama wa mwisho tu -- baada ya AGREE-detection fix, consensus halisi inapaswa kufunga mapema; hii si tena kikomo cha kibiashara // deliberation safety ceiling; NOT a search cap
 const TO = "<" + "think>";
 const TC = "<" + "/think>";
 const thinkRe = new RegExp(TO + "[\\s\\S]*?" + TC, "g");
@@ -65,7 +76,7 @@ export function streamRunner(runner: Runner): Response {
     },
   });
   return new Response(stream, {
-    headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" },
+    headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", "X-Runner-Id": runner.id },
   });
 }
 
@@ -76,7 +87,7 @@ export function startRun(project: string): Runner {
     return existing;
   }
   const id = nid();
-  const runner: Runner = { id, project, status: "running", items: [], buffer: [], subs: new Set(), startedAt: Date.now() };
+  const runner: Runner = { id, project, status: "running", items: [], buffer: [], subs: new Set(), startedAt: Date.now() , apiCycle: {} };
   runners.set(id, runner);
   if (runners.size > 3) {
     for (const [k, v] of runners) { if (v.status !== "running" && k !== id) { runners.delete(k); break; } }
@@ -87,6 +98,133 @@ export function startRun(project: string): Runner {
     broadcast(runner, { type: "done" });
   });
   return runner;
+}
+
+// Endelea (resume) na mjadala uliosimama kabla ya kufikia mwisho.
+// Hutumia agenda iliyohifadhiwa kwenye runner na ledger iliyopo
+// Appwrite kubaini ni vipengele vipi tayari vimeshughulikiwa.
+export async function resumeRun(id: string): Promise<Runner | null> {
+  // Fast path: the runner is still alive in this server process.
+  const live = getRunner(id);
+
+  if (live) {
+    if (live.status === "running") return live;
+
+    if (
+      live.status !== "completed" &&
+      live.agenda &&
+      live.agenda.length > 0
+    ) {
+      live.status = "running";
+
+      broadcast(live, {
+        type: "system",
+        text: "♻️ Kuendelea na mjadala uliosimama..."
+      });
+
+      run(live).catch((e) => {
+        live.status = "error";
+        broadcast(live, {
+          type: "error",
+          message: e?.message || "Unknown"
+        });
+        broadcast(live, { type: "done" });
+      });
+
+      return live;
+    }
+  }
+
+  // Server restart path:
+  // recover the EXACT persisted conversation from Appwrite.
+  const saved = await getConversation(id);
+
+  if (!saved) return null;
+
+  // Completed conversations are never resumable.
+  if (saved.status === "completed") return null;
+
+  const PREFIX = "__PROFESSOR_XMD_RESUME_STATE__:";
+
+  const stateItem = [...(saved.items || [])]
+    .reverse()
+    .find(
+      (it: any) =>
+        it?.kind === "chip" &&
+        typeof it?.text === "string" &&
+        it.text.startsWith(PREFIX)
+    );
+
+  if (!stateItem) return null;
+
+  let state: any;
+
+  try {
+    state = JSON.parse(
+      stateItem.text!.slice(PREFIX.length)
+    );
+  } catch {
+    return null;
+  }
+
+  if (
+    !state ||
+    !Array.isArray(state.agenda) ||
+    state.agenda.length === 0 ||
+    typeof state.runnerId !== "string"
+  ) {
+    return null;
+  }
+
+  // Restore the SAME runner ID.
+  // This is critical because Ledger entries use runner.id as project_id.
+  const runner: Runner = {
+    id: state.runnerId,
+    project: saved.project,
+    status: "running",
+    items: (saved.items || []).filter(
+      (it: any) =>
+        !(
+          it?.kind === "chip" &&
+          typeof it?.text === "string" &&
+          it.text.startsWith(PREFIX)
+        )
+    ),
+    buffer: [],
+    subs: new Set(),
+    startedAt: Date.now(),
+    agenda: state.agenda,
+    sessionId: saved.id,
+    apiCycle: {}
+  };
+
+  runners.set(runner.id, runner);
+
+  broadcast(runner, {
+    type: "system",
+    text:
+      "♻️ Conversation imerejeshwa kutoka Appwrite. " +
+      "Inaendelea na agenda na Ledger ile ile kutoka checkpoint ya mwisho..."
+  });
+
+  run(runner).catch((e) => {
+    runner.status = "error";
+    broadcast(runner, {
+      type: "error",
+      message: e?.message || "Unknown"
+    });
+    broadcast(runner, { type: "done" });
+  });
+
+  return runner;
+}
+
+function hasActualResponse(text: string): boolean {
+  const validationText = text
+    .replace(thinkRe, "")
+    .replace(/[\p{White_Space}\p{Cc}\p{Cf}]/gu, "");
+
+  return validationText.length > 0;
 }
 
 function makeParser(onThink: (t: string) => void, onAnswer: (t: string) => void) {
@@ -153,14 +291,48 @@ async function run(runner: Runner) {
   const usage: Record<string, { requests: number; tokens: number }> = {};
   for (const a of AGENTS) usage[a.id] = { requests: 0, tokens: 0 };
 
-  let sessionId: string | null = null;
+  let sessionId: string | null = runner.sessionId || null;
+  const RESUME_PREFIX = "__PROFESSOR_XMD_RESUME_STATE__:";
+
+  const getPersistItems = (): SessionItem[] => {
+    const clean = runner.items.filter(
+      (it: any) =>
+        !(
+          it?.kind === "chip" &&
+          typeof it?.text === "string" &&
+          it.text.startsWith(RESUME_PREFIX)
+        )
+    );
+
+    if (!runner.agenda || runner.agenda.length === 0) {
+      return clean;
+    }
+
+    clean.push({
+      kind: "chip",
+      id: "__professor_xmd_resume_state__",
+      text:
+        RESUME_PREFIX +
+        JSON.stringify({
+          version: 1,
+          runnerId: runner.id,
+          agenda: runner.agenda
+        })
+    } as SessionItem);
+
+    return clean;
+  };
+
   const persist = async (status: string, title?: string) => {
     try {
       if (!sessionId) {
-        sessionId = await saveSession(runner.project.slice(0, 500), runner.items, status, title);
-        if (sessionId) bcast({ type: "system", text: `💾 Conversation imeundwa (id: ${sessionId.slice(0, 8)}...)` });
+        sessionId = await saveSession(runner.project.slice(0, 500), getPersistItems(), status, title);
+        if (sessionId) {
+          runner.sessionId = sessionId;
+          bcast({ type: "system", text: `💾 Conversation imeundwa (id: ${sessionId.slice(0, 8)}...)` });
+        }
       } else {
-        await updateSessionItems(sessionId, runner.items, status, title);
+        await updateSessionItems(sessionId, getPersistItems(), status, title);
       }
     } catch (e: any) { blog("error", `❌ Persistence: ${e?.message || e}`); }
   };
@@ -170,14 +342,157 @@ async function run(runner: Runner) {
     const clientA = new OpenAI({ apiKey: groqKeyFor("pm")!, baseURL: process.env.XTROUTER_BASE_URL || "https://api.xkiro.com/v1" });
     const clientB = new OpenAI({ apiKey: groqKeyFor("designer")!, baseURL: process.env.XTROUTER_BASE_URL || "https://api.xkiro.com/v1" });
     const transcript: { name: string; text: string; item?: number }[] = [];
+    const allDeliverables: { itemIndex: number; itemText: string; writerName: string; code: string }[] = [];
 
-    const streamTurn = async (agent: typeof pm, messages: Record<string, unknown>[], msgId: string, answer: boolean, maxTok = 2000): Promise<string> => {
-      const client = new OpenAI({ apiKey: groqKeyFor(agent.id)!, baseURL: process.env.XTROUTER_BASE_URL || "https://api.xkiro.com/v1" });
-      const models = AGENT_MODELS[agent.id] || [agent.model];
-      let mi = 0;
-      let lastError: Error | null = null; let shrunk = false;
+    // Huondoa majina ya chapa/kampuni yanayoandikwa KWA HERUFI KUBWA na
+    // hyphens (mfano "PROFESSOR-XMD-COMPANY") kutoka kwenye maandishi --
+    // ngao ya ziada pale call ya LLM ya kutengeneza search query
+    // ikishindwa na tunarudi kwenye fallback ya kideterministic.
+    const stripBrandTokens = (text: string): string =>
+      text
+        .replace(/\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){1,}\b/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
 
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    // Call ndogo za "utility" (kutengeneza search query n.k.) zilikuwa
+    // zikitumia funguo MOJA ya "pm" milele bila rotation -- ikiisha
+    // quota, zilishindwa KILA WAKATI na kuanguka kwenye fallback mbovu.
+    // Hii inazunguka hatua 4 za apiCycle (sawa na streamTurn) kabla
+    // ya kukubali kushindwa.
+    const auxChatWithRotation = async (
+      agentId: string,
+      messages: Record<string, unknown>[],
+      maxTokens: number,
+    ): Promise<string> => {
+      runner.apiCycle ||= {};
+      let stage: ApiStage = runner.apiCycle[agentId] ?? 0;
+      let lastErr: any = null;
+      for (let tries = 0; tries < 4; tries++) {
+        const key = apiKeyFor(agentId, stage);
+        const models = apiModelsFor(agentId, stage);
+        const baseURL = apiBaseUrlFor(agentId, stage);
+        const client = new OpenAI({ apiKey: key!, baseURL });
+        try {
+          const r = await client.chat.completions.create({
+            model: models[0],
+            messages: messages as never,
+            temperature: 0,
+            max_tokens: maxTokens,
+          });
+          runner.apiCycle[agentId] = stage;
+          return String(r.choices?.[0]?.message?.content || "");
+        } catch (err: any) {
+          lastErr = err;
+          const em = err?.message || "";
+          const isLimit =
+            /429/i.test(em) || /quota/i.test(em) || /rate.?limit/i.test(em) ||
+            /token.?limit/i.test(em) || /TPD|RPM|RPD|TPM/i.test(em) ||
+            /daily free-model token quota/i.test(em);
+          if (!isLimit) throw err;
+          stage = ((stage + 1) % 4) as ApiStage;
+        }
+      }
+      runner.apiCycle[agentId] = stage;
+      throw lastErr;
+    };
+
+    const streamTurn = async (
+      agent: typeof pm,
+      messages: Record<string, unknown>[],
+      msgId: string,
+      answer: boolean,
+      maxTok = 2000
+    ): Promise<string> => {
+        /*
+         * INDEPENDENT API LIFECYCLE PER AGENT
+         *
+         * 0 = XKiro Key 1  → DeepSeek
+         * 1 = XKiro Key 2  → DeepSeek
+         * 2 = Groq Key 1   → openai/gpt-oss-120b → groq/compound
+         * 3 = Groq Key 2   → openai/gpt-oss-120b → groq/compound
+         *
+         * Each agent has its own cycle.
+         */
+        runner.apiCycle ||= {};
+
+        let stage: ApiStage = runner.apiCycle[agent.id] ?? 0;
+
+        const getStageInfo = () => ({
+          key: apiKeyFor(agent.id, stage),
+          models: apiModelsFor(agent.id, stage),
+          baseURL: apiBaseUrlFor(agent.id, stage),
+        });
+
+        let stageInfo = getStageInfo();
+        let models = stageInfo.models;
+        let mi = 0;
+        
+let shrunk = false;
+      let attempt = 0;
+
+      // Retries belong to the CURRENT model only.
+      // 3 retries for model/provider errors.
+      // Limit/quota errors swap immediately.
+      let modelRetries = 0;
+
+      const rotateModel = (reason: string) => {
+        const previousStage = stage;
+        const previousModel = models[mi];
+
+        if (mi + 1 < models.length) {
+          // Next model in the same API stage/key.
+          mi += 1;
+        } else {
+          // Current stage exhausted -> next agent-specific API stage.
+          stage = ((stage + 1) % 4) as ApiStage;
+          if (!runner.apiCycle) {
+            runner.apiCycle = {};
+          }
+          runner.apiCycle[agent.id] = stage;
+
+          stageInfo = getStageInfo();
+          models = stageInfo.models;
+          mi = 0;
+        }
+
+        modelRetries = 0;
+
+        const stageName =
+          stage === 0
+            ? "XKiRO Key 1"
+            : stage === 1
+              ? "XKiRO Key 2"
+              : stage === 2
+                ? "Groq Key 1"
+                : "Groq Key 2";
+
+        const nextModel = models[mi];
+
+        blog(
+          "warning",
+          `🔁 ${agent.name}: ${reason} → ${previousModel} → ${nextModel} (${stageName})`
+        );
+
+        bcast({
+          type: "system",
+          text:
+            `🔁 ${agent.name}: ${reason} → ` +
+            `${stageName} → ${nextModel}`,
+        });
+      };
+
+      while (true) {
+        attempt++;
+          
+          stageInfo = getStageInfo();
+          models = stageInfo.models;
+
+          const client = new OpenAI({
+            apiKey: stageInfo.key!,
+            baseURL: stageInfo.baseURL,
+          });
+
+
         let content = "";
         let reasoningContent = "";
         let attemptAnswerParts: string[] = [];
@@ -185,37 +500,74 @@ async function run(runner: Runner) {
         let detectedThinkField = false;
 
         const emitThinking = (text: string) => {
-        if (!text) return;
+          if (!text) return;
 
-        const it = runner.items.find(
-          (x) => x.kind === "msg" && x.id === msgId
+          const it = runner.items.find(
+            (x) => x.kind === "msg" && x.id === msgId
+          );
+
+          if (it && it.kind === "msg") {
+            it.thinking = `${it.thinking || ""}${text}`;
+          }
+
+          bcast({
+            type: "think",
+            id: msgId,
+            text,
+          });
+        };
+
+        const resetLiveMessage = () => {
+          const it = runner.items.find(
+            (x) => x.kind === "msg" && x.id === msgId,
+          );
+          if (it && it.kind === "msg") {
+            it.content = "";
+          }
+          bcast({ type: "msg_reset", id: msgId });
+        };
+
+        const emitAnswer = (text: string) => {
+          if (!answer || !text) return;
+          const it = runner.items.find(
+            (x) => x.kind === "msg" && x.id === msgId,
+          );
+          if (it && it.kind === "msg") {
+            it.content = `${it.content || ""}${text}`;
+          }
+          bcast({
+            type: "token",
+            id: msgId,
+            text,
+          });
+        };
+
+        const parser = makeParser(
+          (t) => emitThinking(t),
+          (t) => emitAnswer(t),
         );
 
-        if (it && it.kind === "msg") {
-          it.thinking = `${it.thinking || ""}${text}`;
-        }
-
-        bcast({
-          type: "think",
-          id: msgId,
-          text,
-        });
-      };
-
-      const parser = makeParser(
-        (t) => emitThinking(t),
-        (t) => { if (answer) attemptAnswerParts.push(t); },
-      );
-
         try {
-          blog("api", `🔌 ${agent.name} → ${agent.model} (Key ${agent.keySlot}) attempt ${attempt + 1}`);
+          blog(
+            "api",
+            `🔌 ${agent.name} → ${models[mi]} (Key ${agent.keySlot}) attempt ${attempt}`
+          );
+
           const s = await client.chat.completions.create({
-            model: models[mi], messages: messages as never,
-            temperature: 0.5, max_tokens: maxTok, stream: true, stream_options: { include_usage: true },
+            model: models[mi],
+            messages: messages as never,
+            temperature: 0.5,
+            max_tokens: maxTok,
+            stream: true,
+            stream_options: { include_usage: true },
           });
+
           for await (const chunk of s) {
-            const d = chunk.choices?.[0]?.delta; if (!d) continue;
+            const d = chunk.choices?.[0]?.delta;
+            if (!d) continue;
+
             const rc = (d as any).reasoning_content;
+
             if (typeof rc === "string" && rc) {
               detectedThinkField = true;
               reasoningContent += rc;
@@ -234,10 +586,12 @@ async function run(runner: Runner) {
                 text: rc,
               });
             }
+
             if (typeof d.content === "string" && d.content) {
               content += d.content;
               parser.feed(d.content);
             }
+
             const usageChunk = (chunk as any).usage;
 
             if (usageChunk) {
@@ -253,10 +607,12 @@ async function run(runner: Runner) {
               }
             }
           }
+
           parser.flush();
 
           if (!detectedThinkField && /<think/i.test(content)) {
             const parts = splitThinkBlocks(content);
+
             if (parts.think) {
               const thinkText = "\n" + parts.think;
 
@@ -279,27 +635,49 @@ async function run(runner: Runner) {
           }
 
           const visible = content.replace(thinkRe, "").trim();
-          const shortProtocol =
-            /^SILENT$/i.test(visible) ||
-            /^RESEARCH_REQUEST\s*:\s*\S+/i.test(visible) ||
-            /^OBJECTION\s*:\s*\S[\s\S]*$/i.test(visible);
+          const hasResponse = hasActualResponse(content);
 
-          if (answer && visible.length < 40 && !shortProtocol) {
-            if (attempt < MAX_RETRIES) {
-              blog("warning", `⚠️ ${agent.name}: jibu likatika/tupu — retry...`);
-              content = "";
-              reasoningContent = "";
-              attemptAnswerParts = [];
+          // Response length is NOT a validity test.
+          // Short responses such as "APPROVED" can be valid.
+          // Only an actually empty visible response is treated as failure.
+          // Retry the SAME model 3 times before swapping.
+          if (answer && !hasResponse) {
+            resetLiveMessage();
+
+            modelRetries++;
+
+            if (modelRetries <= 3) {
+              blog(
+                "warning",
+                `⚠️ ${agent.name}: jibu tupu/truncated — retry ${modelRetries}/3 kwenye ${models[mi]}`
+              );
+
+              bcast({
+                type: "system",
+                text:
+                  `♻️ ${agent.name}: model retry ${modelRetries}/3 → ${models[mi]}`,
+              });
+
+              await new Promise((r) => setTimeout(r, 1500));
               continue;
             }
-            blog("error", `❌ ${agent.name}: jibu bado ni tupu/fupi baada ya retries zote — inakataliwa (siyo kupitishwa kimya).`);
-            throw new Error(`${agent.name}: empty or truncated answer after all retries`);
+
+            rotateModel("model failed 3 retries");
+            await new Promise((r) => setTimeout(r, 1500));
+            continue;
           }
 
-          // Only publish answer tokens after this attempt is validated.
-          if (answer) {
-            for (const part of attemptAnswerParts) {
-              bcast({ type: "token", id: msgId, text: part });
+          // Answer tokens already streamed live via emitAnswer().
+          // Keep attemptAnswerParts only as a safety net if nothing was emitted.
+          if (answer && attemptAnswerParts.length > 0) {
+            const it = runner.items.find(
+              (x) => x.kind === "msg" && x.id === msgId,
+            );
+            const have = it && it.kind === "msg" ? it.content || "" : "";
+            if (!have) {
+              for (const part of attemptAnswerParts) {
+                bcast({ type: "token", id: msgId, text: part });
+              }
             }
           }
 
@@ -310,7 +688,7 @@ async function run(runner: Runner) {
             type: "usage",
             agentId: agent.id,
             requests: usage[agent.id].requests,
-            tokens: usage[agent.id].tokens
+            tokens: usage[agent.id].tokens,
           });
 
           if (tokensUsed === 0) {
@@ -322,28 +700,108 @@ async function run(runner: Runner) {
 
           blog(
             "success",
-            `✅ ${agent.name} alimaliza (tokens: ${tokensUsed})`
+            `✅ ${agent.name} alimaliza kwa ${models[mi]} (tokens: ${tokensUsed})`
           );
+
           return content;
+
         } catch (err: any) {
-          lastError = err;
           const em = err?.message || "unknown";
-          const isSize = /413|too large/i.test(em); const isRate = /429|rate limit/i.test(em);
-          if (isRate && mi < models.length - 1) { mi++; blog("warning", `🔁 ${agent.name}: rate/TPD limit — swap → ${models[mi]}`); bcast({ type: "system", text: `🔁 ${agent.name}: model swap → ${models[mi]}` }); content = ""; continue; }
-          if ((isSize || isRate) && !shrunk) {
+          const isSize = /413|too large/i.test(em);
+          const isRate = /429|rate limit/i.test(em);
+
+          blog(
+            "error",
+            `❌ ${agent.name} → ${models[mi]} attempt ${attempt}: ${em.slice(0, 160)}`
+          );
+
+          bcast({
+            type: "system",
+            text: `❌ ${agent.name}: ${em.slice(0, 120)}`,
+          });
+
+          // 413 => shrink prompt once, then retry same model.
+          // This is a request-size problem, handled separately.
+          if (isSize && !shrunk) {
             shrunk = true;
-            for (const m of messages) { if (typeof m.content === "string" && m.content.length > 1500) m.content = m.content.slice(0, 1500) + "\n[…truncated…]"; }
-            blog("warning", `✂️ ${agent.name}: ${isSize ? "413 prompt kubwa" : "429 rate limit"} — imedung'wa, backoff...`);
-            bcast({ type: "system", text: `✂️ ${agent.name}: prompt imedung'wa — retry` });
-            content = ""; await new Promise((r) => setTimeout(r, isRate ? 10000 : 1500)); continue;
+
+            for (const m of messages) {
+              if (
+                typeof m.content === "string" &&
+                m.content.length > 1500
+              ) {
+                m.content =
+                  m.content.slice(0, 1500) +
+                  "\n[…truncated…]";
+              }
+            }
+
+            blog(
+              "warning",
+              `✂️ ${agent.name}: 413 prompt kubwa — imedung'wa, retry ${models[mi]}`
+            );
+
+            bcast({
+              type: "system",
+              text: `✂️ ${agent.name}: prompt imedung'wa — retry current model`,
+            });
+
+            await new Promise((r) => setTimeout(r, 1500));
+            continue;
           }
-          if (isRate) await new Promise((r) => setTimeout(r, 10000));
-          blog("error", `❌ ${agent.name} attempt ${attempt + 1}: ${em.slice(0, 160)}`);
-          bcast({ type: "system", text: `❌ ${agent.name}: ${em.slice(0, 120)}${attempt < MAX_RETRIES ? ` — retry ${attempt + 1}` : ""}` });
-          if (attempt < MAX_RETRIES) { content = ""; await new Promise((r) => setTimeout(r, 2000)); }
+
+          /*
+           * LIMIT / QUOTA / RATE errors:
+           * NEVER retry the current model.
+           * Swap immediately.
+           */
+          const isLimit =
+            isRate ||
+            err?.status === 429 ||
+            err?.statusCode === 429 ||
+            /429/i.test(em) ||
+            /quota/i.test(em) ||
+            /too many requests/i.test(em) ||
+            /rate.?limit/i.test(em) ||
+            /token.?limit/i.test(em) ||
+            /tokens?.*(per|\/).*(day|minute|hour|request)/i.test(em) ||
+            /requests?.*(per|\/).*(day|minute|hour)/i.test(em) ||
+            /TPD|RPM|RPD|TPM/i.test(em) ||
+            /daily free-model token quota/i.test(em);
+
+          if (isLimit) {
+            rotateModel("limit/quota");
+            continue;
+          }
+
+          /*
+           * REAL MODEL / PROVIDER ERROR:
+           * Retry the SAME model 3 times.
+           * Only after the 3rd retry do we swap.
+           */
+          modelRetries++;
+
+          if (modelRetries <= 3) {
+            blog(
+              "warning",
+              `♻️ ${agent.name}: model/provider error — retry ${modelRetries}/3 kwenye ${models[mi]}`
+            );
+
+            bcast({
+              type: "system",
+              text:
+                `♻️ ${agent.name}: retry ${modelRetries}/3 → ${models[mi]}`,
+            });
+
+            await new Promise((r) => setTimeout(r, 1500));
+            continue;
+          }
+
+          rotateModel("model/provider failed 3 retries");
+          await new Promise((r) => setTimeout(r, 1500));
+          continue;
         }
       }
-      throw lastError || new Error("All retries failed");
     };
 
     const addMsg = (agentId: string): string => {
@@ -362,39 +820,53 @@ async function run(runner: Runner) {
       bcast({ type: "system", text });
     };
 
-    addChip(`🏛️ Board Room — "${runner.project.slice(0, 80)}${runner.project.length > 80 ? "…" : ""}"`);
+    const isResume = Boolean(runner.agenda && runner.agenda.length > 0);
     let conversationTitle = runner.project.slice(0, 60);
-    blog("system", "🧠 Optimus anaunda jina la conversation...");
-    try {
-      const t = await clientA.chat.completions.create({
-        model: pm.model,
-        messages: [
-          { role: "system", content: "Title generator. Output ONLY a short title (max 6 words, English). No quotes, no reasoning." },
-          { role: "user", content: `Project: "${runner.project}"` },
-        ],
-        temperature: 0.3, max_tokens: 40,
-      });
-      const raw = (t.choices?.[0]?.message?.content || "").replace(thinkRe, "").replace(/["`'*#\n]/g, " ").trim();
-      if (raw && raw.length <= 80 && !/thinking|analyze|process|heres/i.test(raw)) conversationTitle = raw;
-    } catch {}
-    bcast({ type: "title_done", title: conversationTitle });
-    runner.items.push({ kind: "title", id: nid(), text: conversationTitle });
-    await persist("title_created", conversationTitle);
+    let agenda: AgendaItem[];
 
-    // ===== HATUA 1: AGENDA =====
-    blog("system", "📋 Optimus anaunda agenda ya mradi...");
-    addChip("📋 Optimus anaunda agenda ya mradi...");
-    const agendaResult = await generateAgenda(clientA, pm.model, runner.project);
-    const agenda: AgendaItem[] = agendaResult.items;
-    if (agendaResult.understanding) {
-      addChip(`🧭 Optimus ameelewa: ${agendaResult.understanding}`);
-      blog("info", `🧭 Uelewa wa Optimus: ${agendaResult.understanding}`);
+    if (isResume) {
+      agenda = runner.agenda!;
+      const existingTitle = runner.items.find((it) => it.kind === "title");
+      if (existingTitle && existingTitle.kind === "title" && existingTitle.text) {
+        conversationTitle = existingTitle.text;
+      }
+      addChip(`♻️ Board Room imeendelea — "${runner.project.slice(0, 80)}${runner.project.length > 80 ? "…" : ""}"`);
+      blog("system", `♻️ Mjadala umeendelea kutoka pale ulipoishia (${agenda.length} vipengele).`);
+    } else {
+      addChip(`🏛️ Board Room — "${runner.project.slice(0, 80)}${runner.project.length > 80 ? "…" : ""}"`);
+      blog("system", "🧠 Optimus anaunda jina la conversation...");
+      try {
+        const t = await clientA.chat.completions.create({
+          model: pm.model,
+          messages: [
+            { role: "system", content: "Title generator. Output ONLY a short title (max 6 words, English). No quotes, no reasoning." },
+            { role: "user", content: `Project: "${runner.project}"` },
+          ],
+          temperature: 0.3, max_tokens: 40,
+        });
+        const raw = (t.choices?.[0]?.message?.content || "").replace(thinkRe, "").replace(/["`'*#\n]/g, " ").trim();
+        if (raw && raw.length <= 80 && !/thinking|analyze|process|heres/i.test(raw)) conversationTitle = raw;
+      } catch {}
+      bcast({ type: "title_done", title: conversationTitle });
+      runner.items.push({ kind: "title", id: nid(), text: conversationTitle });
+      await persist("title_created", conversationTitle);
+
+      // ===== HATUA 1: AGENDA =====
+      blog("system", "📋 Optimus anaunda agenda ya mradi...");
+      addChip("📋 Optimus anaunda agenda ya mradi...");
+      const agendaResult = await generateAgenda(clientA, pm.model, runner.project);
+      agenda = agendaResult.items;
+      runner.agenda = agenda;
+      if (agendaResult.understanding) {
+        addChip(`🧭 Optimus ameelewa: ${agendaResult.understanding}`);
+        blog("info", `🧭 Uelewa wa Optimus: ${agendaResult.understanding}`);
+      }
+      addChip(`📋 Agenda (${agenda.length} vipengele): ${agenda.map((a) => a.item).join(" · ")}`);
+      await persist("agenda_created", conversationTitle);
     }
-    addChip(`📋 Agenda (${agenda.length} vipengele): ${agenda.map((a) => a.item).join(" · ")}`);
-    await persist("agenda_created", conversationTitle);
 
     const ledgerSummary = async (): Promise<string> => {
-      const fbr = await finalBoardResolution(runner.project);
+      const fbr = await finalBoardResolution(runner.id);
       return fbr.length ? fbr.map((e) => `${e.agenda_index}. ${e.agenda_item} → ${e.decision_summary}`).join("\n") : "(bado hakuna decision iliyofungwa)";
     };
 
@@ -523,7 +995,18 @@ async function run(runner: Runner) {
     }
 
     // ===== HATUA 2-6: KILA AGENDA ITEM =====
+    let resolvedIndices = new Set<number>();
+    if (isResume) {
+      const alreadyResolved = await finalBoardResolution(runner.id);
+      resolvedIndices = new Set(alreadyResolved.map((e) => e.agenda_index));
+    }
+
     for (const item of agenda) {
+      if (isResume && resolvedIndices.has(item.index)) {
+        blog("info", `♻️ Kipengele ${item.index}/${agenda.length} tayari kimeshughulikiwa — kinarukwa.`);
+        continue;
+      }
+
       bcast({ type: "round", round: item.index, total: agenda.length });
       const ownerAgents = item.owners.map((o) => getAgent(o)!).filter(Boolean);
       const ownerNames = ownerAgents.map((a) => a.name).join(" + ");
@@ -575,31 +1058,33 @@ RULES:
 - Do NOT use a question mark.
 - Do NOT repeat the CEO request.
 - Do NOT include the agent name.
+- Do NOT include any brand name, company name, product name, or project name — including any proper noun that also appears in the agenda item or the CEO request below. Search for the GENERIC technical/industry topic only, as if this were for any company.
 - Do NOT explain anything.
 - Maximum 160 characters.
-- Search for technical/industry knowledge, not the user's instructions.`;
+- Search for technical/industry knowledge, not the user's instructions.
 
-          const queryResponse = await clientA.chat.completions.create({
-            model: pm.model,
-            messages: [
+CEO REQUEST (context only, to help you identify which proper nouns to exclude — do not search for this, do not include any of its names in the query):
+${runner.project}`;
+
+          const queryRaw = await auxChatWithRotation(
+            "pm",
+            [
               {
                 role: "system",
-                content: "You generate concise web search queries only."
+                content: "You generate concise, generic technical search queries only. Never include the client's brand, company, or product name."
               },
               {
                 role: "user",
                 content: queryPrompt
               }
             ],
-            temperature: 0
-          });
+            120
+          );
 
-          gateQuery = String(
-            queryResponse.choices?.[0]?.message?.content || ""
-          )
+          gateQuery = queryRaw
             .replace(/[`"']/g, "")
             .replace(/\?/g, "")
-            .replace(/\\s+/g, " ")
+            .replace(/\s+/g, " ")
             .trim()
             .slice(0, 160);
         } catch (queryError: any) {
@@ -610,14 +1095,16 @@ RULES:
         }
 
         // Final deterministic safety fallback.
-        // Never fall back to item.item / CEO request.
+        // Never fall back to item.item / CEO request. Also strip any
+        // ALL-CAPS brand/company token (e.g. "PROFESSOR-XMD-COMPANY")
+        // so a failed LLM query-generation call never leaks the brand
+        // name into the search engine.
         if (!gateQuery) {
-          gateQuery = `${agent.role} ${item.item
+          gateQuery = stripBrandTokens(`${agent.role} ${item.item
             .replace(/^Execute the CEO-requested deliverable only:\s*/i, "")
-            .split(/[,.;:!?]/)[0]
             .replace(/\s+/g, " ")
             .trim()
-            .slice(0, 100)}`;
+            .slice(0, 140)}`);
         }
 
         const sid = addMsg(agent.id);
@@ -824,29 +1311,47 @@ IMPORTANT:
           // ------------------------------------------------------
           // Proposal parser
           // ------------------------------------------------------
+          const isAgreeMessage = /(^|\n)\s*\*{0,2}\s*AGREE:\s*\*{0,2}/i.test(clean);
+
           const pd = clean.match(
             /PROPOSED DECISION:\s*([\s\S]+?)(?=\n(?:RATIONALE:|TRADE-OFF:|EVIDENCE:|$))/i
           );
 
-          if (pd) {
+          if (pd && !isAgreeMessage) {
             proposed = pd[1].trim();
             proposedBy = agent.id;
 
-            // MUHIMU:
-            // proposal mpya = approvals zote za zamani zinafutwa
-            agrees.clear();
-            agrees.add(agent.id);
+          // MUHIMU:
+          // proposal mpya = approvals zote za zamani zinafutwa
+          agrees.clear();
+          agrees.add(agent.id);
           }
 
           // ------------------------------------------------------
           // Approval
           // ------------------------------------------------------
           if (
-            proposed &&
-            /^AGREE:/i.test(clean)
-          ) {
-            agrees.add(agent.id);
-          }
+      proposed &&
+      isAgreeMessage
+    ) {
+      agrees.add(agent.id);
+
+      // FIX #1: fold conditions stated inside an "AGREE:" message into the
+      // proposal text itself, so they are not lost when consensus locks.
+      // FIX #3: an AGREE message that ALSO restates "PROPOSED DECISION:"
+      // (agents often "formalize" what was already agreed this way) is
+      // NOT a new proposal -- must not clear agrees, or consensus already
+      // reached gets silently wiped every time someone paraphrases it.
+      // isAgreeMessage above guards this, and also now tolerates markdown
+      // bold ("**AGREE:**"), which previously failed to match at all.
+      const __agreeBody = clean
+        .replace(/^[\s\S]*?\*{0,2}\s*AGREE:\s*\*{0,2}\s*/i, "")
+        .split(/\n(?:RATIONALE:|TRADE-OFF:|EVIDENCE:)/i)[0]
+        .trim();
+      if (__agreeBody.length > 30) {
+        proposed = `${proposed}\n\n[Condition added by ${agent.name}]: ${__agreeBody}`;
+      }
+    }
 
           // ------------------------------------------------------
           // Consensus
@@ -897,21 +1402,218 @@ IMPORTANT:
 
       // ========================================================
       // ===== CONSENSUS GATE — NO FORCED DECISION =====
+            // ========================================================
+      // ===== CONSENSUS GATE — NO FORCED DECISION =====
       const consensusReached =
         Boolean(decision) &&
         ownerAgents.length > 0 &&
         ownerAgents.every((a) => agrees.has(a.id));
 
+      // ========================================================
+      // ===== CODE-WRITING PHASE (kabla ya LOCK) =====
+      // Kwa vipengele vyenye requiresCode:true PEKEE. Kila code-writer
+      // (frontend/backend/qa) anaandika script yake halisi, akijua
+      // script za wenzake walizoandika kabla yake. Reviewer (mwanachama
+      // asiye-code-writer wa item hii, au Optimus) anaikagua kabla
+      // decision haijafungwa.
+      // ========================================================
+      let codeApproved = !item.requiresCode || !consensusReached;
+      const codeByAgent: Record<string, string> = {};
+
+      if (consensusReached && item.requiresCode) {
+        const codeWriters = ownerAgents.filter((a) =>
+          ["frontend", "backend", "qa"].includes(a.id)
+        );
+
+        if (codeWriters.length > 0) {
+          const reviewer =
+            ownerAgents.find((a) => !codeWriters.includes(a)) || pm;
+
+          const isOpenFence = (text: string) =>
+            (text.match(/```/g) || []).length % 2 === 1;
+
+          const lastVisibleMsgId: Record<string, string> = {};
+          const BT = String.fromCharCode(96);
+
+          const runCodeWriters = async () => {
+            for (const writer of codeWriters) {
+              let soFar = "";
+              let msgId = "";
+              for (let attempt = 0; attempt < 3; attempt++) {
+                msgId = addMsg(writer.id);
+                const othersCode = Object.entries(codeByAgent)
+                  .filter(([id]) => id !== writer.id)
+                  .map(([id, code]) => `--- Script ya ${getAgent(id)?.name || id} ---\n${code}`)
+                  .join("\n\n");
+
+                const prompt = `
+LOCKED DECISION (karibu kufungwa):
+${decision}
+
+AGENDA ITEM:
+${item.item}
+
+YOUR ROLE:
+You are ${writer.name} (${writer.role}). Write the ${writer.id === "frontend" ? "FRONTEND" : writer.id === "backend" ? "BACKEND" : "QA/test"} script for this decision, in a single fenced code block with the correct language tag.
+
+SCRIPT ZA WENZAKO ZILIZOKWISHA-ANDIKWA (soma ili usilete mkanganyiko, script yako iendane nazo):
+${othersCode || "(Hakuna mwenzako ameandika bado.)"}
+
+${attempt > 0 ? `SCRIPT YAKO MWENYEWE ULIYOANZA (ENDELEA PALE ULIPOISHIA, USIRUDIE ulichokwisha andika, kamilisha fence ya code na ${BT}${BT}${BT} mwishoni):\n${soFar}` : ""}
+
+RULES:
+- Andika code KAMILI, halisi, inayofanya kazi -- si maelezo, si pseudocode.
+- Code lazima ifuate KABISA kila kilichokubaliwa kwenye decision hapo juu -- hakuna tofauti hata moja.
+- Tumia fenced code block moja (${BT}${BT}${BT}language ... ${BT}${BT}${BT}) yenye lugha sahihi.
+- Usiandike maelezo marefu ya nje ya code block -- sentensi 1-2 tu kabla ya code inatosha.
+`;
+
+                const content = await streamTurn(
+                  writer,
+                  [
+                    { role: "system", content: writer.systemPrompt({ date: new Date().toLocaleString("en-GB") }) },
+                    { role: "user", content: prompt },
+                  ],
+                  msgId,
+                  true,
+                  20000
+                );
+
+                const clean = content
+                  .replace(thinkRe, "")
+                  .replace(/<think>[\s\S]*?<\/think>/gi, "")
+                  .trim();
+
+                setItemContent(msgId, clean);
+                bcast({ type: "msg_done", id: msgId });
+
+                subTalk.push({ name: writer.name, text: clean });
+                transcript.push({ name: writer.name, text: clean, item: item.index });
+
+                soFar = attempt > 0 ? `${soFar}\n${clean}` : clean;
+
+                if (!isOpenFence(soFar) && soFar.includes("```")) break;
+
+                blog("info", `♻️ ${writer.name}: script haijakamilika -- anaendelea pale alipoishia (${attempt + 1}/3).`);
+              }
+              codeByAgent[writer.id] = soFar;
+              lastVisibleMsgId[writer.id] = msgId;
+            }
+          };
+
+          // ========================================================
+          // MAREKEBISHO BAADA YA OBJECTION/REJECT -- SIYO KUANDIKA
+          // SCRIPT NZIMA UPYA. Writer anatoa PATCH (SEARCH/REPLACE),
+          // mfumo unaitumia kwenye script iliyopo, ujumbe wa zamani
+          // (script kamili) unadissolve kuwa alama fupi -- hii
+          // inapunguza token, ukubwa unaokwenda Appwrite, na
+          // inaboresha usahihi kwa sababu writer haandiki upya
+          // kila kitu, ni kipande tu kilichoathirika.
+          // ========================================================
+
+
+          await runCodeWriters();
+
+          for (let round = 0; round < 2 && !codeApproved; round++) {
+            const rid = addMsg(reviewer.id);
+            const allCode = Object.entries(codeByAgent)
+              .map(([id, code]) => `--- Script ya ${getAgent(id)?.name || id} ---\n${code}`)
+              .join("\n\n");
+
+            const reviewPrompt = `
+LOCKED DECISION (karibu kufungwa):
+${decision}
+
+AGENDA ITEM:
+${item.item}
+
+SCRIPTS ZILIZOANDIKWA:
+${allCode}
+
+YOUR ROLE:
+You are ${reviewer.name}, ${reviewer.role}. Check whether these scripts, TOGETHER, faithfully implement EVERY detail of the LOCKED DECISION above -- colors, behavior, structure, naming -- with no mismatch.
+
+If they match completely, output exactly:
+APPROVE
+
+If ANY mismatch exists, output exactly:
+REJECT: <concrete list of what must change>
+
+Keep the answer under 150 words.
+`;
+
+            const reviewContent = await streamTurn(
+              reviewer,
+              [
+                { role: "system", content: reviewer.systemPrompt({ date: new Date().toLocaleString("en-GB") }) },
+                { role: "user", content: reviewPrompt },
+              ],
+              rid,
+              true,
+              600
+            );
+
+            const cleanReview = reviewContent
+              .replace(thinkRe, "")
+              .replace(/<think>[\s\S]*?<\/think>/gi, "")
+              .trim();
+
+            setItemContent(rid, cleanReview);
+            bcast({ type: "msg_done", id: rid });
+            subTalk.push({ name: reviewer.name, text: cleanReview });
+            transcript.push({ name: reviewer.name, text: cleanReview, item: item.index });
+
+            if (/^APPROVE/i.test(cleanReview)) {
+              codeApproved = true;
+              blog("success", `✅ ${reviewer.name}: script zimekaguliwa na kukubaliwa kwa "${item.item}".`);
+            } else {
+              const rejectMatch = cleanReview.match(/REJECT:\s*([\s\S]+)/i);
+              blog("warning", `🛠️ ${reviewer.name}: script imerudishwa kwa marekebisho — round ${round + 1}/2.`);
+              await applyReviewFixes({
+              decision,
+              itemText: item.item,
+              reviewNote: rejectMatch ? rejectMatch[1].trim() : cleanReview,
+              itemIndex: item.index,
+              codeWriters,
+              codeByAgent,
+              lastVisibleMsgId,
+              addMsg,
+              streamTurn,
+              setItemContent,
+              bcast,
+              blog,
+              subTalk,
+              transcript,
+            });
+            }
+          }
+
+          if (!codeApproved) {
+            blog("warning", `⚠️ Script ya "${item.item}" haijapitishwa na mkaguzi baada ya majaribio 2 -- inaendelea kama ilivyo (angalia logs).`);
+          }
+
+          // Deliverable ya mwisho, safi, kwa kila code-writer -- hii ndiyo
+          // itakayonaswa na collectDeliverables() kwenye ripoti.
+          for (const writer of codeWriters) {
+            const finalId = addMsg(writer.id);
+            const code = codeByAgent[writer.id] || "";
+            allDeliverables.push({ itemIndex: item.index, itemText: item.item, writerName: writer.name, code });
+            setItemContent(finalId, `**Deliverable ya mwisho — ${item.item}:**\n\n${code}`);
+            bcast({ type: "msg_done", id: finalId });
+          }
+        }
+      }
+
 // ===== HATUA 5: LOCK kwenye Ledger =====
-      const entryId = await saveLedgerEntry({
-        project_id: runner.project,
+            const entryId = await saveLedgerEntry({
+        project_id: runner.id,
         agenda_index: item.index,
         agenda_item: item.item,
         status: consensusReached
           ? "LOCKED"
           : "OBJECTED_OPEN",
         decision_summary:
-          (decision || "UNRESOLVED — hakuna consensus ya kutosha").slice(0, 500),
+          (decision || "UNRESOLVED — hakuna consensus ya kutosha").slice(0, 4000),
         decision_detail: subTalk.slice(-3).map((t) => `${t.name}: ${t.text.slice(0, 600)}`).join("\n"),
         rationale:
           (item as any).__rationale ||
@@ -1078,14 +1780,37 @@ Keep the answer under 80 words.
           // Remaining search budget is used; existing evidence is
           // reused automatically if the budget is exhausted.
 
-          const objectionQuery =
-            `Verify this objection for "${runner.project}" / "${item.item}": ` +
-            `${objection.concern}. Check current technical facts, standards, ` +
-            `security risks, and implementation risks.`;
+          const objectionSearchQuery = await (async () => {
+            try {
+              const raw = await auxChatWithRotation(
+                "pm",
+                [
+                  {
+                    role: "system",
+                    content: "You generate concise, generic technical search queries only. Never include the client's brand, company, or product name.",
+                  },
+                  {
+                    role: "user",
+                    content: `Create ONE concise web search query (4-10 keywords, no question mark, max 160 characters) to verify this specific technical concern:\n\n${objection.concern}\n\nDo NOT include any brand, company, or product name. Do NOT explain anything -- return only the query.`,
+                  },
+                ],
+                120,
+              );
+              const q = raw
+                .replace(/[`"']/g, "")
+                .replace(/\?/g, "")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 160);
+              return q || stripBrandTokens(objection.concern).slice(0, 160);
+            } catch {
+              return stripBrandTokens(objection.concern).slice(0, 160);
+            }
+          })();
 
           await handleResearchRequest(
             responder,
-            objectionQuery,
+            objectionSearchQuery,
             budget,
             itemSources,
             hasSearchedItem
@@ -1161,16 +1886,20 @@ Keep under 140 words.
             if (updated) {
               const newDecision = updated[1].trim();
 
+          // FIX #2: merge with the prior decision instead of overwriting it
+          // wholesale, so conditions the objection did not touch survive.
+          const mergedDecision = `${decision}\n\n[Update after objection from ${objection.agent}]: ${newDecision}`;
+
               const rationaleMatch = cleanResponse.match(
                 /RATIONALE:\s*([\s\S]+)$/i
               );
 
-              const newId = await saveLedgerEntry({
-                project_id: runner.project,
+                            const newId = await saveLedgerEntry({
+                project_id: runner.id,
                 agenda_index: item.index,
                 agenda_item: item.item,
-                status: "OBJECTED_OPEN",
-                decision_summary: newDecision.slice(0, 500),
+                status: "LOCKED",
+                decision_summary: mergedDecision.slice(0, 4000),
                 rationale:
                   rationaleMatch?.[1]?.trim() ||
                   `Updated baada ya objection ya ${objection.agent}`,
@@ -1192,7 +1921,7 @@ Keep under 140 words.
               await markSuperseded(entryId);
 
               decision = "";
-              proposed = newDecision;
+              proposed = mergedDecision;
               for (const owner of ownerAgents) {
                 agrees.delete(owner.id);
               }
@@ -1233,13 +1962,98 @@ Keep under 140 words.
       }
 
 }
+    // ===== HATUA 6.5: OPTIMUS ANAUNGANISHA SCRIPT YA MWISHO =====
+    // Optimus anachukua vipande vyote vya code vilivyokubaliwa (LOCKED)
+    // kutoka kwa items zote, na kuviunganisha kuwa script MOJA kamili,
+    // sahihi, inayofanya kazi -- si kubandika vipande pamoja bila
+    // mpangilio. Inaendelea pale ilipoishia turns kadhaa ikihitajika.
+    async function assembleFinalScript(): Promise<string> {
+      if (allDeliverables.length === 0) return "";
+
+      const piecesText = allDeliverables
+        .map(
+          (d, i) =>
+            `--- KIPANDE ${i + 1}: Agenda ${d.itemIndex} — ${d.itemText} (na ${d.writerName}) ---\n${d.code}`
+        )
+        .join("\n\n");
+
+      let soFar = "";
+      const maxAttempts = 6;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const msgId = addMsg(pm.id);
+
+        const prompt = `Wewe ni Optimus, Project Manager. Kazi yako ya tatu (baada ya ripoti) ni kuunganisha VIPANDE VYOTE vya code vilivyokubaliwa (LOCKED) kutoka agenda items zote za mradi huu, kuwa SCRIPT MOJA KAMILI, SAHIHI, INAYOFANYA KAZI, kutoka mwanzo mpaka mwisho -- si kubandika vipande pamoja bila mpangilio.
+
+VIPANDE VYA CODE VILIVYOKUBALIWA (LOCKED), kwa mpangilio wa agenda:
+${piecesText}
+
+${attempt > 0 ? `SCRIPT ULIYOKWISHA-ANDIKA (ENDELEA PALE ULIPOISHIA, USIRUDIE ulichokwisha andika, kamilisha mpaka mwisho na funga fenced code block \`\`\`):\n${soFar}` : ""}
+
+RULES:
+- Unganisha vipande vyote kuwa faili MOJA (au faili chache zilizo wazi, mfano HTML/CSS/JS ndani ya faili moja ya HTML) inayofanya kazi kikamilifu bila kukatika.
+- Usipoteze kipengele chochote kilichokubaliwa -- rangi, majina ya class, muda wa animation, tabia -- yote lazima yabaki sahihi kama yalivyokubaliwa.
+- Suluhisha migongano ya majina/miundo kati ya vipande (mfano class/id zinazorudiwa) bila kubadilisha tabia iliyokubaliwa.
+- Andika code KAMILI, si maelezo -- fenced code block moja au chache, zenye lugha sahihi.
+- Kama script ni ndefu, itaendelea turns zijazo -- muhimu ni kuendelea pale ulipoishia bila kurudia ulichokwisha andika.`;
+
+        const content = await streamTurn(
+          pm,
+          [
+            { role: "system", content: pm.systemPrompt({ date: new Date().toLocaleString("en-GB") }) },
+            { role: "user", content: prompt },
+          ],
+          msgId,
+          true,
+          24000
+        );
+
+        const clean = content
+          .replace(thinkRe, "")
+          .replace(/<think>[\s\S]*?<\/think>/gi, "")
+          .trim();
+
+        setItemContent(msgId, clean);
+        bcast({ type: "msg_done", id: msgId });
+
+        soFar = attempt > 0 ? `${soFar}\n${clean}` : clean;
+
+        const fenceCount = (soFar.match(/```/g) || []).length;
+        if (fenceCount > 0 && fenceCount % 2 === 0) break;
+
+        blog(
+          "info",
+          `♻️ Optimus: anaunganisha script ya mwisho -- inaendelea (${attempt + 1}/${maxAttempts}).`
+        );
+      }
+
+      return soFar;
+    }
+
+    addChip("🧩 Optimus anaunganisha vipande vyote vya code kuwa script moja kamili...");
+    blog("system", "🧩 Optimus anaunganisha deliverables kuwa script moja...");
+    const finalScript = await assembleFinalScript();
+    if (finalScript) {
+      blog("success", `📦 Optimus: script ya mwisho imeunganishwa (${finalScript.length} chars).`);
+    } else {
+      blog("info", "📦 Hakuna deliverable ya code iliyogunduliwa kwa mradi huu.");
+    }
+
 // ===== HATUA 7: RIPOTI KUTOKA LEDGER (FBR) =====
-    const fbr = await finalBoardResolution(runner.project);
-    const ledgerText = fbr.map((e) => `## ${e.agenda_index}. ${e.agenda_item}\nStatus: ${e.status}\n${e.decision_summary}${e.rationale ? `\nRationale: ${e.rationale}` : ""}${e.evidence ? `\nEvidence: ${e.evidence}` : ""}${e.objections ? `\nObjections: ${e.objections}` : ""}`).join("\n\n");
+    const fbr = await finalBoardResolution(runner.id);
+    const ledgerText = fbr.map((e) => `## ${e.agenda_index}. ${e.agenda_item}\nStatus: ${e.status}\n${e.decision_summary}${e.rationale ? `\nRationale: ${e.rationale}` : ""}${e.evidence ? `\nEvidence: ${e.evidence}` : ""}${e.decision_detail ? `\nDetail: ${e.decision_detail}` : ""}${e.objections ? `\nObjections: ${e.objections}` : ""}`).join("\n\n");
     const reportSystem = pm.systemPrompt({ date: new Date().toLocaleString("en-GB") });
     const byItem: Record<number, string[]> = {};
-          for (const t of transcript) { const k = t.item || 0; (byItem[k] = byItem[k] || []).push(`${t.name}: ${t.text.slice(0, 300)}`); }
-          const fullTranscript = Object.keys(byItem).map((k) => `--- Kipengele ${k} ---\n` + byItem[Number(k)].slice(-2).join("\n")).join("\n").slice(-6000);
+          for (const t of transcript) { const k = t.item || 0; (byItem[k] = byItem[k] || []).push(`${t.name}: ${t.text.slice(0, 500)}`); }
+          const __TRANSCRIPT_PER_ITEM_CAP = 900;
+const fullTranscript = Object.keys(byItem)
+  .map((k) => {
+    const block = `--- Kipengele ${k} ---\n` + byItem[Number(k)].slice(-3).join("\n");
+    return block.length > __TRANSCRIPT_PER_ITEM_CAP
+      ? block.slice(0, __TRANSCRIPT_PER_ITEM_CAP) + "\n[...]"
+      : block;
+  })
+  .join("\n\n");
 
     const SECTION_DEFS: [number, RegExp, string][] = [
       [1, /muhtasari/i, "Muhtasari"], [2, /utafiti/i, "Utafiti"], [3, /mjadala/i, "Mjadala"],
@@ -1284,7 +2098,7 @@ Kama transcript na Ledger zinapingana, TUMIA LEDGER pekee.
 Usirudishe proposal iliyokataliwa au superseded.
 
 === REPORT MODE — KIPANDE ${pp.label} (KISWAHILI) ===\n${pp.tail}\nAndika ripoti KUTOKA kwa Ledger hapo juu. Andika sehemu hizi tu, kila moja iwe na kichwa "## N. Kichwa":\n${pp.secs}\n${THINK_CAP}` },
-        ], repId, true, 3200);
+        ], repId, true, 24000);
         setItemContent(repId, part);
         bcast({ type: "msg_done", id: repId });
         ingest(part);
@@ -1304,7 +2118,7 @@ Usirudishe proposal iliyokataliwa au superseded.
         const fix = await streamTurn(pm, [
           { role: "system", content: reportSystem },
           { role: "user", content: `FINAL BOARD RESOLUTION:\n${ledgerText}\n=== REPORT REPAIR (KISWAHILI) ===\nRipoti imekosa: ${missing.map((m) => `${m[0]}. ${m[2]}`).join(", ")}.\nAndika TU sehemu hizo, kila moja iwe na kichwa "## N. Kichwa".${THINK_CAP}` },
-        ], repId, true, 2800);
+        ], repId, true, 20000);
         setItemContent(repId, fix);
         bcast({ type: "msg_done", id: repId });
         ingest(fix);
@@ -1402,20 +2216,21 @@ Usirudishe proposal iliyokataliwa au superseded.
     }
 
     const deliverables = collectDeliverables(runner.items);
+    const finalDeliverableBlock = finalScript
+      ? `### 10.1 Script Kamili ya Mwisho (Imeunganishwa na Optimus)\n\nHii ni script MOJA kamili inayounganisha vipande vyote vilivyokubaliwa (LOCKED) na timu wakati wa mjadala, iliyoandikwa upya kwa mpangilio sahihi na Optimus.\n\n${finalScript}`
+      : deliverables.length > 0
+        ? `### 10.1 Deliverables zilizotolewa kwenye Board Room\n\nHizi ni deliverables halisi zilizotolewa na agents wakati wa mjadala; mfumo umeziweka moja kwa moja bila kuzalisha upya code.\n\n${deliverables.join("\n\n")}`
+        : "";
 
-    if (deliverables.length > 0 && collected[10]) {
-      collected[10] =
-        `${collected[10].trim()}\n\n` +
-        `### 10.1 Deliverables zilizotolewa kwenye Board Room\n\n` +
-        `Hizi ni deliverables halisi zilizotolewa na agents wakati wa mjadala; ` +
-        `mfumo umeziweka moja kwa moja bila kuzalisha upya code.\n\n` +
-        deliverables.join("\n\n");
-
+    if (finalDeliverableBlock && collected[10]) {
+      collected[10] = `${collected[10].trim()}\n\n${finalDeliverableBlock}`;
       blog(
         "success",
-        `📦 Deliverable capture: ${deliverables.length} code block(s) zimeingizwa kwenye report.`
+        finalScript
+          ? `📦 Deliverable capture: script ya mwisho iliyounganishwa na Optimus imeingizwa kwenye report.`
+          : `📦 Deliverable capture: ${deliverables.length} code block(s) zimeingizwa kwenye report.`
       );
-    } else if (deliverables.length === 0) {
+    } else if (!finalDeliverableBlock) {
       blog(
         "info",
         "📦 Deliverable capture: hakuna code deliverable iliyogunduliwa kwenye Board Room."

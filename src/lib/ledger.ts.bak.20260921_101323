@@ -4,7 +4,7 @@ export interface LedgerObjection {
   agent: string;
   concern: string;
   severity: string;
-  resolution: "accepted" | "rejected";
+  resolution: "open" | "accepted" | "rejected";
 }
 
 export interface LedgerEntry {
@@ -39,8 +39,13 @@ const COL = "board_ledger";
 
 export async function saveLedgerEntry(e: LedgerEntry): Promise<string | null> {
   try {
+    const safeProjectId = typeof e.project_id === 'string' 
+      ? e.project_id.slice(0, 100).trim() 
+      : String(e.project_id || '').slice(0, 100).trim();
+    if (!safeProjectId) return null;
     const doc = await databases.createDocument(DB, COL, "unique()", {
       ...e,
+      project_id: safeProjectId,
       created_at: new Date().toISOString(),
       locked_at: e.locked_at || new Date().toISOString(),
     });
@@ -66,9 +71,40 @@ export async function listLedger(projectId: string): Promise<LedgerEntry[]> {
 // Final Board Resolution = Ledger iliyochujwa (LOCKED tu, imepangwa kwa agenda_index)
 export async function finalBoardResolution(projectId: string): Promise<LedgerEntry[]> {
   const all = await listLedger(projectId);
-  return all
-    .filter((e) => e.status === "LOCKED")
-    .sort((a, b) => a.agenda_index - b.agenda_index);
+
+  // Current canonical state per agenda item.
+  // LOCKED and OBJECTED_OPEN are both valid current states.
+  // SUPERSEDED entries stay in history but are excluded here.
+  const canonical = new Map<number, LedgerEntry>();
+
+  for (const entry of all) {
+    if (
+      entry.status !== "LOCKED" &&
+      entry.status !== "OBJECTED_OPEN"
+    ) {
+      continue;
+    }
+
+    const previous = canonical.get(entry.agenda_index);
+
+    const currentTime = new Date(
+      entry.created_at || entry.locked_at || 0
+    ).getTime();
+
+    const previousTime = previous
+      ? new Date(
+          previous.created_at || previous.locked_at || 0
+        ).getTime()
+      : -1;
+
+    if (!previous || currentTime >= previousTime) {
+      canonical.set(entry.agenda_index, entry);
+    }
+  }
+
+  return Array.from(canonical.values()).sort(
+    (a, b) => a.agenda_index - b.agenda_index
+  );
 }
 
 export async function markSuperseded(oldId: string): Promise<void> {

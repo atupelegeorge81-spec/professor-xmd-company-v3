@@ -1,5 +1,5 @@
 import { runAgentStream } from "@/lib/groq";
-import { AGENT_MODELS } from "@/lib/env";
+import { groqKeyFor, AGENT_MODELS } from "@/lib/env";
 import { getAgent } from "@/lib/agents";
 import type { AgentEvent } from "@/lib/types";
 export const runtime = "nodejs";
@@ -39,14 +39,7 @@ export async function POST(req: Request) {
           blog("info", `📝 Prompt: "${prompt.slice(0, 80)}${prompt.length > 80 ? "…" : ""}"`);
           if (history.length > 0) blog("info", `💬 History: ${history.length} messages`);
 
-          await runAgentStream({
-            agentId: agent.id,
-            systemPrompt,
-            history,
-            userPrompt: prompt,
-            onEvent: send,
-            modelChain: AGENT_MODELS[agent.id],
-          });
+          await runAgentStream({systemPrompt, history, userPrompt: prompt, onEvent: send, apiKey: groqKeyFor(agent.id), modelChain: AGENT_MODELS[agent.id] });
           send({ type: "done" });
         } catch (err) {
           send({ type: "error", message: (err as Error)?.message || "Unexpected error" });

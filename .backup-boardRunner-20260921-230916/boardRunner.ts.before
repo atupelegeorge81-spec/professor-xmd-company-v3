@@ -1,3 +1,4 @@
+import { resolveFallbackTarget, lockGroqModel, isXkiroExhausted, markXkiroExhausted } from "./modelArbiter";
 import OpenAI from "openai";
 import { getAgent, AGENTS } from "./agents";
 import { applyReviewFixes } from "./scriptBox";
@@ -9,12 +10,6 @@ import {
   apiBaseUrlFor,
   type ApiStage,
 } from "./env";
-import {
-  lockGroqModel,
-  groqCompoundReady,
-  isXkiroExhausted,
-  markXkiroExhausted,
-} from "./modelArbiter"; // [PATCH-XMD-V5-ARBITER]
 import { searchWeb, searchWebDirect, type SearchResult } from "./search";
 import { saveReport, saveSession, updateSessionItems, getConversation, type SessionItem } from "./reports";
 import { saveLedgerEntry, finalBoardResolution, markSuperseded, getCarriedConstraints, type LedgerObjection } from "./ledger";
@@ -360,89 +355,18 @@ async function run(runner: Runner) {
         .replace(/\s+/g, " ")
         .trim();
 
-    // [PATCH-XMD-V3-QUERY] Msaidizi wa fallback ya search-query (angalia chini):
-    // huondoa sentensi za maelekezo ("do not ask me...", "decide everything
-    // yourself"...) na kukata kwa mpaka wa neno (si katikati ya neno).
-    const QUERY_FILLER_RE = new RegExp(
-      [
-        "i am intentionally giving you[^.!?]*",
-        "full creative freedom",
-        "do not ask me to choose[^.!?]*",
-        "decide everything yourself",
-        "sit down,?\\s*think deeply[^.!?]*",
-        "make your own decisions[^.!?]*",
-        "the final result should feel[^.!?]*",
-        "you should also find[^.!?]*",
-        "choose (the )?images? yourself[^.!?]*",
-        "based on the experience you creat\\w*",
-        "genuinely original",
-        "generic \\w+ template",
-        "as a professional \\w+ and \\w+",
-      ].join("|"),
-      "gi",
-    );
-    const QUERY_TRAILING_STOPWORD_RE = /\s+(a|an|the|and|or|for|to|of|in|on|at|by|with|from)$/i;
-    const truncateQueryWords = (s: string, max: number): string => {
-      let out = s;
-      if (out.length > max) {
-        const cut = out.slice(0, max);
-        const lastSpace = cut.lastIndexOf(" ");
-        out = (lastSpace > 20 ? cut.slice(0, lastSpace) : cut).trim();
-      }
-      let prev;
-      do {
-        prev = out;
-        out = out.replace(QUERY_TRAILING_STOPWORD_RE, "").trim();
-      } while (out !== prev);
-      return out;
-    };
-    const buildFallbackQuery = (agentRole: string, itemItem: string): string => {
-      let base = itemItem
-        .replace(/^Execute the CEO-requested deliverable only:\s*/i, "")
-        .replace(QUERY_FILLER_RE, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      base = base.split(/(?<=[.!?])\s+/)[0] || base;
-      base = truncateQueryWords(base, 90);
-      const wordCount = base.split(/\s+/).filter(Boolean).length;
-      const looksLikeInstruction =
-        wordCount > 16 ||
-        wordCount === 0 ||
-        /\b(i am|you should|do not|please|must|decide|choose)\b/i.test(base);
-      return looksLikeInstruction
-        ? `${agentRole} best practices modern web design trends`
-        : stripBrandTokens(`${agentRole} ${base}`);
-    };
-
     // Call ndogo za "utility" (kutengeneza search query n.k.) zilikuwa
     // zikitumia funguo MOJA ya "pm" milele bila rotation -- ikiisha
     // quota, zilishindwa KILA WAKATI na kuanguka kwenye fallback mbovu.
     // Hii inazunguka hatua 4 za apiCycle (sawa na streamTurn) kabla
     // ya kukubali kushindwa.
-    // [PATCH-XMD-V5-ARBITER] Stage inayofuata: inaruka XKiro (0/1) ikiwa tayari
-    // imeonekana exhausted kwa agent huyu (quota ya siku imekwisha funguo zote mbili).
-    const nextArbiterStage = (from: ApiStage, agentId: string): ApiStage => {
-      let s = ((from + 1) % 5) as ApiStage;
-      if ((s === 0 || s === 1) && isXkiroExhausted(agentId)) s = 2 as ApiStage;
-      return s;
-    };
-
-    // [PATCH-XMD-V5-ARBITER] Auto-Recovery: turn mpya ikianza kwenye TokenHarbor (stage 4)
-    // lakini Groq Key 1 (stage 2) tayari imepoa (sekunde 60 zimepita), rudi Groq moja kwa moja
-    // badala ya kuendelea kutumia TokenHarbor bila sababu.
-    const arbiterRecoverStage = (current: ApiStage, agentId: string): ApiStage => {
-      if (current === 4 && groqCompoundReady(`${agentId}:2`)) return 2 as ApiStage;
-      if ((current === 0 || current === 1) && isXkiroExhausted(agentId)) return 2 as ApiStage;
-      return current;
-    };
-
     const auxChatWithRotation = async (
       agentId: string,
       messages: Record<string, unknown>[],
       maxTokens: number,
     ): Promise<string> => {
       runner.apiCycle ||= {};
-      let stage: ApiStage = arbiterRecoverStage(runner.apiCycle[agentId] ?? 0, agentId); // [PATCH-XMD-V5-ARBITER]
+      let stage: ApiStage = runner.apiCycle[agentId] ?? 0;
       let lastErr: any = null;
       for (let tries = 0; tries < 4; tries++) {
         const key = apiKeyFor(agentId, stage);
@@ -466,7 +390,7 @@ async function run(runner: Runner) {
             /token.?limit/i.test(em) || /TPD|RPM|RPD|TPM/i.test(em) ||
             /daily free-model token quota/i.test(em);
           if (!isLimit) throw err;
-          stage = nextArbiterStage(stage, agentId); // [PATCH-XMD-V5-ARBITER]
+          stage = ((stage + 1) % 5) as ApiStage;
         }
       }
       runner.apiCycle[agentId] = stage;
@@ -481,20 +405,18 @@ async function run(runner: Runner) {
       maxTok = 2000
     ): Promise<string> => {
         /*
-         * INDEPENDENT API LIFECYCLE PER AGENT — Tri-Tier Arbiter [PATCH-XMD-V5-ARBITER]
+         * INDEPENDENT API LIFECYCLE PER AGENT
          *
-         * 0 = XKiro Key 1   → qwen/qwen3.8-max:free
-         * 1 = XKiro Key 2   → qwen/qwen3.8-max:free
-         * 2 = Groq Key 1    → groq/compound → groq/compound-mini (60s lock kwa kila moja)
-         * 3 = Groq Key 2    → groq/compound → groq/compound-mini (pool/lock yake mwenyewe)
-         * 4 = TokenHarbor   → deepseek-v4.1-flash:free (Tier 3 relief)
+         * 0 = XKiro Key 1  → DeepSeek
+         * 1 = XKiro Key 2  → DeepSeek
+         * 2 = Groq Key 1   → openai/gpt-oss-120b → groq/compound
+         * 3 = Groq Key 2   → openai/gpt-oss-120b → groq/compound
          *
-         * Each agent has its own cycle. Auto-Recovery: ikianza kwenye stage 4 lakini
-         * Groq Key 1 tayari imepoa, inarudi stage 2 moja kwa moja.
+         * Each agent has its own cycle.
          */
         runner.apiCycle ||= {};
 
-        let stage: ApiStage = arbiterRecoverStage(runner.apiCycle[agent.id] ?? 0, agent.id);
+        let stage: ApiStage = runner.apiCycle[agent.id] ?? 0;
 
         const getStageInfo = () => ({
           key: apiKeyFor(agent.id, stage),
@@ -506,6 +428,7 @@ async function run(runner: Runner) {
         let models = stageInfo.models;
         let mi = 0;
         
+let shrunk = false;
       let attempt = 0;
 
       // Retries belong to the CURRENT model only.
@@ -517,19 +440,12 @@ async function run(runner: Runner) {
         const previousStage = stage;
         const previousModel = models[mi];
 
-        // [PATCH-XMD-V5-ARBITER] Groq stage ikigonga TPM/quota/size, funga MODEL hiyo
-        // (si stage nzima) kwa sekunde 60, per agent+stage pool — hii ndiyo msingi wa
-        // Auto-Recovery (compound-mini inajaribiwa mara moja bila kusubiri).
-        if ((previousStage === 2 || previousStage === 3) && /limit|quota|size/i.test(reason)) {
-          lockGroqModel(`${agent.id}:${previousStage}`, previousModel);
-        }
-
         if (mi + 1 < models.length) {
           // Next model in the same API stage/key.
           mi += 1;
         } else {
           // Current stage exhausted -> next agent-specific API stage.
-          stage = nextArbiterStage(stage, agent.id); // [PATCH-XMD-V5-ARBITER]
+          stage = ((stage + 1) % 5) as ApiStage;
           if (!runner.apiCycle) {
             runner.apiCycle = {};
           }
@@ -549,9 +465,7 @@ async function run(runner: Runner) {
               ? "XKiRO Key 2"
               : stage === 2
                 ? "Groq Key 1"
-                : stage === 3
-                  ? "Groq Key 2"
-                  : "TokenHarbor Relief"; // [PATCH-XMD-V5-ARBITER]
+                : "Groq Key 2";
 
         const nextModel = models[mi];
 
@@ -795,28 +709,9 @@ async function run(runner: Runner) {
         } catch (err: any) {
           const em = err?.message || "unknown";
           const isSize = /413|too large/i.test(em);
+          // isLimit ilihamishwa juu
           const isRate = /429|rate limit/i.test(em);
-
-          blog(
-            "error",
-            `❌ ${agent.name} → ${models[mi]} attempt ${attempt}: ${em.slice(0, 160)}`
-          );
-
-          bcast({
-            type: "system",
-            text: `❌ ${agent.name}: ${em.slice(0, 120)}`,
-          });
-
-          /*
-           * [PATCH-XMD-V5-ARBITER] LIMIT / QUOTA / RATE / SIZE errors:
-           * NEVER retry the current model, NEVER truncate the user's prompt.
-           * "isSize" (413) sasa ni sababu ya KUBADILI MODEL (kama isLimit), si
-           * kukata maandishi ya kazi — kukata kulisababisha majibu tupu/yaliyoharibika
-           * (mfano Cybertron). Groq stage ikishindwa, rotateModel() inaifunga model
-           * husika kwa sekunde 60 (per-pool), ikiruhusu Auto-Recovery baadaye.
-           */
           const isLimit =
-            isSize ||
             isRate ||
             err?.status === 429 ||
             err?.statusCode === 429 ||
@@ -828,18 +723,31 @@ async function run(runner: Runner) {
             /tokens?.*(per|\/).*(day|minute|hour|request)/i.test(em) ||
             /requests?.*(per|\/).*(day|minute|hour)/i.test(em) ||
             /TPD|RPM|RPD|TPM/i.test(em) ||
-            /free-model token quota/i.test(em);
+            /daily free-model token quota/i.test(em);
 
-          if (isLimit) {
-            // [PATCH-XMD-V5-ARBITER] XKiro Key 2 ikigonga quota ya SIKU (si TPM ya muda tu),
-            // weka alama "exhausted" ili mzunguko ujao usipoteze muda kwenye XKiro tena.
-            // (Lazima iwe HAPA, si ndani ya rotateModel — huku ndiko "em" halisi ipo;
-            // rotateModel inapata "reason" ya jumla tu kama "limit/quota".)
-            if (stage === 1 && /free-model token quota/i.test(em)) {
-              markXkiroExhausted(agent.id);
-              blog("warning", `🛑 ${agent.name}: XKiRO Key 1 & 2 zimeisha quota ya leo — inaruka moja kwa moja kwenda Groq.`);
+          blog(
+            "error",
+            `❌ ${agent.name} → ${models[mi]} attempt ${attempt}: ${em.slice(0, 160)}`
+          );
+
+          bcast({
+            type: "system",
+            text: `❌ ${agent.name}: ${em.slice(0, 120)}`,
+          });
+
+          if (isSize || isLimit) {
+            const currentM = models[mi];
+            if (currentM.includes("compound")) {
+              lockGroqModel(currentM, 60_000);
+              blog("warning", `⏳ ${agent.name}: ${currentM} imegonga TPM limit/size. Kufuli ya sekunde 60 imewekwa, inahamia ngazi inayofuata...`);
+            } else if (em.includes("daily free-model token quota") || em.includes("quota")) {
+              if (stage === 1) {
+                markXkiroExhausted();
+                blog("warning", `🛑 XKiro funguo zote zimeisha quota ya leo. Inafunga XKiro na kuhamia Groq...`);
+              }
             }
-            rotateModel(isSize ? "limit/quota/size" : "limit/quota");
+            rotateModel("limit/quota/size");
+            await new Promise((r) => setTimeout(r, 1200));
             continue;
           }
 
@@ -1298,15 +1206,17 @@ ${runner.project}`;
           );
         }
 
-        // [PATCH-XMD-V3-QUERY] Final deterministic safety fallback.
-        // Never fall back to item.item / CEO request. Strips instruction
-        // boilerplate ("do not ask me...", "decide everything yourself"),
-        // cuts at a sentence/word boundary (never mid-word), and if the
-        // agenda item is one giant CEO-prompt dump (single-item agenda),
-        // falls back to a fully generic role-based query instead of
-        // leaking half the CEO prompt into the search engine.
+        // Final deterministic safety fallback.
+        // Never fall back to item.item / CEO request. Also strip any
+        // ALL-CAPS brand/company token (e.g. "PROFESSOR-XMD-COMPANY")
+        // so a failed LLM query-generation call never leaks the brand
+        // name into the search engine.
         if (!gateQuery) {
-          gateQuery = buildFallbackQuery(agent.role, item.item);
+          gateQuery = stripBrandTokens(`${agent.role} ${item.item
+            .replace(/^Execute the CEO-requested deliverable only:\s*/i, "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 140)}`);
         }
 
         const sid = addMsg(agent.id);
@@ -2646,7 +2556,3 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
 }
 
 // [PATCH-XMD-V2] applied
-
-// [PATCH-XMD-V3-QUERY] applied
-
-// [PATCH-XMD-V5-ARBITER] applied

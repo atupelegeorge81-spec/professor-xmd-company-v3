@@ -12,24 +12,16 @@ const SESSIONS_COL = "boardroom_sessions";
 
 // ============ REPORTS ============
 export async function saveReport(data: { title: string; project: string; agents: string; content: string }): Promise<string | null> {
-  // [PATCH-XMD-V2] Retry mara 3 — ripoti kuu isipotee kwa hitilafu ya mtandao.
-  const payload = {
-    title: data.title.slice(0, 250),
-    project: (data.project || "").slice(0, 250),
-    agents: data.agents.slice(0, 250),
-    content: data.content,
-    created_at: new Date().toISOString(),
-  };
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const doc = await databases.createDocument(DB, REPORTS_COL, "unique()", payload);
-      return doc.$id;
-    } catch (e) {
-      console.error(`❌ Report save error (jaribio ${attempt}/3):`, e);
-      if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1000));
-    }
-  }
-  return null;
+  try {
+    const doc = await databases.createDocument(DB, REPORTS_COL, "unique()", {
+      title: data.title.slice(0, 250),
+      project: (data.project || "").slice(0, 250),
+      agents: data.agents.slice(0, 250),
+      content: data.content,
+      created_at: new Date().toISOString(),
+    });
+    return doc.$id;
+  } catch (e) { console.error("❌ Report save error:", e); return null; }
 }
 
 export async function listReports(): Promise<ReportDoc[]> {
@@ -54,6 +46,7 @@ export interface SessionItem {
   total?: number;
   failed?: boolean;
   error?: string;
+  corrected?: boolean;
 }
 
 export async function saveSession(project: string, items: SessionItem[], status: string, title?: string): Promise<string | null> {
@@ -107,5 +100,3 @@ export async function getLatestSession(): Promise<any> {
   const list = await listConversations();
   return list.length > 0 ? list[0] : null;
 }
-
-// [PATCH-XMD-V2] applied

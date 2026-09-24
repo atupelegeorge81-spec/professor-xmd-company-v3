@@ -1,0 +1,159 @@
+import os
+import re
+
+print("🚀 Inaanza ukarabati wa Tri-Tier Model Arbiter...")
+
+# 1. Unda faili jipya la modelArbiter.ts
+arbiter_code = """import OpenAI from "openai";
+
+export interface ExecutionTarget {
+  provider: "xkiro" | "groq" | "tokenharbor";
+  model: string;
+  client: OpenAI;
+  stageName: string;
+}
+
+interface GroqLockState {
+  compoundLockedUntil: number;
+  compoundMiniLockedUntil: number;
+}
+
+const groqLocks: GroqLockState = {
+  compoundLockedUntil: 0,
+  compoundMiniLockedUntil: 0,
+};
+
+let xkiroExhausted = false;
+
+export function isXkiroExhausted(): boolean {
+  return xkiroExhausted;
+}
+
+export function markXkiroExhausted(): void {
+  xkiroExhausted = true;
+}
+
+export function lockGroqModel(model: string, cooldownMs = 60_000): void {
+  const until = Date.now() + cooldownMs;
+  if (model.includes("compound-mini")) {
+    groqLocks.compoundMiniLockedUntil = until;
+  } else if (model.includes("compound")) {
+    groqLocks.compoundLockedUntil = until;
+  }
+}
+
+export function isGroqModelLocked(model: string): boolean {
+  const now = Date.now();
+  if (model.includes("compound-mini")) {
+    return now < groqLocks.compoundMiniLockedUntil;
+  }
+  if (model.includes("compound")) {
+    return now < groqLocks.compoundLockedUntil;
+  }
+  return false;
+}
+
+export function resolveFallbackTarget(
+  groqKey: string,
+  tokenHarborKey?: string,
+): ExecutionTarget {
+  const now = Date.now();
+  const groqClient = new OpenAI({
+    apiKey: groqKey,
+    baseURL: "https://api.groq.com/openai/v1",
+  });
+
+  // 1. Jaribu groq/compound kwanza
+  if (now >= groqLocks.compoundLockedUntil) {
+    return {
+      provider: "groq",
+      model: "groq/compound",
+      client: groqClient,
+      stageName: "Groq (Compound)",
+    };
+  }
+
+  // 2. Ikiwa groq/compound imefungwa ndani ya 60s, jaribu groq/compound-mini
+  if (now >= groqLocks.compoundMiniLockedUntil) {
+    return {
+      provider: "groq",
+      model: "groq/compound-mini",
+      client: groqClient,
+      stageName: "Groq (Compound Mini)",
+    };
+  }
+
+  // 3. Ikiwa zote mbili zimegonga TPM limit ndani ya sekunde 60, hamia TokenHarbor mara moja
+  const thKey =
+    tokenHarborKey ||
+    process.env.TOKENHARBOR_API_KEY ||
+    "thk_live_UmYDX8ReNTbVIm5hd2-IOuvXx0aFR6AAJqfFTs7N04RLHZhRp7gWcbL7FEENQGoj";
+
+  const tokenHarborClient = new OpenAI({
+    apiKey: thKey,
+    baseURL: "https://tokenharbor.ai/v1",
+  });
+
+  return {
+    provider: "tokenharbor",
+    model: "deepseek-v4.1-flash:free",
+    client: tokenHarborClient,
+    stageName: "TokenHarbor Relief (DeepSeek Flash)",
+  };
+}
+"""
+
+target_arbiter_path = "src/lib/modelArbiter.ts"
+if not os.path.exists("src/lib") and os.path.exists("modelArbiter.ts"):
+    target_arbiter_path = "modelArbiter.ts"
+elif not os.path.exists("src/lib"):
+    os.makedirs("src/lib", exist_ok=True)
+
+with open(target_arbiter_path, "w", encoding="utf-8") as f:
+    f.write(arbiter_code.strip() + "\n")
+print(f"✅ Faili la algorithm limeundwa: {target_arbiter_path}")
+
+# 2. Patch boardRunner.ts
+board_runner_path = "src/lib/boardRunner.ts"
+if not os.path.exists(board_runner_path) and os.path.exists("boardRunner.ts"):
+    board_runner_path = "boardRunner.ts"
+
+if not os.path.exists(board_runner_path):
+    print(f"❌ Imeshindwa kupata {board_runner_path}. Tafadhali thibitisha njia ya faili.")
+    exit(1)
+
+with open(board_runner_path, "r", encoding="utf-8") as f:
+    content = f.read()
+
+# Ongeza import ya modelArbiter kama haipo
+import_stmt = 'import { resolveFallbackTarget, lockGroqModel, isXkiroExhausted, markXkiroExhausted } from "./modelArbiter";\n'
+if "modelArbiter" not in content:
+    content = import_stmt + content
+    print("✅ Import ya modelArbiter imeongezwa kwenye boardRunner.ts")
+
+# Rekebisha hitilafu ya 413 kukata kodi (Prompt Slicing) na kuweka Tri-Tier Swapping
+old_slice_pattern = re.compile(r'if\s*\(\s*isSize\s*&&\s*!shrunk\s*\)\s*\{[\s\S]*?continue;\s*\}')
+new_slice_replacement = """if (isSize || isLimit) {
+            const currentM = models[mi];
+            if (currentM.includes("compound")) {
+              lockGroqModel(currentM, 60_000);
+              blog("warning", `⏳ ${agent.name}: ${currentM} imegonga TPM limit/size. Kufuli ya sekunde 60 imewekwa, inahamia ngazi inayofuata...`);
+            } else if (em.includes("daily free-model token quota") || em.includes("quota")) {
+              if (stage === 1) {
+                markXkiroExhausted();
+                blog("warning", `🛑 XKiro funguo zote zimeisha quota ya leo. Inafunga XKiro na kuhamia Groq...`);
+              }
+            }
+            rotateModel("limit/quota/size");
+            await new Promise((r) => setTimeout(r, 1200));
+            continue;
+          }"""
+
+if old_slice_pattern.search(content):
+    content = old_slice_pattern.sub(new_slice_replacement, content, count=1)
+    print("✅ Prompt slicing imeondolewa na kubadilishwa na Smart TPM Cooldown.")
+
+with open(board_runner_path, "w", encoding="utf-8") as f:
+    f.write(content)
+
+print("🎉 UPASUAJI UMEKAMILIKA BILA HITILAFU!")

@@ -1,9 +1,15 @@
 import OpenAI from "openai";
 import { searchWeb, searchWebDirect, type SearchResult } from "./search";
-import { groqApiKey } from "./env";
+import {
+  groqApiKey,
+  apiKeyFor,
+  apiModelsFor,
+  apiBaseUrlFor,
+  type ApiStage,
+} from "./env";
 import type { AgentEvent, LogEntry } from "./types";
 
-export const GROQ_MODEL = process.env.XTROUTER_MODEL || "deepseek/deepseek-v4-pro";
+export const GROQ_MODEL = process.env.XTROUTER_MODEL || "qwen/qwen3.8-max:free";
 export const GROQ_BASE_URL = process.env.XTROUTER_BASE_URL || "https://api.xkiro.com/v1";
 
 type History = { role: "user" | "assistant"; content: string };
@@ -11,33 +17,158 @@ type History = { role: "user" | "assistant"; content: string };
 const MAX_VERIFY_RETRIES = 3;
 let sessionRequestCount = 0;
 let sessionTokenCount = 0;
-let activeModel = GROQ_MODEL;
+const chatApiCycle: Record<string, ApiStage> = {};
+
+function getChatStage(agentId: string): ApiStage {
+  return chatApiCycle[agentId] ?? 0;
+}
+
+function setChatStage(agentId: string, stage: ApiStage): void {
+  chatApiCycle[agentId] = stage;
+}
+
+function chatStageName(stage: ApiStage): string {
+  return stage === 0
+    ? "XKiRO Key 1"
+    : stage === 1
+      ? "XKiRO Key 2"
+      : stage === 2
+        ? "Groq Key 1"
+        : "Groq Key 2";
+}
 
 function emitLog(onEvent: (e: AgentEvent) => void, type: LogEntry["type"], message: string, details?: string) {
   onEvent({ type: "log", entry: { id: Math.random().toString(36).slice(2, 9), timestamp: new Date().toLocaleTimeString("en-GB"), type, message, details } });
 }
 
 export async function runAgentStream(opts: {
+  agentId: string;
   systemPrompt: string;
   history: History[];
   userPrompt: string;
   onEvent: (e: AgentEvent) => void;
   model?: string;
   apiKey?: string;
-modelChain?: string[];
+  modelChain?: string[];
 }): Promise<void> {
-  const { systemPrompt, history, userPrompt, onEvent } = opts;
-  activeModel = opts.model || GROQ_MODEL;
-const modelChain = opts.modelChain && opts.modelChain.length ? opts.modelChain : [activeModel];
-  const apiKey = opts.apiKey || groqApiKey();
+  const { agentId, systemPrompt, history, userPrompt, onEvent } = opts;
 
-  if (!apiKey) { onEvent({ type: "error", message: "GROQ_API_KEY is not configured." }); return; }
+  let stage: ApiStage = getChatStage(agentId);
 
-  const client = new OpenAI({ apiKey, baseURL: GROQ_BASE_URL });
+  const stageInfo = () => ({
+    key: apiKeyFor(agentId, stage),
+    models: apiModelsFor(agentId, stage),
+    baseURL: apiBaseUrlFor(agentId, stage),
+  });
+
+  let current = stageInfo();
+
+  if (!current.key) {
+    const fallbackKey = opts.apiKey || groqApiKey();
+
+    if (!fallbackKey) {
+      onEvent({
+        type: "error",
+        message: "GROQ_API_KEY is not configured.",
+      });
+      return;
+    }
+
+    current = {
+      key: fallbackKey,
+      models:
+        opts.modelChain && opts.modelChain.length
+          ? opts.modelChain
+          : [opts.model || GROQ_MODEL],
+      baseURL: GROQ_BASE_URL,
+    };
+  }
+
+  let client = new OpenAI({
+    apiKey: current.key!,
+    baseURL: current.baseURL,
+  });
   const baseMessages: Record<string, unknown>[] = [
     { role: "system", content: systemPrompt },
     ...history.map((m) => ({ role: m.role, content: m.content })),
   ];
+
+  let modelIndex = 0;
+
+  const rotateStage = () => {
+    const previous = stage;
+
+    stage = ((stage + 1) % 4) as ApiStage;
+    setChatStage(agentId, stage);
+
+    current = stageInfo();
+
+    client = new OpenAI({
+      apiKey: current.key!,
+      baseURL: current.baseURL,
+    });
+
+    modelIndex = 0;
+
+    emitLog(
+      onEvent,
+      "warning",
+      `⚠️ ${agentId}: API cycle ${chatStageName(previous)} → ${chatStageName(stage)}`
+    );
+
+    emitLog(
+      onEvent,
+      "system",
+      `🔁 ${agentId}: API key fallback → ${chatStageName(stage)} → ${current.models[0]}`
+    );
+  };
+
+  /*
+   * Token-limit/truncated lifecycle.
+   *
+   * Current API stage:
+   *   model 0 → model 1
+   *
+   * After the last model in the current stage:
+   *   stage 0 → stage 1 → stage 2 → stage 3 → stage 0
+   *
+   * Only a truncated response advances this lifecycle.
+   */
+  const completeWithApiCycle = async (
+    messages: Record<string, unknown>[],
+    answerMode: boolean,
+  ): Promise<{ content: string; tokens?: number }> => {
+    while (true) {
+      const result = await streamCompletion(
+        client,
+        messages,
+        onEvent,
+        {
+          answerMode,
+          modelChain: current.models,
+          _mi: modelIndex,
+        },
+      );
+
+      if (!result.truncated) {
+        return result;
+      }
+
+      if (modelIndex + 1 < current.models.length) {
+        modelIndex += 1;
+
+        emitLog(
+          onEvent,
+          "warning",
+          `⚠️ ${agentId}: jibu limekatika — model rotate → ${current.models[modelIndex]}`
+        );
+
+        continue;
+      }
+
+      rotateStage();
+    }
+  };
 
   emitLog(onEvent, "system", "Mchakato umeanza. Kuandaa Phase 1 (Research)...");
 
@@ -52,7 +183,10 @@ Do not write the final answer yet.`;
 
   emitLog(onEvent, "api", "Inatuma request ya Phase 1 (Thinking & Search Query) kwa Groq...");
   sessionRequestCount++;
-  const research = await streamCompletion(client, [...baseMessages, { role: "user", content: researchUser }], onEvent, { answerMode: false, modelChain });
+  const research = await completeWithApiCycle(
+    [...baseMessages, { role: "user", content: researchUser }],
+    false,
+  );
   emitLog(onEvent, "success", `Phase 1 imekamilika. Tokens zilizotumika: ${research.tokens || 0}`);
 
   const initialQuery = extractSearchQuery(research.content);
@@ -60,7 +194,18 @@ Do not write the final answer yet.`;
   if (!initialQuery) {
     emitLog(onEvent, "info", "Hakuna search inayohitajika. Inaruka moja kwa Phase 2...");
     sessionRequestCount++;
-    await streamCompletion(client, [...baseMessages, { role: "user", content: userPrompt + "\n=== ANSWER MODE ===\nReason inside <think>...</think> tags, then give Mkuu a clear, concise final answer." }], onEvent, { answerMode: true, modelChain });
+    await completeWithApiCycle(
+      [
+        ...baseMessages,
+        {
+          role: "user",
+          content:
+            userPrompt +
+            "\n=== ANSWER MODE ===\nReason inside <think>...</think> tags, then give Mkuu a clear, concise final answer.",
+        },
+      ],
+      true,
+    );
     onEvent({ type: "usage", sessionRequests: sessionRequestCount, totalTokens: sessionTokenCount });
     onEvent({ type: "done" });
     return;
@@ -113,7 +258,10 @@ SOURCES_INSUFFICIENT: <new search query that targets the missing information>
 Do NOT write the final answer yet. Only judge the sources.`;
 
     sessionRequestCount++;
-    const verify = await streamCompletion(client, [...baseMessages, { role: "user", content: verifyUser }], onEvent, { answerMode: false, modelChain });
+    const verify = await completeWithApiCycle(
+      [...baseMessages, { role: "user", content: verifyUser }],
+      false,
+    );
     const verdict = extractVerdict(verify.content);
 
     if (verdict.ok) { emitLog(onEvent, "success", `✅ [VERIFY] Sources zinaridhisha — agent anatoa jibu la mwisho.`); sourcesAccepted = true; break; }
@@ -142,11 +290,25 @@ Reason inside <think>...</think> tags about these findings, then give Mkuu a cle
 CRITICAL RULE: Mkuu asked for an IDEA or RECOMMENDATION. Synthesize a concrete, unique idea ("Mkuu, tujenge hivi..."), how it works, why it will succeed. DO NOT end by asking Mkuu a question. Be decisive.`;
     emitLog(onEvent, "api", sourcesAccepted ? "Inatuma request ya mwisho (Final Answer)..." : "Inatuma request ya mwisho (HONEST MODE)...");
     sessionRequestCount++;
-    await streamCompletion(client, [...baseMessages, { role: "user", content: answerUser }], onEvent, { answerMode: true, modelChain });
+    await completeWithApiCycle(
+      [...baseMessages, { role: "user", content: answerUser }],
+      true,
+    );
   } else {
     emitLog(onEvent, "info", "Hakuna sources. Inatoa jibu bila search context.");
     sessionRequestCount++;
-    await streamCompletion(client, [...baseMessages, { role: "user", content: userPrompt + "\n=== ANSWER MODE ===\nReason inside <think>...</think> tags, then give Mkuu a clear, concise final answer." }], onEvent, { answerMode: true, modelChain });
+    await completeWithApiCycle(
+      [
+        ...baseMessages,
+        {
+          role: "user",
+          content:
+            userPrompt +
+            "\n=== ANSWER MODE ===\nReason inside <think>...</think> tags, then give Mkuu a clear, concise final answer.",
+        },
+      ],
+      true,
+    );
   }
 
   onEvent({ type: "usage", sessionRequests: sessionRequestCount, totalTokens: sessionTokenCount });
@@ -192,8 +354,11 @@ function extractVerdict(content: string): { ok: boolean; newQuery?: string } {
   return { ok: true };
 }
 
-async function streamCompletion(client: OpenAI, messages: Record<string, unknown>[], onEvent: (e: AgentEvent) => void, opts: { answerMode: boolean; modelChain?: string[]; _mi?: number; _shrunk?: boolean }): Promise<{ content: string; tokens?: number }> {
-  const modelChain = opts.modelChain && opts.modelChain.length ? opts.modelChain : [activeModel];
+async function streamCompletion(client: OpenAI, messages: Record<string, unknown>[], onEvent: (e: AgentEvent) => void, opts: { answerMode: boolean; modelChain?: string[]; _mi?: number; _shrunk?: boolean }): Promise<{ content: string; tokens?: number; truncated: boolean }> {
+  const modelChain =
+    opts.modelChain && opts.modelChain.length
+      ? opts.modelChain
+      : [GROQ_MODEL];
   const mi = opts._mi ?? 0;
   const parser = createThinkParser({
     onThink: (t) => onEvent({ type: "thinking", text: t }),
@@ -201,6 +366,7 @@ async function streamCompletion(client: OpenAI, messages: Record<string, unknown
   });
   let content = "";
   let tokensUsed = 0;
+  let truncated = false;
   let stream: any;
   try {
     stream = await client.chat.completions.create({
@@ -211,22 +377,50 @@ async function streamCompletion(client: OpenAI, messages: Record<string, unknown
       stream: true,
       include_reasoning: true,
       stream_options: { include_usage: true },
-    });
+    } as never);
   } catch (err) {
     const em = (err as Error)?.message || "unknown";
-    const isRate = /429|rate limit/i.test(em);
     const isSize = /413|too large/i.test(em);
-    if (isRate && mi < modelChain.length - 1) {
-      emitLog(onEvent, "warning", `🔁 Rate/TPD limit — model swap → ${modelChain[mi + 1]}`);
-      return streamCompletion(client, messages, onEvent, { ...opts, modelChain, _mi: mi + 1 });
+
+    /*
+     * 413 ONLY:
+     * shrink prompt once and retry SAME model.
+     *
+     * 429 / quota / rate-limit:
+     * DO NOT retry here.
+     * Throw upward to completeWithApiCycle().
+     */
+    if (isSize && !opts._shrunk) {
+      for (const m of messages) {
+        if (
+          typeof m.content === "string" &&
+          m.content.length > 1500
+        ) {
+          m.content =
+            m.content.slice(0, 1500) +
+            "\n[…truncated…]";
+        }
+      }
+
+      emitLog(
+        onEvent,
+        "warning",
+        "✂️ 413 prompt kubwa — imepunguzwa, retry same model..."
+      );
+
+      return streamCompletion(
+        client,
+        messages,
+        onEvent,
+        {
+          ...opts,
+          modelChain,
+          _mi: mi,
+          _shrunk: true,
+        },
+      );
     }
-    if ((isRate || isSize) && !opts._shrunk) {
-      for (const m of messages) { if (typeof m.content === "string" && m.content.length > 1500) m.content = m.content.slice(0, 1500) + "\n[…truncated…]"; }
-      emitLog(onEvent, "warning", `✂️ ${isSize ? "413 prompt kubwa" : "429 rate limit"} — imedung'wa, retry...`);
-      await new Promise((r) => setTimeout(r, isRate ? 8000 : 1500));
-      return streamCompletion(client, messages, onEvent, { ...opts, modelChain, _mi: mi, _shrunk: true });
-    }
-    if (isRate) await new Promise((r) => setTimeout(r, 8000));
+
     throw err;
   }
   for await (const chunk of stream) {
@@ -241,10 +435,22 @@ async function streamCompletion(client: OpenAI, messages: Record<string, unknown
       content += delta.content;
       parser.feed(delta.content);
     }
-    if (chunk.usage) { tokensUsed = chunk.usage.total_tokens || 0; sessionTokenCount += tokensUsed; }
+    if (chunk.choices?.[0]?.finish_reason === "length") {
+      truncated = true;
+    }
+
+    if (chunk.usage) {
+      tokensUsed = chunk.usage.total_tokens || 0;
+      sessionTokenCount += tokensUsed;
+    }
   }
+
   parser.flush();
-  return { content, tokens: tokensUsed };
+  return {
+    content,
+    tokens: tokensUsed,
+    truncated,
+  };
 }
 
 function createThinkParser(opts: { onThink: (t: string) => void; onAnswer: (t: string) => void }) {

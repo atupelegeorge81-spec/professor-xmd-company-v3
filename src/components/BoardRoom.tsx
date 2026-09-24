@@ -1,11 +1,30 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AGENTS, getAgent } from "@/lib/agents";
-import type { BoardEvent, LogEntry, SearchResult } from "@/lib/types";
+import type { BoardEvent, LogEntry, SearchResult, ScriptDiff } from "@/lib/types";
 import { readNdjson } from "@/lib/stream";
 import { Avatar } from "./Avatar";
 import { Markdown } from "./Markdown";
 
 const nid = () => Math.random().toString(36).slice(2, 10);
+
+// [PATCH-XMD-V2] Shimmer kwa process za background (mini report, ledger, validator...)
+const XMD_SHIMMER_CSS = `
+.xmd-shimmer{
+  background-image:linear-gradient(90deg,
+    color-mix(in srgb,currentColor 55%,transparent) 0%,
+    color-mix(in srgb,currentColor 55%,transparent) 35%,
+    currentColor 50%,
+    color-mix(in srgb,currentColor 55%,transparent) 65%,
+    color-mix(in srgb,currentColor 55%,transparent) 100%);
+  background-size:250% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:inherit;
+  animation:xmd-shimmer 1.6s linear infinite;
+  font-weight:600;
+}
+@keyframes xmd-shimmer{0%{background-position:150% 0}100%{background-position:-50% 0}}
+@media (prefers-reduced-motion: reduce){.xmd-shimmer{animation:none;-webkit-text-fill-color:currentColor}}
+`;
 
 // Board status badge: timing (ms) na default height (px, kabla ya
 // kupimwa kikamilifu na ResizeObserver).
@@ -16,7 +35,7 @@ const BADGE_COLLAPSE_MS = 520;
 const BADGE_EXPAND_MS = 560;
 
 type Item =
-  | { kind: "msg"; id: string; agentId: string; content: string; thinking: string; query?: string; sources: SearchResult[]; searches: { query: string; sources: SearchResult[] }[]; done: boolean; failed?: boolean; error?: string }
+  | { kind: "msg"; id: string; agentId: string; content: string; thinking: string; query?: string; sources: SearchResult[]; searches: { query: string; sources: SearchResult[] }[]; done: boolean; failed?: boolean; error?: string; scriptDiff?: ScriptDiff }
   | { kind: "system"; id: string; text: string }
   | { kind: "round"; id: string; round: number; total: number }
   | { kind: "report"; id: string; title: string; content: string };
@@ -37,6 +56,11 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [title, setTitle] = useState("");
+  // [PATCH-XMD-V2] Background activities (shimmer) — hazipo kwenye chat items.
+  const [activities, setActivities] = useState<{ id: string; text: string }[]>([]);
+  useEffect(() => {
+    if (phase !== "running") setActivities([]);
+  }, [phase]);
 
   // Export full conversation text for Logs "copy conversation" button (no thinking).
   useEffect(() => {
@@ -92,11 +116,14 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
   const [round, setRound] = useState<{ round: number; total: number } | null>(null);
   const [activeAgents, setActiveAgents] = useState<Set<string>>(new Set());
   const [runId, setRunId] = useState<string | null>(null);
+  const [conversationStatus, setConversationStatus] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const handledConv = useRef(0);
   const completedTurnIdsRef = useRef<Set<string>>(new Set());
   const [, forceTurnUpdate] = useState(0);
+const diffTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
   const [loadedAsHistory, setLoadedAsHistory] = useState(false);
   const handleTurnComplete = useCallback((id: string) => {
     if (completedTurnIdsRef.current.has(id)) return;
@@ -252,7 +279,11 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
     el.scrollTop = el.scrollHeight;
   }, [items, titleLive]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    diffTimersRef.current.forEach((timer) => clearTimeout(timer));
+    diffTimersRef.current.clear();
+  }, []);
 
   const patchMsg = useCallback((id: string, patch: Partial<Extract<Item, { kind: "msg" }>>) => {
     setItems((list) => list.map((it) => (it.kind === "msg" && it.id === id ? { ...it, ...patch } : it)));
@@ -260,6 +291,18 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
 
   const handleEvent = useCallback(
     (e: BoardEvent) => {
+      // [PATCH-XMD-V2] Event ya "activity" (shimmer) inashughulikiwa hapa, haiingii kwenye chat.
+      const act = e as unknown as { type: string; id?: string; text?: string; state?: "start" | "end" };
+      if (act.type === "activity" && act.id) {
+        const aid = act.id;
+        if (act.state === "start") {
+          setActivities((l) => (l.some((a) => a.id === aid) ? l : [...l, { id: aid, text: act.text || "" }]));
+        } else {
+          setActivities((l) => l.filter((a) => a.id !== aid));
+        }
+        return;
+      }
+      if (e.type === "done" || e.type === "error") setActivities([]);
       switch (e.type) {
         case "log":
           addLog(e.entry.type, e.entry.message);
@@ -315,6 +358,32 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
             l.map((it) => (it.kind === "msg" && it.id === e.id ? { ...it, content: "" } : it)),
           );
           break;
+        case "script_diff": {
+          setItems((list) =>
+            list.map((it) =>
+              it.kind === "msg" && it.id === e.id
+                ? { ...it, scriptDiff: e.diff }
+                : it,
+            ),
+          );
+
+          const existing = diffTimersRef.current.get(e.id);
+          if (existing) clearTimeout(existing);
+
+          const timer = setTimeout(() => {
+            setItems((list) =>
+              list.map((it) =>
+                it.kind === "msg" && it.id === e.id
+                  ? { ...it, scriptDiff: undefined }
+                  : it,
+              ),
+            );
+            diffTimersRef.current.delete(e.id);
+          }, 2600);
+
+          diffTimersRef.current.set(e.id, timer);
+          break;
+        }
         case "msg_done":
           patchMsg(e.id, { done: true });
           setItems((l) => {
@@ -352,6 +421,7 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
           break;
         case "done":
           setPhase("done");
+          setConversationStatus("completed");
           setActiveAgents(new Set());
           break;
       }
@@ -387,11 +457,37 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
         body: JSON.stringify({ project: p }),
         signal: ctrl.signal,
       });
+      const rid = res.headers.get("X-Runner-Id");
+      if (rid) setRunId(rid);
       await consume(res, ctrl);
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
         setPhase("error");
         addLog("error", (err as Error)?.message || "Board stream failed");
+      }
+    }
+  };
+
+  const resume = async () => {
+    if (!runId || phase === "running") return;
+    setPhase("running");
+    addLog("system", "♻️ Kuendelea na mjadala uliosimama...");
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    try {
+      const res = await fetch("/api/boardroom/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: runId }),
+        signal: ctrl.signal,
+      });
+      const rid = res.headers.get("X-Runner-Id");
+      if (rid) setRunId(rid);
+      await consume(res, ctrl);
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") {
+        setPhase("error");
+        addLog("error", (err as Error)?.message || "Resume failed");
       }
     }
   };
@@ -432,6 +528,7 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
       setTitleLive("");
       setRound(null);
       setRunId(null);
+      setConversationStatus(null);
       completedTurnIdsRef.current = new Set();
       setLoadedAsHistory(false);
       setPhase("idle");
@@ -442,16 +539,27 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
       try {
         const r = await fetch(`/api/conversations?id=${encodeURIComponent(convSignal.id)}`);
         const d = (await r.json()) as {
-          conversation?: { title: string; project: string; status: string; items: any[] };
+          conversation?: { id?: string; title: string; project: string; status: string; items: any[] };
         };
         const c = d.conversation;
         if (!c) return;
         setTitle(c.title || "");
+        setConversationStatus(c.status || null);
+        setRunId(c.id || null);
         setPhase(c.status === "running" ? "running" : "done");
         completedTurnIdsRef.current = new Set();
         setLoadedAsHistory(c.status !== "running");
         setItems(
-          (c.items || []).map((it): Item => {
+          (c.items || [])
+            .filter(
+              (it: any) =>
+                !(
+                  it?.kind === "chip" &&
+                  typeof it?.text === "string" &&
+                  it.text.startsWith("__PROFESSOR_XMD_RESUME_STATE__:")
+                )
+            )
+            .map((it): Item => {
             if (it.kind === "msg")
               return {
                 kind: "msg",
@@ -577,10 +685,36 @@ decoding="async"
             );
           })}
 
+          {conversationStatus &&
+        conversationStatus !== "completed" &&
+        phase !== "running" &&
+        items.length > 0 && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <button
+                type="button"
+                onClick={resume}
+                className="rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-[11px] font-semibold text-primary transition hover:bg-primary/20"
+              >
+                ↻ Endelea na mjadala (Resume)
+              </button>
+            </div>
+          )}
+
           {running && items.length > 0 && (
             <div className="flex items-center justify-center gap-2 py-2 text-[11px] text-muted-foreground">
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-              Board in session{runId ? "" : "…"}
+              <span className="flex flex-col items-center gap-0.5">
+                <style>{XMD_SHIMMER_CSS}</style>
+                {activities.length > 0 ? (
+                  activities.map((a) => (
+                    <span key={a.id} className="xmd-shimmer">
+                      {a.text}
+                    </span>
+                  ))
+                ) : (
+                  <span>Board in session{runId ? "" : "…"}</span>
+                )}
+              </span>
             </div>
           )}
         </div>
@@ -1401,7 +1535,7 @@ function BoardMessage({
                     ? item.content || ""
                     : displayedContent || ""
                 }
-              />
+               scriptDiff={item.scriptDiff} />
             </div>
           )}
 
@@ -1490,3 +1624,5 @@ function ReportCard({ title, content }: { title: string; content: string }) {
     </div>
   );
 }
+
+// [PATCH-XMD-V2] applied

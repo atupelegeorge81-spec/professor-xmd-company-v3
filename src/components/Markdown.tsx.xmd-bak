@@ -16,26 +16,7 @@ function sanitizeMermaid(code: string): string {
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/\u00a0/g, " ")
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "");
-  // [PATCH-XMD-V4-MERMAID] Kila lebo ya [..] (isipokuwa iliyo "quoted" tayari) inafungwa
-  // kwa nukuu " ". Bila hii, lebo inayoanza na "/" mara baada ya "[" (mfano
-  // "[/reservations: ...]") inasomwa na Mermaid kama mwanzo wa shape maalum
-  // (parallelogram [/text/]) badala ya maandishi -> "Lexical error". Vivyo hivyo
-  // "<" / ">" ndani ya maandishi (mfano "<dl>") vinasomwa kama HTML tag na kuvunja
-  // parser. <br/> halisi (mstari mpya wa makusudi) inabaki salama.
-  const BR = "\u0001BR\u0001";
-  c = c.replace(/\[([^\]]*)\]/g, (m, inner) => {
-    const t = inner.trim();
-    if (!t) return m;
-    if (/^".*"$/.test(t)) return m;
-    const escaped = t
-      .replace(/"/g, "'")
-      .replace(/<br\s*\/?>/gi, BR)
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .split(BR)
-      .join("<br/>");
-    return `["${escaped}"]`;
-  });
+  c = c.replace(/\[([^\]"]*)\]/g, (m, inner) => (/[()"']/.test(inner) ? `["${inner.replace(/"/g, "'")}"]` : m));
   return c;
 }
 
@@ -288,5 +269,3 @@ export function Markdown({ text, scriptDiff }: { text: string; scriptDiff?: Scri
     </div>
   );
 }
-
-// [PATCH-XMD-V4-MERMAID] applied

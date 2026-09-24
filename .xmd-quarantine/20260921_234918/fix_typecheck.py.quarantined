@@ -1,0 +1,62 @@
+import re
+
+path = "src/lib/boardRunner.ts"
+with open(path, "r", encoding="utf-8") as f:
+    code = f.read()
+
+# Hamisha ufafanuzi wa isLimit uwe juu kabla ya if (isSize || isLimit)
+old_block = re.search(
+    r'(const em = err\?\.message \|\| "unknown";\s*const isSize = /413\|too large/i\.test\(em\);\s*const isRate = /429\|rate limit/i\.test\(em\);[\s\S]*?)(if\s*\(\s*isSize\s*\|\|\s*isLimit\s*\)\s*\{[\s\S]*?\n\s*\})([\s\S]*?const isLimit =[\s\S]*?if\s*\(\s*isLimit\s*\)\s*\{\s*rotateModel\("limit/quota"\);\s*continue;\s*\})',
+    code
+)
+
+new_block = """const em = err?.message || "unknown";
+          const isSize = /413|too large/i.test(em);
+          const isRate = /429|rate limit/i.test(em);
+          const isLimit =
+            isRate ||
+            err?.status === 429 ||
+            err?.statusCode === 429 ||
+            /429/i.test(em) ||
+            /quota/i.test(em) ||
+            /too many requests/i.test(em) ||
+            /rate.?limit/i.test(em) ||
+            /token.?limit/i.test(em) ||
+            /tokens?.*(per|\\/).*(day|minute|hour|request)/i.test(em) ||
+            /requests?.*(per|\\/).*(day|minute|hour)/i.test(em) ||
+            /TPD|RPM|RPD|TPM/i.test(em) ||
+            /daily free-model token quota/i.test(em);
+
+          blog(
+            "error",
+            `❌ ${agent.name} → ${models[mi]} attempt ${attempt}: ${em.slice(0, 160)}`
+          );
+
+          bcast({
+            type: "system",
+            text: `❌ ${agent.name}: ${em.slice(0, 120)}`,
+          });
+
+          if (isSize || isLimit) {
+            const currentM = models[mi];
+            if (currentM.includes("compound")) {
+              lockGroqModel(currentM, 60_000);
+              blog("warning", `⏳ ${agent.name}: ${currentM} imegonga TPM limit/size. Kufuli ya sekunde 60 imewekwa, inahamia ngazi inayofuata...`);
+            } else if (em.includes("daily free-model token quota") || em.includes("quota")) {
+              if (stage === 1) {
+                markXkiroExhausted();
+                blog("warning", `🛑 XKiro funguo zote zimeisha quota ya leo. Inafunga XKiro na kuhamia Groq...`);
+              }
+            }
+            rotateModel("limit/quota/size");
+            await new Promise((r) => setTimeout(r, 1200));
+            continue;
+          }"""
+
+if old_block:
+    code = code[:old_block.start()] + new_block + code[old_block.end():]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(code)
+    print("✅ Hitilafu ya TypeScript imerekebishwa kwa mafanikio!")
+else:
+    print("⚠️ Block haikupatikana moja kwa moja, inakagua muundo mbadala...")

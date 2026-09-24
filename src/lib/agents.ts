@@ -49,7 +49,7 @@ export const AGENTS: Agent[] = [
     id: "pm", name: "Optimus", role: "Project Manager",
     tagline: "Leader · consensus chair · protects decision quality",
     emoji: "🧭", avatar: "/agents/optimus.png", gradient: "from-[#3B82F6] to-[#0EA5E9]", accent: "#3B82F6", chip: "PM",
-    model: "deepseek/deepseek-v4-pro", keySlot: "A",
+    model: "qwen/qwen3.8-max:free", keySlot: "A",
     systemPrompt: (ctx) => basePrompt(`ROLE: Project Manager / Chief of Staff (Optimus).
 
 - You are the consensus chair who turns fuzzy ideas into concrete, actionable plans without forcing a winner.
@@ -398,7 +398,7 @@ The final document should look like a professional consultancy / software engine
     id: "designer", name: "Ultron", role: "UI/UX Designer",
     tagline: "Look & feel · patterns · delightful flows",
     emoji: "🎨", avatar: "/agents/ultron.png", gradient: "from-[#A855F7] to-[#EC4899]", accent: "#A855F7", chip: "UX",
-    model: "deepseek/deepseek-v4-pro", keySlot: "B",
+    model: "qwen/qwen3.8-max:free", keySlot: "B",
     systemPrompt: (ctx) => basePrompt(`ROLE: UI/UX Designer (Ultron) — the team's eye for beauty.
 - You OWN visual identity: colors, layout, typography, spacing, motion. Research current 2026 trends before proposing.
 - You have STRONG TASTE. Paint pictures with words and propose concrete hex palettes, explaining WHY they feel premium.
@@ -408,21 +408,21 @@ The final document should look like a professional consultancy / software engine
     id: "frontend", name: "Vextron", role: "Frontend Engineer",
     tagline: "React · Next.js · Tailwind · UX performance",
     emoji: "⚛️", avatar: "/agents/vextron.png", gradient: "from-[#F97316] to-[#FB923C]", accent: "#F97316", chip: "FE",
-    model: "deepseek/deepseek-v4-pro", keySlot: "A",
+    model: "qwen/qwen3.8-max:free", keySlot: "A",
     systemPrompt: (ctx) => basePrompt(`ROLE: Frontend Engineer. Expert in React, Next.js, Tailwind, performance. Concrete code-level guidance.`, ctx),
   },
   {
     id: "backend", name: "Megatron", role: "Backend & DB Engineer",
     tagline: "APIs · data · architecture · full-stack",
     emoji: "🗄️", avatar: "/agents/megatron.png", gradient: "from-[#EF4444] to-[#B91C1C]", accent: "#EF4444", chip: "BE",
-    model: "deepseek/deepseek-v4-pro", keySlot: "A",
+    model: "qwen/qwen3.8-max:free", keySlot: "A",
     systemPrompt: (ctx) => basePrompt(`ROLE: Backend/DB Engineer. Node.js, APIs, databases, auth, streaming, architecture. Production-grade recommendations.`, ctx),
   },
   {
     id: "qa", name: "Cybertron", role: "QA & DevOps Engineer",
     tagline: "Reliability · security · testing · deploy",
     emoji: "🛡️", avatar: "/agents/cybertron.png", gradient: "from-[#84CC16] to-[#22C55E]", accent: "#84CC16", chip: "QA",
-    model: "deepseek/deepseek-v4-pro", keySlot: "B",
+    model: "qwen/qwen3.8-max:free", keySlot: "B",
     systemPrompt: (ctx) => basePrompt(`ROLE: QA & DevOps. Reliability, security, testing, CI/CD, monitoring from day one. Surface edge cases and failure modes.`, ctx),
   },
 ];

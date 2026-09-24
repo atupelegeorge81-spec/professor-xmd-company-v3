@@ -1,0 +1,464 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+
+cd "$HOME/professor-xmd-company"
+
+STAMP="$(date +%Y%m%d_%H%M%S)"
+FILES=(
+  "src/lib/types.ts"
+  "src/lib/boardRunner.ts"
+  "src/lib/reports.ts"
+  "src/components/BoardRoom.tsx"
+)
+
+for f in "${FILES[@]}"; do
+  test -f "$f" || { echo "❌ Missing file: $f"; exit 1; }
+done
+
+BACKUP_DIR=".surgery_backup_code_dissolve_${STAMP}"
+mkdir -p "$BACKUP_DIR/src/lib" "$BACKUP_DIR/src/components"
+cp src/lib/types.ts "$BACKUP_DIR/src/lib/types.ts"
+cp src/lib/boardRunner.ts "$BACKUP_DIR/src/lib/boardRunner.ts"
+cp src/lib/reports.ts "$BACKUP_DIR/src/lib/reports.ts"
+cp src/components/BoardRoom.tsx "$BACKUP_DIR/src/components/BoardRoom.tsx"
+
+echo "📦 Backup: $BACKUP_DIR"
+
+if ! python3 <<'PY'
+from pathlib import Path
+import re
+
+ROOT = Path.cwd()
+TYPES = ROOT / "src/lib/types.ts"
+RUNNER = ROOT / "src/lib/boardRunner.ts"
+BOARD = ROOT / "src/components/BoardRoom.tsx"
+
+# ------------------------------------------------------------
+# 1) TYPES — transient dissolve events + persisted corrected flag
+# ------------------------------------------------------------
+t = TYPES.read_text()
+orig_t = t
+
+if '| { type: "code_dissolve_start";' not in t:
+    anchor = '  | { type: "msg_reset"; id: string }\n'
+    if anchor not in t:
+        raise SystemExit('STOP: types.ts anchor msg_reset not found')
+    replacement = anchor + (
+        '  | { type: "code_dissolve_start"; id: string; oldCode: string; newCode: string }\n'
+        '  | { type: "msg_remove"; id: string }\n'
+        '  | { type: "msg_corrected"; id: string }\n'
+    )
+    t = t.replace(anchor, replacement, 1)
+
+if t == orig_t:
+    print('ℹ️ types.ts already contains the surgery markers.')
+else:
+    TYPES.write_text(t)
+    print('✅ types.ts patched')
+
+# ------------------------------------------------------------
+# 2) BOARDRUNNER — dissolve removes old item BEFORE persist,
+#    broadcasts transient animation event, then removes UI item.
+# ------------------------------------------------------------
+r = RUNNER.read_text()
+
+old = '''          const dissolveMessage = (msgId: string, markerText: string) => {
+            bcast({ type: "msg_reset", id: msgId });
+            bcast({ type: "token", id: msgId, text: markerText });
+            setItemContent(msgId, markerText);
+            bcast({ type: "msg_done", id: msgId });
+          };'''
+
+new = '''          const dissolveMessage = async (msgId: string, markerText: string) => {
+            const oldIndex = runner.items.findIndex(
+              (x) => x.kind === "msg" && x.id === msgId,
+            );
+            if (oldIndex < 0) return;
+
+            const oldItem = runner.items[oldIndex];
+            if (oldItem.kind !== "msg") return;
+
+            const oldCode = oldItem.content || "";
+            const isCodeMessage = /```[\\s\\S]*```/.test(oldCode);
+
+            // Preserve the legacy dissolve behavior for ordinary non-code messages.
+            if (!isCodeMessage) {
+              bcast({ type: "msg_reset", id: msgId });
+              bcast({ type: "token", id: msgId, text: markerText });
+              setItemContent(msgId, markerText);
+              bcast({ type: "msg_done", id: msgId });
+              return;
+            }
+
+            const replacementFromPointer = lastVisibleMsgId[oldItem.agentId || ""];
+            const replacementByPointer =
+              replacementFromPointer && replacementFromPointer !== msgId
+                ? runner.items.find((x) => x.kind === "msg" && x.id === replacementFromPointer)
+                : undefined;
+
+            const sameAgentCode = runner.items
+              .filter(
+                (x) =>
+                  x.kind === "msg" &&
+                  x.id !== msgId &&
+                  x.agentId === oldItem.agentId &&
+                  typeof x.content === "string" &&
+                  /```[\\s\\S]*```/.test(x.content),
+              )
+              .map((x) => (x.kind === "msg" ? x.content || "" : ""))
+              .filter(Boolean);
+            const newCode =
+              (replacementByPointer && replacementByPointer.kind === "msg"
+                ? replacementByPointer.content || ""
+                : sameAgentCode[sameAgentCode.length - 1]) || "";
+
+            // Remove the obsolete script BEFORE persistence. The client keeps a
+            // temporary rendered copy only for the dissolve animation.
+            runner.items.splice(oldIndex, 1);
+
+            // Persist only the replacement marker; never the old dissolved script.
+            const replacement =
+              replacementByPointer && replacementByPointer.kind === "msg"
+                ? replacementByPointer
+                : [...runner.items]
+                    .reverse()
+                    .find(
+                      (x) =>
+                        x.kind === "msg" &&
+                        x.agentId === oldItem.agentId &&
+                        typeof x.content === "string" &&
+                        /```[\\s\\S]*```/.test(x.content),
+                    );
+            if (replacement && replacement.kind === "msg") {
+              replacement.corrected = true;
+              bcast({ type: "msg_corrected", id: replacement.id });
+            }
+
+            // Transient-only event. oldCode is never stored in runner.items/Appwrite.
+            bcast({
+              type: "code_dissolve_start",
+              id: msgId,
+              oldCode,
+              newCode,
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 1100));
+            bcast({ type: "msg_remove", id: msgId });
+          };'''
+
+if old in r:
+    r = r.replace(old, new, 1)
+    RUNNER.write_text(r)
+    print('✅ boardRunner.ts patched')
+else:
+    # Do not guess where dissolveMessage belongs.
+    if 'type: "code_dissolve_start"' in r and 'msg_remove' in r:
+        print('ℹ️ boardRunner.ts already contains the surgery markers.')
+    else:
+        raise SystemExit('STOP: exact dissolveMessage block not found in boardRunner.ts')
+
+# ------------------------------------------------------------
+# 3) REPORTS — persist corrected marker on session item only
+# ------------------------------------------------------------
+rep = ROOT / "src/lib/reports.ts"
+rr = rep.read_text()
+if "  corrected?: boolean;" not in rr:
+    anchor = "  error?: string;\n}"
+    if anchor not in rr:
+        raise SystemExit('STOP: SessionItem anchor not found in reports.ts')
+    rr = rr.replace(anchor, "  error?: string;\n  corrected?: boolean;\n}", 1)
+    rep.write_text(rr)
+    print('✅ reports.ts patched')
+else:
+    print('ℹ️ reports.ts already contains corrected flag.')
+
+# ------------------------------------------------------------
+# 3) BOARDROOM — transient dissolve state + in-box line deletion
+# ------------------------------------------------------------
+b = BOARD.read_text()
+
+# 3a. Add state after the main useState section, anchored to handleEvent.
+if 'const [codeDissolves' not in b:
+    anchor = '  const handleEvent = useCallback('
+    if anchor not in b:
+        raise SystemExit('STOP: BoardRoom patchMsg anchor not found')
+    state_insert = '''  const [codeDissolves, setCodeDissolves] = useState<
+    Record<string, { oldCode: string; newCode: string }>
+  >({});
+
+'''
+    b = b.replace(anchor, state_insert + anchor, 1)
+
+# 3b. Extend handleEvent with new event cases.
+if 'case "code_dissolve_start":' not in b:
+    anchor = '''        case "msg_reset":
+          setItems((l) =>
+            l.map((it) => (it.kind === "msg" && it.id === e.id ? { ...it, content: "" } : it)),
+          );
+          break;
+'''
+    if anchor not in b:
+        raise SystemExit('STOP: BoardRoom msg_reset case not found')
+    replacement = anchor + '''        case "code_dissolve_start":
+          setCodeDissolves((current) => ({
+            ...current,
+            [e.id]: { oldCode: e.oldCode, newCode: e.newCode },
+          }));
+          break;
+        case "msg_corrected":
+          patchMsg(e.id, { corrected: true });
+          break;
+        case "msg_remove":
+          setCodeDissolves((current) => {
+            const next = { ...current };
+            delete next[e.id];
+            return next;
+          });
+          setItems((l) => l.filter((it) => it.id !== e.id));
+          break;
+'''
+    b = b.replace(anchor, replacement, 1)
+
+# 3c. Load persisted corrected flag.
+if 'corrected: it.corrected === true' not in b:
+    anchor = '''                done: it.done !== false,
+                failed: it.failed,
+                error: it.error,
+'''
+    if anchor not in b:
+        raise SystemExit('STOP: BoardRoom conversation item mapping anchor not found')
+    replacement = '''                done: it.done !== false,
+                failed: it.failed,
+                error: it.error,
+                corrected: it.corrected === true,
+'''
+    b = b.replace(anchor, replacement, 1)
+
+# 3d. Insert CodeDissolveBlock before BoardMessage.
+if 'function CodeDissolveBlock(' not in b:
+    anchor = 'function BoardMessage({'
+    if anchor not in b:
+        raise SystemExit('STOP: BoardMessage function anchor not found')
+    helper = r'''
+function extractFence(code: string) {
+  const m = code.match(/```([A-Za-z0-9_+#-]*)\s*\n([\s\S]*?)```/);
+  return {
+    lang: (m?.[1] || "code").trim() || "code",
+    body: (m?.[2] ?? code).replace(/\n$/, ""),
+  };
+}
+
+type DiffRow = { kind: "same" | "delete" | "insert"; text: string };
+
+function buildDissolveDiff(oldCode: string, newCode: string): DiffRow[] {
+  const oldLines = extractFence(oldCode).body.split("\n");
+  const newLines = extractFence(newCode).body.split("\n");
+
+  // Keep the UI safe for very large scripts; the normal final code remains unchanged.
+  if (oldLines.length * newLines.length > 180000) {
+    return [
+      ...oldLines.map((text) => ({ kind: "delete" as const, text })),
+      ...newLines.map((text) => ({ kind: "insert" as const, text })),
+    ];
+  }
+
+  const cols = newLines.length + 1;
+  const dp = Array.from({ length: oldLines.length + 1 }, () => new Uint32Array(cols));
+  for (let i = oldLines.length - 1; i >= 0; i--) {
+    for (let j = newLines.length - 1; j >= 0; j--) {
+      dp[i][j] = oldLines[i] === newLines[j]
+        ? dp[i + 1][j + 1] + 1
+        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const rows: DiffRow[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < oldLines.length || j < newLines.length) {
+    if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
+      rows.push({ kind: "same", text: oldLines[i] });
+      i++; j++;
+      continue;
+    }
+    if (i < oldLines.length && (j >= newLines.length || dp[i + 1][j] >= dp[i][j + 1])) {
+      rows.push({ kind: "delete", text: oldLines[i] });
+      i++;
+      continue;
+    }
+    if (j < newLines.length) {
+      rows.push({ kind: "insert", text: newLines[j] });
+      j++;
+    }
+  }
+  return rows;
+}
+
+function CodeDissolveBlock({
+  oldCode,
+  newCode,
+}: {
+  oldCode: string;
+  newCode: string;
+}) {
+  const oldFence = extractFence(oldCode);
+  const rows = buildDissolveDiff(oldCode, newCode);
+  return (
+    <div className="my-2 overflow-hidden rounded-xl border border-white/10">
+      <div className="flex items-center justify-between gap-2 bg-white/[0.06] px-3 py-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">{oldFence.lang}</span>
+          <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+            correcting
+          </span>
+        </div>
+        <span className="text-[9px] text-muted-foreground">Script revision</span>
+      </div>
+      <pre className="overflow-x-auto bg-black/50 p-3 text-[12.5px] leading-6">
+        {rows.map((row, index) => {
+          const prefix = row.kind === "delete" ? "− " : row.kind === "insert" ? "+ " : "  ";
+          const cls =
+            row.kind === "delete"
+              ? "block bg-red-500/10 text-red-300 line-through decoration-red-300/70"
+              : row.kind === "insert"
+                ? "block bg-emerald-500/10 text-emerald-300"
+                : "block text-zinc-300";
+          return (
+            <span key={`${index}-${row.kind}`} className={cls}>
+              {prefix}{row.text}
+            </span>
+          );
+        })}
+      </pre>
+    </div>
+  );
+}
+
+'''
+    b = b.replace(anchor, helper + anchor, 1)
+
+# 3e. Add corrected metadata to local BoardRoom Item type.
+if 'corrected?: boolean' not in b:
+    # Do not depend on the exact formatting of the Item union.
+    # Add corrected immediately after the existing error field.
+    anchor = 'error?: string }'
+    if anchor not in b:
+        raise SystemExit('STOP: BoardRoom Item error field not found')
+    b = b.replace(
+        anchor,
+        'error?: string; corrected?: boolean }',
+        1,
+    )
+
+# 3e. BoardMessage accepts transient dissolve state.
+# BoardMessage currently has historyMode and onTurnComplete.
+# Add dissolve without destroying the existing parameters.
+anchor = "  onTurnComplete?: (id: string) => void;\n}) {"
+if anchor not in b:
+    raise SystemExit("STOP: BoardMessage parameter anchor not found")
+b = b.replace(
+    anchor,
+    "  onTurnComplete?: (id: string) => void;\n  dissolve?: { oldCode: string; newCode: string };\n}) {",
+    1,
+)
+
+
+# 3f. Put dissolve block in the existing answer location and add corrected marker.
+old_answer = '''          {showAnswer && (
+            <div className="break-words text-[14px] leading-6 text-foreground">
+              <Markdown
+                text={
+                  mountedDoneRef.current || (item.done && answerCaughtUp)
+                    ? item.content || ""
+                    : displayedContent || ""
+                }
+              />
+            </div>
+          )}
+'''
+if old_answer not in b:
+    raise SystemExit('STOP: BoardMessage answer block not found')
+new_answer = '''          {dissolve ? (
+            <div className="break-words text-[14px] leading-6 text-foreground">
+              <CodeDissolveBlock oldCode={dissolve.oldCode} newCode={dissolve.newCode} />
+            </div>
+          ) : showAnswer ? (
+            <div className="break-words text-[14px] leading-6 text-foreground">
+              <div className="my-2 overflow-hidden rounded-xl">
+                {item.corrected && item.done && /```[\\s\\S]*```/.test(item.content || "") && (
+                  <div className="mb-1.5 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-300/90">
+                    <span className="grid h-4 w-4 place-items-center rounded-full border border-emerald-400/25 bg-emerald-400/10">✓</span>
+                    Script corrected
+                  </div>
+                )}
+                <Markdown
+                  text={
+                    mountedDoneRef.current || (item.done && answerCaughtUp)
+                      ? item.content || ""
+                      : displayedContent || ""
+                  }
+                />
+              </div>
+              {!mountedDoneRef.current &&
+                displayedContent.length < (item.content?.length ?? 0) && (
+                <span className="caret" />
+              )}
+            </div>
+          ) : null}
+'''
+b = b.replace(old_answer, new_answer, 1)
+
+# 3g. Pass dissolve state from the item map.
+old_map = '            return <BoardMessage key={it.id} item={it} />;'
+new_map = '            return <BoardMessage key={it.id} item={it} dissolve={codeDissolves[it.id]} />;'
+if old_map not in b:
+    raise SystemExit('STOP: BoardRoom BoardMessage map line not found')
+b = b.replace(old_map, new_map, 1)
+
+# 3h. Persist corrected flag when adding a message? load handles it; new default is absent.
+# Keep normal msg_reset untouched. That is important for retries/stream resets.
+
+BOARD.write_text(b)
+print('✅ BoardRoom.tsx patched')
+PY
+then
+  echo "❌ Surgery stopped. Restoring all files from backup..."
+  cp "$BACKUP_DIR/src/lib/types.ts" src/lib/types.ts
+  cp "$BACKUP_DIR/src/lib/boardRunner.ts" src/lib/boardRunner.ts
+  cp "$BACKUP_DIR/src/lib/reports.ts" src/lib/reports.ts
+  cp "$BACKUP_DIR/src/components/BoardRoom.tsx" src/components/BoardRoom.tsx
+  echo "✅ Restore complete. No partial surgery remains."
+  exit 1
+fi
+
+echo
+echo "--- VERIFY SURGERY MARKERS ---"
+grep -nE 'code_dissolve_start|msg_remove|msg_corrected|CodeDissolveBlock|codeDissolves|corrected\?' \
+  src/lib/types.ts src/lib/boardRunner.ts src/components/BoardRoom.tsx
+
+echo
+
+echo "--- NORMAL msg_reset remains normal ---"
+grep -n -A 5 -B 2 'case "msg_reset"' src/components/BoardRoom.tsx | head -20
+
+echo
+
+echo "--- TYPECHECK ---"
+if command -v npx >/dev/null 2>&1 && [ -f package.json ]; then
+  npx tsc --noEmit
+else
+  echo "⚠️ npx not found; skipped typecheck."
+fi
+
+echo
+cat <<OUT
+✅ SURGERY COMPLETE
+
+1) Old dissolved script is removed from runner.items BEFORE persistence, so it is not saved to Appwrite.
+2) During ~1.1s, the old script remains only in the client UI and shows deletions/insertions INSIDE the code box.
+3) The newest replacement script for that agent receives corrected=true and shows "Script corrected".
+4) Ordinary msg_reset behavior was not changed.
+
+Backup:
+$BACKUP_DIR
+OUT

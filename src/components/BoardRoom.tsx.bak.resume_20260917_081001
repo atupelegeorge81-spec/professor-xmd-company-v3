@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AGENTS, getAgent } from "@/lib/agents";
 import type { BoardEvent, LogEntry, SearchResult } from "@/lib/types";
 import { readNdjson } from "@/lib/stream";
@@ -7,8 +7,16 @@ import { Markdown } from "./Markdown";
 
 const nid = () => Math.random().toString(36).slice(2, 10);
 
+// Board status badge: timing (ms) na default height (px, kabla ya
+// kupimwa kikamilifu na ResizeObserver).
+const BADGE_SCROLL_IDLE_MS = 1300;
+const BADGE_SETTLE_MS = 550;
+const BADGE_DEFAULT_HEIGHT = 84;
+const BADGE_COLLAPSE_MS = 520;
+const BADGE_EXPAND_MS = 560;
+
 type Item =
-  | { kind: "msg"; id: string; agentId: string; content: string; thinking: string; query?: string; sources: SearchResult[]; done: boolean; failed?: boolean; error?: string }
+  | { kind: "msg"; id: string; agentId: string; content: string; thinking: string; query?: string; sources: SearchResult[]; searches: { query: string; sources: SearchResult[] }[]; done: boolean; failed?: boolean; error?: string }
   | { kind: "system"; id: string; text: string }
   | { kind: "round"; id: string; round: number; total: number }
   | { kind: "report"; id: string; title: string; content: string };
@@ -29,6 +37,56 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [title, setTitle] = useState("");
+
+  // Export full conversation text for Logs "copy conversation" button (no thinking).
+  useEffect(() => {
+    const exportConversation = () => {
+      const lines: string[] = [];
+      if (title) lines.push(`# ${title}`, "");
+      for (const it of items) {
+        if (it.kind === "system") {
+          lines.push(`[system] ${it.text}`, "");
+          continue;
+        }
+        if (it.kind === "round") {
+          lines.push(`--- Round ${it.round} / ${it.total} ---`, "");
+          continue;
+        }
+        if (it.kind === "report") {
+          lines.push(`[report] ${it.title}`, it.content || "", "");
+          continue;
+        }
+        if (it.kind === "msg") {
+          const agent = getAgent(it.agentId);
+          const name = agent?.name ?? it.agentId;
+          const role = agent?.role ?? "";
+          lines.push(`${name}${role ? ` (${role})` : ""}`);
+          if (it.query) lines.push(`Search: ${it.query}`);
+          if (it.content) lines.push(it.content);
+          if (it.sources?.length) {
+            lines.push("Sources:");
+            for (const s of it.sources) {
+              lines.push(`- ${s.title || s.url} (${s.url})`);
+            }
+          }
+          if (it.failed && it.error) lines.push(`Error: ${it.error}`);
+          lines.push("");
+        }
+      }
+      return lines.join("\n").trim();
+    };
+
+    (window as unknown as { __xmdExportConversation?: () => string }).__xmdExportConversation =
+      exportConversation;
+
+    return () => {
+      const w = window as unknown as { __xmdExportConversation?: () => string };
+      if (w.__xmdExportConversation === exportConversation) {
+        delete w.__xmdExportConversation;
+      }
+    };
+  }, [items, title]);
+
   const [titleLive, setTitleLive] = useState("");
   const [prompt, setPrompt] = useState("");
   const [round, setRound] = useState<{ round: number; total: number } | null>(null);
@@ -37,54 +95,138 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const handledConv = useRef(0);
+  const completedTurnIdsRef = useRef<Set<string>>(new Set());
+  const [, forceTurnUpdate] = useState(0);
+  const [loadedAsHistory, setLoadedAsHistory] = useState(false);
+  const handleTurnComplete = useCallback((id: string) => {
+    if (completedTurnIdsRef.current.has(id)) return;
+    completedTurnIdsRef.current.add(id);
+    forceTurnUpdate((n) => n + 1);
+  }, []);
 
   // Board status badge: imefungwa (hidden) wakati wa "running" bila
   // uhuru wa kuonekana tena. Baada ya conversation kuisha, scroll
   // ndio inayoiamuru: movement -> jificha, idle -> onekana.
   const [badgeHidden, setBadgeHidden] = useState(false);
   const badgeIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const badgeCardRef = useRef<HTMLDivElement | null>(null);
+  const badgeWrapperRef = useRef<HTMLDivElement | null>(null);
+  const badgeNaturalHeightRef = useRef(BADGE_DEFAULT_HEIGHT);
+  const badgeCurrentHeightRef = useRef(BADGE_DEFAULT_HEIGHT);
+  const badgeAnimRef = useRef<number | null>(null);
 
   const handleScroll = useCallback(() => {
-    if (phase === "running") return;
-
-    setBadgeHidden(true);
-
-    if (badgeIdleTimerRef.current) {
-      clearTimeout(badgeIdleTimerRef.current);
-    }
-
-    badgeIdleTimerRef.current = setTimeout(() => {
-      setBadgeHidden(false);
-    }, 400);
-  }, [phase]);
+    // FIX: badge inaonekana tu wakati hamna conversation
+    return;
+  }, []);
 
   useEffect(() => {
-    if (phase === "running") {
-      // Fungwa hidden kwa run nzima -- hakuna "idle reveal" wakati
-      // board inaendelea kufanya kazi.
-      setBadgeHidden(true);
-
-      if (badgeIdleTimerRef.current) {
-        clearTimeout(badgeIdleTimerRef.current);
-        badgeIdleTimerRef.current = null;
-      }
-
-      return;
+    // FIX: badge ionekane TU wakati hamna conversation
+    const shouldShow = items.length === 0 && phase === "idle";
+    setBadgeHidden(!shouldShow);
+    if (badgeIdleTimerRef.current) {
+      clearTimeout(badgeIdleTimerRef.current);
+      badgeIdleTimerRef.current = null;
     }
+  }, [phase, items.length]);
 
-    // Conversation imesettle (idle/done/error) -- rudisha uhuru kwa
-    // scroll, ionekane tena baada ya muda mfupi wa "settle".
-    badgeIdleTimerRef.current = setTimeout(() => {
-      setBadgeHidden(false);
-    }, 250);
+  // Pima urefu halisi wa badge (avatar + maandishi) ili nafasi
+  // iliyohifadhiwa (spacer) ILINGANE kabisa na badge halisi -- hivyo
+  // background image / stream HAITASHIFT KAMWE, iwe badge inaonekana
+  // au imefichwa.
+  // Pima urefu halisi wa badge kila mara unavyobadilika (title/round
+  // zikibadilika mistari), ili target ya "expand" iwe sahihi.
+  useLayoutEffect(() => {
+    const el = badgeCardRef.current;
+    const wrapper = badgeWrapperRef.current;
+    if (!el || !wrapper) return;
 
-    return () => {
-      if (badgeIdleTimerRef.current) {
-        clearTimeout(badgeIdleTimerRef.current);
-        badgeIdleTimerRef.current = null;
+    const measure = () => {
+      // +12 = mt-3 margin ya badge card (haihesabiwi na offsetHeight).
+      const natural = el.offsetHeight + 12;
+      badgeNaturalHeightRef.current = natural;
+
+      // Kama hakuna animation inayoendelea, sync urefu wa wrapper moja
+      // kwa moja na hali ya sasa (hidden -> 0, visible -> natural).
+      if (badgeAnimRef.current === null) {
+        const target = badgeHidden ? 0 : natural;
+        badgeCurrentHeightRef.current = target;
+        wrapper.style.height = `${target}px`;
       }
     };
-  }, [phase]);
+
+    measure();
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [badgeHidden]);
+
+  // Animation MOJA ya JS (rAF) inayodhibiti KWA WAKATI MMOJA: (a) urefu
+  // wa WRAPPER (hivyo nafasi ya KWELI inarudi kwa chat), NA (b) scrollTop
+  // ya chat (frame moja moja) -- ndio inayozuia "mashindano" kati ya
+  // animation mbili tofauti (chanzo halisi cha kutikisika kabla).
+  const animateBadgeTo = useCallback((target: number, hiding: boolean) => {
+    const wrapper = badgeWrapperRef.current;
+    const card = badgeCardRef.current;
+    if (!wrapper) return;
+
+    if (badgeAnimRef.current !== null) {
+      cancelAnimationFrame(badgeAnimRef.current);
+      badgeAnimRef.current = null;
+    }
+
+    const start = badgeCurrentHeightRef.current;
+    const delta = target - start;
+    const natural = Math.max(badgeNaturalHeightRef.current, 1);
+    const duration = hiding ? BADGE_COLLAPSE_MS : BADGE_EXPAND_MS;
+    const startTime = performance.now();
+
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(1, duration <= 0 ? 1 : elapsed / duration);
+      const eased = easeInOutCubic(t);
+      const h = start + delta * eased;
+
+      badgeCurrentHeightRef.current = h;
+      wrapper.style.height = `${Math.max(0, h)}px`;
+
+      if (card) {
+        card.style.transform = `translateY(${-(natural - h)}px)`;
+      }
+
+      // Sync scrollTop KWENYE FRAME HIYO HIYO ikiwa mtumiaji tayari
+      // yupo karibu na chini -- hii ndiyo inayozuia mtikisiko.
+      const scrollEl = scrollRef.current;
+      if (scrollEl && nearBottomRef.current) {
+        scrollEl.scrollTop = scrollEl.scrollHeight;
+      }
+
+      if (t < 1) {
+        badgeAnimRef.current = requestAnimationFrame(step);
+      } else {
+        badgeAnimRef.current = null;
+      }
+    };
+
+    badgeAnimRef.current = requestAnimationFrame(step);
+  }, []);
+
+  useEffect(() => {
+    const target = badgeHidden ? 0 : badgeNaturalHeightRef.current;
+    animateBadgeTo(target, badgeHidden);
+  }, [badgeHidden, animateBadgeTo]);
+
+  useEffect(() => {
+    return () => {
+      if (badgeAnimRef.current !== null) {
+        cancelAnimationFrame(badgeAnimRef.current);
+      }
+    };
+  }, []);
 
   // Smart auto-scroll: only follow stream when user is already near bottom.
   // Same idea as ThoughtProcess internal scroll — no up/down fight.
@@ -107,7 +249,6 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (!nearBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
   }, [items, titleLive]);
 
@@ -134,7 +275,7 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
           setActiveAgents((s) => new Set(s).add(e.agentId));
           setItems((l) => [
             ...l,
-            { kind: "msg", id: e.id, agentId: e.agentId, content: "", thinking: "", sources: [], done: false },
+            { kind: "msg", id: e.id, agentId: e.agentId, content: "", thinking: "", sources: [], searches: [], done: false },
           ]);
           break;
         case "think":
@@ -143,14 +284,35 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
           );
           break;
         case "search":
-          patchMsg(e.id, { query: e.query });
+          setItems((l) =>
+            l.map((it) =>
+              it.kind === "msg" && it.id === e.id
+                ? { ...it, query: e.query, searches: [...it.searches, { query: e.query, sources: [] }] }
+                : it,
+            ),
+          );
           break;
         case "sources":
-          patchMsg(e.id, { sources: e.sources });
+          setItems((l) =>
+            l.map((it) => {
+              if (it.kind !== "msg" || it.id !== e.id) return it;
+              const searches = it.searches.length
+                ? it.searches.map((s, i) =>
+                    i === it.searches.length - 1 ? { ...s, sources: e.sources } : s,
+                  )
+                : [{ query: it.query || "", sources: e.sources }];
+              return { ...it, sources: e.sources, searches };
+            }),
+          );
           break;
         case "token":
           setItems((l) =>
             l.map((it) => (it.kind === "msg" && it.id === e.id ? { ...it, content: it.content + e.text } : it)),
+          );
+          break;
+        case "msg_reset":
+          setItems((l) =>
+            l.map((it) => (it.kind === "msg" && it.id === e.id ? { ...it, content: "" } : it)),
           );
           break;
         case "msg_done":
@@ -213,6 +375,8 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
     setRound(null);
     setPhase("running");
     setPrompt("");
+    completedTurnIdsRef.current = new Set();
+    setLoadedAsHistory(false);
     addLog("system", `Board session starting: "${p.slice(0, 70)}"`);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -223,11 +387,37 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
         body: JSON.stringify({ project: p }),
         signal: ctrl.signal,
       });
+      const rid = res.headers.get("X-Runner-Id");
+      if (rid) setRunId(rid);
       await consume(res, ctrl);
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
         setPhase("error");
         addLog("error", (err as Error)?.message || "Board stream failed");
+      }
+    }
+  };
+
+  const resume = async () => {
+    if (!runId || phase === "running") return;
+    setPhase("running");
+    addLog("system", "♻️ Kuendelea na mjadala uliosimama...");
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    try {
+      const res = await fetch("/api/boardroom/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: runId }),
+        signal: ctrl.signal,
+      });
+      const rid = res.headers.get("X-Runner-Id");
+      if (rid) setRunId(rid);
+      await consume(res, ctrl);
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") {
+        setPhase("error");
+        addLog("error", (err as Error)?.message || "Resume failed");
       }
     }
   };
@@ -268,6 +458,8 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
       setTitleLive("");
       setRound(null);
       setRunId(null);
+      completedTurnIdsRef.current = new Set();
+      setLoadedAsHistory(false);
       setPhase("idle");
       setActiveAgents(new Set());
       return;
@@ -282,6 +474,8 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
         if (!c) return;
         setTitle(c.title || "");
         setPhase(c.status === "running" ? "running" : "done");
+        completedTurnIdsRef.current = new Set();
+        setLoadedAsHistory(c.status !== "running");
         setItems(
           (c.items || []).map((it): Item => {
             if (it.kind === "msg")
@@ -293,6 +487,7 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
                 thinking: it.thinking || "",
                 query: it.query,
                 sources: it.sources || [],
+                searches: it.searches || [],
                 done: it.done !== false,
                 failed: it.failed,
                 error: it.error,
@@ -311,18 +506,25 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
 
   const running = phase === "running";
   const displayTitle = title || titleLive;
+  const firstIncompleteMsgIndex = items.findIndex(
+    (it) => it.kind === "msg" && !completedTurnIdsRef.current.has(it.id),
+  );
+  const frontierIndex =
+    firstIncompleteMsgIndex === -1 ? items.length : firstIncompleteMsgIndex;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {/* Board status strip */}
+      {/* Wrapper -- urefu wake unadhibitiwa 100% na JS (rAF), hivyo
+          nafasi HALISI inarudi kwa chat inaposhuka (si spacer isiyo-
+          badilika). Height HAIPO kwenye JSX style ili React isiigongane
+          na mutations za rAF kwenye re-render. */}
       <div
-        className={`shrink-0 overflow-hidden transition-all duration-300 ease-out ${
-          badgeHidden
-            ? "max-h-0 opacity-0 pointer-events-none"
-            : "max-h-32 opacity-100 pointer-events-auto"
-        }`}
+        ref={badgeWrapperRef}
+        style={{ overflow: "hidden" }}
+        className="shrink-0"
       >
-        <div className="glass mx-auto mt-3 flex w-[calc(100%-1.5rem)] max-w-3xl items-center gap-3 rounded-3xl px-4 py-3">
+        <div ref={badgeCardRef} className="glass mx-auto mt-3 flex w-[calc(100%-1.5rem)] max-w-3xl items-center gap-3 rounded-3xl px-4 py-3">
         <div className="flex -space-x-2.5">
           {AGENTS.map((a) => (
             <Avatar key={a.id} agent={a} size={34} live={activeAgents.has(a.id)} className="ring-2 ring-background" />
@@ -356,7 +558,7 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
       </div>
 
       {/* Stream */}
-      <div ref={scrollRef} onScroll={handleScroll} className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} data-board-stream-scroll onScroll={handleScroll} className="scroll-thin min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex min-h-full max-w-3xl flex-col space-y-5 px-4 pb-6 pt-5">
           {items.length === 0 && phase === "idle" && (
 <div className="rise-in flex min-h-full flex-col items-center justify-center px-4">
@@ -372,7 +574,8 @@ decoding="async"
 </div>
 )}
 
-          {items.map((it) => {
+          {items.map((it, idx) => {
+            if (!loadedAsHistory && idx > frontierIndex) return null;
             if (it.kind === "round")
               return (
                 <div key={it.id} className="rise-in flex items-center gap-3 py-1">
@@ -390,8 +593,27 @@ decoding="async"
                 </p>
               );
             if (it.kind === "report") return <ReportCard key={it.id} title={it.title} content={it.content} />;
-            return <BoardMessage key={it.id} item={it} />;
+            return (
+              <BoardMessage
+                key={it.id}
+                item={it}
+                historyMode={loadedAsHistory}
+                onTurnComplete={handleTurnComplete}
+              />
+            );
           })}
+
+          {phase === "error" && items.length > 0 && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <button
+                type="button"
+                onClick={resume}
+                className="rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-[11px] font-semibold text-primary transition hover:bg-primary/20"
+              >
+                ↻ Endelea na mjadala (Resume)
+              </button>
+            </div>
+          )}
 
           {running && items.length > 0 && (
             <div className="flex items-center justify-center gap-2 py-2 text-[11px] text-muted-foreground">
@@ -452,8 +674,8 @@ decoding="async"
  * ======================================================================== */
 
 const TYPEWRITER_CHAR_MS = 3; // thought process — same as agent rooms
-const TYPEWRITER_ANSWER_CHAR_MS = 0; // hyper-speed answer (0 = next frame batch)
-const TYPEWRITER_ANSWER_STEP = 24; // chars per tick for answer
+const TYPEWRITER_ANSWER_CHAR_MS = 3; // streaming kila herufi - fix 1
+const TYPEWRITER_ANSWER_STEP = 1; // fallback only; stream is word-based
 
 function boardGetDomain(url: string) {
   try {
@@ -521,16 +743,20 @@ function BoardThoughtProcess({
   agent,
   thinking,
   live,
+  onSettle,
+  historyMode,
 }: {
   agent: ReturnType<typeof getAgent>;
   thinking: string;
   live: boolean;
+  onSettle?: () => void;
+  historyMode: boolean;
 }) {
   const accent = agent?.accent ?? "var(--primary)";
-  const [open, setOpen] = useState(live);
+  const [open, setOpen] = useState(!historyMode);
   // History (!live): start with full text. Live: type from empty.
   const [displayedThinking, setDisplayedThinking] = useState(() =>
-    live ? "" : thinking,
+    historyMode ? thinking : "",
   );
 
   const thinkingRef = useRef<HTMLDivElement | null>(null);
@@ -539,6 +765,7 @@ function BoardThoughtProcess({
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousScrollHeightRef = useRef(0);
   const wasNearBottomRef = useRef(true);
+  const settledRef = useRef(false);
 
   thinkingTargetRef.current = thinking;
   displayedThinkingRef.current = displayedThinking;
@@ -546,24 +773,25 @@ function BoardThoughtProcess({
   useEffect(() => {
     if (live) {
       setOpen(true);
+      settledRef.current = false;
       return;
     }
+    // Thinking phase imeisha upande wa server (jibu limeanza), lakini
+    // typewriter ya hapa chini bado inaweza kuwa inakamilisha reveal.
+    // Funga + settle TU baada ya reveal kukamilika kweli.
     if (!thinking || displayedThinking.length >= thinking.length) {
       setOpen(false);
-    }
-  }, [live, thinking, displayedThinking]);
-
-  // Typewriter ONLY while live. History snaps to full text.
-  useEffect(() => {
-    if (!live) {
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
-        typingTimerRef.current = null;
+      if (!settledRef.current) {
+        settledRef.current = true;
+        onSettle?.();
       }
-      setDisplayedThinking(thinking || "");
-      return;
     }
+  }, [live, thinking, displayedThinking, onSettle]);
 
+  // Typewriter inaendelea kukamilisha `thinking` mpaka mwisho, HATA
+  // baada ya `live` kuwa false -- hii inairuhusu ikamilike taratibu
+  // hata kama server tayari imeanza kutuma jibu nyuma ya pazia.
+  useEffect(() => {
     if (!thinking) {
       setDisplayedThinking("");
       previousScrollHeightRef.current = 0;
@@ -585,27 +813,29 @@ function BoardThoughtProcess({
         return;
       }
 
-      setDisplayedThinking((previous) => {
-        if (!target.startsWith(previous)) {
-          return target.slice(0, 1);
-        }
-        if (previous.length >= target.length) {
-          return previous;
-        }
-        return target.slice(0, previous.length + 1);
-      });
+      const previous = displayedThinkingRef.current;
+      let next = previous;
+      if (!target.startsWith(previous)) {
+        next = target.slice(0, 1);
+      } else if (previous.length < target.length) {
+        next = target.slice(0, previous.length + 1);
+      }
 
-      typingTimerRef.current = setTimeout(() => {
-        if (!thinkingTargetRef.current) {
-          typingTimerRef.current = null;
-          return;
-        }
-        tick();
-      }, TYPEWRITER_CHAR_MS);
+      if (next !== previous) {
+        displayedThinkingRef.current = next;
+        setDisplayedThinking(next);
+      }
+
+      if (next.length >= target.length && target.startsWith(next)) {
+        typingTimerRef.current = null;
+        return;
+      }
+
+      typingTimerRef.current = setTimeout(tick, TYPEWRITER_CHAR_MS);
     };
 
     tick();
-  }, [thinking, live]);
+  }, [thinking]);
 
   useEffect(() => {
     return () => {
@@ -803,18 +1033,26 @@ function useBoardTypewriter(
         return;
       }
 
-      setDisplayed((previous) => {
-        if (!currentTarget.startsWith(previous)) {
-          return currentTarget.slice(0, Math.min(step, currentTarget.length));
-        }
-        if (previous.length >= currentTarget.length) {
-          return previous;
-        }
-        return currentTarget.slice(
-          0,
-          Math.min(previous.length + step, currentTarget.length),
-        );
-      });
+      const previous = displayedRef.current;
+      let next = previous;
+      if (!currentTarget.startsWith(previous)) {
+        const m = currentTarget.match(/^\S+\s*/);
+        next = m ? m[0] : currentTarget.slice(0, 1);
+      } else if (previous.length < currentTarget.length) {
+        const rest = currentTarget.slice(previous.length);
+        const m = rest.match(/^\S+\s*/);
+        next = m ? previous + m[0] : currentTarget;
+      }
+
+      if (next !== previous) {
+        displayedRef.current = next;
+        setDisplayed(next);
+      }
+
+      if (next.length >= currentTarget.length && currentTarget.startsWith(next)) {
+        timerRef.current = null;
+        return;
+      }
 
       timerRef.current = setTimeout(tick, delay);
     };
@@ -1054,17 +1292,65 @@ function BoardCopyIcon() {
   );
 }
 
-function BoardMessage({ item }: { item: Extract<Item, { kind: "msg" }> }) {
+function BoardMessage({
+  item,
+  historyMode,
+  onTurnComplete,
+}: {
+  item: Extract<Item, { kind: "msg" }>;
+  historyMode: boolean;
+  onTurnComplete?: (id: string) => void;
+}) {
   const agent = getAgent(item.agentId);
   const live = !item.done;
-  const thinkingLive = live && !item.content;
-  const answerUnlocked = Boolean(item.content) && (!item.thinking || !thinkingLive);
-  // Unlock answer typewriter once content has started (or message is done).
-  const showAnswer = Boolean(item.content);
+  const hasThinking = Boolean(item.thinking);
+  const mountedDoneRef = useRef(historyMode);
+  const [thinkingSettled, setThinkingSettled] = useState(
+    () => mountedDoneRef.current || !hasThinking,
+  );
+  // FIX SAHIHI: thinkingLive iwe true wakati thinking bado haija-settle
+  // au jibu bado halijaanza - glow hadi mwisho, open mpaka streaming iishe
+  const thinkingLive = hasThinking && !item.content;
+  const handleThinkingSettle = useCallback(() => {
+    setThinkingSettled(true);
+  }, []);
+  useEffect(() => {
+    if (hasThinking && !item.content && !mountedDoneRef.current) {
+      setThinkingSettled(false);
+    }
+  }, [hasThinking, item.content]);
+  const showAnswer =
+    Boolean(item.content) && (thinkingSettled || mountedDoneRef.current);
   const displayedContent = useBoardTypewriter(
     item.content || "",
-    showAnswer && (item.done || item.content.length > 0),
+    showAnswer,
+    mountedDoneRef.current,
   );
+  const answerCaughtUp =
+    !item.content || displayedContent.length >= item.content.length;
+
+  useEffect(() => {
+    if (historyMode || !onTurnComplete) return;
+    if (item.done && thinkingSettled && answerCaughtUp) {
+      onTurnComplete(item.id);
+    }
+  }, [historyMode, onTurnComplete, item.done, item.id, thinkingSettled, answerCaughtUp]);
+
+  // Scroll ifuate kila neno linaloongezeka (thinking au jibu) IKIWA TU
+  // mtumiaji tayari yuko karibu na chini -- kanuni ile ile ya container
+  // ya nje, kwa hiyo haipingani na scroll ya mkono kuelekea juu.
+  useLayoutEffect(() => {
+    if (mountedDoneRef.current) return;
+    const el = document.querySelector(
+      "[data-board-stream-scroll]",
+    ) as HTMLElement | null;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [displayedContent, item.thinking, item.searches.length, item.sources.length, item.content]);
+
+  const hasSources = item.sources.length > 0;
+  // Show searching indicator only while live, query exists, sources not yet in.
+  const isSearching = Boolean(item.query) && !hasSources && live;
 
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1083,61 +1369,77 @@ function BoardMessage({ item }: { item: Extract<Item, { kind: "msg" }> }) {
 
   return (
     <>
-      <div className="rise-in flex w-full gap-3">
-        <Avatar agent={agent} size={38} live={live} />
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-display text-[14px] font-semibold text-foreground">
-              {agent?.name ?? item.agentId}
-            </span>
-            <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-              {agent?.role}
-            </span>
-          </div>
+      <div className="rise-in w-full space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Avatar agent={agent} size={38} live={live} />
+          <span className="font-display text-[14px] font-semibold text-foreground">
+            {agent?.name ?? item.agentId}
+          </span>
+          <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            {agent?.role}
+          </span>
+        </div>
 
           <BoardThoughtProcess
             agent={agent}
             thinking={item.thinking}
             live={thinkingLive}
+            onSettle={handleThinkingSettle}
+            historyMode={historyMode}
           />
 
-          {item.query && (
-            <div className="inline-flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] text-primary">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
-              </span>
-              {item.query}
-            </div>
-          )}
+          {item.searches.map((round, idx) => {
+            const isLastRound = idx === item.searches.length - 1;
+            const roundIsSearching = isLastRound && isSearching;
+            const roundSources = round.sources;
+            return (
+              <div key={`${item.id}-search-${idx}`} className="flex flex-col gap-1.5">
+                <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] text-primary">
+                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+                  </span>
+                  {roundIsSearching && (
+                    <span className="xmd-board-searching-sweep shrink-0">
+                      🔍 searching...
+                    </span>
+                  )}
+                  <span className="min-w-0 break-all">{round.query}</span>
+                </div>
+                {roundSources.length > 0 && (
+                  <span className="inline-flex flex-wrap items-center">
+                    {roundSources.slice(0, 2).map((source, index) => (
+                      <BoardSourcePill
+                        key={`${source.url}-${index}`}
+                        source={source}
+                        onOpen={() => setSourcesOpen(true)}
+                      />
+                    ))}
+                    {roundSources.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => setSourcesOpen(true)}
+                        className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
+                      >
+                        +{roundSources.length - 2}
+                      </button>
+                    )}
+                  </span>
+                )}
+              </div>
+            );
+          })}
 
           {/* Document-style answer — NOT inside a glass bubble box */}
           {showAnswer && (
             <div className="break-words text-[14px] leading-6 text-foreground">
-              <Markdown text={item.done ? (item.content || "") : (displayedContent || "")} />
-              {live && displayedContent.length < (item.content?.length ?? 0) && (
-                <span className="caret" />
-              )}
-              {item.sources.length > 0 && (
-                <span className="mt-1 inline-flex flex-wrap items-center">
-                  {item.sources.slice(0, 2).map((source, index) => (
-                    <BoardSourcePill
-                      key={`${source.url}-${index}`}
-                      source={source}
-                      onOpen={() => setSourcesOpen(true)}
-                    />
-                  ))}
-                  {item.sources.length > 2 && (
-                    <button
-                      type="button"
-                      onClick={() => setSourcesOpen(true)}
-                      className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
-                    >
-                      +{item.sources.length - 2}
-                    </button>
-                  )}
-                </span>
-              )}
+              <Markdown
+                text={
+                  mountedDoneRef.current || (item.done && answerCaughtUp)
+                    ? item.content || ""
+                    : displayedContent || ""
+                }
+              />
             </div>
           )}
 
@@ -1148,7 +1450,7 @@ function BoardMessage({ item }: { item: Extract<Item, { kind: "msg" }> }) {
           )}
 
           {/* Copy only — no regenerate */}
-          {item.done && item.content && (
+          {(mountedDoneRef.current || (item.done && answerCaughtUp)) && item.content && (
             <div className="flex items-center gap-1 pt-0.5">
               <button
                 type="button"
@@ -1164,15 +1466,39 @@ function BoardMessage({ item }: { item: Extract<Item, { kind: "msg" }> }) {
               )}
             </div>
           )}
-        </div>
       </div>
 
-      {sourcesOpen && item.sources.length > 0 && (
+      {sourcesOpen && item.searches.some((s) => s.sources.length > 0) && (
         <BoardSourceDrawer
-          sources={item.sources}
+          sources={item.searches.flatMap((s) => s.sources)}
           onClose={() => setSourcesOpen(false)}
         />
       )}
+
+      <style jsx>{`
+        .xmd-board-searching-sweep {
+          position: relative;
+          display: inline-block;
+          color: var(--primary);
+          background: linear-gradient(
+            90deg,
+            var(--primary) 0%,
+            var(--primary) 35%,
+            rgba(255, 255, 255, 0.95) 50%,
+            var(--primary) 65%,
+            var(--primary) 100%
+          );
+          background-size: 220% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          animation: xmd-board-searching-sweep 1.6s linear infinite;
+        }
+        @keyframes xmd-board-searching-sweep {
+          from { background-position: 180% 0; }
+          to { background-position: -20% 0; }
+        }
+      `}</style>
     </>
   );
 }

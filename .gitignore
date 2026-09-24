@@ -41,3 +41,9 @@ Thumbs.db
 # Temp
 .cache/
 *.tmp
+
+# Secret backups to ignore
+.backup-lovable*
+.env.local.*
+.env*.backup
+.env*.bak

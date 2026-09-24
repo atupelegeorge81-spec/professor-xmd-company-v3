@@ -1,0 +1,19 @@
+import { resumeRun, streamRunner } from "@/lib/boardRunner";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const id = typeof body.id === "string" ? body.id.trim() : "";
+  if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
+
+  const runner = await resumeRun(id);
+  if (!runner) {
+    return Response.json(
+      { error: "Haiwezekani kuendelea — mjadala haupo tena kwenye kumbukumbu ya server, au tayari umekamilika." },
+      { status: 404 },
+    );
+  }
+  return streamRunner(runner);
+}

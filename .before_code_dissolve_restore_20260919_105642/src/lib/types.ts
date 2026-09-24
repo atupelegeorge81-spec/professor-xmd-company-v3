@@ -20,18 +20,6 @@ export type AgentEvent =
   | { type: "log"; entry: LogEntry }
   | { type: "usage"; sessionRequests: number; totalTokens: number };
 
-export interface ScriptDiffChange {
-  startLine: number;
-  oldLines: string[];
-  newLines: string[];
-}
-
-export interface ScriptDiff {
-  additions: number;
-  deletions: number;
-  changes: ScriptDiffChange[];
-}
-
 export type BoardEvent =
   | { type: "log"; entry: LogEntry }
   | { type: "system"; text: string }
@@ -42,8 +30,10 @@ export type BoardEvent =
   | { type: "sources"; id: string; sources: SearchResult[] }
   | { type: "token"; id: string; text: string }
   | { type: "msg_reset"; id: string }
+  | { type: "code_dissolve_start"; id: string; oldCode: string; newCode: string }
+  | { type: "msg_remove"; id: string }
+  | { type: "msg_corrected"; id: string }
   | { type: "msg_done"; id: string }
-  | { type: "script_diff"; id: string; diff: ScriptDiff }
   | { type: "title_stream"; text: string }
   | { type: "title_done"; title: string }
   | { type: "usage"; agentId: string; requests: number; tokens: number }

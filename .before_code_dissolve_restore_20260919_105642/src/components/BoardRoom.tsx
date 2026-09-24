@@ -16,7 +16,7 @@ const BADGE_COLLAPSE_MS = 520;
 const BADGE_EXPAND_MS = 560;
 
 type Item =
-  | { kind: "msg"; id: string; agentId: string; content: string; thinking: string; query?: string; sources: SearchResult[]; done: boolean; failed?: boolean; error?: string }
+  | { kind: "msg"; id: string; agentId: string; content: string; thinking: string; query?: string; sources: SearchResult[]; searches: { query: string; sources: SearchResult[] }[]; done: boolean; failed?: boolean; error?: string; corrected?: boolean }
   | { kind: "system"; id: string; text: string }
   | { kind: "round"; id: string; round: number; total: number }
   | { kind: "report"; id: string; title: string; content: string };
@@ -92,9 +92,18 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
   const [round, setRound] = useState<{ round: number; total: number } | null>(null);
   const [activeAgents, setActiveAgents] = useState<Set<string>>(new Set());
   const [runId, setRunId] = useState<string | null>(null);
+  const [conversationStatus, setConversationStatus] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const handledConv = useRef(0);
+  const completedTurnIdsRef = useRef<Set<string>>(new Set());
+  const [, forceTurnUpdate] = useState(0);
+  const [loadedAsHistory, setLoadedAsHistory] = useState(false);
+  const handleTurnComplete = useCallback((id: string) => {
+    if (completedTurnIdsRef.current.has(id)) return;
+    completedTurnIdsRef.current.add(id);
+    forceTurnUpdate((n) => n + 1);
+  }, []);
 
   // Board status badge: imefungwa (hidden) wakati wa "running" bila
   // uhuru wa kuonekana tena. Baada ya conversation kuisha, scroll
@@ -108,46 +117,19 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
   const badgeAnimRef = useRef<number | null>(null);
 
   const handleScroll = useCallback(() => {
-    if (phase === "running") return;
-
-    setBadgeHidden(true);
-
-    if (badgeIdleTimerRef.current) {
-      clearTimeout(badgeIdleTimerRef.current);
-    }
-
-    badgeIdleTimerRef.current = setTimeout(() => {
-      setBadgeHidden(false);
-    }, BADGE_SCROLL_IDLE_MS);
-  }, [phase]);
+    // FIX: badge inaonekana tu wakati hamna conversation
+    return;
+  }, []);
 
   useEffect(() => {
-    if (phase === "running") {
-      // Fungwa hidden kwa run nzima -- hakuna "idle reveal" wakati
-      // board inaendelea kufanya kazi.
-      setBadgeHidden(true);
-
-      if (badgeIdleTimerRef.current) {
-        clearTimeout(badgeIdleTimerRef.current);
-        badgeIdleTimerRef.current = null;
-      }
-
-      return;
+    // FIX: badge ionekane TU wakati hamna conversation
+    const shouldShow = items.length === 0 && phase === "idle";
+    setBadgeHidden(!shouldShow);
+    if (badgeIdleTimerRef.current) {
+      clearTimeout(badgeIdleTimerRef.current);
+      badgeIdleTimerRef.current = null;
     }
-
-    // Conversation imesettle (idle/done/error) -- rudisha uhuru kwa
-    // scroll, ionekane tena baada ya muda mfupi wa "settle".
-    badgeIdleTimerRef.current = setTimeout(() => {
-      setBadgeHidden(false);
-    }, BADGE_SETTLE_MS);
-
-    return () => {
-      if (badgeIdleTimerRef.current) {
-        clearTimeout(badgeIdleTimerRef.current);
-        badgeIdleTimerRef.current = null;
-      }
-    };
-  }, [phase]);
+  }, [phase, items.length]);
 
   // Pima urefu halisi wa badge (avatar + maandishi) ili nafasi
   // iliyohifadhiwa (spacer) ILINGANE kabisa na badge halisi -- hivyo
@@ -268,7 +250,6 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (!nearBottomRef.current) return;
     el.scrollTop = el.scrollHeight;
   }, [items, titleLive]);
 
@@ -277,6 +258,10 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
   const patchMsg = useCallback((id: string, patch: Partial<Extract<Item, { kind: "msg" }>>) => {
     setItems((list) => list.map((it) => (it.kind === "msg" && it.id === id ? { ...it, ...patch } : it)));
   }, []);
+
+  const [codeDissolves, setCodeDissolves] = useState<
+    Record<string, { oldCode: string; newCode: string }>
+  >({});
 
   const handleEvent = useCallback(
     (e: BoardEvent) => {
@@ -295,7 +280,7 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
           setActiveAgents((s) => new Set(s).add(e.agentId));
           setItems((l) => [
             ...l,
-            { kind: "msg", id: e.id, agentId: e.agentId, content: "", thinking: "", sources: [], done: false },
+            { kind: "msg", id: e.id, agentId: e.agentId, content: "", thinking: "", sources: [], searches: [], done: false },
           ]);
           break;
         case "think":
@@ -304,10 +289,26 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
           );
           break;
         case "search":
-          patchMsg(e.id, { query: e.query });
+          setItems((l) =>
+            l.map((it) =>
+              it.kind === "msg" && it.id === e.id
+                ? { ...it, query: e.query, searches: [...it.searches, { query: e.query, sources: [] }] }
+                : it,
+            ),
+          );
           break;
         case "sources":
-          patchMsg(e.id, { sources: e.sources });
+          setItems((l) =>
+            l.map((it) => {
+              if (it.kind !== "msg" || it.id !== e.id) return it;
+              const searches = it.searches.length
+                ? it.searches.map((s, i) =>
+                    i === it.searches.length - 1 ? { ...s, sources: e.sources } : s,
+                  )
+                : [{ query: it.query || "", sources: e.sources }];
+              return { ...it, sources: e.sources, searches };
+            }),
+          );
           break;
         case "token":
           setItems((l) =>
@@ -318,6 +319,23 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
           setItems((l) =>
             l.map((it) => (it.kind === "msg" && it.id === e.id ? { ...it, content: "" } : it)),
           );
+          break;
+        case "code_dissolve_start":
+          setCodeDissolves((current) => ({
+            ...current,
+            [e.id]: { oldCode: e.oldCode, newCode: e.newCode },
+          }));
+          break;
+        case "msg_corrected":
+          patchMsg(e.id, { corrected: true });
+          break;
+        case "msg_remove":
+          setCodeDissolves((current) => {
+            const next = { ...current };
+            delete next[e.id];
+            return next;
+          });
+          setItems((l) => l.filter((it) => it.id !== e.id));
           break;
         case "msg_done":
           patchMsg(e.id, { done: true });
@@ -356,6 +374,7 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
           break;
         case "done":
           setPhase("done");
+          setConversationStatus("completed");
           setActiveAgents(new Set());
           break;
       }
@@ -379,6 +398,8 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
     setRound(null);
     setPhase("running");
     setPrompt("");
+    completedTurnIdsRef.current = new Set();
+    setLoadedAsHistory(false);
     addLog("system", `Board session starting: "${p.slice(0, 70)}"`);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -389,11 +410,37 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
         body: JSON.stringify({ project: p }),
         signal: ctrl.signal,
       });
+      const rid = res.headers.get("X-Runner-Id");
+      if (rid) setRunId(rid);
       await consume(res, ctrl);
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
         setPhase("error");
         addLog("error", (err as Error)?.message || "Board stream failed");
+      }
+    }
+  };
+
+  const resume = async () => {
+    if (!runId || phase === "running") return;
+    setPhase("running");
+    addLog("system", "♻️ Kuendelea na mjadala uliosimama...");
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    try {
+      const res = await fetch("/api/boardroom/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: runId }),
+        signal: ctrl.signal,
+      });
+      const rid = res.headers.get("X-Runner-Id");
+      if (rid) setRunId(rid);
+      await consume(res, ctrl);
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") {
+        setPhase("error");
+        addLog("error", (err as Error)?.message || "Resume failed");
       }
     }
   };
@@ -434,6 +481,9 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
       setTitleLive("");
       setRound(null);
       setRunId(null);
+      setConversationStatus(null);
+      completedTurnIdsRef.current = new Set();
+      setLoadedAsHistory(false);
       setPhase("idle");
       setActiveAgents(new Set());
       return;
@@ -442,14 +492,27 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
       try {
         const r = await fetch(`/api/conversations?id=${encodeURIComponent(convSignal.id)}`);
         const d = (await r.json()) as {
-          conversation?: { title: string; project: string; status: string; items: any[] };
+          conversation?: { id?: string; title: string; project: string; status: string; items: any[] };
         };
         const c = d.conversation;
         if (!c) return;
         setTitle(c.title || "");
+        setConversationStatus(c.status || null);
+        setRunId(c.id || null);
         setPhase(c.status === "running" ? "running" : "done");
+        completedTurnIdsRef.current = new Set();
+        setLoadedAsHistory(c.status !== "running");
         setItems(
-          (c.items || []).map((it): Item => {
+          (c.items || [])
+            .filter(
+              (it: any) =>
+                !(
+                  it?.kind === "chip" &&
+                  typeof it?.text === "string" &&
+                  it.text.startsWith("__PROFESSOR_XMD_RESUME_STATE__:")
+                )
+            )
+            .map((it): Item => {
             if (it.kind === "msg")
               return {
                 kind: "msg",
@@ -459,9 +522,11 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
                 thinking: it.thinking || "",
                 query: it.query,
                 sources: it.sources || [],
+                searches: it.searches || [],
                 done: it.done !== false,
                 failed: it.failed,
                 error: it.error,
+                corrected: it.corrected === true,
               };
             if (it.kind === "round") return { kind: "round", id: it.id || nid(), round: it.round, total: it.total };
             return { kind: "system", id: it.id || nid(), text: it.text || "" };
@@ -477,6 +542,11 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
 
   const running = phase === "running";
   const displayTitle = title || titleLive;
+  const firstIncompleteMsgIndex = items.findIndex(
+    (it) => it.kind === "msg" && !completedTurnIdsRef.current.has(it.id),
+  );
+  const frontierIndex =
+    firstIncompleteMsgIndex === -1 ? items.length : firstIncompleteMsgIndex;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -524,7 +594,7 @@ export function BoardRoom({ addLog, setUsage, onReport, convSignal }: Props) {
       </div>
 
       {/* Stream */}
-      <div ref={scrollRef} onScroll={handleScroll} className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} data-board-stream-scroll onScroll={handleScroll} className="scroll-thin min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex min-h-full max-w-3xl flex-col space-y-5 px-4 pb-6 pt-5">
           {items.length === 0 && phase === "idle" && (
 <div className="rise-in flex min-h-full flex-col items-center justify-center px-4">
@@ -540,7 +610,8 @@ decoding="async"
 </div>
 )}
 
-          {items.map((it) => {
+          {items.map((it, idx) => {
+            if (!loadedAsHistory && idx > frontierIndex) return null;
             if (it.kind === "round")
               return (
                 <div key={it.id} className="rise-in flex items-center gap-3 py-1">
@@ -558,8 +629,31 @@ decoding="async"
                 </p>
               );
             if (it.kind === "report") return <ReportCard key={it.id} title={it.title} content={it.content} />;
-            return <BoardMessage key={it.id} item={it} />;
+            return (
+              <BoardMessage
+                key={it.id}
+                item={it}
+                historyMode={loadedAsHistory}
+                onTurnComplete={handleTurnComplete}
+                dissolve={codeDissolves[it.id]}
+              />
+            );
           })}
+
+          {conversationStatus &&
+        conversationStatus !== "completed" &&
+        phase !== "running" &&
+        items.length > 0 && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <button
+                type="button"
+                onClick={resume}
+                className="rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-[11px] font-semibold text-primary transition hover:bg-primary/20"
+              >
+                ↻ Endelea na mjadala (Resume)
+              </button>
+            </div>
+          )}
 
           {running && items.length > 0 && (
             <div className="flex items-center justify-center gap-2 py-2 text-[11px] text-muted-foreground">
@@ -620,7 +714,7 @@ decoding="async"
  * ======================================================================== */
 
 const TYPEWRITER_CHAR_MS = 3; // thought process — same as agent rooms
-const TYPEWRITER_ANSWER_CHAR_MS = 8; // \~2x thought speed (word-by-word)
+const TYPEWRITER_ANSWER_CHAR_MS = 3; // streaming kila herufi - fix 1
 const TYPEWRITER_ANSWER_STEP = 1; // fallback only; stream is word-based
 
 function boardGetDomain(url: string) {
@@ -689,16 +783,20 @@ function BoardThoughtProcess({
   agent,
   thinking,
   live,
+  onSettle,
+  historyMode,
 }: {
   agent: ReturnType<typeof getAgent>;
   thinking: string;
   live: boolean;
+  onSettle?: () => void;
+  historyMode: boolean;
 }) {
   const accent = agent?.accent ?? "var(--primary)";
-  const [open, setOpen] = useState(live);
+  const [open, setOpen] = useState(!historyMode);
   // History (!live): start with full text. Live: type from empty.
   const [displayedThinking, setDisplayedThinking] = useState(() =>
-    live ? "" : thinking,
+    historyMode ? thinking : "",
   );
 
   const thinkingRef = useRef<HTMLDivElement | null>(null);
@@ -707,6 +805,7 @@ function BoardThoughtProcess({
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousScrollHeightRef = useRef(0);
   const wasNearBottomRef = useRef(true);
+  const settledRef = useRef(false);
 
   thinkingTargetRef.current = thinking;
   displayedThinkingRef.current = displayedThinking;
@@ -714,24 +813,25 @@ function BoardThoughtProcess({
   useEffect(() => {
     if (live) {
       setOpen(true);
+      settledRef.current = false;
       return;
     }
+    // Thinking phase imeisha upande wa server (jibu limeanza), lakini
+    // typewriter ya hapa chini bado inaweza kuwa inakamilisha reveal.
+    // Funga + settle TU baada ya reveal kukamilika kweli.
     if (!thinking || displayedThinking.length >= thinking.length) {
       setOpen(false);
-    }
-  }, [live, thinking, displayedThinking]);
-
-  // Typewriter ONLY while live. History snaps to full text.
-  useEffect(() => {
-    if (!live) {
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
-        typingTimerRef.current = null;
+      if (!settledRef.current) {
+        settledRef.current = true;
+        onSettle?.();
       }
-      setDisplayedThinking(thinking || "");
-      return;
     }
+  }, [live, thinking, displayedThinking, onSettle]);
 
+  // Typewriter inaendelea kukamilisha `thinking` mpaka mwisho, HATA
+  // baada ya `live` kuwa false -- hii inairuhusu ikamilike taratibu
+  // hata kama server tayari imeanza kutuma jibu nyuma ya pazia.
+  useEffect(() => {
     if (!thinking) {
       setDisplayedThinking("");
       previousScrollHeightRef.current = 0;
@@ -753,27 +853,29 @@ function BoardThoughtProcess({
         return;
       }
 
-      setDisplayedThinking((previous) => {
-        if (!target.startsWith(previous)) {
-          return target.slice(0, 1);
-        }
-        if (previous.length >= target.length) {
-          return previous;
-        }
-        return target.slice(0, previous.length + 1);
-      });
+      const previous = displayedThinkingRef.current;
+      let next = previous;
+      if (!target.startsWith(previous)) {
+        next = target.slice(0, 1);
+      } else if (previous.length < target.length) {
+        next = target.slice(0, previous.length + 1);
+      }
 
-      typingTimerRef.current = setTimeout(() => {
-        if (!thinkingTargetRef.current) {
-          typingTimerRef.current = null;
-          return;
-        }
-        tick();
-      }, TYPEWRITER_CHAR_MS);
+      if (next !== previous) {
+        displayedThinkingRef.current = next;
+        setDisplayedThinking(next);
+      }
+
+      if (next.length >= target.length && target.startsWith(next)) {
+        typingTimerRef.current = null;
+        return;
+      }
+
+      typingTimerRef.current = setTimeout(tick, TYPEWRITER_CHAR_MS);
     };
 
     tick();
-  }, [thinking, live]);
+  }, [thinking]);
 
   useEffect(() => {
     return () => {
@@ -971,20 +1073,26 @@ function useBoardTypewriter(
         return;
       }
 
-      setDisplayed((previous) => {
-        // Word-by-word: next non-space run + following spaces
-        if (!currentTarget.startsWith(previous)) {
-          const m = currentTarget.match(/^\S+\s*/);
-          return m ? m[0] : currentTarget.slice(0, 1);
-        }
-        if (previous.length >= currentTarget.length) {
-          return previous;
-        }
+      const previous = displayedRef.current;
+      let next = previous;
+      if (!currentTarget.startsWith(previous)) {
+        const m = currentTarget.match(/^\S+\s*/);
+        next = m ? m[0] : currentTarget.slice(0, 1);
+      } else if (previous.length < currentTarget.length) {
         const rest = currentTarget.slice(previous.length);
         const m = rest.match(/^\S+\s*/);
-        if (m) return previous + m[0];
-        return currentTarget;
-      });
+        next = m ? previous + m[0] : currentTarget;
+      }
+
+      if (next !== previous) {
+        displayedRef.current = next;
+        setDisplayed(next);
+      }
+
+      if (next.length >= currentTarget.length && currentTarget.startsWith(next)) {
+        timerRef.current = null;
+        return;
+      }
 
       timerRef.current = setTimeout(tick, delay);
     };
@@ -1224,14 +1332,132 @@ function BoardCopyIcon() {
   );
 }
 
-function BoardMessage({ item }: { item: Extract<Item, { kind: "msg" }> }) {
+
+function extractFence(code: string) {
+  const m = code.match(/```([A-Za-z0-9_+#-]*)\s*\n([\s\S]*?)```/);
+  return {
+    lang: (m?.[1] || "code").trim() || "code",
+    body: (m?.[2] ?? code).replace(/\n$/, ""),
+  };
+}
+
+type DiffRow = { kind: "same" | "delete" | "insert"; text: string };
+
+function buildDissolveDiff(oldCode: string, newCode: string): DiffRow[] {
+  const oldLines = extractFence(oldCode).body.split("\n");
+  const newLines = extractFence(newCode).body.split("\n");
+
+  // Keep the UI safe for very large scripts; the normal final code remains unchanged.
+  if (oldLines.length * newLines.length > 180000) {
+    return [
+      ...oldLines.map((text) => ({ kind: "delete" as const, text })),
+      ...newLines.map((text) => ({ kind: "insert" as const, text })),
+    ];
+  }
+
+  const cols = newLines.length + 1;
+  const dp = Array.from({ length: oldLines.length + 1 }, () => new Uint32Array(cols));
+  for (let i = oldLines.length - 1; i >= 0; i--) {
+    for (let j = newLines.length - 1; j >= 0; j--) {
+      dp[i][j] = oldLines[i] === newLines[j]
+        ? dp[i + 1][j + 1] + 1
+        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const rows: DiffRow[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < oldLines.length || j < newLines.length) {
+    if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
+      rows.push({ kind: "same", text: oldLines[i] });
+      i++; j++;
+      continue;
+    }
+    if (i < oldLines.length && (j >= newLines.length || dp[i + 1][j] >= dp[i][j + 1])) {
+      rows.push({ kind: "delete", text: oldLines[i] });
+      i++;
+      continue;
+    }
+    if (j < newLines.length) {
+      rows.push({ kind: "insert", text: newLines[j] });
+      j++;
+    }
+  }
+  return rows;
+}
+
+function CodeDissolveBlock({
+  oldCode,
+  newCode,
+}: {
+  oldCode: string;
+  newCode: string;
+}) {
+  const oldFence = extractFence(oldCode);
+  const rows = buildDissolveDiff(oldCode, newCode);
+  return (
+    <div className="my-2 overflow-hidden rounded-xl border border-white/10">
+      <div className="flex items-center justify-between gap-2 bg-white/[0.06] px-3 py-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">{oldFence.lang}</span>
+          <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+            correcting
+          </span>
+        </div>
+        <span className="text-[9px] text-muted-foreground">Script revision</span>
+      </div>
+      <pre className="overflow-x-auto bg-black/50 p-3 text-[12.5px] leading-6">
+        {rows.map((row, index) => {
+          const prefix = row.kind === "delete" ? "− " : row.kind === "insert" ? "+ " : "  ";
+          const cls =
+            row.kind === "delete"
+              ? "block bg-red-500/10 text-red-300 line-through decoration-red-300/70"
+              : row.kind === "insert"
+                ? "block bg-emerald-500/10 text-emerald-300"
+                : "block text-zinc-300";
+          return (
+            <span key={`${index}-${row.kind}`} className={cls}>
+              {prefix}{row.text}
+            </span>
+          );
+        })}
+      </pre>
+    </div>
+  );
+}
+
+function BoardMessage({
+  item,
+  historyMode,
+  onTurnComplete,
+  dissolve,
+}: {
+  item: Extract<Item, { kind: "msg" }>;
+  historyMode: boolean;
+  onTurnComplete?: (id: string) => void;
+  dissolve?: { oldCode: string; newCode: string };
+}) {
   const agent = getAgent(item.agentId);
   const live = !item.done;
-  const thinkingLive = live && !item.content;
-  const showAnswer = Boolean(item.content);
-  // History: mounted already done -> show full text instantly.
-  // Live: always typewriter until caught up (even after done=true).
-  const mountedDoneRef = useRef(item.done);
+  const hasThinking = Boolean(item.thinking);
+  const mountedDoneRef = useRef(historyMode);
+  const [thinkingSettled, setThinkingSettled] = useState(
+    () => mountedDoneRef.current || !hasThinking,
+  );
+  // FIX SAHIHI: thinkingLive iwe true wakati thinking bado haija-settle
+  // au jibu bado halijaanza - glow hadi mwisho, open mpaka streaming iishe
+  const thinkingLive = hasThinking && !item.content;
+  const handleThinkingSettle = useCallback(() => {
+    setThinkingSettled(true);
+  }, []);
+  useEffect(() => {
+    if (hasThinking && !item.content && !mountedDoneRef.current) {
+      setThinkingSettled(false);
+    }
+  }, [hasThinking, item.content]);
+  const showAnswer =
+    Boolean(item.content) && (thinkingSettled || mountedDoneRef.current);
   const displayedContent = useBoardTypewriter(
     item.content || "",
     showAnswer,
@@ -1239,6 +1465,25 @@ function BoardMessage({ item }: { item: Extract<Item, { kind: "msg" }> }) {
   );
   const answerCaughtUp =
     !item.content || displayedContent.length >= item.content.length;
+
+  useEffect(() => {
+    if (historyMode || !onTurnComplete) return;
+    if (item.done && thinkingSettled && answerCaughtUp) {
+      onTurnComplete(item.id);
+    }
+  }, [historyMode, onTurnComplete, item.done, item.id, thinkingSettled, answerCaughtUp]);
+
+  // Scroll ifuate kila neno linaloongezeka (thinking au jibu) IKIWA TU
+  // mtumiaji tayari yuko karibu na chini -- kanuni ile ile ya container
+  // ya nje, kwa hiyo haipingani na scroll ya mkono kuelekea juu.
+  useLayoutEffect(() => {
+    if (mountedDoneRef.current) return;
+    const el = document.querySelector(
+      "[data-board-stream-scroll]",
+    ) as HTMLElement | null;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [displayedContent, item.thinking, item.searches.length, item.sources.length, item.content]);
 
   const hasSources = item.sources.length > 0;
   // Show searching indicator only while live, query exists, sources not yet in.
@@ -1276,61 +1521,80 @@ function BoardMessage({ item }: { item: Extract<Item, { kind: "msg" }> }) {
             agent={agent}
             thinking={item.thinking}
             live={thinkingLive}
+            onSettle={handleThinkingSettle}
+            historyMode={historyMode}
           />
 
-          {item.query && (
-            <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] text-primary">
-              <span className="relative flex h-1.5 w-1.5 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
-              </span>
-              {isSearching && (
-                <span className="xmd-board-searching-sweep shrink-0">
-                  🔍 searching...
-                </span>
-              )}
-              <span className="min-w-0 break-all">{item.query}</span>
-            </div>
-          )}
+          {item.searches.map((round, idx) => {
+            const isLastRound = idx === item.searches.length - 1;
+            const roundIsSearching = isLastRound && isSearching;
+            const roundSources = round.sources;
+            return (
+              <div key={`${item.id}-search-${idx}`} className="flex flex-col gap-1.5">
+                <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] text-primary">
+                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+                  </span>
+                  {roundIsSearching && (
+                    <span className="xmd-board-searching-sweep shrink-0">
+                      🔍 searching...
+                    </span>
+                  )}
+                  <span className="min-w-0 break-all">{round.query}</span>
+                </div>
+                {roundSources.length > 0 && (
+                  <span className="inline-flex flex-wrap items-center">
+                    {roundSources.slice(0, 2).map((source, index) => (
+                      <BoardSourcePill
+                        key={`${source.url}-${index}`}
+                        source={source}
+                        onOpen={() => setSourcesOpen(true)}
+                      />
+                    ))}
+                    {roundSources.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => setSourcesOpen(true)}
+                        className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
+                      >
+                        +{roundSources.length - 2}
+                      </button>
+                    )}
+                  </span>
+                )}
+              </div>
+            );
+          })}
 
           {/* Document-style answer — NOT inside a glass bubble box */}
-          {/* Sources real-time: independent of answer content */}
-          {hasSources && (
-            <span className="inline-flex flex-wrap items-center">
-              {item.sources.slice(0, 2).map((source, index) => (
-                <BoardSourcePill
-                  key={`${source.url}-${index}`}
-                  source={source}
-                  onOpen={() => setSourcesOpen(true)}
-                />
-              ))}
-              {item.sources.length > 2 && (
-                <button
-                  type="button"
-                  onClick={() => setSourcesOpen(true)}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
-                >
-                  +{item.sources.length - 2}
-                </button>
-              )}
-            </span>
-          )}
-
-          {showAnswer && (
+          {dissolve ? (
             <div className="break-words text-[14px] leading-6 text-foreground">
-              <Markdown
-                text={
-                  mountedDoneRef.current || (item.done && answerCaughtUp)
-                    ? item.content || ""
-                    : displayedContent || ""
-                }
-              />
+              <CodeDissolveBlock oldCode={dissolve.oldCode} newCode={dissolve.newCode} />
+            </div>
+          ) : showAnswer ? (
+            <div className="break-words text-[14px] leading-6 text-foreground">
+              <div className="my-2 overflow-hidden rounded-xl">
+                {item.corrected && item.done && /```[\s\S]*```/.test(item.content || "") && (
+                  <div className="mb-1.5 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-300/90">
+                    <span className="grid h-4 w-4 place-items-center rounded-full border border-emerald-400/25 bg-emerald-400/10">✓</span>
+                    Script corrected
+                  </div>
+                )}
+                <Markdown
+                  text={
+                    mountedDoneRef.current || (item.done && answerCaughtUp)
+                      ? item.content || ""
+                      : displayedContent || ""
+                  }
+                />
+              </div>
               {!mountedDoneRef.current &&
                 displayedContent.length < (item.content?.length ?? 0) && (
                 <span className="caret" />
               )}
             </div>
-          )}
+          ) : null}
 
           {item.failed && item.error && (
             <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-destructive-foreground">
@@ -1339,7 +1603,7 @@ function BoardMessage({ item }: { item: Extract<Item, { kind: "msg" }> }) {
           )}
 
           {/* Copy only — no regenerate */}
-          {item.done && item.content && (
+          {(mountedDoneRef.current || (item.done && answerCaughtUp)) && item.content && (
             <div className="flex items-center gap-1 pt-0.5">
               <button
                 type="button"
@@ -1357,9 +1621,9 @@ function BoardMessage({ item }: { item: Extract<Item, { kind: "msg" }> }) {
           )}
       </div>
 
-      {sourcesOpen && item.sources.length > 0 && (
+      {sourcesOpen && item.searches.some((s) => s.sources.length > 0) && (
         <BoardSourceDrawer
-          sources={item.sources}
+          sources={item.searches.flatMap((s) => s.sources)}
           onClose={() => setSourcesOpen(false)}
         />
       )}

@@ -40,21 +40,6 @@ const databases = new Databases(client);
 const DB = process.env.APPWRITE_DATABASE_ID || "";
 const COL = "board_ledger";
 
-// [PATCH-XMD-V2] Limits zisikatwe kimya kimya.
-// Hakikisha size ya columns kwenye Appwrite >= namba hizi (decision_summary >= 4000, approved_code >= 65000).
-const DECISION_SUMMARY_MAX = Number(process.env.LEDGER_DECISION_SUMMARY_MAX) || 4000;
-const APPROVED_CODE_MAX = Number(process.env.LEDGER_APPROVED_CODE_MAX) || 65000;
-
-function cap(field: string, value: unknown, max: number): string {
-  if (!value) return "";
-  const s = String(value);
-  if (s.length > max) {
-    console.error(`⚠️ [Ledger] ${field} imekatwa: ${s.length} -> ${max} herufi. Ongeza size ya column au punguza maudhui.`);
-    return s.slice(0, max);
-  }
-  return s;
-}
-
 export async function saveLedgerEntry(e: LedgerEntry, maxRetries = 3): Promise<string | null> {
   const safeProjectId = typeof e.project_id === 'string' 
     ? e.project_id.slice(0, 100).trim() 
@@ -75,9 +60,9 @@ export async function saveLedgerEntry(e: LedgerEntry, maxRetries = 3): Promise<s
     agenda_index: Number(e.agenda_index) || 0,
     agenda_item: String(e.agenda_item || '').slice(0, 255),
     status: e.status || "LOCKED",
-    decision_summary: cap("decision_summary", e.decision_summary, DECISION_SUMMARY_MAX),
+    decision_summary: String(e.decision_summary || '').slice(0, 1000),
     decision_detail: e.decision_detail ? String(e.decision_detail).slice(0, 30000) : "",
-    approved_code: cap("approved_code", e.approved_code, APPROVED_CODE_MAX),
+    approved_code: e.approved_code ? String(e.approved_code).slice(0, 65000) : "",
     carried_constraints: e.carried_constraints ? String(e.carried_constraints).slice(0, 10000) : "",
     rationale: e.rationale ? String(e.rationale).slice(0, 5000) : "",
     trade_off: e.trade_off ? String(e.trade_off).slice(0, 3000) : "",
@@ -97,11 +82,6 @@ export async function saveLedgerEntry(e: LedgerEntry, maxRetries = 3): Promise<s
       return doc.$id;
     } catch (err: any) {
       console.warn(`⚠️ [Ledger] Jaribio la ${attempt}/${maxRetries} limeshindwa kuhifadhi Agenda #${e.agenda_index}:`, err?.message || err);
-      // Safety net: kama column ya decision_summary ni ndogo kuliko 4000, punguza hadi 1000 ili agenda isipotee.
-      if (/invalid|size|length|too (long|large)/i.test(String(err?.message || "")) && String(payload.decision_summary).length > 1000) {
-        console.warn("⚠️ [Ledger] Huenda column ya decision_summary ni ndogo kuliko 4000 — inapunguza hadi 1000 na kujaribu tena. Ongeza size ya column Appwrite!");
-        payload.decision_summary = String(payload.decision_summary).slice(0, 1000);
-      }
       if (attempt < maxRetries) {
         await new Promise((r) => setTimeout(r, attempt * 1000));
       } else {
@@ -113,21 +93,16 @@ export async function saveLedgerEntry(e: LedgerEntry, maxRetries = 3): Promise<s
   return null;
 }
 
-export async function listLedger(projectId: string, maxRetries = 3): Promise<LedgerEntry[]> {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const res = await databases.listDocuments(DB, COL, [
-        Query.equal("project_id", projectId),
-        Query.limit(100),
-      ]);
-      return res.documents.map((d: any) => ({ ...d, id: d.$id })) as LedgerEntry[];
-    } catch (err: any) {
-      console.warn(`⚠️ [Ledger] listLedger jaribio ${attempt}/${maxRetries} limeshindwa:`, err?.message || err);
-      if (attempt < maxRetries) await new Promise((r) => setTimeout(r, attempt * 800));
-    }
+export async function listLedger(projectId: string): Promise<LedgerEntry[]> {
+  try {
+    const res = await databases.listDocuments(DB, COL, [
+      Query.equal("project_id", projectId),
+      Query.limit(100),
+    ]);
+    return res.documents.map((d: any) => ({ ...d, id: d.$id })) as LedgerEntry[];
+  } catch {
+    return [];
   }
-  console.error("❌ [Ledger] listLedger imeshindwa baada ya majaribio yote — inarudisha orodha tupu.");
-  return [];
 }
 
 // Final Board Resolution = Ledger iliyochujwa (LOCKED tu, imepangwa kwa agenda_index)
@@ -219,5 +194,3 @@ export async function getCarriedConstraints(projectId: string, sessionId?: strin
     return "";
   }
 }
-
-// [PATCH-XMD-V2] applied

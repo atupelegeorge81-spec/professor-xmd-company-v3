@@ -866,11 +866,7 @@ function AssistantMessageContent({
   const TextComponent = useMemo(
     () =>
       function Text({ text }: { text: string }) {
-        const hasFencedCode = /```/.test(text);
-        const displayedText = useAnswerTypewriter(
-          text,
-          unlockedRef.current && !hasFencedCode,
-        );
+        const displayedText = useAnswerTypewriter(text, unlockedRef.current);
         const currentSources = sourcesRef.current;
 
         return (
@@ -933,18 +929,11 @@ export function AssistantAgentMessage({ agent }: Props) {
   const sources = metadata?.xmdSources ?? [];
   const thinkingText = metadata?.xmdThinking ?? "";
   const hasThinkingText = Boolean(metadata?.xmdHasThinking) && thinkingText.length > 0;
-  // Keep Thought Process live only while the backend is actually
-  // streaming thinking/search activity. When answering starts,
-  // ThoughtProcess receives live=false and performs its existing
-  // collapse/settle animation before unlocking the answer.
-  const thinkingLive =
-    hasThinkingText && (phase === "thinking" || phase === "searching");
-
-  // The answer remains locked until ThoughtProcess calls onSettle().
+  const thinkingLive = hasThinkingText && !thinkingSettled;
   const answerGated = hasThinkingText && !thinkingSettled;
 
   useEffect(() => {
-    if (phase === "thinking" || phase === "searching") {
+    if (phase === "thinking") {
       setThinkingSettled(false);
     }
   }, [phase]);
