@@ -1,113 +1,65 @@
-// src/lib/env.ts
-// API key circle ya Board Room: stages 5
-//   0 = XKiro Key 1 -> 1 = XKiro Key 2 -> 2 = Groq Key 1 -> 3 = Groq Key 2 -> 4 = TokenHarbor Relief
-// KANUNI: key ya provider mmoja HAIENDI kwa provider mwingine. Key ikikosekana => "" (na onyo wazi kwenye console).
-// Hakuna key yoyote ndani ya code — zote zinatoka .env.local.
-
-export type ApiStage = 0 | 1 | 2 | 3 | 4;
+// src/lib/env.ts — providers, models na majina ya personas (R16 · Capacity Broker).
+// HAKUNA key ndani ya code — zote zinatoka .env.local. Uchaguzi wa key/model kwa kila ombi unafanywa na
+// src/lib/broker (hakuna tena "stage" 0..4 wala mzunguko wa kila agent).
 
 export const XTROUTER_BASE_URL = process.env.XTROUTER_BASE_URL || "https://api.xkiro.com/v1";
 export const XTROUTER_MODEL = process.env.XTROUTER_MODEL || "qwen/qwen3.8-max:free";
+
 export const GROQ_BASE_URL = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
-// [PATCH-XMD-V5-ARBITER] Tier 2 (Groq) — models pekee zilizoidhinishwa na spec ya Tri-Tier Arbiter.
-// Zinazungushwa ndani ya stage (compound -> compound-mini) kabla ya kwenda stage inayofuata (Key nyingine / TokenHarbor).
-export const GROQ_STAGE_MODELS: string[] = ["groq/compound", "groq/compound-mini"];
+// Groq: models 2 kwa kila account (kila model ina TPM/TPD yake). Limits zinasomwa live: lib/server/groqLimits.ts
+export const GROQ_MODELS: string[] = (process.env.GROQ_MODELS || "qwen/qwen3.8-27b,openai/gpt-oss-120b")
+  .split(",").map((s) => s.trim()).filter(Boolean);
 
-// [PATCH-XMD-V5-ARBITER] Tier 3 — TokenHarbor Relief (daraja la muda Groq inapopoa).
-// TOKENHARBOR_API_KEY LAZIMA iwekwe kwenye .env.local — hakuna default ndani ya code.
-export const TOKENHARBOR_BASE_URL = process.env.TOKENHARBOR_BASE_URL || "https://tokenharbor.ai/v1";
-export const TOKENHARBOR_MODEL = process.env.TOKENHARBOR_MODEL || "deepseek-v4.1-flash:free";
+export const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+export const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
 
-// agent id (kwenye agents.ts)  ->  jina la persona kwenye .env.local
-const AGENT_ENV_NAME: Record<string, string> = {
-  pm: "OPTIMUS",
-  designer: "ULTRON",
-  frontend: "VEXTRON",
-  backend: "MEGATRON",
-  qa: "CYBERTRON",
-};
-const PERSONAS = ["OPTIMUS", "ULTRON", "VEXTRON", "MEGATRON", "CYBERTRON"];
+export const UNOROUTER_BASE_URL = process.env.UNOROUTER_BASE_URL || "https://api.unorouter.com/v1";
+export const UNOROUTER_MODELS: string[] = (process.env.UNOROUTER_MODELS || "space-bunny-alpha:free,nemotron-3-ultra-550b-a55b:free")
+  .split(",").map((s) => s.trim()).filter(Boolean);
 
-function envName(agentId: string): string | undefined {
+// R18 · Gemini (Google AI Studio free tier) kupitia njia ya OpenAI (…/v1beta/openai) — imejaribiwa: stream + usage.
+//   Quota ni kwa PROJECT na kwa KILA MODEL (kila model ina hesabu yake). Imehakikiwa kwa 429 halisi (quotaValue):
+//   Flash = 5 kwa dakika · Flash-Lite = 15 kwa dakika. Kwa siku (vipimo huru Sep 2026): Flash 20 · Flash-Lite 500.
+//   gemma haitumiki (Mkuu) · 2.5-pro/2.5-flash-lite = 404 kwa watumiaji wapya · 3.1-pro = kulipia tu.
+export const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai";
+export const GEMINI_NATIVE_URL = process.env.GEMINI_NATIVE_URL || "https://generativelanguage.googleapis.com/v1beta";
+const list = (v: string | undefined, d: string) => (v || d).split(",").map((s) => s.trim()).filter((m) => m && !/gemma/i.test(m));
+/** Flash (nzito, bora kwanza) — kazi za HEAVY: code, mini-report, script ya mwisho, ripoti */
+export const GEMINI_FLASH_MODELS: string[] = list(process.env.GEMINI_FLASH_MODELS, "gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,gemini-2.5-flash");
+/** Flash-Lite (haraka, nyingi) — kazi za LIGHT/BACKGROUND: observers, memory, search query, title */
+export const GEMINI_LITE_MODELS: string[] = list(process.env.GEMINI_LITE_MODELS, "gemini-3.5-flash-lite,gemini-3.1-flash-lite");
+/** Embeddings za search cache: ya kwanza = msingi, ya pili = akiba (space yake — vectors hazichanganywi) */
+export const GEMINI_EMBED_MODELS: string[] = list(process.env.GEMINI_EMBED_MODELS, "gemini-embedding-001,gemini-embedding-2");
+export const GEMINI_FLASH_RPD = Number(process.env.GEMINI_FLASH_RPD) || 20;
+export const GEMINI_FLASH_RPM = Number(process.env.GEMINI_FLASH_RPM) || 5;
+export const GEMINI_LITE_RPD = Number(process.env.GEMINI_LITE_RPD) || 500;
+export const GEMINI_LITE_RPM = Number(process.env.GEMINI_LITE_RPM) || 15;
+export const GEMINI_EMBED_RPD = Number(process.env.GEMINI_EMBED_RPD) || 1000;
+export const GEMINI_EMBED_RPM = Number(process.env.GEMINI_EMBED_RPM) || 100;
+
+/** Model ya kuonyesha kabla broker hajachagua chochote (UI/prompts). */
+export const DEFAULT_MODEL = XTROUTER_MODEL;
+
+// agent id (kwenye agents.ts) -> jina la persona kwenye .env.local
+export const PERSONAS = ["OPTIMUS", "ULTRON", "VEXTRON", "MEGATRON", "CYBERTRON"] as const;
+export type Persona = (typeof PERSONAS)[number];
+export const ENGINE_OF: Record<Persona, string> = { OPTIMUS: "pm", ULTRON: "designer", VEXTRON: "frontend", MEGATRON: "backend", CYBERTRON: "qa" };
+const AGENT_ENV_NAME: Record<string, Persona> = { pm: "OPTIMUS", designer: "ULTRON", frontend: "VEXTRON", backend: "MEGATRON", qa: "CYBERTRON" };
+
+export function personaOf(agentId: string): Persona | undefined {
   const id = String(agentId || "").toLowerCase();
   if (AGENT_ENV_NAME[id]) return AGENT_ENV_NAME[id];
   const up = String(agentId || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   return PERSONAS.find((p) => up.includes(p));
 }
 
-function readEnv(name: string): string | undefined {
+/** engine id ("pm", "designer" …) kwa jina lolote (engine au persona). */
+export function engineOf(agentId: string): string {
+  const p = personaOf(agentId);
+  return p ? ENGINE_OF[p] : String(agentId || "");
+}
+
+export function readEnv(name: string): string | undefined {
   const v = process.env[name];
   return v && v.trim() ? v.trim() : undefined;
 }
-
-const warned = new Set<string>();
-
-// Majina ya env vars kwa agent + stage (kwa mpangilio wa kipaumbele, provider ile ile tu).
-export function apiKeyEnvNames(agentId: string, stage: number): string[] {
-  if (stage === 4) return ["TOKENHARBOR_API_KEY"]; // [PATCH-XMD-V5-ARBITER]
-  const n = envName(agentId);
-  if (!n) return [];
-  if (stage === 0) return [`XTROUTER_API_KEY_${n}_1`, "XTROUTER_API_KEY"];
-  if (stage === 1) return [`XTROUTER_API_KEY_${n}_2`, `XTROUTER_API_KEY_${n}_1`];
-  if (stage === 2) return [`GROQ_API_KEY_${n}_1`, "GROQ_API_KEY"];
-  return [`GROQ_API_KEY_${n}_2`, `GROQ_API_KEY_${n}_1`];
-}
-
-export function apiKeyFor(agentId: string, stage: number): string {
-  const names = apiKeyEnvNames(agentId, stage);
-  for (const nm of names) {
-    const v = readEnv(nm);
-    if (v) return v;
-  }
-  const tag = `${agentId}:${stage}`;
-  if (!warned.has(tag)) {
-    warned.add(tag);
-    console.warn(
-      names.length
-        ? `[env] Key haipo kwa agent="${agentId}" stage=${stage}. Weka ${names[0]} kwenye .env.local`
-        : `[env] Agent "${agentId}" haijulikani kwenye AGENT_ENV_NAME (src/lib/env.ts) — ongeza mapping.`,
-    );
-  }
-  return "";
-}
-
-export function apiModelsFor(_agentId: string, stage: number): string[] {
-  if (stage === 2 || stage === 3) return [...GROQ_STAGE_MODELS];
-  if (stage === 4) return [TOKENHARBOR_MODEL]; // [PATCH-XMD-V5-ARBITER]
-  return [XTROUTER_MODEL];
-}
-
-export function apiBaseUrlFor(_agentId: string, stage: number): string {
-  if (stage === 2 || stage === 3) return GROQ_BASE_URL;
-  if (stage === 4) return TOKENHARBOR_BASE_URL; // [PATCH-XMD-V5-ARBITER]
-  return XTROUTER_BASE_URL;
-}
-
-// Models chaguo-msingi (ids + majina ya persona + default) ili agents.ts ipate model kwa njia yoyote.
-export const AGENT_MODELS: Record<string, string[]> = {
-  pm: [XTROUTER_MODEL],
-  designer: [XTROUTER_MODEL],
-  frontend: [XTROUTER_MODEL],
-  backend: [XTROUTER_MODEL],
-  qa: [XTROUTER_MODEL],
-  optimus: [XTROUTER_MODEL],
-  ultron: [XTROUTER_MODEL],
-  vextron: [XTROUTER_MODEL],
-  megatron: [XTROUTER_MODEL],
-  cybertron: [XTROUTER_MODEL],
-  default: [XTROUTER_MODEL],
-};
-
-// clientA/clientB kwenye boardRunner (title + agenda) zinaelekezwa XKiro base URL,
-// kwa hiyo key lazima iwe ya XKiro. (Jina "groqKeyFor" ni la zamani.)
-export function groqKeyFor(agentId: string): string {
-  return apiKeyFor(agentId, 0) || apiKeyFor(agentId, 1);
-}
-
-// Key ya Groq: bila agentId => default ya Optimus; na agentId => Groq Key 1 ya agent huyo.
-export function groqApiKey(agentId?: string): string {
-  if (agentId) return apiKeyFor(agentId, 2);
-  return readEnv("GROQ_API_KEY_OPTIMUS_1") || readEnv("GROQ_API_KEY") || "";
-}
-
-// [PATCH-XMD-V5-ARBITER] applied

@@ -1,0 +1,244 @@
+import type { AgentId } from "@/lib/team";
+import type { Source } from "@/lib/ui-types";
+
+/* ---------------------------------------------------------------------------
+ * STAGE ITEMS — kila kitu kinachotokea Board Room kina render yake.
+ * Kila aina hapa ina ramani (mapping) ya tukio halisi la engine ya
+ * professor-xmd-company (boardRunner.ts + brain/*) — angalia maoni `engine:`.
+ * Integration ya baadaye = reducer inayogeuza BoardEvent → StageItem hizi.
+ * ------------------------------------------------------------------------- */
+
+export type Step = "wait" | "run" | "done" | "fail" | "skip";
+
+export interface AgendaDef {
+  index: number;
+  title: string;
+  owners: AgentId[];
+  requiresCode: boolean;
+}
+
+/** engine: user prompt (CEO) */
+export interface UserItem { kind: "user"; id: string; text: string }
+
+/** engine: addChip("🏛️ Board Room — …") / resume "♻️ …imeendelea" / reattach · title_done · "💾 Conversation imeundwa" */
+export interface ConveneItem {
+  kind: "convene"; id: string;
+  mode: "new" | "resume" | "reattach";
+  project: string;
+  title: string; titleShown: number;
+  sessionId?: string;
+}
+
+/** engine: addChip("🧭 Optimus ameelewa: …") */
+export interface ScopeItem { kind: "scope"; id: string; text: string; shown: number }
+
+/** engine: addChip("📋 Agenda (N vipengele): …") */
+export interface AgendaBuildItem { kind: "agendaBuild"; id: string; items: AgendaDef[]; shown: number }
+
+/** engine: bcast({type:"round"}) + addChip(" Agenda i/N: … — owners: …") */
+export interface AgendaStartItem { kind: "agendaStart"; id: string; agenda: AgendaDef; total: number }
+
+/** engine: runMandatoryEvidenceGate / handleResearchRequest (search, sources, msg_done) + search.ts logs.
+ * Inaonyeshwa NDANI ya ThinkingBlock ya zamu inayofuata ya agent huyo (Searched row + badges). */
+export interface SearchTrace {
+  variant: "gate" | "research" | "objection";
+  query: string; queryShown: number;
+  /** Appwrite semantic cache */
+  cache: Step; similarity?: number; threshold?: number; matched?: string;
+  /** session memory (research requests baada ya search ya kwanza) */
+  memory?: Step;
+  /** cache hit lakini si relevant → fresh verification */
+  relevance?: Step;
+  /** SearXNG */
+  engine: Step; attempt: number; maxAttempts: number; waitLeft?: number; failures: number;
+  /** save vector + results */
+  save: Step;
+  sources: Source[];
+  done: boolean;
+}
+
+/** Fallback: evidence isiyo na zamu inayofuata (render ya peke yake) */
+export interface EvidenceItem { kind: "evidence"; id: string; agent: AgentId; trace: SearchTrace }
+
+export type Signal =
+  | "CLARIFY" | "OFF_TOPIC" | "CONTRADICTION" | "DISAGREE"
+  | "INSUFFICIENT_EVIDENCE" | "I_WAS_WRONG" | "WAIT" | "SKILL_REQUEST";
+
+/** engine: msg_start → think* → token* → msg_done (msg_reset = retry) · brain parseSignals */
+export interface TurnItem {
+  kind: "turn"; id: string;
+  agent: AgentId;
+  role: "owner" | "observer" | "responder" | "chair" | "writer";
+  thinking: string[]; thinkShown: number;
+  content: string; target: string;
+  phase: "thinking" | "searching" | "answering" | "retrying" | "done";
+  /** evidence gate / research ya zamu hii (engine: kabla ya jibu) */
+  search?: SearchTrace;
+  /** R12: RESEARCH_REQUEST / READ_SOURCE zilizoombwa NDANI ya jibu hili — zinaonyeshwa ndani ya zamu hii hii (si sehemu mpya) */
+  followUps?: SearchTrace[];
+  retry?: { n: number; max: number; model: string };
+  seconds: number;
+  skill?: { name: string; found: boolean };
+}
+
+/** engine: proposal parser / agrees Set / consensus gate / MAX_TURNS */
+export interface ConsensusItem {
+  kind: "consensus"; id: string;
+  event: "proposed" | "reset" | "agreed" | "reached" | "exhausted";
+  by: AgentId; version: number;
+  owners: AgentId[]; approvals: AgentId[];
+}
+
+/** engine (brain): chairReview → Optimus anaongea kama mwenyekiti */
+export interface ChairItem { kind: "chair"; id: string; target: AgentId; reason: Signal; text: string; shown: number }
+
+export interface Hunk { line: number; old: string[]; new: string[] }
+
+/** engine: code-writing phase streamTurn (continuation attempts 1..3).
+ *  Patch (script_diff) = toleo jipya la box; la zamani linabaki kama mstari mfupi (dissolveMessage). */
+export interface ScriptItem {
+  kind: "script"; id: string;
+  agent: AgentId; file: string; lang: string;
+  code: string; shown: number;
+  attempt: number; maxAttempts: number;
+  /** "resume" = inasubiri kuendelea pale ilipoishia */
+  state: "writing" | "resume" | "patching" | "done";
+  version: number;
+  patch?: { reason: "review" | "objection"; add: number; del: number; hunks: Hunk[]; changed: number[] };
+  replaced?: { add: number; del: number };
+}
+
+/** engine: reviewer APPROVE / REJECT: … (round 1..2) */
+export interface ReviewItem {
+  kind: "review"; id: string; agent: AgentId;
+  verdict: "pending" | "approve" | "reject";
+  round: number; maxRounds: number; notes: string[];
+}
+
+/** engine: "Deliverable ya mwisho — item" */
+export interface DeliverableItem { kind: "deliverable"; id: string; agent: AgentId; file: string; lines: number; agenda: string }
+
+export type TaskKind = "agenda" | "mini" | "lock" | "relock" | "query" | "validate" | "reportCheck";
+/** engine: activityStart/activityEnd (shimmer — si ujumbe wa chat) */
+export interface TaskItem { kind: "task"; id: string; task: TaskKind; agent: AgentId; text: string; state: "run" | "done"; result?: string; ms?: number }
+
+export type MemState = "wait" | "run" | "saved" | "none" | "fail";
+/** engine (brain): agendaCheckpoints / finalReflection / consolidation — SHIMMER TU, maudhui hayaonyeshwi */
+export interface MemoryItem {
+  kind: "memory"; id: string;
+  scope: "agenda" | "reflection" | "consolidate";
+  agenda?: number;
+  agents: { id: AgentId; state: MemState }[];
+  done: boolean;
+}
+
+/** engine: saveLedgerEntry → addChip("🔒 LOCKED" | "🟠 OPEN") · re-lock (supersedes) */
+export interface SealItem {
+  kind: "seal"; id: string;
+  agenda: AgendaDef;
+  status: "LOCKED" | "OPEN";
+  version: number;
+  decision: string;
+  rationale?: string; tradeoff?: string;
+  constraints: string[];
+  owners: AgentId[];
+  sources: number;
+  ledgerId: string;
+  supersedes?: string;
+  superseded?: boolean;
+}
+
+/** engine: observers loop (SILENT | OBJECTION + SEVERITY) — max 1 objection */
+export interface ObserversItem {
+  kind: "observers"; id: string; agenda: number;
+  checks: { agent: AgentId; state: "wait" | "check" | "silent" | "objection" | "skipped" }[];
+  objection?: { agent: AgentId; concern: string; severity: "high" };
+}
+
+/** engine: UPDATED DECISION → re-lock + markSuperseded(entryId) + "🔁 SUPERSEDED" */
+export interface SupersedeItem {
+  kind: "supersede"; id: string; agenda: number;
+  objector: AgentId; responder: AgentId;
+  from: { ledgerId: string; text: string; version: number };
+  to: { ledgerId: string; text: string; version: number };
+}
+
+/** engine: "↩️ Objection imekataliwa: …" */
+export interface OverruledItem { kind: "overruled"; id: string; objector: AgentId; responder: AgentId; concern: string; reason: string }
+
+/** engine: HATUA 6.4 Ledger validator · report validator [A1..AN] + stitch */
+export interface ValidatorItem {
+  kind: "validator"; id: string; scope: "ledger" | "report";
+  rows: { index: number; title: string; state: "wait" | "check" | "locked" | "open" | "missing" | "ok" | "stitched" }[];
+  done: boolean;
+}
+
+/** engine: HATUA 6.5 assembleFinalScript (collectLockedPieces → stream 1..6) */
+export interface AssemblyItem {
+  kind: "assembly"; id: string;
+  pieces: { agenda: number; agent: AgentId; file: string; lines: number }[];
+  merged: number; // vipande vilivyounganishwa
+  file: string; code: string; shown: number;
+  attempt: number; maxAttempts: number; done: boolean;
+}
+
+export type SectionState = "wait" | "writing" | "done" | "missing" | "repairing" | "repaired";
+/** engine: HATUA 7 report parts 1/2, 2/2 · repair loop · saveReport */
+export interface ReportItem {
+  kind: "report"; id: string;
+  title: string;
+  part: 0 | 1 | 2 | 3; // 3 = repair
+  sections: { n: number; title: string; state: SectionState; chars: number }[];
+  /** hati nzima inayokua (kipande 1 + 2 + marekebisho) — inastreamiwa neno kwa neno */
+  doc: string; shown: number;
+  /** herufi ambapo marekebisho (repair) yanaanzia */
+  repairFrom?: number;
+  startedAt: number;
+  /** true wakati Optimus bado anaandika (stream halisi) */
+  live?: boolean;
+  saved: "wait" | "saving" | "saved" | "failed";
+  /** mjadala umeisha (finalize) — hakuna kazi inayoendelea tena kwenye kadi hii (shimmer izime) */
+  settled?: boolean;
+  reportId: string;
+}
+
+/** engine: system chips za retry/rotation/error/halt */
+export interface NoticeItem {
+  kind: "notice"; id: string;
+  tone: "retry" | "rotate" | "warn" | "error" | "halt" | "info";
+  agent?: AgentId; text: string; detail?: string;
+}
+
+/** engine: bcast({type:"summary"}) + done */
+export interface SummaryItem {
+  kind: "summary"; id: string;
+  seconds: number;
+  usage: { agent: AgentId; requests: number; tokens: number }[];
+  locked: number; superseded: number; open: number; sources: number; requests: number;
+}
+
+export type StageItem =
+  | UserItem | ConveneItem | ScopeItem | AgendaBuildItem | AgendaStartItem
+  | EvidenceItem | TurnItem | ConsensusItem | ChairItem
+  | ScriptItem | ReviewItem | DeliverableItem
+  | TaskItem | MemoryItem | SealItem | ObserversItem | SupersedeItem | OverruledItem
+  | ValidatorItem | AssemblyItem | ReportItem | NoticeItem | SummaryItem;
+
+/* ---------------- live stage (StageRail) ---------------- */
+export type AgendaPhase = "evidence" | "discussion" | "code" | "lock" | "review" | "relock" | "memory";
+export type FinalePhase = "validate" | "assemble" | "report" | "reflect" | "done";
+
+export interface LiveStage {
+  scope: "opening" | "agenda" | "finale" | "done";
+  agenda?: AgendaDef;
+  total: number;
+  phase?: AgendaPhase;
+  finale?: FinalePhase;
+  hadCode: boolean;
+  hadObjection: boolean;
+  owners: AgentId[];
+  approvals: AgentId[];
+  version: number;
+  ledger: Record<number, { status: "LOCKED" | "OPEN" | "SUPERSEDED+LOCKED"; version: number }>;
+  background: string | null; // shimmer text ya kazi ya background inayoendelea
+}

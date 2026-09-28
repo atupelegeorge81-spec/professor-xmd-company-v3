@@ -1,0 +1,171 @@
+---
+id: webapp-testing/qa-scripts
+title: Webapp Testing — writing Playwright QA scripts (server helper, best practices, examples)
+phases: code, fix, review
+priority: 2
+when: \b(test\w*|qa|e2e|playwright|automation|script|browser|selector)\b
+upstream: SKILL.md §Example with_server, §Best Practices, §Reference Files + examples/*.py
+---
+
+## Example: Using with_server.py
+
+When the QA deliverable needs a server, the runner (Mkuu's machine) uses the helper pattern — run `--help` first, then:
+
+**Single server:**
+```bash
+python scripts/with_server.py --server "npm run dev" --port 5173 -- python your_automation.py
+```
+
+**Multiple servers (e.g., backend + frontend):**
+```bash
+python scripts/with_server.py \
+  --server "cd backend && python server.py" --port 3000 \
+  --server "cd frontend && npm run dev" --port 5173 \
+  -- python your_automation.py
+```
+
+To create an automation script, include only Playwright logic (servers are managed automatically):
+```python
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True) # Always launch chromium in headless mode
+    page = browser.new_page()
+    page.goto('http://localhost:5173') # Server already running and ready
+    page.wait_for_load_state('networkidle') # CRITICAL: Wait for JS to execute
+    # ... your automation logic
+    browser.close()
+```
+
+## Best Practices
+
+- **Use helper scripts as black boxes** - In the QA deliverable, prefer a helper (like with_server.py) over hand-rolled server management; use `--help` to see usage, then invoke directly.
+- Use `sync_playwright()` for synchronous scripts
+- Always close the browser when done
+- Use descriptive selectors: `text=`, `role=`, CSS selectors, or IDs
+- Add appropriate waits: `page.wait_for_selector()` or `page.wait_for_timeout()`
+
+## Reference examples (verbatim)
+
+### examples/element_discovery.py — Discovering buttons, links, and inputs on a page
+
+```python
+from playwright.sync_api import sync_playwright
+
+# Example: Discovering buttons and other elements on a page
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+
+    # Navigate to page and wait for it to fully load
+    page.goto('http://localhost:5173')
+    page.wait_for_load_state('networkidle')
+
+    # Discover all buttons on the page
+    buttons = page.locator('button').all()
+    print(f"Found {len(buttons)} buttons:")
+    for i, button in enumerate(buttons):
+        text = button.inner_text() if button.is_visible() else "[hidden]"
+        print(f"  [{i}] {text}")
+
+    # Discover links
+    links = page.locator('a[href]').all()
+    print(f"\nFound {len(links)} links:")
+    for link in links[:5]:  # Show first 5
+        text = link.inner_text().strip()
+        href = link.get_attribute('href')
+        print(f"  - {text} -> {href}")
+
+    # Discover input fields
+    inputs = page.locator('input, textarea, select').all()
+    print(f"\nFound {len(inputs)} input fields:")
+    for input_elem in inputs:
+        name = input_elem.get_attribute('name') or input_elem.get_attribute('id') or "[unnamed]"
+        input_type = input_elem.get_attribute('type') or 'text'
+        print(f"  - {name} ({input_type})")
+
+    # Take screenshot for visual reference
+    page.screenshot(path='/tmp/page_discovery.png', full_page=True)
+    print("\nScreenshot saved to /tmp/page_discovery.png")
+
+    browser.close()
+```
+
+### examples/static_html_automation.py — Using file:// URLs for local HTML
+
+```python
+from playwright.sync_api import sync_playwright
+import os
+
+# Example: Automating interaction with static HTML files using file:// URLs
+
+html_file_path = os.path.abspath('path/to/your/file.html')
+file_url = f'file://{html_file_path}'
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page(viewport={'width': 1920, 'height': 1080})
+
+    # Navigate to local HTML file
+    page.goto(file_url)
+
+    # Take screenshot
+    page.screenshot(path='/mnt/user-data/outputs/static_page.png', full_page=True)
+
+    # Interact with elements
+    page.click('text=Click Me')
+    page.fill('#name', 'John Doe')
+    page.fill('#email', 'john@example.com')
+
+    # Submit form
+    page.click('button[type="submit"]')
+    page.wait_for_timeout(500)
+
+    # Take final screenshot
+    page.screenshot(path='/mnt/user-data/outputs/after_submit.png', full_page=True)
+
+    browser.close()
+
+print("Static HTML automation completed!")
+```
+
+### examples/console_logging.py — Capturing console logs during automation
+
+```python
+from playwright.sync_api import sync_playwright
+
+# Example: Capturing console logs during browser automation
+
+url = 'http://localhost:5173'  # Replace with your URL
+
+console_logs = []
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page(viewport={'width': 1920, 'height': 1080})
+
+    # Set up console log capture
+    def handle_console_message(msg):
+        console_logs.append(f"[{msg.type}] {msg.text}")
+        print(f"Console: [{msg.type}] {msg.text}")
+
+    page.on("console", handle_console_message)
+
+    # Navigate to page
+    page.goto(url)
+    page.wait_for_load_state('networkidle')
+
+    # Interact with the page (triggers console logs)
+    page.click('text=Dashboard')
+    page.wait_for_timeout(1000)
+
+    browser.close()
+
+# Save console logs to file
+with open('/mnt/user-data/outputs/console.log', 'w') as f:
+    f.write('\n'.join(console_logs))
+
+print(f"\nCaptured {len(console_logs)} console messages")
+print(f"Logs saved to: /mnt/user-data/outputs/console.log")
+```

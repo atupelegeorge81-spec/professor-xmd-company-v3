@@ -1,11 +1,11 @@
 import { getAgent } from "./agents";
 import type { BoardEvent } from "./types";
+import { pureCode } from "./codeFence";
 
 type CorrectionWriter = {
   id: string;
   name: string;
   role?: string;
-  systemPrompt: (args: { date: string }) => string;
 };
 
 type StreamTurn = (
@@ -26,6 +26,8 @@ type BoardLogType =
   | "system";
 
 export type CorrectionContext = {
+  /** R10: system prompt kutoka Agent Runtime (brain) — phase "fix" */
+  systemFor: (writer: CorrectionWriter) => Promise<string>;
   decision: string;
   itemText: string;
   reviewNote: string;
@@ -78,7 +80,46 @@ function makeTitle(writerId: string, lang: string): string {
     qa: "qa",
   };
   const base = map[writerId] || writerId;
-  return `${base}.${lang === "html" ? "html" : lang === "css" ? "css" : lang === "python" ? "py" : "ts"}`;
+  const ext: Record<string, string> = { html: "html", css: "css", python: "py", py: "py", javascript: "js", js: "js", jsx: "jsx", typescript: "ts", ts: "ts", tsx: "tsx", json: "json", bash: "sh", sh: "sh", sql: "sql" };
+  return `${base}.${ext[lang.toLowerCase()] || "txt"}`;
+}
+
+/** R27: SEARCH ya block inapatikana kwenye script ya mwenzake (si yake) — kipande kinaweza kupimwa bila nafasi za pembeni */
+function othersHave(ctx: CorrectionContext, selfId: string, search: string): boolean {
+  const key = (x: string) => x.split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
+  const k = key(search);
+  if (!k) return false;
+  return Object.entries(ctx.codeByAgent).some(([id, code]) => id !== selfId && (code.includes(search) || key(code).includes(k)));
+}
+
+/**
+ * R27: tafuta SEARCH kwa mistari (trim) — dirisha moja tu la kipekee linakubaliwa. Indentation ya asili inabaki:
+ * tofauti ya indentation ya mstari wa kwanza inaongezwa/inaondolewa kwenye mistari ya REPLACE.
+ */
+export function looseLocate(working: string, search: string, replace: string): { search: string; replace: string } | null {
+  const sl = search.split("\n");
+  while (sl.length && !sl[0].trim()) sl.shift();
+  while (sl.length && !sl[sl.length - 1].trim()) sl.pop();
+  if (!sl.length) return null;
+  const wl = working.split("\n");
+  const hits: number[] = [];
+  for (let i = 0; i + sl.length <= wl.length; i++) {
+    let same = true;
+    for (let j = 0; j < sl.length; j++) if (wl[i + j].trim() !== sl[j].trim()) { same = false; break; }
+    if (same) hits.push(i);
+  }
+  if (hits.length !== 1) return null;
+  const i = hits[0];
+  const orig = wl.slice(i, i + sl.length).join("\n");
+  const ind = (x: string) => (x.match(/^[ \t]*/) || [""])[0];
+  const have = ind(wl[i]), gave = ind(sl[0]);
+  const rl = replace.split("\n").map((l) => {
+    if (!l.trim()) return l;
+    if (gave && l.startsWith(gave)) return have + l.slice(gave.length);
+    if (!gave) return have + l;
+    return l;
+  });
+  return { search: orig, replace: rl.join("\n") };
 }
 
 export async function applyReviewFixes(ctx: CorrectionContext): Promise<Record<string, string>> {
@@ -131,6 +172,7 @@ Vinginevyo, USIANDIKE SCRIPT NZIMA UPYA. Toa PATCH ndogo tu kwa kutumia block mo
 >>>>>>> REPLACE
 
 RULES:
+- Patch SCRIPT YAKO TU (${writer.name}). Usiandike block za script za wenzako — kila mmoja anapata ombi lake la marekebisho.
 - Kila block ya SEARCH lazima ilingane KIHALISIA na sehemu ya script hapo juu, na ionekane MARA MOJA tu.
 - Patch iwe NDOGO iwezekanavyo; usiguse mistari isiyohusika na objection.
 - Usirudie script nzima.
@@ -143,9 +185,7 @@ RULES:
         [
           {
             role: "system",
-            content: writer.systemPrompt({
-              date: new Date().toLocaleString("en-GB"),
-            }),
+            content: await ctx.systemFor(writer),
           },
           { role: "user", content: prompt },
         ],
@@ -206,10 +246,27 @@ RULES:
       const lineArray = (value: string): string[] =>
         value.length === 0 ? [] : value.split("\n");
 
+      let skippedOthers = 0;
       for (const m of blocks) {
-        const searchText = m[1].replace(/\r\n/g, "\n");
-        const replaceText = m[2].replace(/\r\n/g, "\n");
-        const occurrences = working.split(searchText).length - 1;
+        let searchText = m[1].replace(/\r\n/g, "\n");
+        let replaceText = m[2].replace(/\r\n/g, "\n");
+        let occurrences = working.split(searchText).length - 1;
+
+        // R27 (A3/A5 "patch imeshindwa mara 3"): block ya script ya MWENZAKO (maoni ya reviewer yaliwataja wote)
+        // iliangusha patch NZIMA hata block sahihi zikiwepo → inarukwa; mwenzako anapata ombi lake mwenyewe.
+        if (occurrences === 0 && othersHave(ctx, writer.id, searchText)) {
+          skippedOthers++;
+          continue;
+        }
+        // R27: kulinganisha herufi kwa herufi kumeshindwa → mistari bila kujali nafasi za pembeni (lazima iwe ya kipekee)
+        if (occurrences === 0) {
+          const loose = looseLocate(working, searchText, replaceText);
+          if (loose) {
+            searchText = loose.search;
+            replaceText = loose.replace;
+            occurrences = working.split(searchText).length - 1;
+          }
+        }
 
         if (occurrences !== 1) {
           ok = false;
@@ -231,6 +288,22 @@ RULES:
         working = working.replace(searchText, () => replaceText);
       }
 
+      if (ok && changes.length === 0 && skippedOthers > 0) {
+        // block zote zilikuwa za wenzake → hakuna mabadiliko kwenye script yake
+        ctx.setItemContent(msgId, `ℹ️ ${writer.name}: marekebisho yaliyoombwa yanahusu script za wenzangu — script yangu haibadiliki.`);
+        ctx.bcast({ type: "msg_done", id: msgId });
+        applied = true;
+        break;
+      }
+
+      // R28 (A4): patch yenye block zilizoingiliana iliacha ">>>>>>> REPLACE / <<<<<<< SEARCH" NDANI ya faq.astro
+      //           na ikakubaliwa → code nzuri ikabadilishwa na isiyo-compile. Alama mpya = patch si halali.
+      const marks = (v: string) => (v.match(/^[ \t]*(?:<{7}[ \t]*SEARCH|={7}|>{7}[ \t]*REPLACE)[ \t]*$/gm) || []).length;
+      if (ok && marks(working) > marks(baseline)) {
+        ok = false;
+        problems.push("Patch yako iliacha alama za SEARCH/REPLACE NDANI ya script (block zilizoingiliana au REPLACE isiyofungwa). Kila block iwe kamili na tofauti: <<<<<<< SEARCH, mistari ya zamani, =======, mistari mipya, >>>>>>> REPLACE — block moja baada ya nyingine, kamwe block ndani ya REPLACE.");
+      }
+
       if (!ok) {
         feedback = problems.join("\n\n");
 
@@ -248,14 +321,18 @@ RULES:
       // part of the saved message/Appwrite content.
       ctx.codeByAgent[writer.id] = working;
 
-      const lang = detectLang(working);
+      // R10 (audit, Agenda 11 "qa.js v2" tupu): `working` ni ujumbe mzima wa writer (prose + ```lang fence).
+      // Fence ya ndani ilivunja ```scriptbox — ScriptBox ilionyesha sentensi ya utangulizi badala ya code.
+      // Sasa ScriptBox inapokea CODE TU (codeByAgent inabaki vile vile kwa patches zinazofuata).
+      const shown = pureCode(working);
+      const lang = shown.lang && shown.lang !== "text" ? shown.lang : detectLang(shown.code);
       const title = makeTitle(writer.id, lang);
       const messageContent =
         `${BT}${BT}${BT}scriptbox\n` +
         `title: ${title}\n` +
         `lang: ${lang}\n` +
         `---\n` +
-        `${working}\n` +
+        `${shown.code}\n` +
         `${BT}${BT}${BT}`;
 
       ctx.setItemContent(msgId, messageContent);

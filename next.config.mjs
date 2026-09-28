@@ -1,17 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Ambia Next.js usi-bundle hizi, zishikiliwe na Node.js moja kwa moja
-  serverExternalPackages: ["@xenova/transformers", "onnxruntime-web", "sharp"],
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'sharp': false, // Zuia kabisa webpack kujaribu kuitafuta
-        'onnxruntime-node': 'onnxruntime-web',
-      };
-    }
-    return config;
-  },
+  // Lint inaendeshwa kwa `npm run lint` — build isikwame kwa sababu ya lint.
+  eslint: { ignoreDuringBuilds: true },
+  // R12: unpdf (READ_SOURCE ya PDF) inaendeshwa na Node moja kwa moja — isipakiwe na webpack
+  serverExternalPackages: ["unpdf"],
 };
 
 export default nextConfig;

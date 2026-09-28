@@ -27,6 +27,8 @@ export interface LedgerEntry {
   supersedes?: string;
   locked_at?: string;
   created_at?: string;
+  /** R26: hali ya code — approved | unreviewed | data_errors | rejected (tupu = agenda bila code) */
+  code_status?: string;
 }
 
 const client = new Client();
@@ -89,6 +91,7 @@ export async function saveLedgerEntry(e: LedgerEntry, maxRetries = 3): Promise<s
     locked_at: e.locked_at || new Date().toISOString(),
     created_at: e.created_at || new Date().toISOString(),
   };
+  if (e.code_status) payload.code_status = String(e.code_status).slice(0, 40);
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -97,6 +100,13 @@ export async function saveLedgerEntry(e: LedgerEntry, maxRetries = 3): Promise<s
       return doc.$id;
     } catch (err: any) {
       console.warn(`⚠️ [Ledger] Jaribio la ${attempt}/${maxRetries} limeshindwa kuhifadhi Agenda #${e.agenda_index}:`, err?.message || err);
+      // R26: attribute ya code_status haijaundwa kwenye Appwrite → hifadhi bila hiyo (agenda isipotee)
+      if (/unknown attribute|code_status/i.test(String(err?.message || "")) && "code_status" in payload) {
+        delete payload.code_status;
+        console.warn("⚠️ [Ledger] Attribute 'code_status' haipo kwenye board_ledger — inahifadhi bila hiyo.");
+        attempt--;
+        continue;
+      }
       // Safety net: kama column ya decision_summary ni ndogo kuliko 4000, punguza hadi 1000 ili agenda isipotee.
       if (/invalid|size|length|too (long|large)/i.test(String(err?.message || "")) && String(payload.decision_summary).length > 1000) {
         console.warn("⚠️ [Ledger] Huenda column ya decision_summary ni ndogo kuliko 4000 — inapunguza hadi 1000 na kujaribu tena. Ongeza size ya column Appwrite!");

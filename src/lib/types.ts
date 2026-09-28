@@ -4,6 +4,8 @@ export type { SearchResult };
 export interface LogEntry {
   id: string;
   timestamp: string;
+  /** epoch ms — UI huonyesha muda kwa timezone ya app */
+  at?: number;
   type: "info" | "success" | "warning" | "error" | "api" | "search" | "system";
   message: string;
   details?: string;
@@ -18,7 +20,15 @@ export type AgentEvent =
   | { type: "done" }
   | { type: "error"; message: string }
   | { type: "log"; entry: LogEntry }
-  | { type: "usage"; sessionRequests: number; totalTokens: number };
+  | { type: "usage"; sessionRequests: number; totalTokens: number }
+  | { type: "usage_live"; prompt: number; completion: number }
+  | { type: "usage_turn"; prompt: number; completion: number; total: number; exact: boolean }
+  /** R10 Agent Brain: memory ya chat (shimmer tu — maudhui hayaonyeshwi) */
+  | { type: "memory"; state: "start" | "saved" | "none" | "fail" }
+  /** R15: kitendo cha website kinachohitaji uthibitisho wa Mkuu (card chini ya jibu) */
+  | { type: "action"; action: "start_board"; task: string }
+  /** R16 Capacity Broker: agent anasubiri nafasi ya lane (shimmer "anasubiri nafasi") · until=null → amepata */
+  | { type: "capacity"; waiting: boolean; until?: number | null };
 
 export interface ScriptDiffChange {
   startLine: number;
@@ -35,6 +45,8 @@ export interface ScriptDiff {
 export type BoardEvent =
   | { type: "log"; entry: LogEntry }
   | { type: "system"; text: string }
+  /** R16.1: mwisho wa historia (buffer) wakati wa Attach/Resume — UI inachora yaliyotangulia bila animation */
+  | { type: "sync" }
   | { type: "round"; round: number; total: number }
   | { type: "msg_start"; id: string; agentId: string }
   | { type: "think"; id: string; text: string }
@@ -46,11 +58,24 @@ export type BoardEvent =
   | { type: "script_diff"; id: string; diff: ScriptDiff }
   | { type: "title_stream"; text: string }
   | { type: "title_done"; title: string }
-  | { type: "usage"; agentId: string; requests: number; tokens: number }
-  | { type: "summary"; usage: { total: { requests: number; tokens: number }; [agentId: string]: { requests: number; tokens: number } } }
+  | { type: "usage"; agentId: string; requests: number; tokens: number; id?: string; prompt?: number; completion?: number; exact?: boolean }
+  /** Makadirio ya tokens wakati jibu bado linarudi (tokenizer, ~300ms). Usage ya kweli inafuata kwenye `usage`. */
+  | { type: "usage_live"; id: string; agentId: string; prompt: number; completion: number }
+  /** R20: jumla ya session kwa provider (xkiro, groq, openrouter, unorouter, gemini) */
+  | { type: "usage_provider"; byProvider: Record<string, { requests: number; tokens: number }> }
+  | { type: "summary"; usage: { total: UsageTotals; [agentId: string]: UsageTotals } }
   | { type: "report"; id: string; title: string; content: string }
+  /** Kazi ya background (shimmer) — mini report, lock, validator… */
+  | { type: "activity"; id: string; text?: string; state: "start" | "end" }
   | { type: "error"; message: string }
   | { type: "done" };
+
+export interface UsageTotals {
+  requests: number;
+  tokens: number;
+  prompt?: number;
+  completion?: number;
+}
 
 export type AgentPhase = "thinking" | "searching" | "answering" | "done" | "error";
 

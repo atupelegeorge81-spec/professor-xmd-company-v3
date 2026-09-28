@@ -1,0 +1,174 @@
+{
+  "collectionId": "6ab6d7990026978d4ba9",
+  "name": "agent_conversations",
+  "mediumtextMax": 4194303,
+  "columns": [
+    {
+      "key": "agent_id",
+      "type": "varchar",
+      "size": 32,
+      "required": true,
+      "note": "optimus | ultron | vextron | megatron | cybertron"
+    },
+    {
+      "key": "thread_id",
+      "type": "varchar",
+      "size": 36,
+      "required": true,
+      "note": "mazungumzo ya agent (Clear = thread mpya)"
+    },
+    {
+      "key": "seq",
+      "type": "integer",
+      "min": 0,
+      "max": 1000000,
+      "required": true,
+      "note": "mpangilio ndani ya thread"
+    },
+    {
+      "key": "role",
+      "type": "enum",
+      "elements": [
+        "user",
+        "agent"
+      ],
+      "required": true,
+      "note": "nani ameandika"
+    },
+    {
+      "key": "content",
+      "type": "mediumtext",
+      "required": false,
+      "note": "swali la Mkuu / jibu la agent (Markdown + code)"
+    },
+    {
+      "key": "thinking",
+      "type": "mediumtext",
+      "required": false,
+      "note": "mawazo (ThinkingBlock), aya zimetenganishwa kwa \\n\\n"
+    },
+    {
+      "key": "search_query",
+      "type": "varchar",
+      "size": 512,
+      "required": false,
+      "note": "search iliyofanywa"
+    },
+    {
+      "key": "sources",
+      "type": "mediumtext",
+      "required": false,
+      "note": "JSON: [{title,url,snippet}] (max 12)"
+    },
+    {
+      "key": "status",
+      "type": "enum",
+      "elements": [
+        "done",
+        "stopped",
+        "error"
+      ],
+      "required": false,
+      "note": "hali ya jibu la agent"
+    },
+    {
+      "key": "seconds",
+      "type": "integer",
+      "min": 0,
+      "max": 86400,
+      "required": false,
+      "note": "muda wa kufikiri hadi jibu"
+    },
+    {
+      "key": "feedback",
+      "type": "enum",
+      "elements": [
+        "up",
+        "down"
+      ],
+      "required": false,
+      "note": "👍 / 👎 ya Mkuu"
+    },
+    {
+      "key": "model",
+      "type": "varchar",
+      "size": 128,
+      "required": false,
+      "note": "model iliyojibu"
+    },
+    {
+      "key": "prompt_tokens",
+      "type": "integer",
+      "min": 0,
+      "required": false,
+      "note": "tokens za input (jibu zima)"
+    },
+    {
+      "key": "completion_tokens",
+      "type": "integer",
+      "min": 0,
+      "required": false,
+      "note": "tokens za output"
+    },
+    {
+      "key": "total_tokens",
+      "type": "integer",
+      "min": 0,
+      "required": false,
+      "note": "jumla — Today's usage inasoma hapa"
+    },
+    {
+      "key": "tokens_exact",
+      "type": "boolean",
+      "required": false,
+      "note": "true = usage frame ya provider; false = makadirio"
+    },
+    {
+      "key": "requests",
+      "type": "integer",
+      "min": 0,
+      "required": false,
+      "note": "idadi ya API calls za jibu hili"
+    }
+  ],
+  "indexes": [
+    {
+      "key": "idx_agent_thread_seq",
+      "attributes": [
+        "agent_id",
+        "thread_id",
+        "seq"
+      ],
+      "orders": [
+        "asc",
+        "asc",
+        "asc"
+      ],
+      "note": "kupakia thread kwa mpangilio"
+    },
+    {
+      "key": "idx_agent_created",
+      "attributes": [
+        "agent_id",
+        "$createdAt"
+      ],
+      "orders": [
+        "asc",
+        "desc"
+      ],
+      "note": "thread ya mwisho ya agent"
+    },
+    {
+      "key": "idx_role_created",
+      "attributes": [
+        "role",
+        "$createdAt"
+      ],
+      "orders": [
+        "asc",
+        "asc"
+      ],
+      "note": "tokens za leo (/api/stats)"
+    }
+  ]
+}

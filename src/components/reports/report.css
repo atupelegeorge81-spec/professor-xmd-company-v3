@@ -1,0 +1,20 @@
+/* src/components/reports/report.css — ScriptBox ndani ya ripoti (dashboard ya Reports). */
+.report-code { min-width: 0; }
+.report-code .xsb { margin: 0; }
+.report-body > .report-code + .report-code { margin-top: 0.9rem; }
+
+/* simu: box inapanuka kidogo nje ya padding ya ripoti — iko katikati, pana zaidi */
+@media (max-width: 639px) {
+  .report-code { margin-inline: -8px; }
+}
+
+/* Export PDF: code yote ionekane (bila kukunjwa), bila vitufe */
+@media print {
+  .report-code .xsb { break-inside: auto; box-shadow: none !important; animation: none !important; }
+  .report-code .xsb-body { max-height: none !important; overflow: visible !important; }
+  .report-code .xsb-btn, .report-code .xsb-progress { display: none !important; }
+}
+
+/* live (Board Room finale): caret ya kuandika iwe kwenye kipande cha MWISHO tu */
+.st-doc-live .report-body > .prose-xmd:not(:last-child) *::after { content: none !important; display: none !important; }
+.report-body > .xmd-mmd { margin: 0; }

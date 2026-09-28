@@ -1,0 +1,2 @@
+https://github.com/K-Dense-AI/scientific-agent-skills/tree/main/skills/research-lookup/
+fetched: 2026-09-26

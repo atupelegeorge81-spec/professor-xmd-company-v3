@@ -1,197 +1,87 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AGENTS, getAgent } from "@/lib/agents";
-import type { LogEntry } from "@/lib/types";
-import { BoardRoom, type ConvSignal } from "@/components/BoardRoom";
-import { AgentChat } from "@/components/AgentChat";
-import { ReportsDashboard } from "@/components/ReportsDashboard";
-import { MenuDrawer } from "@/components/MenuDrawer";
-import { ChatMenu } from "@/components/ChatMenu";
-import { LogsPopup } from "@/components/LogsPopup";
+import { useEffect, useState } from "react";
+import { AGENTS } from "@/lib/team";
+import { AvatarStack } from "@/components/ui/AgentAvatar";
+import { useApp } from "@/components/shell/AppState";
+import { useToday } from "@/components/shell/useToday";
+import { fullDate } from "@/lib/time";
+import { Hero } from "@/components/overview/Hero";
+import { Pulse } from "@/components/overview/Pulse";
+import { Team } from "@/components/overview/Team";
+import {
+  ActivityCard,
+  ReportCard,
+  SessionsCard,
+} from "@/components/overview/Feed";
 
-const nid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2, 10);
-
-export default function HomePage() {
-  const [view, setView] = useState<string>("board");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [chatsOpen, setChatsOpen] = useState(false);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [usage, setUsage] = useState<Record<string, { requests: number; tokens: number }> | null>(null);
-  const [reportsBadge, setReportsBadge] = useState(0);
-  const [convSignal, setConvSignal] = useState<ConvSignal>(null);
-  const convN = useRef(0);
-  const headerRef = useRef<HTMLElement>(null);
-
-  const addLog = useCallback((type: LogEntry["type"], message: string) => {
-    setLogs((l) => [
-      ...l.slice(-199),
-      { id: nid(), timestamp: new Date().toLocaleTimeString("en-GB"), type, message },
-    ]);
-  }, []);
+export default function Overview() {
+  const [scrolled, setScrolled] = useState(false);
+  const { now, tz } = useToday();
+  const { boardLive, status } = useApp();
+  const busy = AGENTS.filter((a) => status[a.id] === "thinking" || status[a.id] === "speaking").length;
 
   useEffect(() => {
-    const open = (e: Event) => {
-      const id = (e as CustomEvent<string>).detail;
-      if (id) setConvSignal({ kind: "open", id, n: ++convN.current });
-    };
-    const fresh = () => setConvSignal({ kind: "new", n: ++convN.current });
-    window.addEventListener("xmd:open-conv", open);
-    window.addEventListener("xmd:new-conv", fresh);
-    return () => {
-      window.removeEventListener("xmd:open-conv", open);
-      window.removeEventListener("xmd:new-conv", fresh);
-    };
-  }, []);
+    const on = () => setScrolled(window.scrollY > 24);
+    on();
 
-  useEffect(() => {
-    const poll = () =>
-      fetch("/api/reports")
-        .then((r) => r.json())
-        .then((d) => setReportsBadge(Array.isArray(d.reports) ? d.reports.length : 0))
-        .catch(() => {});
-    poll();
-    const iv = setInterval(poll, 15000);
-    return () => clearInterval(iv);
-  }, []);
+    window.addEventListener("scroll", on, { passive: true });
 
-  useEffect(() => {
-    const setHeaderVar = () => {
-      if (headerRef.current) {
-        document.documentElement.style.setProperty(
-          "--app-header-h",
-          `${headerRef.current.getBoundingClientRect().bottom}px`,
-        );
-      }
-    };
-    setHeaderVar();
-    window.addEventListener("resize", setHeaderVar);
-    return () => window.removeEventListener("resize", setHeaderVar);
+    return () => window.removeEventListener("scroll", on);
   }, []);
-
-  const agent = getAgent(view);
-  const roomLabel = view === "board" ? "Board Room" : view === "reports" ? "Reports" : (agent?.name ?? view);
 
   return (
-    <div className="relative flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0"
-        style={{
-          background:
-            "radial-gradient(60rem 30rem at 85% -10%, oklch(0.79 0.14 220 / 0.09), transparent 60%), radial-gradient(50rem 28rem at 5% 110%, oklch(0.7 0.19 305 / 0.08), transparent 60%)",
-        }}
-      />
+    <div className="mx-auto w-full max-w-[1320px] overflow-x-clip px-4 pb-28 pt-3 sm:px-6 sm:pt-6 lg:pb-10">
+      <header className="mb-3 flex items-end justify-between gap-3 animate-[rise_0.5s_both] sm:mb-5">
+        <div className="min-w-0">
+          <p
+            suppressHydrationWarning
+            className="text-[12px] text-[var(--color-muted)]"
+          >
+            {fullDate(now, tz)}
+          </p>
 
-      <header ref={headerRef} className="glass-strong relative z-20 mx-auto mt-3 flex w-[calc(100%-1.5rem)] max-w-5xl shrink-0 items-center gap-3 rounded-3xl px-3.5 py-2.5">
-        <span className="avatar-frame" style={{ width: 42, height: 42, minWidth: 42 }}>
-          <img src="/brand/logo.png" alt="PROFESSOR-XMD-COMPANY logo" width={84} height={84} className="avatar-img" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-display text-[15px] font-bold leading-5 tracking-tight text-foreground">
-            PROFESSOR-XMD<span className="text-signal">-COMPANY</span>
+          <h1 className="mt-0.5 text-[25px] font-semibold tracking-[-0.03em] sm:text-[28px]">
+            Karibu tena, Mkuu.
           </h1>
-          <p className="truncate text-[10.5px] text-muted-foreground">Autonomous AI engineering company</p>
         </div>
-        <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-border bg-background/50 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground sm:flex">
-          <span className="h-1.5 w-1.5 rounded-full bg-signal" />
-          {roomLabel}
-        </span>
-        <button
-          onClick={() => setChatsOpen(true)}
-          aria-label="Board Room chats"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-muted-foreground transition hover:bg-secondary hover:text-foreground active:scale-95"
-        >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        </button>
-        <button
-          onClick={() => setMenuOpen(true)}
-          aria-label="Open menu"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-muted-foreground transition hover:bg-secondary hover:text-foreground active:scale-95"
-        >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
-            <path d="M4 7h16M4 12h16M4 17h16" />
-          </svg>
-        </button>
+
+        <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.025] py-1 pl-1 pr-2.5 text-[11.5px] text-[var(--color-muted)]">
+          <AvatarStack agents={AGENTS.slice(0, 3)} size={20} />
+          <span className={`h-1.5 w-1.5 rounded-full shadow-[0_0_8px_var(--color-ok)] ${boardLive ? "animate-pulse bg-[#a78bfa]" : "bg-[var(--color-ok)]"}`} />
+          {boardLive ? (
+            <span>
+              <span className="text-[var(--color-fg)]">Board</span> in session{busy ? <span className="hidden sm:inline"> · {busy} active</span> : null}
+            </span>
+          ) : (
+            <span>
+              <span className="text-[var(--color-fg)]">{AGENTS.length}</span>
+              <span className="hidden sm:inline"> agents</span> ready
+            </span>
+          )}
+        </div>
       </header>
 
-      <nav className="relative z-10 mx-auto mt-2.5 flex w-[calc(100%-1.5rem)] max-w-5xl shrink-0 items-center gap-1.5 overflow-x-auto scroll-thin pb-0.5">
-        <RailButton active={view === "board"} onClick={() => setView("board")} label={<span className="flex items-center gap-1.5"><img src="/boardroom.png" alt="Board Room" className="h-5 w-5 rounded-full object-cover" /> Board</span>} />
-        <RailButton active={view === "reports"} onClick={() => setView("reports")} label="📑 Reports" badge={reportsBadge} />
-        <span className="mx-1 h-5 w-px shrink-0 bg-border" />
-        {AGENTS.map((a) => (
-          <button
-            key={a.id}
-            onClick={() => setView(a.id)}
-            className={`flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1.5 transition-all duration-200 active:scale-95 ${
-              view === a.id
-                ? "border-primary/50 bg-secondary/80 shadow-[0_6px_20px_-10px_var(--primary)]"
-                : "border-border/60 bg-secondary/25 hover:border-primary/30 hover:bg-secondary/50"
-            }`}
-          
-          style={view === a.id ? { borderColor: `${a.accent}80`, backgroundColor: `${a.accent}18`, boxShadow: `0 6px 20px -10px ${a.accent}` } : undefined}
-        >
-            <span className="avatar-frame" style={{ width: 22, height: 22, minWidth: 22 }}>
-              <img src={a.avatar} alt={a.name} width={44} height={44} loading="lazy" decoding="async" className="avatar-img" />
-            </span>
-            <span className="text-[11.5px] font-semibold text-foreground/90">{a.name}</span>
-          </button>
-        ))}
-      </nav>
+      <div className="stagger grid grid-cols-1 gap-7 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Hero className="md:col-span-2 xl:col-span-3 xl:row-span-2" />
+        <Pulse className="md:col-span-2 xl:col-span-1 xl:row-span-2" />
+        <Team className="md:col-span-2" />
+        <ReportCard />
+        <ActivityCard />
+        <SessionsCard className="md:col-span-2 xl:col-span-4" />
+      </div>
 
-      <main className="relative z-10 flex min-h-0 flex-1 flex-col">
-        {view === "board" ? (
-          <BoardRoom
-            addLog={addLog}
-            setUsage={(u) => setUsage(u)}
-            onReport={() => setReportsBadge((b) => b + 1)}
-            convSignal={convSignal}
-          />
-        ) : view === "reports" ? (
-          <ReportsDashboard />
-        ) : agent ? (
-          <AgentChat key={agent.id} agent={agent} addLog={addLog} setUsage={(u) => setUsage(u)} />
-        ) : null}
-      </main>
-
-      <LogsPopup logs={logs} roomLabel={roomLabel} usage={usage} onClear={() => setLogs([])} />
-      <MenuDrawer
-        open={menuOpen}
-        view={view}
-        reportsBadge={reportsBadge}
-        onClose={() => setMenuOpen(false)}
-        onSelect={(v) => {
-          if (v === "reports") setReportsBadge(0);
-          setView(v);
-        }}
+      <div
+        aria-hidden
+        className={`pointer-events-none fixed inset-x-0 top-0 z-20 h-[104px] transition-opacity duration-300 lg:hidden ${
+          scrolled ? "opacity-100" : "opacity-0"
+        } bg-[linear-gradient(180deg,#07080b_52%,rgb(7_8_11/0.7)_74%,transparent)]`}
       />
-      <ChatMenu
-        open={chatsOpen}
-        onClose={() => setChatsOpen(false)}
-        onNavigate={(v) => setView(v)}
-        activeId={convSignal?.kind === "open" ? convSignal.id : null}
+
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-30 h-32 bg-[linear-gradient(0deg,#07080b_28%,rgb(7_8_11/0.85)_55%,transparent)] lg:hidden"
       />
     </div>
-  );
-}
-
-function RailButton({ active, onClick, label, badge }: { active: boolean; onClick: () => void; label: ReactNode; badge?: number }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-semibold transition-all duration-200 active:scale-95 ${
-        active
-          ? "border-primary/50 bg-secondary/80 text-foreground shadow-[0_6px_20px_-10px_var(--primary)]"
-          : "border-border/60 bg-secondary/25 text-foreground/80 hover:border-primary/30 hover:bg-secondary/50"
-      }`}
-    >
-      {label}
-      {badge ? <span className="rounded-full bg-primary px-1.5 py-px text-[9px] font-bold text-primary-foreground">{badge}</span> : null}
-    </button>
   );
 }

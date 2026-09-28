@@ -1,14 +1,11 @@
-import { Client, Databases, Query } from "node-appwrite";
+import { Query } from "node-appwrite";
 import type { ReportDoc, ConversationDoc } from "./types";
+import { databases, DB, REPORTS_COL, SESSIONS_COL } from "./server/appwrite";
+import { pack, unpack } from "./server/packed";
 
-const client = new Client();
-if (process.env.APPWRITE_ENDPOINT && process.env.APPWRITE_PROJECT_ID && process.env.APPWRITE_API_KEY) {
-  client.setEndpoint(process.env.APPWRITE_ENDPOINT).setProject(process.env.APPWRITE_PROJECT_ID).setKey(process.env.APPWRITE_API_KEY);
-}
-const databases = new Databases(client);
-const DB = process.env.APPWRITE_DATABASE_ID!;
-const REPORTS_COL = process.env.REPORTS_COLLECTION_ID || "reports";
-const SESSIONS_COL = "boardroom_sessions";
+/** R18: sababu ya mwisho ya kushindwa kuhifadhi (kwa onyo linaloonekana kwenye Board — si kimya tena). */
+export const lastSaveError: { session: string | null; report: string | null } = { session: null, report: null };
+const errText = (e: unknown) => String((e as { message?: string })?.message || e).slice(0, 180);
 
 // ============ REPORTS ============
 export async function saveReport(data: { title: string; project: string; agents: string; content: string }): Promise<string | null> {
@@ -17,14 +14,16 @@ export async function saveReport(data: { title: string; project: string; agents:
     title: data.title.slice(0, 250),
     project: (data.project || "").slice(0, 250),
     agents: data.agents.slice(0, 250),
-    content: data.content,
+    content: pack(data.content), // R18: ripoti ndefu zinabanwa (gzip+base64)
     created_at: new Date().toISOString(),
   };
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const doc = await databases.createDocument(DB, REPORTS_COL, "unique()", payload);
+      lastSaveError.report = null;
       return doc.$id;
     } catch (e) {
+      lastSaveError.report = errText(e);
       console.error(`❌ Report save error (jaribio ${attempt}/3):`, e);
       if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1000));
     }
@@ -35,7 +34,7 @@ export async function saveReport(data: { title: string; project: string; agents:
 export async function listReports(): Promise<ReportDoc[]> {
   try {
     const res = await databases.listDocuments(DB, REPORTS_COL, [Query.limit(50), Query.orderDesc("$createdAt")]);
-    return res.documents.map((d: any) => ({ id: d.$id, title: d.title, content: d.content, agents: d.agents || "", project: d.project || "", created_at: d.created_at || "" }));
+    return res.documents.map((d: any) => ({ id: d.$id, title: d.title, content: unpack(d.content), agents: d.agents || "", project: d.project || "", created_at: d.created_at || "" }));
   } catch (e) { console.error("❌ Report list error:", e); return []; }
 }
 
@@ -60,22 +59,24 @@ export async function saveSession(project: string, items: SessionItem[], status:
   try {
     const doc = await databases.createDocument(DB, SESSIONS_COL, "unique()", {
       project: project.slice(0, 500),
-      items: JSON.stringify(items),
+      items: pack(JSON.stringify(items)),
       status,
       title: (title || "").slice(0, 200),
       created_at: new Date().toISOString(),
     });
+    lastSaveError.session = null;
     return doc.$id;
-  } catch (e) { console.error("❌ Session save error:", e); return null; }
+  } catch (e) { lastSaveError.session = errText(e); console.error("❌ Session save error:", e); return null; }
 }
 
 export async function updateSessionItems(sessionId: string, items: SessionItem[], status: string, title?: string): Promise<boolean> {
   try {
-    const upd: any = { items: JSON.stringify(items), status };
+    const upd: any = { items: pack(JSON.stringify(items)), status };
     if (title !== undefined) upd.title = title.slice(0, 200);
     await databases.updateDocument(DB, SESSIONS_COL, sessionId, upd);
+    lastSaveError.session = null;
     return true;
-  } catch (e) { console.error("❌ Session update error:", e); return false; }
+  } catch (e) { lastSaveError.session = errText(e); console.error("❌ Session update error:", e); return false; }
 }
 
 export async function listConversations(): Promise<ConversationDoc[]> {
@@ -87,7 +88,7 @@ export async function listConversations(): Promise<ConversationDoc[]> {
       project: d.project || "",
       status: d.status || "in_progress",
       created_at: d.created_at || "",
-      items_count: (() => { try { return JSON.parse(d.items || "[]").length; } catch { return 0; } })(),
+      items_count: (() => { try { return JSON.parse(unpack(d.items) || "[]").length; } catch { return 0; } })(),
     }));
   } catch (e) { console.error("❌ List conversations error:", e); return []; }
 }
@@ -95,7 +96,7 @@ export async function listConversations(): Promise<ConversationDoc[]> {
 export async function getConversation(id: string): Promise<{ id: string; title: string; project: string; status: string; items: SessionItem[]; created_at: string } | null> {
   try {
     const d: any = await databases.getDocument(DB, SESSIONS_COL, id);
-    return { id: d.$id, title: d.title || "Untitled", project: d.project, status: d.status || "in_progress", items: JSON.parse(d.items || "[]"), created_at: d.created_at };
+    return { id: d.$id, title: d.title || "Untitled", project: d.project, status: d.status || "in_progress", items: JSON.parse(unpack(d.items) || "[]"), created_at: d.created_at };
   } catch (e) { console.error("❌ Get conversation error:", e); return null; }
 }
 

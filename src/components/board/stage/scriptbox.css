@@ -1,0 +1,129 @@
+/* XMD Script Box — CSS yake yenyewe (inapakiwa na ScriptBox.tsx: Board Room + Agent chat). */
+
+/* ============================================================================
+ * XMD Script Box — kutoka professor-xmd-company (01 Prism Glass), imeboreshwa:
+ * live writing (mistari inafade in), continuation chip, surgical patch ndani ya box,
+ * mistari iliyobadilika imewekwa alama, expand, sheen ya hover.
+ * ========================================================================= */
+.xsb {
+  --sb-bg: rgba(10, 16, 28, 0.72);
+  --sb-fg: #e7eef8;
+  --sb-muted: #9bb0c4;
+  --sb-border: rgba(255, 255, 255, 0.14);
+  --sb-head: rgba(255, 255, 255, 0.035);
+  --sb-ln: rgba(126, 224, 214, 0.42);
+  --tok-kw: #7ee0d6;
+  --tok-str: #f0c98a;
+  --tok-cmt: #6d7480;
+  --tok-fn: #9db7ff;
+  --tok-num: #f0a8c0;
+  --tok-type: #b7c4a1;
+  --tok-punct: #7a8190;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--sb-fg);
+  background: var(--sb-bg);
+  border: 1px solid var(--sb-border);
+  border-radius: 20px;
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 24px 60px -28px rgba(0, 0, 0, 0.65);
+  transition: border-color 400ms ease, box-shadow 400ms ease;
+}
+.xsb[data-live="1"] { border-color: color-mix(in srgb, var(--acc, #7ee0d6) 38%, rgba(255, 255, 255, 0.1)); }
+.xsb::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.1) 48%, transparent 62%);
+  transform: translateX(-80%);
+  opacity: 0;
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 400ms ease;
+}
+/* sheen kwa mouse tu — kwenye touch ilibaki imekwama upande wa kulia */
+@media (hover: hover) and (pointer: fine) { .xsb:hover::after { transform: translateX(80%); opacity: 1; } }
+
+.xsb-head {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 42px; padding: 8px 8px 8px 12px;
+  background: var(--sb-head);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.xsb-title {
+  min-width: 0; flex-shrink: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.01em;
+  color: var(--sb-fg); margin: 0;
+}
+.xsb-chip {
+  display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px;
+  border: 1px solid var(--sb-border); border-radius: 999px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--sb-muted); white-space: nowrap;
+}
+.xsb-stats { font-family: var(--font-mono); font-size: 11px; font-weight: 600; white-space: nowrap; }
+.xsb-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 34px; min-height: 30px; padding: 0 9px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--sb-muted);
+  font-size: 10.5px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer;
+  transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), color 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 150ms ease-out;
+}
+.xsb-btn:hover { background: color-mix(in oklab, var(--sb-fg) 8%, transparent); color: var(--sb-fg); }
+.xsb-btn:active { transform: scale(0.96); }
+
+.xsb-body {
+  margin: 0; padding: 12px 14px 16px; overflow: auto;
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7; tab-size: 2;
+  scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  transition: max-height 350ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.xsb-line {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 12px;
+  min-height: 1.7em; border-radius: 4px; position: relative;
+}
+.xsb-line.is-new { animation: fade 0.35s ease-out both; }
+.xsb-ln { text-align: right; color: var(--sb-ln); user-select: none; font-variant-numeric: tabular-nums; }
+.xsb-code { min-width: 0; white-space: pre; }
+.xsb-line.is-changed { background: rgba(52, 211, 153, 0.07); }
+.xsb-line.is-changed::before { content: ""; position: absolute; left: -14px; top: 2px; bottom: 2px; width: 2px; border-radius: 2px; background: #34d399; }
+
+/* surgical patch (diff) */
+.xsb-diff { margin: 0 0 12px; overflow: hidden; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0, 0, 0, 0.22); }
+.xsb-diff-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); font-family: var(--font-sans, inherit); font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sb-muted); }
+.xsb-diff .xsb-line { padding: 0 10px; border-radius: 0; }
+.xsb-del { background: rgba(239, 68, 68, 0.14); }
+.xsb-del .xsb-code { color: #fca5a5; text-decoration: line-through; text-decoration-color: rgba(252, 165, 165, 0.45); }
+.xsb-add { background: rgba(52, 211, 153, 0.13); }
+.xsb-add .xsb-code { color: #a7f3d0; }
+.xsb-mark { color: var(--sb-muted); }
+
+/* caret + progress */
+.xsb-caret::after { content: ""; display: inline-block; width: 7px; height: 1.05em; margin-left: 1px; vertical-align: -0.15em; border-radius: 1px; background: var(--acc, #7ee0d6); animation: blink 1s steps(1) infinite; }
+.xsb-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; }
+.xsb-progress > span {
+  display: block; height: 100%;
+  background: linear-gradient(90deg, transparent 0%, var(--acc, #7ee0d6) 50%, transparent 100%);
+  background-size: 200% 100%; animation: shimmer 1.4s linear infinite; opacity: 0.8;
+}
+
+/* tokens */
+.tk-kw { color: var(--tok-kw); }
+.tk-str { color: var(--tok-str); }
+.tk-cmt { color: var(--tok-cmt); font-style: italic; }
+.tk-fn { color: var(--tok-fn); }
+.tk-num { color: var(--tok-num); }
+.tk-type { color: var(--tok-type); }
+.tk-p { color: var(--tok-punct); }
+
+@media (prefers-reduced-motion: reduce) {
+  .xsb-progress > span, .xsb-line.is-new, .xsb-caret::after { animation: none !important; }
+  .xsb::after { display: none; }
+}

@@ -1,0 +1,18 @@
+/* Agent chat — jibu la agent (faili jipya; globals.css haijaguswa isipokuwa kinga ya maneno marefu). */
+
+/* caret kwenye mstari wa mwisho wakati maandishi yanatiririka */
+.chat-live .prose-xmd > :last-child:not(ul):not(ol):not(table):not(:has(table))::after,
+.chat-live .prose-xmd > :is(ul, ol):last-child > li:last-child::after {
+  content: ""; display: inline-block; width: 7px; height: 1.05em; margin-left: 2px; vertical-align: -0.15em;
+  border-radius: 2px; background: currentColor; opacity: 0.8; animation: blink 1s steps(1) infinite;
+}
+
+/* ScriptBox ndani ya chat: upana wote wa safu ya jibu, isisukume viewport */
+.chat-code { min-width: 0; }
+.chat-code .xsb { margin: 0; }
+
+@media (prefers-reduced-motion: reduce) { .chat-live .prose-xmd *::after { animation: none !important; } }
+
+/* Mobile: ScriptBox inatoka kwenye gutter ya avatar (36px + gap 12px) → pana na katikati kama Board Room */
+@media (max-width: 639px) { .chat-code { margin-left: -48px; width: calc(100% + 48px); } }
+.chat-code .xmd-mmd { margin: 0; }

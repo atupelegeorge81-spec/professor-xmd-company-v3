@@ -1,5 +1,6 @@
 import type OpenAI from "openai";
 import { AGENTS } from "./agents";
+import { skillPack } from "./brain/skills/selector";
 
 export interface AgendaItem {
   index: number;
@@ -20,7 +21,27 @@ export interface AgendaResult {
   understanding: string;
   scope: ScopeLock;
   items: AgendaItem[];
+  /** R11: skills (modules) zilizopakiwa kwa hatua za scope/agenda — kwa log tu */
+  skills?: { scope: string; agenda: string };
 }
+
+// R11: skills za Optimus kwa hatua mbili zisizopita brain.prompt (scope lock + agenda).
+// Maandishi ya skill yanaongezwa MWISHO wa system prompt; kanuni za JSON zilizo juu zinabaki kuwa sheria.
+const lastSkillTags = { scope: "", agenda: "" };
+function withSkills(system: string, phase: "scope" | "agenda", text: string, stepNote: string): string {
+  try {
+    const pack = skillPack("optimus", phase, text, `agenda-gen:${phase}`);
+    lastSkillTags[phase] = pack.tag;
+    if (!pack.text) return system;
+    return `${system}\n\n${stepNote}\n\n${pack.text}`;
+  } catch {
+    return system;
+  }
+}
+const SCOPE_NOTE =
+  "HOW TO USE THE SKILLS BELOW IN THIS STEP: this step is one JSON answer — you cannot ask Mkuu a question here. Classify the request (spike / bounded / architectural) inside \"understanding\", separate what the CEO said from your assumptions (put assumptions in requirements/exclusions explicitly), and keep the JSON shape above exactly.";
+const AGENDA_NOTE =
+  "HOW TO USE THE SKILLS BELOW IN THIS STEP: the agenda is still ONLY the JSON array described above — no prose, no markdown. Scale it to the path (spike → 1–2 items, bounded → a few, architectural → full decomposition), make every item one concrete, owned, verifiable piece of work, and self-review it against the locked scope before answering.";
 
 const AGENT_IDS = new Set(AGENTS.map((a) => a.id));
 
@@ -127,7 +148,7 @@ async function understandAndLockScope(
       messages: [
         {
           role: "system",
-          content: `
+          content: withSkills(`
 You are Optimus, the Project Manager and Chair of a software Board Room.
 
 FIRST understand the CEO request. Do NOT invent a broader project.
@@ -155,7 +176,7 @@ Rules:
 - If backend is not needed, exclude backend.
 - Keep requirements concrete and short.
 - Never turn the CEO request into a generic product checklist.
-          `.trim(),
+          `.trim(), "scope", project, SCOPE_NOTE),
         },
         {
           role: "user",
@@ -244,7 +265,7 @@ export async function generateAgenda(
       messages: [
         {
           role: "system",
-          content: `
+          content: withSkills(`
 You are Optimus creating a Board Room agenda from a locked CEO scope.
 
 Output ONLY a JSON array.
@@ -264,9 +285,10 @@ STRICT RULES:
 - Several agenda items are valid for a larger task.
 - The agenda must describe concrete work required to fulfill the CEO request.
 - For a full website/app build, DO NOT merge multiple distinct concerns into one item. Create ONE item per concrete UI section, component, interaction, or technical decision (example: hero animation, navigation, product grid, product detail page, cart drawer, checkout flow, color system, typography system, button/interaction states, responsive behavior — each is its own item, not one combined item).
+- Never split ONE activity into several items by input, case or amount (e.g. testing three amounts is ONE verification item; researching facts and storing those same facts is ONE item). Every item must need its own distinct discussion.
 - Propose at most 20 agenda items total. Prioritize the most important, concrete concerns within that limit — prefer many small, precise items over few broad ones.
 - Set "requiresCode": true ONLY when the item's deliverable is actual source code to implement/build (e.g. a component, an API endpoint, an animation script, a test suite). Set "requiresCode": false for pure decision/architecture items (e.g. choosing a color palette, naming a page structure) that produce no code by themselves.
-          `.trim(),
+          `.trim(), "agenda", `${project}\n${scope.objective}\n${scope.deliverable}\n${scope.requirements.join("\n")}`, AGENDA_NOTE),
         },
         {
           role: "user",
@@ -345,6 +367,7 @@ ${project}
           relevant_agents: relevantAgents,
         },
         items,
+        skills: { ...lastSkillTags },
       };
     }
 
@@ -363,6 +386,7 @@ ${project}
         relevant_agents: relevantAgents,
       },
       items: buildSafeFallback(project, relevantAgents),
+      skills: { ...lastSkillTags },
     };
   }
 }

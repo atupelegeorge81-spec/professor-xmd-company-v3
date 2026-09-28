@@ -47,3 +47,6 @@ Thumbs.db
 .env.local.*
 .env*.backup
 .env*.bak
+
+# Daftari la matumizi ya API (runtime)
+.xmd/
