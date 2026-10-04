@@ -55,8 +55,17 @@ export async function recallMemory(p: Persona, o: { query: string; project?: str
   // "Target <50KB" ya Mama Lishe ilitajwa kama "locked" kwenye Saluni). Chat haina mradi → kama zamani.
   if (o.surface === "board" && project) {
     const mine = [...s, ...b].filter((l) => sameProject(l, project));
-    const other = [...s, ...b].filter((l) => !sameProject(l, project)).map(asLesson);
-    for (const l of other) if (l.project) rememberPastProject(l.project); // R28: jina la mradi wa zamani → gate ya pendekezo
+    const othersAll = [...s, ...b].filter((l) => !sameProject(l, project));
+    // R28: jina la kila mradi wa zamani → gate ya pendekezo (hii ni orodha ya mamluki, si maudhui ya prompt)
+    for (const l of othersAll) if (l.project) rememberPastProject(l.project);
+    // R30.1 (E3b): funzo za miradi mingine zinaingia prompt ZIKIWA tu zina neno moja+ la uhusiano na agenda/mradi
+    // wa SASA — si kila prompt kwa kila agent (kelele za kumbukumbu hazitasombwa tena bila sababu).
+    const relHit = (l: MemLine) => {
+      const lw = words(`${l.project} ${l.text}`);
+      for (const w of q) if (lw.has(w)) return true;
+      return false;
+    };
+    const other = othersAll.filter(relHit).slice(0, 6).map(asLesson);
     const selfMine = s.filter((l) => sameProject(l, project)).map(renderLine).join("\n");
     const boardMine = b.filter((l) => sameProject(l, project)).map(renderLine).join("\n");
     const past = other.map(renderLine).join("\n");

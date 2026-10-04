@@ -110,7 +110,7 @@ export async function consolidateCompany(
       [
         {
           role: "system",
-          content: `You are Optimus, keeper of the COMPANY-WIDE Board memory that every agent reads. You merge what the whole team learned into ONE shared memory: project decisions, constraints, exact values, conventions, lessons for future Boards. No personal self notes. Output ONLY the COMPANY_MEMORY section. ${LINE_RULE} Keep it under ${COLUMN_MAX} characters.`,
+          content: `You are Optimus, keeper of the COMPANY-WIDE Board memory that every agent reads. You merge what the team learned into ONE shared memory of GENERAL, REUSABLE LESSONS that help on ANY future project — not facts of one project. No personal self notes. Output ONLY the COMPANY_MEMORY section. ${LINE_RULE} Keep it under ${COLUMN_MAX} characters.`,
         },
         {
           role: "user",
@@ -122,8 +122,8 @@ ${oldBoard || "(empty)"}
 NEW BOARD NOTES FROM THE TEAM (today):
 ${byAgent}
 ${ctx.openNote ? `\n${ctx.openNote}\n` : ""}
-Rules: one fact = one line even if several agents reported it (keep the most exact wording and the highest imp); a newer fact replaces an older conflicting one; drop stale or trivial lines; keep exact values (colours, numbers, names, versions); never invent anything that is not in the lines above.
-R26 scope rules: every line keeps its [project] label. A decision of one project is a fact OF THAT PROJECT only — write it as "used in <project>" (never "locked"/"final" as a general rule), so future projects treat it as a lesson, not a decision. Do NOT store business data values (prices, opening hours, phone numbers, emails, street addresses) — each brief's DATA RASMI is their only source.
+Rules: one lesson = one line even if several agents reported it; a newer lesson replaces an older conflicting one; drop stale or trivial lines.
+R30.1 LESSON RULES (strict): every line must be a TRANSFERABLE LESSON useful on ANY project — write it as "Kwenye <hali ya jumla>: <funzo>" style. Do NOT put project-specific values in the text (no hex colours, prices, sizes, phone numbers, library versions, viewport lists) — the [project] label already records where it was learned. A decision of one project is a fact OF THAT PROJECT only — write it as "used in <project>" (never "locked"/"final" as a general rule). Do NOT store business data values (prices, opening hours, phone numbers, emails, street addresses) — each brief's DATA RASMI is their only source. Keep the total under 30 lines.
 
 COMPANY_MEMORY:
 - …`,

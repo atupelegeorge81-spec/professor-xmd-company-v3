@@ -39,6 +39,9 @@ export function linesFromNote(note: string, project: string, date = today()): Me
 const key = (t: string) => t.toLowerCase().replace(/[^a-z0-9\u00c0-\u024f]+/g, " ").trim();
 
 /** Fallback ya kideterministic: unganisha, ondoa marudio, kata za chini kwa alama (imp + recency). */
+/** R30.1 (E3c): kikomo cha mistari ya kila column ya memory — mpya/muhimu zinabaki, za zamani zaidi zinaondoka KWA MPANGO. */
+export const MEMORY_MAX_LINES = 30;
+
 export function mergeLines(old: MemLine[], add: MemLine[], max = COLUMN_MAX): string {
   const seen = new Set<string>();
   const all = [...add, ...old].filter((l) => {
@@ -52,6 +55,7 @@ export function mergeLines(old: MemLine[], add: MemLine[], max = COLUMN_MAX): st
   const keep: MemLine[] = [];
   let size = 0;
   for (const l of ranked) {
+    if (keep.length >= MEMORY_MAX_LINES) break; // R30.1 (E3c): kikomo cha mistari
     const r = renderLine(l);
     if (size + r.length + 1 > max) continue;
     keep.push(l);

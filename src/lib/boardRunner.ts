@@ -46,7 +46,7 @@ import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, typ
 import { saveProjectPlan } from "./server/plans";
 import {
   PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
-  extractPlanSections, parsePlanSteps, assemblePlanDocument, officialDataMarkdown, constraintsMarkdown, PLAN_STEP_TEMPLATE,
+  extractPlanSections, parsePlanSteps, assemblePlanDocument, officialDataMarkdown, constraintsMarkdown, constraintFallbackLines, PLAN_STEP_TEMPLATE,
 } from "./board/workPlan";
 
 export interface Runner {
@@ -2926,6 +2926,11 @@ Keep under 220 words.
       const planSystem = await brain.prompt(pm.id, { phase: "plan", role: "work plan writer", date: nowDate() });
       // context: mini-reports za Optimus (collection kwanza, fallback ledger) + maamuzi
       const fbrP = await finalBoardResolution(runner.id);
+      // R30.1 (E2): fallback ya §3 ya Mpango — brief isipate "MASHARTI:" → carried_constraints za maamuzi LOCKED (neno kwa neno, dedupe)
+      const constraintFallback = constraintFallbackLines(fbrP.filter((e) => e.status === "LOCKED").flatMap((e) => String(e.carried_constraints || "").split("\n")));
+      if (!facts?.constraints?.length && constraintFallback.length) {
+        blog("info", `📄 Mpango §3: brief haina "MASHARTI:" — inatumia fallback ya Ledger (carried_constraints · mistari ${constraintFallback.length}).`);
+      }
       const miniLines = (
         await Promise.all(
           fbrP.map(async (e) => {
@@ -2991,7 +2996,7 @@ RULES:
       }
 
       // kuunganisha (deterministic): sehemu 2/3 za mfumo + hatua zinapewa namba mfululizo
-      let asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts });
+      let asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts, constraintFallback });
       planStepsTotal = asm.steps.length;
       for (const pr of asm.problems) blog("warning", `📋 Mpango Kazi: ⚠️ ${pr}`);
       // Data Guard (maandishi): kila bei/saa/simu/email/anwani lazima iwepo kwenye Fact Sheet
@@ -3023,7 +3028,7 @@ Rewrite ONLY the affected sections (same headings, same structure), with every v
         bcast({ type: "msg_done", id: fixMsgId });
         planTexts.push(fixed);
         ingestPlan(fixed);
-        asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts });
+        asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts, constraintFallback });
         planStepsTotal = asm.steps.length;
         planHits = facts ? guardOf(asm.markdown) : [];
       }
@@ -3034,7 +3039,7 @@ Rewrite ONLY the affected sections (same headings, same structure), with every v
         title: planTitle,
         objective: pc(asm.sections[1], 10_000),
         status: planStatus,
-        constraints: constraintsMarkdown(facts),
+        constraints: constraintsMarkdown(facts, constraintFallback),
         officialData: officialDataMarkdown(facts),
         planContent: asm.markdown,
         totalSteps: planStepsTotal,
@@ -3110,7 +3115,7 @@ const fullTranscript = Object.keys(byItem)
         tail:
           "UMESHA andika sehemu 1-5. Sasa ENDELEA na 6-10 TU. USIRUDIE kichwa cha ripoti wala sehemu 1-5." +
           (planModeRun
-            ? ` Sehemu 10 (Action Plan): andika kwa MANENO mpangilio wa utekelezaji wa mradi, na taja wazi kwamba MPANGO KAZI KAMILI WA AGENT (hatua ${planStepsTotal || "N"}, Kiingereza) umetayarishwa na upo kwa endpoint /api/plans?session=${sessionId || runner.id} — computer-use agent ndiye atakayetekeleza. USIANDIKE code wala script nzima kwenye ripoti hii.`
+            ? ` Sehemu 10 (Action Plan): andika kwa MANENO mpangilio wa utekelezaji wa mradi, na taja wazi kwamba MPANGO KAZI KAMILI WA AGENT (hatua ${planStepsTotal || "N"}, Kiingereza) umetayarishwa na upo kwa endpoint /api/plans?session=${sessionId || runner.id} — computer-use agent ndiye atakayetekeleza. USIANDIKE code wala script nzima kwenye ripoti hii. KILA hatua ya checklist iwe "- [ ]" (bado HAIJATEKELEZWA — plan mode haina utekelezaji); KABISA usitumie "- [x]".`
             : ""),
       },
     ];
@@ -3376,7 +3381,14 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
       ).filter(Boolean);
       if (minis.length) assembled.push("## Kiambatisho: Mini-Reports za Agenda (Optimus)", "", "_Kumbukumbu rasmi za kila agenda kama Optimus alivyoziandika baada ya mjadala wote kuisha._", "", minis.join("\n\n"), "");
     }
-    const cleanReport = assembled.join("\n").replace(thinkRe, "").trim();
+    // R30.1 (E1): Plan mode — HAKUNA hatua iliyotekelezwa (computer-use agent ndiye atakayetekeleza).
+    // LLM ikidai [x] = udanganyifu wa R29 unaorudi → guard ya mfumo inarudisha kuwa [ ] + log.
+    const rawReport = assembled.join("\n").replace(thinkRe, "");
+    const planFalseDone = planModeRun ? (rawReport.match(/- \[x\]/gi) || []).length : 0;
+    if (planFalseDone) {
+      blog("warning", `☑️ Guard ya Plan Mode: ripoti ilidai hatua ${planFalseDone} imekamilika ([x]) — HAKUNA utekelezaji mpaka sasa; zimerudishwa kuwa [ ].`);
+    }
+    const cleanReport = (planModeRun ? rawReport.replace(/- \[x\]/gi, "- [ ]") : rawReport).trim();
     onReport(cleanReport, [...boardSources, ...runner.items.flatMap((it: any) => (Array.isArray(it?.sources) ? it.sources : []))], blog);
     const missingFinal = SECTION_DEFS.filter((d) => !collected[d[0]]).map((d) => d[2]);
     if (missingFinal.length === 0 && cleanReport.length >= 2000 && runner.finale?.reportId) {

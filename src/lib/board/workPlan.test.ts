@@ -3,7 +3,7 @@ import type { FactSheet } from "./factSheet";
 import {
   PLAN_PARTS, PLAN_SAVED_CHIP, PLAN_SAVED_RE, PLAN_FAILED_RE, PLAN_REPAIR_RE,
   planPartChip, extractPlanSections, parsePlanSteps, countPlanSteps, planStepBody, capSampleCode,
-  officialDataMarkdown, constraintsMarkdown, assemblePlanDocument,
+  officialDataMarkdown, constraintsMarkdown, constraintFallbackLines, assemblePlanDocument,
 } from "./workPlan";
 
 const sheet: FactSheet = {
@@ -152,6 +152,30 @@ describe("workPlan · official data / constraints (code-gen, si LLM)", () => {
     expect(officialDataMarkdown(null)).toContain("No official data");
     expect(constraintsMarkdown(null)).toContain("No constraints");
   });
+
+  it("R30.1/E2: constraintsMarkdown inatumia fallback ya Ledger neno kwa neno (dedupe, kikomo 20)", () => {
+    const raw = [
+      "- Lazima kubaki ndani ya bajeti kali ya jumla isiyozidi <50KB.",
+      "Lazima kubaki ndani ya bajeti kali ya jumla isiyozidi <50KB.", // duplicate (ya pili bila dash)
+      "  - Zero email fields popote kwenye markup.  ",
+      "",
+      "x", // fupi mno — inarukwa
+      ...Array.from({ length: 25 }, (_, i) => `- sheria ya ziada ${i}`),
+    ];
+    const lines = constraintFallbackLines(raw);
+    expect(lines[0]).toBe("Lazima kubaki ndani ya bajeti kali ya jumla isiyozidi <50KB.");
+    expect(lines).toHaveLength(20); // dedupe ilifanya kazi + kikomo
+    const md = constraintsMarkdown({ ...sheet, constraints: [] }, raw);
+    expect(md).toContain("<50KB");
+    expect(md).toContain("Zero email fields");
+    expect(md).not.toContain("sheria ya ziada 24"); // kikomo cha 20
+  });
+
+  it("R30.1/E2: MASHARTI za brief zikipatikana hazibadilishwi na fallback", () => {
+    const md = constraintsMarkdown(sheet, ["fallback isiyotumika"]);
+    expect(md).toContain("#0f766e");
+    expect(md).not.toContain("fallback");
+  });
 });
 
 describe("workPlan · assemblePlanDocument (deterministic)", () => {
@@ -212,5 +236,15 @@ describe("workPlan · assemblePlanDocument (deterministic)", () => {
     const asm = assemblePlanDocument({ partTexts: [fake], title: "T", sessionId: "s", date: "d", facts: sheet });
     expect(asm.markdown).not.toContain("999");
     expect(asm.markdown).toContain("500");
+  });
+
+  it("R30.1/E2: brief haina MASHARTI → §3 inatumia constraintFallback ya Ledger + inaorodheshwa problems", () => {
+    const noCons: FactSheet = { ...sheet, constraints: [] };
+    const asm = assemblePlanDocument({ partTexts: [mk(1, "Objective & Deliverable", "x")], title: "T", sessionId: "s", date: "d", facts: noCons, constraintFallback: ["- Bajeti <50KB gzipped.", "- Zero JS."] });
+    expect(asm.markdown).toContain("## 3. Constraints");
+    expect(asm.markdown).toContain("Bajeti <50KB gzipped.");
+    expect(asm.markdown).toContain("Zero JS.");
+    expect(asm.problems.some((p) => p.includes("fallback ya Ledger"))).toBe(true);
+    expect(asm.markdown).not.toContain("_No constraints");
   });
 });
