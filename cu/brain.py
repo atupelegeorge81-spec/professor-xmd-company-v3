@@ -302,6 +302,10 @@ def classify_error(provider: str, status: int | None, body: str, headers: dict |
     if status == 503 and re.search(r"get_channel_failed|busy|overloaded|no available", body, re.I):
         return LaneError("busy", msg, wait_ms=retry_after or 90_000)
     if status == 400:
+        # R31-G: Gemini 3.x inakataa history yenye functionCall bila thought_signature —
+        # inarekebishwa (calls zisizo na signature zinaondolewa) — SI fatal.
+        if re.search(r"thought_signature", body, re.I):
+            return LaneError("signature", msg)
         return LaneError("fatal", msg)
     if status is not None and status >= 500:
         return LaneError("transient", msg)
@@ -341,7 +345,8 @@ def _tool_result_parts(content) -> list[dict]:
     return parts
 
 
-def translate_request(body: dict, strip_images: bool = False, signatures: dict | None = None) -> dict:
+def translate_request(body: dict, strip_images: bool = False, signatures: dict | None = None,
+                      dropped: set[str] | None = None) -> dict:
     """Ombi la Anthropic /v1/messages → OpenAI chat/completions payload."""
     msgs: list[dict] = []
     system = body.get("system")
@@ -366,6 +371,8 @@ def translate_request(body: dict, strip_images: bool = False, signatures: dict |
                 if bt == "text":
                     user_parts.append({"type": "text", "text": b.get("text") or ""})
                 elif bt == "tool_result":
+                    if dropped and (b.get("tool_use_id") or "") in dropped:
+                        continue  # matokeo ya call iliyotolewa (recovery ya signature)
                     parts = _tool_result_parts(b.get("content"))
                     if strip_images:
                         parts = [p for p in parts if p.get("type") == "text"] or [{"type": "text", "text": "[picha imeondolewa]"}]
@@ -397,11 +404,16 @@ def translate_request(body: dict, strip_images: bool = False, signatures: dict |
                     if bt == "text":
                         text_parts.append(b.get("text") or "")
                     elif bt == "tool_use":
-                        entry = {"id": b.get("id") or f"call_{len(calls)}", "type": "function",
+                        tid = b.get("id") or f"call_{len(calls)}"
+                        if dropped and tid in dropped:
+                            # recovery ya signature: call bila signature inakuwa text fupi (si functionCall)
+                            text_parts.append(f"[tool {b.get('name') or '?'} — executed, details omitted]")
+                            continue
+                        entry = {"id": tid, "type": "function",
                                  "function": {"name": b.get("name") or "", "arguments": json.dumps(b.get("input") or {}, ensure_ascii=False)}}
                         # Gemini 3.x inahitaji thought_signature itumiwe NA functionCall replay —
                         # brain inakumbuka signature kwa tool_use id (toka jibu lililopita).
-                        sig = (signatures or {}).get(b.get("id") or "")
+                        sig = (signatures or {}).get(tid)
                         if sig:
                             entry["extra_content"] = sig
                         calls.append(entry)
@@ -607,6 +619,17 @@ class BrainFatal(Exception):
 class Brain:
     def __init__(self, cfg: dict, usage_path: str = "", clock=None, sleeper=None, transport=None):
         self.signatures: dict[str, dict] = {}  # tool_use id → extra_content (thought_signature)
+        self.dropped: set[str] = set()          # calls zisizo na signature (recovery) — huondolewa history
+        self._sig_path = os.environ.get("CU_SIG_PATH", "/home/user/brain-signatures.json")
+        try:
+            with open(self._sig_path, "r", encoding="utf-8") as fh:
+                disk = json.load(fh)
+            if isinstance(disk, dict):
+                self.signatures.update({str(k): v for k, v in disk.items() if isinstance(v, dict)})
+                if disk:
+                    blog("info", f"🧠 cuBrain: signatures {len(self.signatures)} zimepakuliwa kutoka disk (resume).")
+        except Exception:
+            pass
         self.cfg = cfg or {}
         self.order: list[Lane] = build_order(self.cfg)
         self.state: dict[str, LaneState] = {}
@@ -958,6 +981,42 @@ class Brain:
             return ""
 
     # ---------- mkondo mkuu wa ombi (loop ya lane + silent swaps)
+    def _unsigned_calls(self, body: dict) -> list[str]:
+        """tool_use ids za history zisizo na signature (na hazijatolewa)."""
+        out: list[str] = []
+        for m in body.get("messages") or []:
+            content = m.get("content")
+            if not isinstance(content, list):
+                continue
+            for b in content:
+                if isinstance(b, dict) and b.get("type") == "tool_use":
+                    tid = b.get("id") or ""
+                    if tid and tid not in self.signatures and tid not in self.dropped:
+                        out.append(tid)
+        return out
+
+    def _save_signatures(self) -> None:
+        """Signatures zinaishi disk — bridge/brain ikianza upya (resume) history ya zamani inaendelea kufanya kazi."""
+        if not self.signatures:
+            return
+        try:
+            disk: dict = {}
+            try:
+                with open(self._sig_path, "r", encoding="utf-8") as fh:
+                    disk = json.load(fh)
+                    if not isinstance(disk, dict):
+                        disk = {}
+            except Exception:
+                pass
+            if len(self.signatures) > len(disk):
+                disk.update(self.signatures)
+                tmp = self._sig_path + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as fh:
+                    json.dump(disk, fh)
+                os.replace(tmp, self._sig_path)
+        except Exception:
+            pass
+
     def handle(self, body: dict, write):
         """write(event_dict) inatumwa kila event (baada ya gate). Inarudisha True kama run ikaisha vizuri."""
         tried: set[str] = set()
@@ -990,7 +1049,7 @@ class Brain:
             tried.add(lane.id)
             attempts += 1
             # payload inajengwa UPYA kila attempt (picha zinaweza kutolewa baada ya 400)
-            p = translate_request(body, strip_images=strip_images, signatures=self.signatures)
+            p = translate_request(body, strip_images=strip_images, signatures=self.signatures, dropped=self.dropped)
             p["max_tokens"] = min(int(body.get("max_tokens") or 8192), lane.max_out)
             t0 = self._clock()
             if body.get("stream"):
@@ -1003,19 +1062,38 @@ class Brain:
                     tr = getattr(gen, "xmd_translator", None)
                     if tr is not None:
                         self.signatures.update(tr.signatures)
+                    self._save_signatures()
                     return True
                 except LaneError as le:
                     if wrote:
                         # stream ilikatika katikati — CLI itajaribu tena yenyewe; sisi hatuanzi upya
                         self.record_usage(lane, False, 0, 0, int(self._clock() - t0), f"midstream:{le.kind}")
                         raise BrainAbort()
+                    if le.kind == "signature":
+                        unsigned = self._unsigned_calls(body)
+                        if unsigned:
+                            self.dropped.update(unsigned)
+                            tried.clear()
+                            blog("warning", f"cuBrain: thought_signature hazipo kwa {len(unsigned)} call(s) — "
+                                             f"zinatolewa kwenye history na kuendelea (silent).")
+                            continue
                     after_lane_error(lane, le, p, t0)
                     continue
             try:
                 result = self.complete(lane, p, with_so=not no_stream_options)
                 write(result)
+                self._save_signatures()
                 return True
             except LaneError as le:
+                if le.kind == "signature":
+                    # R31-G recovery: calls zisizo na signature zinaondolewa → lanes zinarudiwi
+                    unsigned = self._unsigned_calls(body)
+                    if unsigned:
+                        self.dropped.update(unsigned)
+                        tried.clear()
+                        blog("warning", f"cuBrain: thought_signature hazipo kwa {len(unsigned)} call(s) — "
+                                         f"zinatolewa kwenye history na kuendelea (silent).")
+                        continue
                 after_lane_error(lane, le, p, t0)
                 continue
         raise BrainFatal(f"jaribio {MAX_ATTEMPTS} limeishia bila jibu")

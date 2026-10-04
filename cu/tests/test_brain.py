@@ -544,3 +544,43 @@ class ThoughtSignatureTest(unittest.TestCase):
             {"type": "tool_use", "id": "toolu_none", "name": "Write", "input": {}}]}]}
         p = brain.translate_request(body, signatures={})
         self.assertNotIn("extra_content", p["messages"][0]["tool_calls"][0])
+
+
+class SignatureRecoveryTest(unittest.TestCase):
+    """R31-G: thought_signature 400 si kifo — calls zisizo na signature zinaondolewa history."""
+
+    def test_classify_signature_400(self):
+        le = brain.classify_error("gemini", 400, "Function call is missing a thought_signature in functionCall parts", {})
+        self.assertEqual(le.kind, "signature")
+
+    def test_translate_dropped_call_inakuwa_text(self):
+        body = {"messages": [
+            {"role": "assistant", "content": [
+                {"type": "text", "text": "napanga"},
+                {"type": "tool_use", "id": "toolu_ok", "name": "Write", "input": {"a": 1}},
+                {"type": "tool_use", "id": "toolu_bad", "name": "Bash", "input": {"b": 2}}]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "toolu_ok", "content": "ok"},
+                {"type": "tool_result", "tool_use_id": "toolu_bad", "content": "err"}]}]}
+        sigs = {"toolu_ok": {"google": {"thought_signature": "S"}}}
+        p = brain.translate_request(body, signatures=sigs, dropped={"toolu_bad"})
+        msgs = p["messages"]
+        # assistant: tool_call moja tu (ile yenye signature) + text note ya ile iliyotolewa
+        a = msgs[0]
+        self.assertEqual(len(a["tool_calls"]), 1)
+        self.assertEqual(a["tool_calls"][0]["id"], "toolu_ok")
+        self.assertIn("[tool Bash", (a["content"] or ""))
+        # user: tool result moja tu
+        tools = [m for m in msgs if m["role"] == "tool"]
+        self.assertEqual(len(tools), 1)
+        self.assertEqual(tools[0]["tool_call_id"], "toolu_ok")
+
+    def test_unsigned_call_ids(self):
+        class B:
+            signatures = {"toolu_a": {}}
+            dropped = set()
+            _unsigned_calls = brain.Brain._unsigned_calls
+        body = {"messages": [{"role": "assistant", "content": [
+            {"type": "tool_use", "id": "toolu_a", "name": "X", "input": {}},
+            {"type": "tool_use", "id": "toolu_b", "name": "Y", "input": {}}]}]}
+        self.assertEqual(B()._unsigned_calls(body), ["toolu_b"])

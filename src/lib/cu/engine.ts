@@ -609,7 +609,13 @@ export function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: CuEvent
     }
     case "finish": {
       // RIPOTI YA MWISHO — inarender KAWAIDA (document, si card) — CEO correction 04-10
-      cu.report = String(ev.report || "").slice(0, 120_000);
+      const rtext = String(ev.report || "").slice(0, 120_000);
+      if (/^API Error/i.test(rtext.trim())) {
+        // CLI ina-weka error text yake kama "report" — hiyo SI ripoti; error event inayofuata inatuambia ukweli
+        hooks?.blog("warning", "🖥️ Ripoti ilikuwa error text ya CLI (si ripoti) — haihifadhiwi kama report.");
+        break;
+      }
+      cu.report = rtext;
       runner.items.push({ kind: "cu", id: `cu_report_${runner.items.length}`, i: ev.i, cu: "report", text: cu.report, partial: ev.partial, status: ev.status } as any);
       schedulePersist(runner, hooks!, true);
       break;
