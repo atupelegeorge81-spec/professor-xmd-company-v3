@@ -341,7 +341,7 @@ def _tool_result_parts(content) -> list[dict]:
     return parts
 
 
-def translate_request(body: dict, strip_images: bool = False) -> dict:
+def translate_request(body: dict, strip_images: bool = False, signatures: dict | None = None) -> dict:
     """Ombi la Anthropic /v1/messages → OpenAI chat/completions payload."""
     msgs: list[dict] = []
     system = body.get("system")
@@ -397,8 +397,14 @@ def translate_request(body: dict, strip_images: bool = False) -> dict:
                     if bt == "text":
                         text_parts.append(b.get("text") or "")
                     elif bt == "tool_use":
-                        calls.append({"id": b.get("id") or f"call_{len(calls)}", "type": "function",
-                                      "function": {"name": b.get("name") or "", "arguments": json.dumps(b.get("input") or {}, ensure_ascii=False)}})
+                        entry = {"id": b.get("id") or f"call_{len(calls)}", "type": "function",
+                                 "function": {"name": b.get("name") or "", "arguments": json.dumps(b.get("input") or {}, ensure_ascii=False)}}
+                        # Gemini 3.x inahitaji thought_signature itumiwe NA functionCall replay —
+                        # brain inakumbuka signature kwa tool_use id (toka jibu lililopita).
+                        sig = (signatures or {}).get(b.get("id") or "")
+                        if sig:
+                            entry["extra_content"] = sig
+                        calls.append(entry)
                     # thinking blocks zinatupuliwa (hatumishi upstream)
             a: dict = {"role": "assistant", "content": "".join(text_parts) if text_parts else None}
             if calls:
@@ -449,6 +455,8 @@ class AnthropicStreamTranslator:
     """
 
     def __init__(self, model_name: str = "xmd-computer"):
+        self.signatures: dict[str, dict] = {}
+        self._extra_pool: list[dict] = []
         self.model_name = model_name
         self.msg_id = "msg_xmd_" + os.urandom(6).hex()
         self.blocks: list[dict] = []   # {index, type, id?, name?}
@@ -510,6 +518,11 @@ class AnthropicStreamTranslator:
                 out.append({"type": "content_block_start", "index": idx, "content_block": {"type": "text", "text": ""}})
             out.append({"type": "content_block_delta", "index": idx, "delta": {"type": "text_delta", "text": text}})
             self.gate_passed = True
+        # Gemini 3.x thought_signature — delta-level (stream) au ndani ya tool_call
+        extra = delta.get("extra_content")
+        if isinstance(extra, dict) and extra:
+            self._extra_pool.append(extra)
+
         # tool calls
         for tc in delta.get("tool_calls") or []:
             if not isinstance(tc, dict):
@@ -521,17 +534,29 @@ class AnthropicStreamTranslator:
                 idx = self._reuse_or_open("tool_use")[0]
                 tuid = "toolu_" + os.urandom(8).hex()
                 name = fn.get("name") or ""
-                info = {"index": idx, "id": tuid, "name": name, "args": ""}
+                info = {"index": idx, "id": tuid, "name": name, "args": "", "extra": None}
                 self._tool_args[ti] = info
                 out.append({"type": "content_block_start", "index": idx,
                             "content_block": {"type": "tool_use", "id": tuid, "name": name, "input": {}}})
                 self.gate_passed = True
+            if info.get("extra") is None:
+                tce = tc.get("extra_content")
+                if isinstance(tce, dict) and tce:
+                    info["extra"] = tce
+                elif self._extra_pool:
+                    info["extra"] = self._extra_pool.pop(0)
             args = fn.get("arguments")
             if isinstance(args, str) and args:
                 info["args"] += args
                 out.append({"type": "content_block_delta", "index": info["index"],
                             "delta": {"type": "input_json_delta", "partial_json": args}})
                 self.gate_passed = True
+        if self._extra_pool:
+            for info in reversed(list(self._tool_args.values())):
+                if info.get("extra") is None:
+                    info["extra"] = self._extra_pool.pop(0)
+                    if not self._extra_pool:
+                        break
         return out
 
     def _reuse_or_open(self, btype: str) -> tuple[int, bool]:
@@ -542,6 +567,9 @@ class AnthropicStreamTranslator:
         return self._open_block(btype), True
 
     def finish(self) -> list[dict]:
+        for info in self._tool_args.values():
+            if info.get("extra"):
+                self.signatures[info["id"]] = info["extra"]
         out: list[dict] = []
         for b in self.blocks:
             if b["type"] == "thinking":
@@ -561,12 +589,24 @@ def sse_pack(event: dict) -> str:
 
 # ================================================================ Brain
 
+class _StreamGen:
+    """Generator ya stream + translator wake (signatures za tool calls) — thread-safe per request."""
+
+    def __init__(self, gen, translator):
+        self._gen = gen
+        self.xmd_translator = translator
+
+    def __iter__(self):
+        return iter(self._gen)
+
+
 class BrainFatal(Exception):
     pass
 
 
 class Brain:
     def __init__(self, cfg: dict, usage_path: str = "", clock=None, sleeper=None, transport=None):
+        self.signatures: dict[str, dict] = {}  # tool_use id → extra_content (thought_signature)
         self.cfg = cfg or {}
         self.order: list[Lane] = build_order(self.cfg)
         self.state: dict[str, LaneState] = {}
@@ -790,6 +830,8 @@ class Brain:
     def open_stream(self, lane: Lane, payload: dict, with_so: bool = True):
         """Inarudisha generator ya events za Anthropic SSE (lenye gate). Inapiga LaneError kwa kila kosa."""
 
+        translator = AnthropicStreamTranslator()
+
         def gen():
             resp, headers, err, t0 = self._upstream_open(lane, payload, stream=True, with_so=with_so)
             if resp is None:
@@ -798,7 +840,6 @@ class Brain:
             if status != 200:
                 body = self._read_err_body(resp)
                 raise classify_error(lane.provider, status, body, headers)
-            translator = AnthropicStreamTranslator()
             gate_open = False
             pending: list = []
             usage_prompt, usage_completion = 0, 0
@@ -849,7 +890,7 @@ class Brain:
                     resp.close()
                 except Exception:
                     pass
-        return gen()
+        return _StreamGen(gen(), translator)
 
     def complete(self, lane: Lane, payload: dict, with_so: bool = True) -> dict:
         """Non-stream: inarudisha jibu kamili la Anthropic au LaneError."""
@@ -883,7 +924,11 @@ class Brain:
                 inp = json.loads(fn.get("arguments") or "{}")
             except ValueError:
                 inp = {}
-            content.append({"type": "tool_use", "id": (tc.get("id") or f"toolu_{i}"), "name": fn.get("name") or "", "input": inp})
+            tid = tc.get("id") or f"toolu_{i}"
+            tce = (tc or {}).get("extra_content")
+            if isinstance(tce, dict) and tce:
+                self.signatures[tid] = tce
+            content.append({"type": "tool_use", "id": tid, "name": fn.get("name") or "", "input": inp})
         if not content:
             raise LaneError("empty", "jibu tupu kutoka " + lane.label())
         u = data.get("usage") or {}
@@ -945,7 +990,7 @@ class Brain:
             tried.add(lane.id)
             attempts += 1
             # payload inajengwa UPYA kila attempt (picha zinaweza kutolewa baada ya 400)
-            p = translate_request(body, strip_images=strip_images)
+            p = translate_request(body, strip_images=strip_images, signatures=self.signatures)
             p["max_tokens"] = min(int(body.get("max_tokens") or 8192), lane.max_out)
             t0 = self._clock()
             if body.get("stream"):
@@ -955,6 +1000,9 @@ class Brain:
                     for ev in gen:
                         write(ev)
                         wrote = True
+                    tr = getattr(gen, "xmd_translator", None)
+                    if tr is not None:
+                        self.signatures.update(tr.signatures)
                     return True
                 except LaneError as le:
                     if wrote:
@@ -995,18 +1043,20 @@ class BrainHandler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
-        if self.path == "/health":
+        path = self.path.split("?")[0]
+        if path == "/health":
             b = self.brain
             self._json(200, {"ok": True, "emergency": b.emergency, "calls": b.calls,
                              "lanes": len(b.order), "uptimeMs": int((time.time() - BASE_TS) * 1000)})
             return
-        if self.path == "/v1/models":
+        if path == "/v1/models":
             self._json(200, {"data": [{"id": "xmd-computer", "object": "model", "display_name": "XMD Computer (Gemini Swap Brain)"}]})
             return
         self._json(404, {"error": {"type": "not_found_error", "message": "path haitumiki"}})
 
     def do_POST(self):
-        if self.path.endswith("/count_tokens"):
+        path = self.path.split("?")[0]
+        if path.endswith("/count_tokens"):
             try:
                 n = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(n) or b"{}")
@@ -1015,8 +1065,8 @@ class BrainHandler(BaseHTTPRequestHandler):
             rough = len(json.dumps(body.get("messages") or [])) // 4
             self._json(200, {"input_tokens": max(32, rough)})
             return
-        if not self.path.endswith("/messages"):
-            self._json(404, {"error": {"type": "not_found_error", "message": "path haitumiki"}})
+        if not path.endswith("/messages"):
+            self._json(404, {"error": {"type": "not_found_error", "message": f"path {path} haitumiki"}})
             return
         try:
             n = int(self.headers.get("Content-Length") or 0)

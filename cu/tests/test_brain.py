@@ -498,3 +498,49 @@ class TestPacific(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class ThoughtSignatureTest(unittest.TestCase):
+    """Gemini 3.x inahitaji thought_signature itumiwe NA functionCall replay."""
+
+    def _tr(self):
+        return brain.AnthropicStreamTranslator()
+
+    def test_stream_capture_delta_extra(self):
+        """delta.extra_content inakamatwa na kuunganishwa na tool call ya turn hiyo."""
+        tr = self._tr()
+        tr.feed({"choices": [{"delta": {"extra_content": {"google": {"thought_signature": "SIG123"}}}}]})
+        tr.feed({"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_1", "type": "function",
+                       "function": {"name": "Write", "arguments": "{\"a\":"}}]}}]})
+        tr.feed({"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "1}"}}]}}]})
+        tr.feed({"choices": [{"delta": {}, "finish_reason": "tool_calls"}], "usage": {"prompt_tokens": 5, "completion_tokens": 2}})
+        tr.finish()
+        self.assertEqual(len(tr.signatures), 1)
+        [tid] = tr.signatures.keys()
+        self.assertEqual(tr.signatures[tid], {"google": {"thought_signature": "SIG123"}})
+
+    def test_stream_capture_inside_tool_call(self):
+        """extra_content ndani ya tool_call yenyewe inakamatwa pia."""
+        tr = self._tr()
+        tr.feed({"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_9", "type": "function",
+                       "function": {"name": "Bash", "arguments": "{}"},
+                       "extra_content": {"google": {"thought_signature": "SIG9"}}}]}}]})
+        tr.feed({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]})
+        tr.finish()
+        [tid] = tr.signatures.keys()
+        self.assertEqual(tr.signatures[tid]["google"]["thought_signature"], "SIG9")
+
+    def test_translate_request_replays_signature(self):
+        body = {"messages": [{"role": "assistant", "content": [
+            {"type": "tool_use", "id": "toolu_abc", "name": "Write", "input": {"a": 1}}]}]}
+        sigs = {"toolu_abc": {"google": {"thought_signature": "SIGX"}}}
+        p = brain.translate_request(body, signatures=sigs)
+        tc = p["messages"][0]["tool_calls"][0]
+        self.assertEqual(tc["id"], "toolu_abc")
+        self.assertEqual(tc["extra_content"], {"google": {"thought_signature": "SIGX"}})
+
+    def test_translate_request_bila_signature_haitumii_extra(self):
+        body = {"messages": [{"role": "assistant", "content": [
+            {"type": "tool_use", "id": "toolu_none", "name": "Write", "input": {}}]}]}
+        p = brain.translate_request(body, signatures={})
+        self.assertNotIn("extra_content", p["messages"][0]["tool_calls"][0])

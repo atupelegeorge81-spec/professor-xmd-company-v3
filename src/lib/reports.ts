@@ -40,7 +40,7 @@ export async function listReports(): Promise<ReportDoc[]> {
 
 // ============ BOARD ROOM SESSIONS / CONVERSATIONS ============
 export interface SessionItem {
-  kind: "msg" | "chip" | "round" | "title";
+  kind: "msg" | "chip" | "round" | "title" | "cu";
   id: string;
   agentId?: string;
   thinking?: string;
@@ -53,6 +53,36 @@ export interface SessionItem {
   total?: number;
   failed?: boolean;
   error?: string;
+  /** R31 · XMD Computer: aina ya tukio (run_start/think/text/exec/shot/github/deploy/report/error/run_end/divider) */
+  cu?: string;
+  i?: number;
+  step?: number;
+  execId?: string;
+  tool?: string;
+  kindX?: string;
+  command?: string;
+  path?: string;
+  preview?: string;
+  lines?: number;
+  exit?: number;
+  ms?: number;
+  chars?: number;
+  summary?: string;
+  output?: string;
+  fileId?: string;
+  bucketId?: string;
+  label?: string;
+  url?: string;
+  message?: string;
+  status?: string;
+  live?: string;
+  github?: string;
+  tokens?: number;
+  requests?: number;
+  budget?: unknown;
+  model?: string;
+  task?: string;
+  partial?: boolean;
 }
 
 export async function saveSession(project: string, items: SessionItem[], status: string, title?: string): Promise<string | null> {

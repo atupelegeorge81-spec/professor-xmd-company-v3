@@ -28,7 +28,9 @@ export function isHiddenChip(it: any): boolean {
   return (
     it?.kind === "chip" &&
     typeof it?.text === "string" &&
-    (it.text.startsWith(USAGE_PREFIX) || it.text.startsWith(RESUME_PREFIX) || it.text.startsWith(BRIEF_PREFIX_R26) || it.text.startsWith(FACTS_PREFIX_R26))
+    (it.text.startsWith(USAGE_PREFIX) || it.text.startsWith(RESUME_PREFIX) || it.text.startsWith(BRIEF_PREFIX_R26) || it.text.startsWith(FACTS_PREFIX_R26) ||
+      // R31 · XMD Computer: hali ya run ya computer (sandboxId/token/files) — chip ya ndani pia
+      it.text.startsWith("__PROFESSOR_XMD_CU_STATE__:"))
   );
 }
 

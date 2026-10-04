@@ -17,6 +17,7 @@
     "cu:live": "python3 cu/tests/check_brain_live.py"
   },
   "dependencies": {
+    "@e2b/code-interpreter": "^2.8.0",
     "cheerio": "^1.2.0",
     "geist": "^1.7.2",
     "gpt-tokenizer": "^3.0.1",

@@ -44,6 +44,8 @@ import { reviewVerdict } from "./board/reviewVerdict";
 import { BOARD_PLAN_MODE } from "./env";
 import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, type MiniReportDoc } from "./server/miniReports";
 import { saveProjectPlan } from "./server/plans";
+// R31 · XMD COMPUTER (computer-use): engine ya phase ya mwisho — baada ya memory ya Board
+import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, type CuRunState, type CuHooks } from "./cu/engine";
 import {
   PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
   extractPlanSections, parsePlanSteps, assemblePlanDocument, officialDataMarkdown, constraintsMarkdown, constraintFallbackLines, PLAN_STEP_TEMPLATE,
@@ -81,6 +83,12 @@ export interface Runner {
   finale?: FinaleState;
   /** R26: data rasmi ya brief (inahifadhiwa kama chip iliyofichwa → resume haipotezi) */
   facts?: FactSheet | null;
+  /** R31: session hii imepangiwa awamu ya XMD Computer (sessions za zamani hazina hii → hazigusiwi) */
+  computerPlanned?: boolean;
+  /** R31: hali ya run ya computer-use (in-memory; chip ya CU_STATE inadumu Appwrite) */
+  cu?: CuRunState;
+  /** R31: hooks za ndani za run() — endpoint ya cu-event zinazitumia (route haina access ya closure) */
+  cuHooks?: CuHooks;
 }
 
 const g: any = globalThis;
@@ -214,7 +222,9 @@ export function startRun(project: string): Runner {
     return existing;
   }
   const id = nid();
-  const runner: Runner = { id, project, status: "running", items: [], buffer: [], subs: new Set(), startedAt: Date.now(), pauseAbort: new AbortController(), mode: BOARD_PLAN_MODE ? "plan" : "code" };
+  const runner: Runner = { id, project, status: "running", items: [], buffer: [], subs: new Set(), startedAt: Date.now(), pauseAbort: new AbortController(), mode: BOARD_PLAN_MODE ? "plan" : "code",
+    // R31: sessions mpya zimepangiwa computer-use (mazingira yakiwa yamekamilika); zamani hazina flag → hazigusiwi
+    computerPlanned: BOARD_PLAN_MODE && cuEnabled() ? true : undefined };
   runners.set(id, runner);
   if (runners.size > 3) {
     for (const [k, v] of runners) { if (v.status !== "running" && v.status !== "paused" && k !== id) { runners.delete(k); break; } }
@@ -312,9 +322,12 @@ export async function resumeRun(id: string): Promise<ResumeResult> {
   };
   // R16.1: agenda zilizokamilika kwa mujibu wa progress iliyohifadhiwa (akiba ikiwa Ledger haisomeki)
   if (Array.isArray(state.done)) runner.doneIdx = state.done.filter((n: unknown) => typeof n === "number");
-  if (state.finale && typeof state.finale === "object") runner.finale = { reportId: state.finale.reportId ?? null, memory: !!state.finale.memory, planId: state.finale.planId ?? null };
+  if (state.finale && typeof state.finale === "object") runner.finale = { reportId: state.finale.reportId ?? null, memory: !!state.finale.memory, planId: state.finale.planId ?? null, computer: !!(state.finale as any).computer || undefined };
   // R30: mode ya session inarudishwa (zamani hazina → code); mpya zinazaliwa na env BOARD_PLAN_MODE
   runner.mode = state.mode === "plan" ? "plan" : state.mode === "code" ? "code" : "code";
+  // R31: computerPlanned inarudishwa; hali ya CU (sandboxId/token/maxI/links/files) inajengwa kutoka chip yake
+  if ((state as any).computer) runner.computerPlanned = true;
+  if (runner.computerPlanned && !runner.finale?.computer) ensureCuState(runner);
   runners.set(runner.id, runner);
   if (trim.dropped) console.warn(`[resume] ${runner.id}: items ${trim.dropped} za ${trim.restarted ? `agenda ${trim.restarted}` : "finale"} iliyokatizwa zimeondolewa`);
 
@@ -445,6 +458,8 @@ async function run(runner: Runner) {
     // R26 (A1): brief KAMILI (field ya project ina herufi 500 tu) + Fact Sheet — resume inazirejesha neno kwa neno
     if (runner.project.length > 500) clean.push({ kind: "chip", id: "__professor_xmd_brief__", text: BRIEF_PREFIX + runner.project } as SessionItem);
     if (runner.facts) clean.push({ kind: "chip", id: "__professor_xmd_facts__", text: FACTS_PREFIX + JSON.stringify(runner.facts) } as SessionItem);
+    // R31 · XMD Computer: hali ya run (sandboxId/token/maxI/files/links) — resume na Files badge zinaisoma
+    if (runner.cu) clean.push(cuChipItemOf(runner) as SessionItem);
 
     if (!runner.agenda || runner.agenda.length === 0) {
       return clean;
@@ -461,6 +476,7 @@ async function run(runner: Runner) {
           agenda: runner.agenda,
           done: runner.doneIdx || [],
           ...(runner.mode ? { mode: runner.mode } : {}),
+          ...(runner.computerPlanned ? { computer: true } : {}),
           ...(runner.finale ? { finale: runner.finale } : {}),
         })
     } as SessionItem);
@@ -2815,7 +2831,7 @@ Keep under 220 words.
         for (const it of runner.items) if (it.kind === "msg" && !keepIds.has(it.id)) bcast({ type: "msg_reset", id: it.id });
         runner.items = prior.keep as typeof runner.items;
       }
-      const need = missingParts({ status: "resume", items: runner.items as FinaleItem[], agendaTotal: agenda.length, done: agenda.map((a) => a.index), finale: runner.finale, mode: runner.mode });
+      const need = missingParts({ status: "resume", items: runner.items as FinaleItem[], agendaTotal: agenda.length, done: agenda.map((a) => a.index), finale: runner.finale, mode: runner.mode, computerPlanned: runner.computerPlanned });
       blog("system", `♻️ Endeleza: finale ilikuwa imeanza — ${need.length ? `inakamilisha: ${need.join(" · ")}` : "hakuna kilichokosekana"}.`);
       addChip(`♻️ Endeleza: ${need.length ? `inakamilisha ${need.join(" · ")}` : "inathibitisha finale"} — vipande vilivyokamilika havirudiwi.`);
     }
@@ -3439,7 +3455,19 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
       }
       if (memoryOk) runner.finale = { ...(runner.finale || {}), memory: true };
     }
-    const stillMissing = missingParts({ status: "finale", items: runner.items as FinaleItem[], agendaTotal: agenda.length, done: agenda.map((a) => a.index), finale: runner.finale, mode: runner.mode });
+    let stillMissing = missingParts({ status: "finale", items: runner.items as FinaleItem[], agendaTotal: agenda.length, done: agenda.map((a) => a.index), finale: runner.finale, mode: runner.mode, computerPlanned: runner.computerPlanned });
+    // ===== R31 · XMD COMPUTER — awamu ya MWISHO (baada ya card ya MWISHO kabisa ya Board: memory imekamilika).
+    // Inaanza YENYEWE — hakuna kitufe (uamuzi #1 wa CEO). Agent MMOJA "XMD Computer" (hana jina) anatekeleza
+    // Mpango Kazi kwenye sandbox ya E2B: jenga → jipime (Playwright) → GitHub → Vercel → ripoti ya Kiswahili.
+    const cuOnlyMissing = stillMissing.length === 1 && stillMissing[0] === "Utekelezaji wa XMD Computer";
+    if (cuOnlyMissing && planModeRun && runner.finale?.planId && runner.computerPlanned && cuEnabled()) {
+      runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle };
+      blog("system", "🖥️ Awamu ya XMD COMPUTER inaanza — Mpango Kazi unatekelezwa na agent (E2B sandbox).");
+      addChip("🖥️ Awamu ya XMD Computer inaanza — agent anatekeleza Mpango Kazi (E2B sandbox). Hakuna kitufe; inaendelea yenyewe.");
+      await startComputerPhase(runner, runner.cuHooks);
+      stillMissing = missingParts({ status: "finale", items: runner.items as FinaleItem[], agendaTotal: agenda.length, done: agenda.map((a) => a.index), finale: runner.finale, mode: runner.mode, computerPlanned: runner.computerPlanned });
+    }
+
     if (stillMissing.length) {
       await persist("finale_incomplete", conversationTitle);
       blog("warning", `⚠️ Board haijakamilika: ${stillMissing.join(" · ")} — bonyeza Endeleza kukamilisha.`);

@@ -67,6 +67,8 @@ export type BoardEvent =
   | { type: "report"; id: string; title: string; content: string }
   /** Kazi ya background (shimmer) — mini report, lock, validator… */
   | { type: "activity"; id: string; text?: string; state: "start" | "end" }
+  /** R31 · XMD Computer: matukio ya computer-use (kutoka sandbox, via /api/boardroom/cu-event). */
+  | { type: "cu"; cu: { type: string; i?: number; [k: string]: unknown } }
   | { type: "error"; message: string }
   | { type: "done" };
 

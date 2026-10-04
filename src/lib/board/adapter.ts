@@ -1152,17 +1152,26 @@ export type BoardAdapter = ReturnType<typeof createBoardAdapter>;
 
 /* ================================================================== replay */
 export interface SavedItem {
-  kind: "msg" | "chip" | "round" | "title";
+  kind: "msg" | "chip" | "round" | "title" | "cu";
   id: string; agentId?: string; thinking?: string; content?: string; sources?: SearchResult[]; text?: string; round?: number; total?: number;
+  /** R31 · XMD Computer */
+  cu?: string; i?: number; step?: number; tool?: string; command?: string; output?: string; preview?: string;
+  fileId?: string; bucketId?: string; label?: string; url?: string; message?: string; status?: string; exit?: number; ms?: number;
+  live?: string; github?: string; tokens?: number; requests?: number; model?: string; task?: string; partial?: boolean;
 }
 
-const HIDDEN = /^__PROFESSOR_XMD_(RESUME_STATE|USAGE|BRIEF|FACTS)__:/; // R26: brief kamili + Fact Sheet pia hazionyeshwi
+const HIDDEN = /^__PROFESSOR_XMD_(RESUME_STATE|USAGE|BRIEF|FACTS|CU_STATE)__:/; // R26: brief + facts · R31: hali ya XMD Computer
 
 /** Hugeuza items zilizohifadhiwa (Appwrite) kuwa mfululizo wa matukio kwa adapter. */
 export function savedToEvents(items: SavedItem[], project: string): AdapterEvent[] {
   const out: AdapterEvent[] = [];
   if (project) out.push({ type: "user_prompt", text: project });
   for (const it of items || []) {
+    if ((it as any).kind === "cu") {
+      // R31 · XMD Computer — kila tukio lililohifadhiwa linaingia buffer kama event ya "cu"
+      out.push({ type: "cu", cu: { type: String((it as any).cu || ""), ...it } } as any);
+      continue;
+    }
     if (it.kind === "title" && it.text) out.push({ type: "title_done", title: it.text });
     else if (it.kind === "chip" && it.text && !HIDDEN.test(it.text)) out.push({ type: "system", text: it.text });
     else if (it.kind === "round") out.push({ type: "round", round: it.round || 0, total: it.total || 0 });

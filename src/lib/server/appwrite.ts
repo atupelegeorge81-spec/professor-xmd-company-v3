@@ -1,5 +1,5 @@
 // src/lib/server/appwrite.ts — Appwrite client moja kwa reports/sessions/stats.
-import { Client, Databases } from "node-appwrite";
+import { Client, Databases, Storage } from "node-appwrite";
 
 export const appwriteConfigured = !!(
   process.env.APPWRITE_ENDPOINT &&
@@ -14,6 +14,9 @@ if (process.env.APPWRITE_ENDPOINT && process.env.APPWRITE_PROJECT_ID && process.
 }
 
 export const databases = new Databases(client);
+// R31 · XMD Computer: bucket ya screenshots ("Professor-xmd-company" 6ac2935d0038fbd47d5d)
+export const storage = new Storage(client);
+export const SCREENSHOTS_BUCKET = process.env.CU_SCREENSHOTS_BUCKET || "6ac2935d0038fbd47d5d";
 export const DB = process.env.APPWRITE_DATABASE_ID!;
 export const REPORTS_COL = process.env.REPORTS_COLLECTION_ID || "reports";
 export const SESSIONS_COL = "boardroom_sessions";

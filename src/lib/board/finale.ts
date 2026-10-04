@@ -180,14 +180,21 @@ export function scanFinale<T extends FinaleItem>(items: T[]): FinaleScan<T> {
 }
 
 /** Hali ya finale inayohifadhiwa ndani ya resume state (R20). Sessions za zamani hazina — zinakisiwa. */
-export interface FinaleState { reportId?: string | null; memory?: boolean; /** R30: doc id ya Mpango Kazi (project_plans) */ planId?: string | null }
+export interface FinaleState {
+  reportId?: string | null;
+  memory?: boolean;
+  /** R30: doc id ya Mpango Kazi (project_plans) */
+  planId?: string | null;
+  /** R31: awamu ya XMD Computer imekamilika (ripoti ya agent imeingia) */
+  computer?: boolean;
+}
 
 /**
  * Kinachokosekana ili mjadala ukamilike (kwa kitufe cha Endeleza). [] = hakuna (au si mjadala wa kuendeleza).
  * `done` = agenda zilizokamilika (resume state), `agendaTotal` = idadi ya agenda.
  * R30: `mode` = "plan" (default ya mpya — Mpango Kazi badala ya script) | "code" (flow ya zamani).
  */
-export function missingParts(o: { status: string; items: FinaleItem[]; agendaTotal: number; done: number[]; finale?: FinaleState | null; mode?: "code" | "plan" }): string[] {
+export function missingParts(o: { status: string; items: FinaleItem[]; agendaTotal: number; done: number[]; finale?: FinaleState | null; mode?: "code" | "plan"; computerPlanned?: boolean }): string[] {
   if (o.status === "completed" || !o.agendaTotal) return [];
   const doneSet = new Set(o.done);
   const left = Array.from({ length: o.agendaTotal }, (_, i) => i + 1).filter((i) => !doneSet.has(i));
@@ -208,6 +215,9 @@ export function missingParts(o: { status: string; items: FinaleItem[]; agendaTot
     out.push("Kuhifadhi ripoti (Reports)");
   }
   if (!o.finale?.memory) out.push("Memory ya agents");
+  // R31: awamu ya XMD Computer — kwa sessions mpya zilizopangiwa computer (chip ya resume) pekee;
+  // sessions za zamani hazina computerPlanned → hazigusiwi kabisa (data ya zamani ni sheria).
+  if (o.mode !== "code" && o.finale?.planId && o.computerPlanned && !o.finale?.computer) out.push("Utekelezaji wa XMD Computer");
   return out;
 }
 
