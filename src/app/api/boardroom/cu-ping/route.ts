@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 /** R31 · diagnostics — 403 ya E2B kutoka Koyeb: nini hasa kinazuiliwa?
  *  GET /api/boardroom/cu-ping — inajaribu: api.e2b.app + api.e2b.dev (fetch + sandbox create),
  *  headers za jibu (server/CF), na tofauti ya User-Agent. Hakuna siri inayotoka (key = "…" prefix tu). */
-export async function GET() {
+export async function GET(req: Request) {
   const key = process.env.E2B_API_KEY || "";
   const out: Record<string, unknown> = {
     hasKey: !!key,
