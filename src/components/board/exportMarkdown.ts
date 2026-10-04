@@ -56,7 +56,17 @@ export function boardMarkdown(title: string, prompt: string, items: StageItem[])
       case "plan": if (it.doc) L.push("---", "", it.doc, ""); break;
       case "notice": L.push(`> ${it.tone === "error" || it.tone === "halt" ? "❌" : it.tone === "warn" ? "⚠️" : it.tone === "retry" || it.tone === "rotate" ? "♻️" : "ℹ️"} ${it.text}${it.detail ? ` — ${it.detail}` : ""}`, ""); break;
       case "summary":
-        L.push("### 📊 Muhtasari wa session", "", `- Muda: ${Math.round(it.seconds / 60)} min · LOCKED ${it.locked} · SUPERSEDED ${it.superseded} · OPEN ${it.open} · sources ${it.sources} · requests ${it.requests}`, ...it.usage.map((u) => `- ${name(u.agent)}: ${u.requests} requests · ${u.tokens.toLocaleString()} tokens`), "");
+        L.push("### 📊 Muhtasari wa session", "", `- Muda: ${Math.round(it.seconds / 60)} min · LOCKED ${it.locked} · SUPERSEDED ${it.superseded} · OPEN ${it.open} · sources ${it.sources} · requests ${it.requests}`, ...it.usage.map((u) => `- ${u.agent === "computer" ? "🖥️ XMD Computer" : name(u.agent)}: ${u.requests} requests · ${u.tokens.toLocaleString()} tokens`), "");
+        break;
+      case "cuRun":
+        L.push("---", "", `### 🖥️ XMD Computer — ${it.task}`, "",
+          `- Hali: ${it.status === "run" ? "inaendelea" : it.status === "error" ? "imesimama" : "imekamilika"} · steps ${it.step} · ${it.requests} LLM calls · ${it.tokens.toLocaleString()} tokens · files ${it.filesCount}`,
+          it.github ? `- GitHub: ${it.github}` : "", it.deploy ? `- Live: ${it.deploy}` : "",
+          ...(it.execs.length ? ["", "**Utekelezaji:**", ...it.execs.map((r) => `- \`${(r.command || r.tool).slice(0, 120)}\`${r.exit !== undefined && r.exit !== 0 ? ` (exit ${r.exit})` : r.ms ? ` (${(r.ms / 1000).toFixed(1)}s)` : ""}`)] : []),
+          ...(it.shots.length ? ["", `**Screenshots (${it.shots.length}):** ${it.shots.map((s) => s.label).join(", ")}`] : []), "");
+        break;
+      case "cuReport":
+        L.push("---", "", "### 📑 Ripoti ya XMD Computer", "", it.doc, "");
         break;
     }
   }

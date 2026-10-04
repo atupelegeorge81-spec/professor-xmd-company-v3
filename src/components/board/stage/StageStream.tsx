@@ -10,6 +10,7 @@ import { AssemblyCard, DeliverableCard, ReviewCard, ScriptCard } from "./Code";
 import { MemoryStrip, ObserversCard, OverruledCard, SealCard, SupersedeCard, TaskLine, ValidatorCard } from "./Ledger";
 import { NoticeLine, ReportWriter, SummaryCard } from "./Finale";
 import { PlanWriter } from "./Plan";
+import { CuRunCard, CuReportCard } from "./Computer";
 
 /** Dispatcher: kila StageItem → render yake (hakuna tukio bila render). */
 export function StageStream({ items, onResume, sessionId }: { items: StageItem[]; onResume?: () => void; sessionId?: string | null }) {
@@ -56,6 +57,8 @@ const StageNode = memo(function StageNode({ it, onResume, sessionId }: { it: Sta
     case "plan": return <PlanWriter it={it} sessionId={sessionId} />;
     case "notice": return <NoticeLine it={it} onResume={onResume} />;
     case "summary": return <SummaryCard it={it} />;
+    case "cuRun": return <CuRunCard it={it} />;
+    case "cuReport": return <CuReportCard it={it} />;
     default: {
       const never: never = it;
       return never;

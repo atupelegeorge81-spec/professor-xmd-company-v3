@@ -141,7 +141,8 @@ export function BoardRoom() {
   const seals = items.filter((i): i is Extract<StageItem, { kind: "seal" }> => i.kind === "seal");
   const supersedes = items.filter((i): i is Extract<StageItem, { kind: "supersede" }> => i.kind === "supersede");
   const locked = Object.values(stage.ledger).filter((l) => l.status !== "OPEN").length;
-  const liveTokens = AGENTS.reduce((n, a) => n + snap.usage[a.id].tokens, 0) + snap.liveTokens;
+  // R31: tokens za XMD Computer ("computer") zinaingia jumla pia
+  const liveTokens = AGENTS.reduce((n, a) => n + (snap.usage[a.id]?.tokens || 0), 0) + (snap.usage.computer?.tokens || 0) + snap.liveTokens;
   // R20: mgawanyo wa tokens za session kwa provider (sessions za zamani hazina — mstari haujitokezi)
   const providerRows = PROVIDER_ROWS.filter((p) => (snap.providers?.[p.id]?.tokens || 0) > 0).map((p) => ({ ...p, tokens: snap.providers[p.id].tokens }));
   const sources = useMemo(() => {

@@ -550,8 +550,17 @@ export function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: CuEvent
       break;
     }
     case "files": {
-      cu.files = (ev.tree as unknown[]) || [];
-      // chip ya CU state inasasishwa mara kwa mara (Files badge ya UI inaisoma)
+      const tree = ((ev.tree as unknown[]) || []).map(String);
+      cu.files = tree;
+      // item ya "files" inahifadhiwa kwenye buckets (25/50/100/200/500) — replay ya Files
+      // badge ina tree ya mwisho bila kujaza session kwa snapshots 500 kila exec
+      const count = tree.length;
+      const bucket = count <= 25 ? 25 : count <= 50 ? 50 : count <= 100 ? 100 : count <= 200 ? 200 : 500;
+      if (bucket > (cu as any).filesBucket) {
+        (cu as any).filesBucket = bucket;
+        runner.items.push({ kind: "cu", id: `cu_files_${runner.items.length}`, i: ev.i, cu: "files", files: tree.slice(0, 500), filesCount: count } as any);
+      }
+      // chip ya CU state inasasishwa mara kwa mara (resume + Files)
       schedulePersist(runner, hooks!);
       break;
     }
@@ -614,6 +623,12 @@ function finishComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): voi
   stopHeartbeat(cu);
   const status = String(ev.status || "done");
   const ok = !!cu.report && status !== "error";
+
+  // tree ya mwisho ya files (Files badge ya replay) — kwa Ujumla hii ndiyo kamili zaidi
+  const treeFinal = cu.files || [];
+  if (treeFinal.length) {
+    runner.items.push({ kind: "cu", id: `cu_files_${runner.items.length}`, cu: "files", files: treeFinal.slice(0, 500), filesCount: treeFinal.length } as any);
+  }
 
   runner.items.push({
     kind: "cu", id: `cu_end_${runner.items.length}`, i: ev.i, cu: "run_end", status,

@@ -233,8 +233,51 @@ export interface NoticeItem {
 export interface SummaryItem {
   kind: "summary"; id: string;
   seconds: number;
-  usage: { agent: AgentId; requests: number; tokens: number }[];
+  /** R31: "computer" = XMD Computer (tokens za computer-use) */
+  usage: { agent: AgentId | "computer"; requests: number; tokens: number }[];
   locked: number; superseded: number; open: number; sources: number; requests: number;
+}
+
+/* ---------------- R31 · XMD Computer (engine: cu/*) ---------------- */
+
+/** mstari mmoja wa utekelezaji (exec) — live: exec_start→exec_end · replay: item "exec" */
+export interface CuExecRow {
+  id: string; step: number;
+  tool: string; kindX: string;
+  command: string; path?: string;
+  exit?: number; ms?: number; lines?: number;
+  summary?: string; output?: string;
+  state: "run" | "done" | "fail";
+}
+
+/** picha ya ukurasa (Desktop/Mobile) — fileId ya Appwrite bucket ya screenshots */
+export interface CuShot { id: string; fileId?: string; bucketId?: string; label: string; ok: boolean }
+
+/** engine: startComputerPhase → bcast divider + kadi ya "XMD Computer" (agent mmoja, bila jina la agent)
+ *  Inaonyesha: hali hai, execs, shots, files badge, GitHub/Vercel, tokens. */
+export interface CuRunItem {
+  kind: "cuRun"; id: string;
+  task: string;
+  status: "run" | "done" | "error";
+  /** mstari wa hali ya sasa hivi (think/text/exec ya mwisho — shimmer wakati run) */
+  live: string;
+  step: number;
+  tokens: number; requests: number;
+  execs: CuExecRow[];
+  shots: CuShot[];
+  files: string[]; filesCount: number;
+  github: string; deploy: string;
+  startedAt: number; finished: boolean; ms?: number;
+}
+
+/** engine: finish event → RIPOTI KAMILI kama DOCUMENT (ReportBody) — si card ya stream. */
+export interface CuReportItem {
+  kind: "cuReport"; id: string;
+  title: string; doc: string;
+  partial: boolean; status: string;
+  screenshots: number; filesCount: number; tokens: number;
+  github: string; deploy: string;
+  startedAt: number;
 }
 
 export type StageItem =
@@ -242,7 +285,8 @@ export type StageItem =
   | EvidenceItem | TurnItem | ConsensusItem | ChairItem
   | ScriptItem | ReviewItem | DeliverableItem
   | TaskItem | MemoryItem | SealItem | ObserversItem | SupersedeItem | OverruledItem
-  | ValidatorItem | AssemblyItem | ReportItem | PlanItem | NoticeItem | SummaryItem;
+  | ValidatorItem | AssemblyItem | ReportItem | PlanItem | NoticeItem | SummaryItem
+  | CuRunItem | CuReportItem;
 
 /* ---------------- live stage (StageRail) ---------------- */
 export type AgendaPhase = "evidence" | "discussion" | "code" | "lock" | "review" | "relock" | "memory";

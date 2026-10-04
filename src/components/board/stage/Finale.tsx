@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useLayoutEffect, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, ArrowRightLeft, ChevronDown, FileText, Info, Play, RotateCcw, Sparkles, Wrench, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowRightLeft, ChevronDown, FileText, Info, Monitor, Play, RotateCcw, Sparkles, Wrench, XCircle } from "lucide-react";
 import type { NoticeItem, ReportItem, SummaryItem } from "@/lib/stage/types";
 import { cn, compact } from "@/lib/utils";
 import { AgentAvatar } from "../../ui/AgentAvatar";
@@ -248,6 +248,19 @@ export function SummaryCard({ it }: { it: SummaryItem }) {
         </div>
         <div className="space-y-1.5 px-4 py-3">
           {it.usage.map((u) => {
+            // R31: "computer" = XMD Computer — mstari wake (si avatar ya agent)
+            if (u.agent === "computer") {
+              return (
+                <div key="computer" className="flex items-center gap-2.5 text-[11.5px]">
+                  <span className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-md bg-[rgb(167_139_250/0.15)] text-[#a78bfa]"><Monitor size={11} /></span>
+                  <span className="w-[70px] shrink-0 text-[var(--color-fg-2)]">XMD Comp</span>
+                  <span className="h-[6px] flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+                    <span className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${(u.tokens / max) * 100}%`, background: "#a78bfa" }} />
+                  </span>
+                  <span className="w-[76px] shrink-0 text-right font-mono text-[10.5px] text-[var(--color-muted)]">{compact(u.tokens)} · {u.requests}×</span>
+                </div>
+              );
+            }
             const a = ag(u.agent);
             return (
               <div key={u.agent} className="flex items-center gap-2.5 text-[11.5px]">

@@ -10,6 +10,7 @@ import { REPORT_SECTIONS, type Source } from "@/lib/ui-types";
 import type {
   AgendaDef, AssemblyItem, LiveStage, MemoryItem, ObserversItem, PlanItem, ReportItem, ReviewItem, ScriptItem, SealItem,
   SearchTrace, StageItem, TaskItem, TaskKind, TurnItem,
+  CuExecRow, CuReportItem, CuRunItem, CuShot, SummaryItem,
 } from "@/lib/stage/types";
 import { pureCode } from "@/lib/codeFence";
 import { PLAN_SECTION_DEFS, PLAN_PART_RE, PLAN_SAVED_RE, PLAN_FAILED_RE, PLAN_REPAIR_RE, parsePlanSteps } from "@/lib/board/workPlan";
@@ -42,8 +43,8 @@ export interface AdapterSnapshot {
   agendaList: AgendaDef[];
   title: string;
   status: Record<AgentId, AgentStatus>;
-  /** tokens kwa agent: exact (kutoka provider) */
-  usage: Record<AgentId, UsageRow>;
+  /** tokens kwa agent: exact (kutoka provider) · R31: "computer" = XMD Computer */
+  usage: Record<string, UsageRow>;
   /** R20: tokens za session kwa provider (xkiro/groq/openrouter/unorouter/gemini) — tupu kwa sessions za zamani */
   providers: Record<string, UsageRow>;
   /** tokens za majibu yanayoendelea sasa hivi (makadirio ya tokenizer, live) */
@@ -128,6 +129,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   let instant = !!opts.instant;
 
   let items: StageItem[] = [];
+  let cuRunUi: string | null = null; // R31: id ya CuRunItem ya awamu husika
   const index = new Map<string, number>();
   let stage: LiveStage = { ...EMPTY_STAGE };
   let title = "";
@@ -1050,7 +1052,8 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         break;
       }
       case "usage": {
-        const a = toUiAgent(e.agentId);
+        // R31: "computer" ni XMD Computer — si agent ya timu (isiungane na Optimus)
+        const a = e.agentId === "computer" ? "computer" : toUiAgent(e.agentId);
         usage = { ...usage, [a]: { requests: e.requests, tokens: e.tokens } };
         if (e.id) live.delete(e.id);
         break;
@@ -1061,10 +1064,13 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         break;
       }
       case "summary": {
-        const rows = AGENTS.map((a) => {
+        const rows: SummaryItem["usage"] = AGENTS.map((a) => {
           const u = (e.usage as Record<string, { requests: number; tokens: number }>)[a.engineId] || { requests: 0, tokens: 0 };
           return { agent: a.id, requests: u.requests, tokens: u.tokens };
         });
+        // R31: tokens za XMD Computer (agent "computer") — mstari wake mwenyewe kwenye SummaryCard
+        const cuU = (e.usage as Record<string, { requests: number; tokens: number }>)["computer"];
+        if (cuU && (cuU.tokens || cuU.requests)) rows.push({ agent: "computer", requests: cuU.requests, tokens: cuU.tokens });
         usage = Object.fromEntries(rows.map((r) => [r.agent, { requests: r.requests, tokens: r.tokens }])) as Record<AgentId, UsageRow>;
         live.clear();
         const seals = items.filter((x): x is SealItem => x.kind === "seal");
@@ -1078,6 +1084,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         });
         break;
       }
+      case "cu": applyCu(e.cu); break;
       case "error": notice("error", e.message); failed = true; break;
       case "done": finalize(); break;
       default: break;
@@ -1129,6 +1136,161 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
     live.clear();
     status = ALL_ONLINE();
     stageSet({ background: null, ...(failed ? {} : { scope: "done", finale: "done" }) });
+  }
+
+  /* ------------------ R31 · XMD Computer ------------------
+   * Matukio ya bridge (bcast live) na SessionItem za replay — yote {type:"cu", cu:{...}}.
+   * Live: exec_start→exec_output*→exec_end, shot→shot_ok, think/text, usage, github/deploy, finish, run_end.
+   * Replay (savedToEvents): item moja "exec" (iliyounganishwa), "shot" yenye fileId, "report", "run_end". */
+  function applyCu(cu: Record<string, any>): void {
+    const t = String(cu?.type || "");
+    const runItem = (): CuRunItem | null => {
+      const it = items.find((x) => x.id === cuRunUi);
+      return it && it.kind === "cuRun" ? it : null;
+    };
+    switch (t) {
+      case "divider":
+      case "run_start": {
+        if (cuRunUi) {
+          // shell ipo tayari (replay: divider kisha run_start) — run_start inasasisha task
+          if (t === "run_start" && cu.task) patch<CuRunItem>(cuRunUi, { task: String(cu.task) });
+          return;
+        }
+        cuRunUi = nid();
+        add({
+          kind: "cuRun", id: cuRunUi,
+          task: String(cu.task || "Utekelezaji wa Mpango Kazi"),
+          status: "run", live: "Inaandaliwa…", step: 0, tokens: 0, requests: 0,
+          execs: [], shots: [], files: [], filesCount: 0, github: "", deploy: "",
+          startedAt: now(), finished: false,
+        });
+        break;
+      }
+      case "think":
+      case "text": {
+        const s = String(cu.text || "").replace(/\s+/g, " ").trim();
+        if (!cuRunUi || !s) return;
+        patch<CuRunItem>(cuRunUi, { live: (t === "think" ? "💭 " : "💬 ") + s.slice(0, 140) });
+        break;
+      }
+      case "exec_start": {
+        if (!cuRunUi) return;
+        const row: CuExecRow = {
+          id: String(cu.id || nid()), step: Number(cu.step) || 0,
+          tool: String(cu.tool || "?"), kindX: String(cu.kind || "?"),
+          command: String(cu.command || ""), path: cu.path || undefined,
+          state: "run",
+        };
+        patch<CuRunItem>(cuRunUi, (x) => ({ execs: [...x.execs, row], step: Math.max(x.step, row.step), live: "⚙️ " + row.command.slice(0, 120) }));
+        break;
+      }
+      case "exec_output": {
+        const run = runItem();
+        const row = run?.execs.find((r) => r.id === String(cu.id || ""));
+        if (!cuRunUi || !row) return;
+        const out = (row.output || "") + String(cu.chunk || "");
+        patch<CuRunItem>(cuRunUi, (x) => ({ execs: x.execs.map((r) => (r.id === row.id ? { ...r, output: out.slice(-900) } : r)) }));
+        break;
+      }
+      case "exec_end": {
+        const run = runItem();
+        const row = run?.execs.find((r) => r.id === String(cu.id || ""));
+        if (!cuRunUi || !row) return;
+        const exit = Number(cu.exit);
+        patch<CuRunItem>(cuRunUi, (x) => ({
+          execs: x.execs.map((r) => (r.id === row.id ? {
+            ...r, state: (Number.isFinite(exit) && exit !== 0) ? "fail" : "done",
+            exit: Number.isFinite(exit) ? exit : undefined, ms: Number(cu.ms) || undefined,
+            lines: Number(cu.lines) || undefined, summary: String(cu.summary || "").slice(0, 220) || undefined,
+          } : r)),
+        }));
+        break;
+      }
+      case "exec": { // replay: item iliyounganishwa (exec kamili + output)
+        if (!cuRunUi) return;
+        const exit = Number(cu.exit);
+        const row: CuExecRow = {
+          id: String(cu.execId || nid()), step: Number(cu.step) || 0,
+          tool: String(cu.tool || "?"), kindX: String(cu.kindX || "?"),
+          command: String(cu.command || ""), path: cu.path || undefined,
+          exit: Number.isFinite(exit) ? exit : undefined, ms: Number(cu.ms) || undefined,
+          lines: Number(cu.lines) || undefined, summary: String(cu.summary || "").slice(0, 220) || undefined,
+          output: String(cu.output || "").slice(0, 900) || undefined,
+          state: Number.isFinite(exit) && exit !== 0 ? "fail" : "done",
+        };
+        patch<CuRunItem>(cuRunUi, (x) => ({ execs: [...x.execs, row], step: Math.max(x.step, row.step) }));
+        break;
+      }
+      case "shot": {
+        if (!cuRunUi) return;
+        const shot: CuShot = { id: nid(), fileId: cu.fileId, bucketId: cu.bucketId, label: String(cu.label || "Picha"), ok: !!cu.fileId };
+        patch<CuRunItem>(cuRunUi, (x) => ({ shots: [...x.shots, shot] }));
+        break;
+      }
+      case "shot_ok": {
+        const run = runItem();
+        const idx = run ? run.shots.map((s) => s.label).lastIndexOf(String(cu.label || "")) : -1;
+        if (!cuRunUi || idx < 0) return;
+        patch<CuRunItem>(cuRunUi, (x) => ({
+          shots: x.shots.map((s, i) => (i === idx ? { ...s, fileId: String(cu.fileId || ""), bucketId: String(cu.bucketId || ""), ok: true } : s)),
+        }));
+        break;
+      }
+      case "usage": {
+        if (!cuRunUi || cu.ok === false) return; // attempts zilizoshindikana hazihesabiwi
+        const total = Number(cu.total) || 0;
+        patch<CuRunItem>(cuRunUi, (x) => ({ tokens: x.tokens + total, requests: x.requests + 1 }));
+        break;
+      }
+      case "files": {
+        const tree = Array.isArray(cu.files) ? cu.files.map(String).slice(0, 500) : [];
+        if (!cuRunUi || !tree.length) return;
+        patch<CuRunItem>(cuRunUi, { files: tree, filesCount: Number(cu.filesCount) || tree.length });
+        break;
+      }
+      case "github": if (cuRunUi) patch<CuRunItem>(cuRunUi, { github: String(cu.url || "") }); break;
+      case "deploy": if (cuRunUi) patch<CuRunItem>(cuRunUi, { deploy: String(cu.url || "") }); break;
+      case "report":
+      case "finish": {
+        const doc = String(cu.text || cu.report || "");
+        if (!doc) return;
+        const run = runItem();
+        add({
+          kind: "cuReport", id: nid(),
+          title: "Ripoti ya XMD Computer",
+          doc, partial: !!cu.partial, status: String(cu.status || "done"),
+          screenshots: run?.shots.length || 0, filesCount: run?.filesCount || 0, tokens: run?.tokens || 0,
+          github: run?.github || "", deploy: run?.deploy || "",
+          startedAt: run?.startedAt || now(),
+        });
+        break;
+      }
+      case "error": {
+        const msg = String(cu.message || "Kosa la XMD Computer");
+        if (cuRunUi) patch<CuRunItem>(cuRunUi, { live: "⚠️ " + msg.slice(0, 160) });
+        else notice("error", `🖥️ XMD Computer: ${msg}`);
+        break;
+      }
+      case "run_end": {
+        if (!cuRunUi) return;
+        const run = runItem();
+        patch<CuRunItem>(cuRunUi, {
+          status: String(cu.status || "done") === "error" ? "error" : "done",
+          finished: true,
+          ms: Number(cu.ms) || undefined,
+          github: String(cu.github || run?.github || ""),
+          deploy: String(cu.live || run?.deploy || ""),
+          tokens: Number(cu.tokens) || run?.tokens || 0,
+          requests: Number(cu.requests) || run?.requests || 0,
+        });
+        break;
+      }
+      case "phase_done": {
+        if (cuRunUi) patch<CuRunItem>(cuRunUi, { status: cu.ok ? "done" : "error", finished: true });
+        break;
+      }
+      default: break; // step_start, tool_draft, usage_total — live tu
+    }
   }
 
   function snapshot(): AdapterSnapshot {
