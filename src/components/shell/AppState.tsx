@@ -169,6 +169,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const usage = useMemo(() => {
     const out = zeroUsage();
     for (const [eid, u] of Object.entries(stats?.perAgentToday || {})) {
+      // R31: tokens za XMD Computer hazichanganywi na agent yeyote (zina mstari wake kwenye
+      // SummaryCard + kadi ya CU; Overview inaona Gemini rings za TokenAccounts)
+      if (eid === "computer") continue;
       const id = toUiAgent(eid);
       out[id] = { requests: out[id].requests + u.requests, tokens: out[id].tokens + u.tokens };
     }
