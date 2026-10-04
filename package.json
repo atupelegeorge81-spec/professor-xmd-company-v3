@@ -12,7 +12,9 @@
     "setup:agent-chats": "node scripts/appwrite-agent-chats.mjs",
     "gen:skills": "node scripts/gen-skills.mjs",
     "skill:validate": "node scripts/skill-validate.mjs",
-    "test:agenda": "node scripts/test-agenda.mjs"
+    "test:agenda": "node scripts/test-agenda.mjs",
+    "cu:test": "python3 -m unittest discover -s cu/tests -t .",
+    "cu:live": "python3 cu/tests/check_brain_live.py"
   },
   "dependencies": {
     "cheerio": "^1.2.0",

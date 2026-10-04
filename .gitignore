@@ -50,3 +50,7 @@ Thumbs.db
 
 # Daftari la matumizi ya API (runtime)
 .xmd/
+
+# Python (cu/)
+__pycache__/
+*.pyc
