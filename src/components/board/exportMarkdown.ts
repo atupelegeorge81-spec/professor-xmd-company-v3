@@ -53,6 +53,7 @@ export function boardMarkdown(title: string, prompt: string, items: StageItem[])
       case "validator": if (it.done) L.push(`✅ **Validator (${it.scope}):** ${it.rows.map((r) => `A${r.index} ${r.state}`).join(" · ")}`, ""); break;
       case "assembly": if (it.code) L.push(`🧩 **Script ya mwisho — ${it.file}** (vipande ${it.pieces.length})`, "", ...fence(it.file.split(".").pop() || "text", it.code), ""); break;
       case "report": if (it.doc) L.push("---", "", it.doc, ""); break;
+      case "plan": if (it.doc) L.push("---", "", it.doc, ""); break;
       case "notice": L.push(`> ${it.tone === "error" || it.tone === "halt" ? "❌" : it.tone === "warn" ? "⚠️" : it.tone === "retry" || it.tone === "rotate" ? "♻️" : "ℹ️"} ${it.text}${it.detail ? ` — ${it.detail}` : ""}`, ""); break;
       case "summary":
         L.push("### 📊 Muhtasari wa session", "", `- Muda: ${Math.round(it.seconds / 60)} min · LOCKED ${it.locked} · SUPERSEDED ${it.superseded} · OPEN ${it.open} · sources ${it.sources} · requests ${it.requests}`, ...it.usage.map((u) => `- ${name(u.agent)}: ${u.requests} requests · ${u.tokens.toLocaleString()} tokens`), "");

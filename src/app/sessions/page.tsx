@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, CheckCircle2, CircleDashed, ChevronRight, Plus, Radio, Play, Trash2, Loader2, Database } from "lucide-react";
+import { Search, CheckCircle2, CircleDashed, ChevronRight, Plus, Radio, Play, Trash2, Loader2, Database, ClipboardList } from "lucide-react";
 import { toUiAgent, getAgent } from "@/lib/team";
 import type { SessionMeta, SessionState } from "@/lib/ui-types";
 import { DAY_GROUPS, groupOf, whenLabel, durationLabel } from "@/lib/time";
@@ -94,6 +94,7 @@ export default function SessionsPage() {
                             <span className="block truncate text-[13.5px] font-medium">{s.title}</span>
                             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-[var(--color-faint)]">
                               <span className="max-w-[220px] truncate rounded-md bg-white/[0.05] px-1.5 py-px text-[var(--color-fg-2)]">{s.project}</span>
+                              {s.mode === "plan" && <span className="rounded-md bg-[rgb(45_212_191/0.12)] px-1.5 py-px text-[10px] font-semibold tracking-wide text-[#5eead4]" title="Plan mode — Board inatoa Mpango Kazi wa Agent (hakuna script za code)">PLAN</span>}
                               <span>{s.agendaTotal ? `agenda ${s.agendaReached}/${s.agendaTotal}` : `${s.messages} msgs`}</span>
                               <span className="hidden sm:inline">· {s.locked} locked{s.open ? ` · ${s.open} open` : ""}</span>
                               <span className="hidden sm:inline">· {compact(s.tokens)} tokens</span>
@@ -110,6 +111,11 @@ export default function SessionsPage() {
                             <button onClick={() => router.push(`/board?resume=${s.id}`)} title={s.missing?.length ? `Endeleza — itakamilisha: ${s.missing.join(" · ")}` : "Endeleza pale ilipoishia"} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-fg)]">
                               <Play size={14} />
                             </button>
+                          )}
+                          {s.hasPlan && (
+                            <a href={`/api/plans?session=${s.id}&download=1`} title="Pakua Mpango Kazi wa Agent (work-plan .md — kwa computer-use agent)" className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-muted)] hover:bg-white/5 hover:text-[#2dd4bf]">
+                              <ClipboardList size={14} />
+                            </a>
                           )}
                           {s.state !== "live" && (
                             <button onClick={() => remove(s)} disabled={busy === s.id} title="Futa session" className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-faint)] opacity-100 hover:bg-white/5 hover:text-[var(--color-bad)] sm:opacity-0 sm:group-hover:opacity-100">

@@ -202,6 +202,26 @@ export interface ReportItem {
   reportId: string;
 }
 
+/** engine (R30): HATUA 6.6 — Mpango Kazi wa Agent (plan mode) · kipande 1/2, 2/2 · repair · saveProjectPlan.
+ *  Card ya "Optimus anaandika Mpango Kazi wa Agent" — muonekano uleule wa ReportWriter (shimmer, si chip). */
+export interface PlanItem {
+  kind: "plan"; id: string;
+  title: string;
+  part: 0 | 1 | 2 | 3; // 3 = repair
+  sections: { n: number; title: string; state: SectionState; chars: number }[];
+  /** hatua za "### Step N — Title" (zinapatikana live kadiri sehemu ya 6 inavyoandikwa) */
+  steps: { n: number; title: string; state: "wait" | "writing" | "done" }[];
+  /** hati nzima inayokua — inastreamiwa neno kwa neno kama ripoti */
+  doc: string; shown: number;
+  /**repair texts zinaanza hapa (maandishi ya "### N." kabla ya hii = ya awali; kutoka hapa = marekebisho) */
+  repairFrom?: number;
+  startedAt: number;
+  live?: boolean;
+  saved: "wait" | "saving" | "saved" | "failed";
+  settled?: boolean;
+  planId: string;
+}
+
 /** engine: system chips za retry/rotation/error/halt */
 export interface NoticeItem {
   kind: "notice"; id: string;
@@ -222,11 +242,11 @@ export type StageItem =
   | EvidenceItem | TurnItem | ConsensusItem | ChairItem
   | ScriptItem | ReviewItem | DeliverableItem
   | TaskItem | MemoryItem | SealItem | ObserversItem | SupersedeItem | OverruledItem
-  | ValidatorItem | AssemblyItem | ReportItem | NoticeItem | SummaryItem;
+  | ValidatorItem | AssemblyItem | ReportItem | PlanItem | NoticeItem | SummaryItem;
 
 /* ---------------- live stage (StageRail) ---------------- */
 export type AgendaPhase = "evidence" | "discussion" | "code" | "lock" | "review" | "relock" | "memory";
-export type FinalePhase = "validate" | "assemble" | "report" | "reflect" | "done";
+export type FinalePhase = "validate" | "assemble" | "plan" | "report" | "reflect" | "done";
 
 export interface LiveStage {
   scope: "opening" | "agenda" | "finale" | "done";
@@ -236,6 +256,8 @@ export interface LiveStage {
   finale?: FinalePhase;
   hadCode: boolean;
   hadObjection: boolean;
+  /** R30: session ya plan mode — rail ya finale inaonyesha "Mpango" badala ya "Script" */
+  plan?: boolean;
   owners: AgentId[];
   approvals: AgentId[];
   version: number;

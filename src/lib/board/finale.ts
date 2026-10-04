@@ -52,13 +52,17 @@ export function extractSections(md: string): Record<number, string> {
   return out;
 }
 
+import { FINALE_PLAN_CHIP, extractPlanSections, PLAN_SECTION_DEFS } from "./workPlan";
+
 const AGENDA_START = /^\s*(?:\p{Extended_Pictographic}\uFE0F?\s*)?Agenda (\d+)\/(\d+):/u;
 const VALIDATOR = /^\s*(?:❌|🟠) Validator:/u;
 const ASSEMBLY = /^\s*🧩 Optimus anaunganisha/u;
 const PART = /^\s*📑 Optimus anaandika ripoti — Kipande (\d+)\/(\d+) \((\d+)-(\d+)\)/u;
 const REPAIR = /^\s*🛠️ Optimus anarekebisha ripoti/u;
+/** R30: kipande cha plan — "📋 Optimus anaandika Mpango Kazi — Kipande 1/2 (1-4)" */
+const PLAN_PART = /^\s*📋 Optimus anaandika Mpango Kazi — Kipande (\d)\/2 \((\d+)-(\d+)\)/u;
 /** chip yoyote ya finale (inaanza kipande kipya) */
-export const FINALE_CHIP = /^\s*(?:(?:❌|🟠) Validator:|🧩 Optimus anaunganisha|📑 Optimus anaandika ripoti|🛠️ Optimus anarekebisha ripoti)/u;
+export const FINALE_CHIP = /^\s*(?:(?:❌|🟠) Validator:|🧩 Optimus anaunganisha|📑 Optimus anaandika ripoti|🛠️ Optimus anarekebisha ripoti|📋 Optimus anaandika Mpango Kazi|📋 Optimus anarekebisha Mpango Kazi)/u;
 
 const txt = (it: FinaleItem) => String(it.text || "");
 const isMsg = (it: FinaleItem) => it.kind === "msg" && !!String(it.content || "").trim();
@@ -74,6 +78,11 @@ export interface FinaleScan<T> {
   /** script ya mwisho: imekamilika (au ilionekana hakuna code) */
   scriptDone: boolean;
   script: string;
+  /** R30: Mpango Kazi (plan mode) — sehemu zote 8 zipo (au haikuanza) */
+  planDone: boolean;
+  planSections: Record<number, string>;
+  /** maandishi ghafi ya vipande vilivyobaki (wakati wa plan — kwa ingest ya boardRunner) */
+  planTexts: string[];
   /** sehemu za ripoti kutoka vipande vilivyobaki */
   sections: Record<number, string>;
   /** maandishi ghafi ya vipande vilivyobaki (kwa ingest ya boardRunner) */
@@ -85,7 +94,7 @@ export function scanFinale<T extends FinaleItem>(items: T[]): FinaleScan<T> {
   for (let i = items.length - 1; i >= 0; i--) {
     if (items[i].kind === "chip" && AGENDA_START.test(txt(items[i]))) { lastAgenda = i; break; }
   }
-  const empty: FinaleScan<T> = { started: false, keep: items, dropped: 0, validated: false, scriptDone: false, script: "", sections: {}, reportTexts: [] };
+  const empty: FinaleScan<T> = { started: false, keep: items, dropped: 0, validated: false, scriptDone: false, script: "", planDone: false, planSections: {}, planTexts: [], sections: {}, reportTexts: [] };
   const first = items.findIndex((it, i) => i > lastAgenda && it.kind === "chip" && FINALE_CHIP.test(txt(it)));
   if (first < 0) return empty;
 
@@ -114,6 +123,30 @@ export function scanFinale<T extends FinaleItem>(items: T[]): FinaleScan<T> {
       if (!body.length && !isLast) { out.scriptDone = true; out.script = ""; continue; }
       cut = start;
       break;
+    }
+    // R30: kipande cha MPANGO KAZI (plan mode) — kanuni ileile ya ripoti (complete = sehemu zote za kipande zipo)
+    const pl = head.match(PLAN_PART);
+    if (pl) {
+      const from = Number(pl[2]);
+      const to = Number(pl[3]);
+      const text = body.map((m) => String(m.content)).join("\n");
+      const sec = extractPlanSections(text);
+      const found = Object.keys(sec).map(Number).sort((a, b) => a - b);
+      if (!found.length) { cut = start; break; }
+      const complete = Array.from({ length: to - from + 1 }, (_, k) => from + k).every((n) => !!sec[n] || !!out.planSections[n]);
+      if (!complete) delete sec[found[found.length - 1]];
+      out.planTexts.push(complete ? text : Object.entries(sec).map(([k, v]) => `## ${k}. ${PLAN_SECTION_DEFS.find((d) => d[0] === +k)?.[2] || ""}\n${v}`).join("\n\n"));
+      for (const [k, v] of Object.entries(sec)) if (!out.planSections[+k] || v.length > out.planSections[+k].length) out.planSections[+k] = v;
+      continue;
+    }
+    // R30: marekebisho ya plan — sehemu zilizorekebishwa zinaingizwa (kanuni ya REPAIR ya ripoti)
+    if (FINALE_PLAN_CHIP.test(head) && /anarekebisha/.test(head)) {
+      const text = body.map((m) => String(m.content)).join("\n");
+      const sec = extractPlanSections(text);
+      if (!Object.keys(sec).length) { cut = start; break; }
+      out.planTexts.push(text);
+      for (const [k, v] of Object.entries(sec)) if (!out.planSections[+k] || v.length > out.planSections[+k].length) out.planSections[+k] = v;
+      continue;
     }
     const pm = head.match(PART);
     if (pm) {
@@ -147,22 +180,26 @@ export function scanFinale<T extends FinaleItem>(items: T[]): FinaleScan<T> {
 }
 
 /** Hali ya finale inayohifadhiwa ndani ya resume state (R20). Sessions za zamani hazina — zinakisiwa. */
-export interface FinaleState { reportId?: string | null; memory?: boolean }
+export interface FinaleState { reportId?: string | null; memory?: boolean; /** R30: doc id ya Mpango Kazi (project_plans) */ planId?: string | null }
 
 /**
  * Kinachokosekana ili mjadala ukamilike (kwa kitufe cha Endeleza). [] = hakuna (au si mjadala wa kuendeleza).
  * `done` = agenda zilizokamilika (resume state), `agendaTotal` = idadi ya agenda.
+ * R30: `mode` = "plan" (default ya mpya — Mpango Kazi badala ya script) | "code" (flow ya zamani).
  */
-export function missingParts(o: { status: string; items: FinaleItem[]; agendaTotal: number; done: number[]; finale?: FinaleState | null }): string[] {
+export function missingParts(o: { status: string; items: FinaleItem[]; agendaTotal: number; done: number[]; finale?: FinaleState | null; mode?: "code" | "plan" }): string[] {
   if (o.status === "completed" || !o.agendaTotal) return [];
   const doneSet = new Set(o.done);
   const left = Array.from({ length: o.agendaTotal }, (_, i) => i + 1).filter((i) => !doneSet.has(i));
   const scan = scanFinale(o.items);
   if (left.length && !scan.started) return [`Agenda ${left.length === 1 ? left[0] : `${left[0]}–${left[left.length - 1]}`} (mjadala)`];
   const out: string[] = [];
-  // ripoti ikishahifadhiwa (reportId) script + sehemu zote zimo ndani yake — kinachoweza kubaki ni memory tu
+  const plan = o.mode !== "code";
+  // ripoti ikishahifadhiwa (reportId) plan + sehemu zote zimo ndani yake — kinachoweza kubaki ni memory tu
   if (!o.finale?.reportId) {
-    if (!scan.scriptDone) out.push("Script ya mwisho");
+    if (plan) {
+      if (!o.finale?.planId && !scan.planDone) out.push("Mpango Kazi wa Agent");
+    } else if (!scan.scriptDone) out.push("Script ya mwisho");
     const miss = SECTION_DEFS.filter((d) => !scan.sections[d[0]]).map((d) => d[0]);
     if (miss.length) {
       const contiguous = miss.every((n, i) => i === 0 || n === miss[i - 1] + 1);
@@ -174,8 +211,8 @@ export function missingParts(o: { status: string; items: FinaleItem[]; agendaTot
   return out;
 }
 
-/** resume state (chip iliyofichwa) → { agenda, done, finale } */
-export function readResumeState(items: FinaleItem[]): { runnerId: string; agendaTotal: number; done: number[]; finale: FinaleState | null } | null {
+/** resume state (chip iliyofichwa) → { agenda, done, finale, mode } */
+export function readResumeState(items: FinaleItem[]): { runnerId: string; agendaTotal: number; done: number[]; finale: FinaleState | null; mode?: "code" | "plan" } | null {
   const P = "__PROFESSOR_XMD_RESUME_STATE__:";
   const it = [...items].reverse().find((x) => x?.kind === "chip" && typeof x.text === "string" && x.text.startsWith(P));
   if (!it) return null;
@@ -186,7 +223,8 @@ export function readResumeState(items: FinaleItem[]): { runnerId: string; agenda
       runnerId: String(s.runnerId || ""),
       agendaTotal: s.agenda.length,
       done: Array.isArray(s.done) ? s.done.filter((n: unknown) => typeof n === "number") : [],
-      finale: s.finale && typeof s.finale === "object" ? { reportId: s.finale.reportId ?? null, memory: !!s.finale.memory } : null,
+      finale: s.finale && typeof s.finale === "object" ? { reportId: s.finale.reportId ?? null, memory: !!s.finale.memory, planId: s.finale.planId ?? null } : null,
+      mode: s.mode === "code" ? "code" : s.mode === "plan" ? "plan" : undefined,
     };
   } catch {
     return null;

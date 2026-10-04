@@ -8,10 +8,11 @@ import type { SearchResult } from "@/lib/search";
 import { AGENTS, agentInText, getAgent, toUiAgent, type AgentId } from "@/lib/team";
 import { REPORT_SECTIONS, type Source } from "@/lib/ui-types";
 import type {
-  AgendaDef, AssemblyItem, LiveStage, MemoryItem, ObserversItem, ReportItem, ReviewItem, ScriptItem, SealItem,
+  AgendaDef, AssemblyItem, LiveStage, MemoryItem, ObserversItem, PlanItem, ReportItem, ReviewItem, ScriptItem, SealItem,
   SearchTrace, StageItem, TaskItem, TaskKind, TurnItem,
 } from "@/lib/stage/types";
 import { pureCode } from "@/lib/codeFence";
+import { PLAN_SECTION_DEFS, PLAN_PART_RE, PLAN_SAVED_RE, PLAN_FAILED_RE, PLAN_REPAIR_RE, parsePlanSteps } from "@/lib/board/workPlan";
 
 /* ------------------------------------------------------------------ events */
 export interface EngineAgendaItem { index: number; item: string; owners: string[]; requiresCode: boolean }
@@ -108,7 +109,7 @@ function extractCode(raw: string): { lang: string; code: string; closed: boolean
   return { lang, code, closed };
 }
 
-type MsgKind = "pending" | "search" | "turn" | "script" | "patch" | "review" | "observer" | "deliverable" | "assembly" | "report" | "skip";
+type MsgKind = "pending" | "search" | "turn" | "script" | "patch" | "review" | "observer" | "deliverable" | "assembly" | "report" | "plan" | "skip";
 interface Msg {
   id: string; agent: AgentId; kind: MsgKind; ui: string | null;
   raw: string; think: string; t0: number; firstToken: number | null; done: boolean;
@@ -151,7 +152,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   let reviewRejected = false;
   let objection: { agent: AgentId; concern: string } | null = null;
   let responderTurn: string | null = null;
-  let finale: "none" | "validate" | "assemble" | "report" = "none";
+  let finale: "none" | "validate" | "assemble" | "plan" | "report" = "none";
   const pendingSearch = new Map<AgentId, string>();
   const spoke = new Set<AgentId>();
   const scripts = new Map<AgentId, { ui: string; raw: string; agenda: number }>();
@@ -159,6 +160,9 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   let reportUi: string | null = null;
   let reportRaw: string[] = [];
   let reportMissing: number[] = [];
+  // R30: card ya Mpango Kazi (kama ReportWriter — shimmer, si chip)
+  let planUi: string | null = null;
+  let planRaw: string[] = [];
   let assemblyUi: string | null = null;
   let assemblyRaw = "";
   let agendaTask: string | null = null;
@@ -274,6 +278,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
     const c = m.raw;
     if (/^\*\*Deliverable ya mwisho/.test(c)) return "deliverable";
     if (/^↕️/.test(c)) return "skip";
+    if (finale === "plan" && m.agent === "optimus") return "plan";
     if (finale === "report" && m.agent === "optimus") return "report";
     if (finale === "assemble" && m.agent === "optimus") return "assembly";
     if (/^```scriptbox/.test(c)) return "patch";
@@ -397,6 +402,13 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         patch<ReportItem>(reportUi, { live: true });
         break;
       }
+      case "plan": {
+        if (!planUi || !get(planUi)) openPlan(1);
+        m.ui = planUi;
+        planRaw.push("");
+        patch<PlanItem>(planUi, { live: true });
+        break;
+      }
       default: break;
     }
   };
@@ -431,6 +443,44 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       return { ...s, state: state as ReportItem["sections"][number]["state"], chars: end - hi.at };
     });
     patch<ReportItem>(reportUi, { doc, shown: doc.length, repairFrom, sections, title: title || it.title });
+  };
+
+  /* ------------------------------------------------ plan (R30 — muonekano uleule wa report) */
+  const openPlan = (part: 1 | 2 | 3) => {
+    if (!planUi || !get(planUi)) {
+      planRaw = [];
+      planUi = add({
+        kind: "plan", id: nid(), title: title || "Mpango Kazi wa Agent", part, planId: "", doc: "", shown: 0, saved: "wait", startedAt: now(), live: false,
+        sections: PLAN_SECTION_DEFS.map((d) => ({ n: d[0], title: d[2], state: "wait" as const, chars: 0 })),
+        steps: [],
+      });
+    } else patch<PlanItem>(planUi, { part });
+  };
+
+  const syncPlan = (streaming: boolean) => {
+    const it = get<PlanItem>(planUi);
+    if (!it) return;
+    const parts = planRaw.map((p) => visible(p).trim()).filter(Boolean);
+    const main = parts.slice(0, Math.min(parts.length, 2));
+    const fix = parts.slice(2);
+    let doc = main.join("\n\n");
+    let repairFrom: number | undefined;
+    if (fix.length) { repairFrom = doc.length + 2; doc = `${doc}\n\n${fix.join("\n\n")}`; }
+    const heads = [...doc.matchAll(/^#{1,3}\s*(\d{1,2})[.)]/gm)].map((h) => ({ n: Number(h[1]), at: h.index ?? 0 }));
+    const sections = it.sections.map((s) => {
+      const hi = heads.map((h, i) => ({ ...h, i })).filter((h) => h.n === s.n).pop();
+      if (!hi) return s;
+      const end = heads[hi.i + 1]?.at ?? doc.length;
+      const isLast = hi.i === heads.length - 1;
+      const repairing = repairFrom !== undefined && hi.at >= repairFrom;
+      const state = isLast && streaming ? (repairing ? "repairing" : "writing") : repairing ? "repaired" : "done";
+      return { ...s, state: state as PlanItem["sections"][number]["state"], chars: end - hi.at };
+    });
+    // hatua: "### Step N — Title" (live kadiri sehemu ya 6 inavyoandikwa)
+    const stepHeads = [...doc.matchAll(/^###\s*Step\s+(\d+)\s*[—–-]+\s*(.+)$/gm)].map((m) => ({ n: Number(m[1]), title: m[2].trim(), at: m.index ?? 0 }));
+    const lastHeadAt = stepHeads.length ? stepHeads[stepHeads.length - 1].at : -1;
+    const steps = stepHeads.map((s) => ({ n: s.n, title: s.title, state: (streaming && s.at === lastHeadAt ? "writing" : "done") as "wait" | "writing" | "done" }));
+    patch<PlanItem>(planUi, { doc, shown: doc.length, repairFrom, sections, steps, title: title || it.title });
   };
 
   /* ------------------------------------------------ logs → search trace */
@@ -575,6 +625,28 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       stageSet({ scope: "finale", finale: "assemble", background: null });
       return;
     }
+    // R30: card ya Mpango Kazi — chips hizi ZIMEMEZWA hapa (hazionekani kama notice; card ndiyo inayoonyesha)
+    if ((m = text.match(PLAN_PART_RE))) {
+      flushPending();
+      finale = "plan";
+      stageSet({ scope: "finale", finale: "plan", plan: true });
+      openPlan(Number(m[1]) as 1 | 2);
+      return;
+    }
+    if (PLAN_REPAIR_RE.test(text)) {
+      openPlan(3);
+      syncPlan(false);
+      return;
+    }
+    if (PLAN_SAVED_RE.test(text)) {
+      if (planUi && get<PlanItem>(planUi)?.saved !== "failed") patch<PlanItem>(planUi, { saved: "saved", live: false });
+      return;
+    }
+    if (PLAN_FAILED_RE.test(text)) {
+      if (planUi) patch<PlanItem>(planUi, { saved: "failed", live: false });
+      notice("error", text.replace(/^❌\s*/, ""));
+      return;
+    }
     if ((m = text.match(/^📑 Optimus anaandika ripoti — Kipande (\d)\/2/))) {
       finale = "report";
       stageSet({ scope: "finale", finale: "report" });
@@ -710,6 +782,11 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         patch<ReportItem>(reportUi, { live: false, saved: "saving" });
         break;
       }
+      case "plan": {
+        syncPlan(false);
+        patch<PlanItem>(planUi, { live: false, saved: "saving" });
+        break;
+      }
       case "pending": {
         // ujumbe bila tokens: deliverable ya mwisho (setItemContent tu) au ujumbe uliokwama
         if (WRITERS.has(m.agent) && (consensus.reached || afterLock)) addDeliverable(m.agent);
@@ -807,7 +884,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       case "title_stream": break;
       case "title_done": {
         title = e.title;
-        items = items.map((x) => (x.kind === "convene" ? { ...x, title: e.title, titleShown: e.title.length } : x.kind === "report" && !x.title ? { ...x, title: e.title } : x));
+        items = items.map((x) => (x.kind === "convene" ? { ...x, title: e.title, titleShown: e.title.length } : (x.kind === "report" || x.kind === "plan") && !x.title ? { ...x, title: e.title } : x));
         break;
       }
       case "round": stageSet({ total: e.total }); break;
@@ -946,6 +1023,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
             break;
           }
           case "report": reportRaw[reportRaw.length - 1] = m.raw; syncReport(true); setStatus("optimus", "speaking"); break;
+          case "plan": planRaw[planRaw.length - 1] = m.raw; syncPlan(true); setStatus("optimus", "speaking"); break;
           default: setStatus(m.agent, "speaking"); break;
         }
         break;
@@ -957,6 +1035,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         m.raw = "";
         if (m.kind === "turn") patch<TurnItem>(m.ui, { content: "", phase: "retrying" });
         if (m.kind === "report") { reportRaw[reportRaw.length - 1] = ""; syncReport(true); }
+        if (m.kind === "plan") { planRaw[planRaw.length - 1] = ""; syncPlan(true); }
         if (m.kind === "assembly") assemblyRaw = "";
         break;
       }
@@ -1043,6 +1122,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       if (x.kind === "task" && x.state === "run") return { ...x, state: "done" };
       if (x.kind === "review" && x.verdict === "pending") return x;
       if (x.kind === "report") return { ...x, live: false, settled: true };
+      if (x.kind === "plan") return { ...x, live: false, settled: true };
       if (x.kind === "assembly" && !x.done) return { ...x, done: true };
       return x;
     });

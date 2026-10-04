@@ -9,9 +9,10 @@ import { ChairCard, ConsensusTick, StageMessage } from "./Turn";
 import { AssemblyCard, DeliverableCard, ReviewCard, ScriptCard } from "./Code";
 import { MemoryStrip, ObserversCard, OverruledCard, SealCard, SupersedeCard, TaskLine, ValidatorCard } from "./Ledger";
 import { NoticeLine, ReportWriter, SummaryCard } from "./Finale";
+import { PlanWriter } from "./Plan";
 
 /** Dispatcher: kila StageItem → render yake (hakuna tukio bila render). */
-export function StageStream({ items, onResume }: { items: StageItem[]; onResume?: () => void }) {
+export function StageStream({ items, onResume, sessionId }: { items: StageItem[]; onResume?: () => void; sessionId?: string | null }) {
   // callback thabiti → StageNode (memo) hairender upya kwa sababu ya arrow mpya ya mzazi
   const resumeRef = useRef(onResume);
   resumeRef.current = onResume;
@@ -21,7 +22,7 @@ export function StageStream({ items, onResume }: { items: StageItem[]; onResume?
       {items.map((it) => (
         <Fragment key={it.id}>
           {it.kind === "task" && it.task === "validate" && <FinaleMark />}
-          <StageNode it={it} onResume={resume} />
+          <StageNode it={it} onResume={resume} sessionId={sessionId} />
         </Fragment>
       ))}
     </div>
@@ -29,7 +30,7 @@ export function StageStream({ items, onResume }: { items: StageItem[]; onResume?
 }
 
 /** memo: item ni immutable — ni item iliyopatchiwa tu inayorender upya kila tick (zamani: Markdown yote ilichakatwa upya kila 16ms) */
-const StageNode = memo(function StageNode({ it, onResume }: { it: StageItem; onResume?: () => void }) {
+const StageNode = memo(function StageNode({ it, onResume, sessionId }: { it: StageItem; onResume?: () => void; sessionId?: string | null }) {
   switch (it.kind) {
     case "user": return <UserPrompt text={it.text} />;
     case "convene": return <ConveneCard it={it} />;
@@ -52,6 +53,7 @@ const StageNode = memo(function StageNode({ it, onResume }: { it: StageItem; onR
     case "validator": return <ValidatorCard it={it} />;
     case "assembly": return <AssemblyCard it={it} />;
     case "report": return <ReportWriter it={it} />;
+    case "plan": return <PlanWriter it={it} sessionId={sessionId} />;
     case "notice": return <NoticeLine it={it} onResume={onResume} />;
     case "summary": return <SummaryCard it={it} />;
     default: {

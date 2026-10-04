@@ -7,6 +7,7 @@ import { unpack } from "./packed";
 import { activeRunner, pausedRunners } from "../boardRunner";
 import { readUsageChip, RESUME_PREFIX, type UsageMap } from "../usageChip";
 import { missingParts, readResumeState } from "../board/finale";
+import { PLAN_SAVED_RE } from "../board/workPlan";
 import { appwriteConfigured, databases, DB, SESSIONS_COL, REPORTS_COL } from "./appwrite";
 
 export type SessionState = "complete" | "live" | "stopped";
@@ -37,6 +38,10 @@ export interface SessionMeta {
   resumable: boolean;
   /** R20: kinachokosekana ili mjadala ukamilike (finale iliyokatika) — [] kama imekamilika */
   missing: string[];
+  /** R30: mode ya session (plan = Mpango Kazi badala ya script za code) */
+  mode: "plan" | "code";
+  /** R30: Mpango Kazi umehifadhiwa (project_plans) — unapatikana /api/plans?session=<id> */
+  hasPlan: boolean;
 }
 
 export interface ReportMeta {
@@ -73,10 +78,13 @@ export function metaFromItems(doc: { id: string; title?: string; project?: strin
   }
 
   let agenda: string[] = [];
+  let mode: "plan" | "code" = "code";
   const resume = chips.find((t) => t.startsWith(RESUME_PREFIX));
   if (resume) {
     try {
-      agenda = (JSON.parse(resume.slice(RESUME_PREFIX.length)).agenda || []).map((a: any) => String(a?.item || ""));
+      const rj = JSON.parse(resume.slice(RESUME_PREFIX.length));
+      agenda = (rj.agenda || []).map((a: any) => String(a?.item || ""));
+      if (rj.mode === "plan" || rj.mode === "code") mode = rj.mode;
     } catch {}
   }
   if (!agenda.length) {
@@ -124,10 +132,12 @@ export function metaFromItems(doc: { id: string; title?: string; project?: strin
     messages: msgs.length,
     // R16.1: iliyosimamishwa kwa Detach (iko hai kwenye memory) inaendelea pale pale hata kabla ya agenda kuhifadhiwa
     resumable: state === "stopped" && (!!resume || pausedRunners().some((r) => r.sessionId === doc.id)),
+    mode,
+    hasPlan: chips.some((t) => PLAN_SAVED_RE.test(t)),
     missing: (() => {
       if (state !== "stopped") return [];
       const rs = readResumeState(items);
-      return rs ? missingParts({ status: rawStatus, items, agendaTotal: rs.agendaTotal, done: rs.done, finale: rs.finale }) : [];
+      return rs ? missingParts({ status: rawStatus, items, agendaTotal: rs.agendaTotal, done: rs.done, finale: rs.finale, mode: rs.mode || mode }) : [];
     })(),
   };
 }

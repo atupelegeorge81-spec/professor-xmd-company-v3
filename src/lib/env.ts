@@ -63,3 +63,11 @@ export function readEnv(name: string): string | undefined {
   const v = process.env[name];
   return v && v.trim() ? v.trim() : undefined;
 }
+
+// ================= R30 · PLAN MODE =================
+// Board ya plan mode (default): mjadala + LOCK kama kawaida, HAKUNA awamu ya code nzima (sample code ndogo tu).
+// Mwisho: RIPOTI (Kiswahili) + MPANGO KAZI WA AGENT (Kiingereza, hatua 8-15) unaopewa computer-use agent.
+// "off" = flow ya zamani ya code (HATUA 6.5 script ya mwisho + review loops) — logic ya zamani haivunjwi.
+export const BOARD_PLAN_MODE = (process.env.BOARD_PLAN_MODE || "on").toLowerCase() !== "off";
+/** Kikomo cha hatua za plan (coarse — amri ya Mkuu). */
+export const PLAN_STEPS_LIMITS = { min: Number(process.env.PLAN_STEPS_MIN) || 8, max: Number(process.env.PLAN_STEPS_MAX) || 15 };

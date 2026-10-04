@@ -21,13 +21,22 @@ const FINALE_STEPS: { k: FinalePhase; label: string }[] = [
   { k: "report", label: "Ripoti" },
   { k: "done", label: "Imekamilika" },
 ];
+// R30 · plan mode: hakuna Script — Mpango Kazi ndiyo hatua (inapatikana /api/plans kwa computer-use agent)
+const FINALE_STEPS_PLAN: { k: FinalePhase; label: string }[] = [
+  { k: "validate", label: "Validator" },
+  { k: "plan", label: "Mpango" },
+  { k: "report", label: "Ripoti" },
+  { k: "done", label: "Imekamilika" },
+];
 // mpangilio halisi wa engine: lock → observers → (relock)
 const ORDER: AgendaPhase[] = ["evidence", "discussion", "code", "lock", "review", "relock"];
 
 export function StageRail({ stage, agenda, live }: { stage: LiveStage; agenda: AgendaDef[]; live: boolean }) {
   const inFinale = stage.scope === "finale" || stage.scope === "done";
   const steps = inFinale
-    ? FINALE_STEPS
+    ? stage.plan
+      ? FINALE_STEPS_PLAN
+      : FINALE_STEPS
     : AGENDA_STEPS.filter((s) => (s.k === "code" ? stage.agenda?.requiresCode : s.k === "relock" ? stage.hadObjection : true))
         .sort((a, b) => ORDER.indexOf(a.k) - ORDER.indexOf(b.k));
   const cur = inFinale ? stage.finale : stage.phase;

@@ -8,7 +8,7 @@ import type { Persona } from "../ids";
 
 export type Surface = "chat" | "board";
 export type Phase =
-  | "chat" | "discussion" | "code" | "review" | "fix" | "observer" | "objection" | "assembly" | "report" | "memory" | "scope" | "agenda";
+  | "chat" | "discussion" | "code" | "review" | "fix" | "observer" | "objection" | "assembly" | "report" | "memory" | "scope" | "agenda" | "plan";
 
 export interface ModulePick { skill: SkillId; module: SkillModuleDoc; why: string; forced: boolean }
 export interface SkillSelection {

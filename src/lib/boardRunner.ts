@@ -40,10 +40,20 @@ import { contrastHits, contrastNote, contrastSummary } from "@/lib/board/contras
 import { echoOf } from "@/lib/board/echoGuard";
 import { assembleScript } from "./board/assemble";
 import { reviewVerdict } from "./board/reviewVerdict";
+// R30 · PLAN MODE: mini-reports kwenye collection yake + Mpango Kazi wa Agent (computer-use)
+import { BOARD_PLAN_MODE } from "./env";
+import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, type MiniReportDoc } from "./server/miniReports";
+import { saveProjectPlan } from "./server/plans";
+import {
+  PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
+  extractPlanSections, parsePlanSteps, assemblePlanDocument, officialDataMarkdown, constraintsMarkdown, PLAN_STEP_TEMPLATE,
+} from "./board/workPlan";
 
 export interface Runner {
   id: string;
   project: string;
+  /** R30: "plan" = Board ya maamuzi + Mpango Kazi (hakuna code nzima) · "code" = flow ya zamani · undefined (zamani) = code */
+  mode?: "code" | "plan";
   /** R16.1: "paused" = Detach — engine imesimama KABISA, hali yote iko hai kwenye memory; Resume inaendelea pale pale */
   status: "running" | "paused" | "completed" | "error";
   items: SessionItem[];
@@ -204,7 +214,7 @@ export function startRun(project: string): Runner {
     return existing;
   }
   const id = nid();
-  const runner: Runner = { id, project, status: "running", items: [], buffer: [], subs: new Set(), startedAt: Date.now(), pauseAbort: new AbortController() };
+  const runner: Runner = { id, project, status: "running", items: [], buffer: [], subs: new Set(), startedAt: Date.now(), pauseAbort: new AbortController(), mode: BOARD_PLAN_MODE ? "plan" : "code" };
   runners.set(id, runner);
   if (runners.size > 3) {
     for (const [k, v] of runners) { if (v.status !== "running" && v.status !== "paused" && k !== id) { runners.delete(k); break; } }
@@ -302,7 +312,9 @@ export async function resumeRun(id: string): Promise<ResumeResult> {
   };
   // R16.1: agenda zilizokamilika kwa mujibu wa progress iliyohifadhiwa (akiba ikiwa Ledger haisomeki)
   if (Array.isArray(state.done)) runner.doneIdx = state.done.filter((n: unknown) => typeof n === "number");
-  if (state.finale && typeof state.finale === "object") runner.finale = { reportId: state.finale.reportId ?? null, memory: !!state.finale.memory };
+  if (state.finale && typeof state.finale === "object") runner.finale = { reportId: state.finale.reportId ?? null, memory: !!state.finale.memory, planId: state.finale.planId ?? null };
+  // R30: mode ya session inarudishwa (zamani hazina → code); mpya zinazaliwa na env BOARD_PLAN_MODE
+  runner.mode = state.mode === "plan" ? "plan" : state.mode === "code" ? "code" : "code";
   runners.set(runner.id, runner);
   if (trim.dropped) console.warn(`[resume] ${runner.id}: items ${trim.dropped} za ${trim.restarted ? `agenda ${trim.restarted}` : "finale"} iliyokatizwa zimeondolewa`);
 
@@ -448,6 +460,7 @@ async function run(runner: Runner) {
           runnerId: runner.id,
           agenda: runner.agenda,
           done: runner.doneIdx || [],
+          ...(runner.mode ? { mode: runner.mode } : {}),
           ...(runner.finale ? { finale: runner.finale } : {}),
         })
     } as SessionItem);
@@ -528,6 +541,9 @@ async function run(runner: Runner) {
 
   try {
     const pm = getAgent("pm")!;
+    // R30 · PLAN MODE: hakuna awamu ya kuandika code nzima (sample code ndogo tu kama hoja) —
+    // mwisho wa Board ni RIPOTI (Kiswahili) + MPANGO KAZI WA AGENT (Kiingereza) kwa computer-use agent.
+    const planModeRun = runner.mode === "plan";
     // R16: title/agenda zinapitia Capacity Broker (client ya broker — model/key huchaguliwa kwa nafasi halisi)
     // R21: fast = njia ya haraka ya broker (Gemini Lite → Flash → Groq → XKiro …) kwa kazi zinazomsubirisha Mkuu
     const pmClient = (purpose: string, cls: WorkClass, fast = false) => {
@@ -1126,6 +1142,19 @@ async function run(runner: Runner) {
     const factsBlock = () => factSheetBlock(facts, { swahiliHoursLocked: swahiliHours });
     const guardOf = (text: string): GuardHit[] => guardText(text, facts, { swahiliHoursLocked: swahiliHours });
 
+    // R30: MINI-REPORTS ziko kwenye collection yake (mini_reports — za Optimus). Ledger ya zamani (R16-R29)
+    // inabaki fallback: maelezo yake ndani ya decision_detail. Pointer = ledger ya session mpya.
+    const miniCache = new Map<number, string>();
+    let minisMapPromise: Promise<Map<number, MiniReportDoc>> | null = null;
+    const minisMap = () => (minisMapPromise ||= miniDetailsMap(runner.id));
+    const miniDetailOf = async (e: { agenda_index: number; decision_detail?: string }): Promise<string> => {
+      const c = miniCache.get(e.agenda_index);
+      if (c) return c;
+      const doc = (await minisMap()).get(e.agenda_index);
+      if (doc?.detail) { miniCache.set(e.agenda_index, doc.detail); return doc.detail; }
+      return isMiniPointer(e.decision_detail) ? "" : String(e.decision_detail || "");
+    };
+
     // R10: agenda zilizotangulia zinaonekana kwa MINI-REPORT (sehemu ya "Uamuzi") + masharti yanayobebwa,
     // si "index. item → decision" fupi tu.
     const ledgerSummary = async (): Promise<string> => {
@@ -1134,18 +1163,20 @@ async function run(runner: Runner) {
       // R10: agenda 2 za karibu zinapata CONTEXT KAMILI ya mini-report (uamuzi, masharti, pingamizi,
       // sababu, yaliyobaki wazi, thamani halisi); za zamani — uamuzi + carried constraints (bajeti ya tokens).
       const sorted = fbr.sort((a, b) => a.agenda_index - b.agenda_index);
-      return sorted
-        .map((e, i) => {
-          const recent = i >= sorted.length - 2 || e.status !== "LOCKED"; // R21: agenda OPEN inaonekana kamili (sababu halisi + pendekezo)
-          const carried = String(e.carried_constraints || "").trim().slice(0, recent ? 900 : 450);
-          if (recent) {
-            const full = miniContext(e.decision_detail || "", 2400) || String(e.decision_summary || "").slice(0, 1500);
-            return `[Agenda ${e.agenda_index}: ${e.agenda_item}] (${e.status}) — Optimus mini-report:\n${full}${carried ? `\nCarried constraints (lazima ziheshimiwe):\n${carried}` : ""}`;
-          }
-          const uamuzi = miniDecisionSection(e.decision_detail || "", 750) || String(e.decision_summary || "").slice(0, 750);
-          return `[Agenda ${e.agenda_index}: ${e.agenda_item}] (${e.status})\nDecision (Optimus mini-report): ${uamuzi}${carried ? `\nCarried constraints:\n${carried}` : ""}`;
-        })
-        .join("\n\n");
+      return (
+        await Promise.all(
+          sorted.map(async (e, i) => {
+            const recent = i >= sorted.length - 2 || e.status !== "LOCKED"; // R21: agenda OPEN inaonekana kamili (sababu halisi + pendekezo)
+            const carried = String(e.carried_constraints || "").trim().slice(0, recent ? 900 : 450);
+            if (recent) {
+              const full = miniContext(await miniDetailOf(e), 2400) || String(e.decision_summary || "").slice(0, 1500);
+              return `[Agenda ${e.agenda_index}: ${e.agenda_item}] (${e.status}) — Optimus mini-report:\n${full}${carried ? `\nCarried constraints (lazima ziheshimiwe):\n${carried}` : ""}`;
+            }
+            const uamuzi = miniDecisionSection(await miniDetailOf(e), 750) || String(e.decision_summary || "").slice(0, 750);
+            return `[Agenda ${e.agenda_index}: ${e.agenda_item}] (${e.status})\nDecision (Optimus mini-report): ${uamuzi}${carried ? `\nCarried constraints:\n${carried}` : ""}`;
+          }),
+        )
+      ).join("\n\n");
     };
 
     // ============================================================
@@ -1302,11 +1333,13 @@ async function run(runner: Runner) {
       // ina ya muda) → Optimus anaikamilisha SASA kutoka mjadala uliohifadhiwa, kabla agenda inayofuata haijaanza.
       for (const e of alreadyResolved) {
         // R20: pia mini-report ya FALLBACK (LLM ilishindwa wakati huo) inaandikwa upya
-        if (e.status !== "LOCKED" || !e.id || !needsMiniRedo(e.decision_detail)) continue;
+        // R30: chanzo cha ukaguzi ni mini_reports (collection) kwanza; ledger ya zamani = fallback
+        const effDetail = await miniDetailOf(e);
+        if (e.status !== "LOCKED" || !e.id || !needsMiniRedo(effDetail)) continue;
         const a = agenda.find((x) => x.index === e.agenda_index);
         if (!a) continue;
         await gate(`Mini-report A${a.index}`);
-        const wasProvisional = /Mini-report ya muda/.test(String(e.decision_detail || ""));
+        const wasProvisional = /Mini-report ya muda/.test(effDetail);
         addChip(wasProvisional
           ? `🧾 Agenda ${a.index} ilifungwa bila mini-report ya mwisho (server ilianza upya) — Optimus anaikamilisha kabla ya kuendelea.`
           : `🧾 Mini-report ya Agenda ${a.index} ilikuwa fupi (fallback — LLM haikupatikana wakati huo) — Optimus anaiandika upya kutoka mjadala uliohifadhiwa.`);
@@ -1322,20 +1355,29 @@ async function run(runner: Runner) {
           talk: agendaTalk(runner.items as SavedItem[], a.index),
           observers: [],
           objection: undefined,
-          priorTries: miniTries(e.decision_detail), // R26 (E1): kikomo cha majaribio — si kila resume milele
+          priorTries: miniTries(effDetail), // R26 (E1): kikomo cha majaribio — si kila resume milele
         });
-        const ok = await updateLedgerMini(e.id, { decision_detail: fm.detail, carried_constraints: fm.constraints, trade_off: fm.tradeOff });
-        if (ok) e.decision_detail = fm.detail;
-        blog(ok ? "success" : "warning", ok
-          ? `🧾 Mini-report ya mwisho ya Agenda ${a.index} imekamilishwa baada ya resume (${fm.detail.length} chars${fm.llm ? "" : " · fallback"}).`
-          : `⚠️ Mini-report ya Agenda ${a.index} haikuhifadhiwa baada ya resume — Ledger inabaki na ya muda.`);
+        // R30: kwanza collection (mini_reports) — kisha ledger inapata pointer; collection ikishindwa → ledger ya zamani
+        const savedMini = await saveMiniReport({
+          projectId: runner.id, sessionId: sessionId || runner.id, agendaIndex: a.index, agendaItem: a.item,
+          status: "LOCKED", decisionSummary: String(e.decision_summary || "").slice(0, 4000),
+          detail: fm.detail, carriedConstraints: fm.constraints,
+        });
+        const ok = await updateLedgerMini(e.id, savedMini
+          ? { decision_detail: MINI_LEDGER_POINTER, carried_constraints: fm.constraints, trade_off: fm.tradeOff }
+          : { decision_detail: fm.detail, carried_constraints: fm.constraints, trade_off: fm.tradeOff });
+        if (savedMini) miniCache.set(a.index, fm.detail);
+        else if (ok) e.decision_detail = fm.detail;
+        blog(savedMini || ok ? "success" : "warning", savedMini || ok
+          ? `🧾 Mini-report ya mwisho ya Agenda ${a.index} imekamilishwa baada ya resume (${fm.detail.length} chars${fm.llm ? "" : " · fallback"} · ${savedMini ? "mini_reports" : "ledger fallback"}).`
+          : `⚠️ Mini-report ya Agenda ${a.index} haikuhifadhiwa baada ya resume — ile ya muda inabaki.`);
         await persist(`agenda_${a.index}_mini_resume`, conversationTitle);
       }
       // R11: checkpoints zilizokatika (Board ilisimama katikati ya memory checkpoints) → backfill kutoka Ledger
       await brain.onResume(
-        alreadyResolved
-          .map((e) => ({ index: e.agenda_index, item: e.agenda_item || agenda.find((a) => a.index === e.agenda_index)?.item || "", owners: agenda.find((a) => a.index === e.agenda_index)?.owners || [], mini: String(e.decision_detail || e.decision_summary || "") }))
-          .filter((r) => r.owners.length),
+        (await Promise.all(
+          alreadyResolved.map(async (e) => ({ index: e.agenda_index, item: e.agenda_item || agenda.find((a) => a.index === e.agenda_index)?.item || "", owners: agenda.find((a) => a.index === e.agenda_index)?.owners || [], mini: (await miniDetailOf(e)) || String(e.decision_summary || "") })),
+        )).filter((r) => r.owners.length),
       );
     }
 
@@ -1620,7 +1662,7 @@ Your job in this exchange:
    EVIDENCE: <evidence or source summary>
 11. If accepting the CURRENT proposal, begin with:
    AGREE:
-${facts ? `12. DATA RASMI: every price, service name, hour, address, phone or email you write must be copied EXACTLY from the DATA RASMI block of PROJECT above — never invent, round or convert (e.g. no Swahili-time conversion unless the Board explicitly decides it). The system verifies this by code.\n` : ""}
+${facts ? `12. DATA RASMI: every price, service name, hour, address, phone or email you write must be copied EXACTLY from the DATA RASMI block of PROJECT above — never invent, round or convert (e.g. no Swahili-time conversion unless the Board explicitly decides it). The system verifies this by code.\n` : ""}${planModeRun ? `13. PLAN MODE (this Board): short illustrative code snippets (under 40 lines, e.g. a button, a CSS rule, a data file) are welcome as evidence for a decision. Do NOT write complete files or full page scripts — this Board's deliverable is LOCKED decisions plus a work plan; the implementation agent writes the code later.\n` : ""}
 ${authorityNote ? `${authorityNote}\n` : ""}${contrastNoteS ? `${contrastNoteS}\n` : ""}${echoNote ? `${echoNote}\n` : ""}IMPORTANT:
 - Base every claim on THIS session only (brief, DATA RASMI, discussion above, evidence above). Never cite a past project or session as a reason, as "verified" or as "locked".
 - Do not reopen already LOCKED decisions unless this agenda item directly depends on them.
@@ -1903,23 +1945,29 @@ ${delib.instructionFor(agent.id)}`;
       }
 
       // ========================================================
-      // ===== CODE-WRITING PHASE (kabla ya LOCK) =====
+      // ===== CODE-WRITING PHASE (kabla ya LOCK) — CODE MODE TU =====
       // Kwa vipengele vyenye requiresCode:true PEKEE. Kila code-writer
       // (frontend/backend/qa) anaandika script yake halisi, akijua
       // script za wenzake walizoandika kabla yake. Reviewer (mwanachama
       // asiye-code-writer wa item hii, au Optimus) anaikagua kabla
       // decision haijafungwa.
+      // R30 · PLAN MODE: awamu hii IMERUKWA kabisa — hakuna script za
+      // faili kamili wala review-fix loops; sample code ndogo ya hoja
+      // imeshaonyeshwa kwenye mjadala wenyewe.
       // ========================================================
-      let codeApproved = !item.requiresCode || !consensusReached;
+      let codeApproved = !item.requiresCode || !consensusReached || planModeRun;
       // R26: hali halisi ya code ya agenda hii (Ledger: code_status) — approved | unreviewed | data_errors | rejected
       let codeStatus = "";
       const codeByAgent: Record<string, string> = {};
       const codeWriters = ownerAgents.filter((a) =>
         ["frontend", "backend", "qa"].includes(a.id)
       );
+      if (planModeRun && item.requiresCode) {
+        blog("info", `📋 Plan mode · Agenda ${item.index}: awamu ya kuandika code IMERUKWA — maamuzi (LOCKED) + sample code za hoja ndogo tu; utekelezaji kamili upo kwenye Mpango Kazi wa Agent (HATUA 6.6).`);
+      }
       const lastVisibleMsgId: Record<string, string> = {};
 
-      if (consensusReached && item.requiresCode) {
+      if (consensusReached && item.requiresCode && !planModeRun) {
         if (codeWriters.length > 0) {
           const reviewer =
             ownerAgents.find((a) => !codeWriters.includes(a)) || pm;
@@ -2222,7 +2270,8 @@ Your FIRST line must be APPROVE or REJECT: … Keep the answer under 150 words.
           : "OBJECTED_OPEN",
         decision_summary:
           (decision || ((item as any).__deferred ? `DEFERRED — ${(item as any).__deferred}` : `UNRESOLVED — hakuna consensus ya kutosha${delib.closedReason ? ` (${delib.closedReason})` : ""}`)).slice(0, 4000),
-        decision_detail: mini.detail,
+        // R30: mini-report HAIPATI tena kwenye ledger (ni ya Optimus — collection yake); pointer tu. Fallback hapa chini.
+        decision_detail: MINI_LEDGER_POINTER,
         carried_constraints: mini.constraints,
         approved_code: Object.keys(codeByAgent).length > 0 ? JSON.stringify(codeByAgent) : undefined,
         code_status: Object.keys(codeByAgent).length > 0 ? codeStatus || undefined : undefined,
@@ -2240,6 +2289,23 @@ Your FIRST line must be APPROVE or REJECT: … Keep the answer under 150 words.
           ownerAgents.map((a) => a.name)
         ),
       });
+      // R30: mini-report ya muda → collection yake (mini_reports). Resume/5B inaisasisha pale pale.
+      if (entryId) {
+        const savedProvisional = await saveMiniReport({
+          projectId: runner.id, sessionId: sessionId || runner.id, agendaIndex: item.index, agendaItem: item.item,
+          status: consensusReached ? "LOCKED" : "OBJECTED_OPEN",
+          decisionSummary: String(decision || "UNRESOLVED").slice(0, 4000),
+          detail: mini.detail, carriedConstraints: mini.constraints,
+        });
+        if (savedProvisional) {
+          miniCache.set(item.index, mini.detail);
+          blog("info", `🧾 [mini-reports] Agenda ${item.index}: mini ya muda imehifadhiwa collection (${mini.detail.length} chars) — Ledger ina pointer.`);
+        } else {
+          // collection imeshindwa → ledger ya zamani inabeba mini ya muda (resume-safe kama R20)
+          await updateLedgerMini(entryId, { decision_detail: mini.detail, carried_constraints: mini.constraints });
+          blog("warning", `⚠️ [mini-reports] Agenda ${item.index}: mini ya muda HAikuweza kuhifadhiwa collection — Ledger ya zamani inaibeba muda huu.`);
+        }
+      }
       activityEnd(__lockAct);
       if (!entryId) {
         blog("error", `❌ Agenda ${item.index} haikuweza kuhifadhiwa kwenye Ledger baada ya majaribio yote — mkutano unasimama (bonyeza Resume).`);
@@ -2590,6 +2656,14 @@ Keep under 220 words.
               // R10: re-lock inahifadhi mini-report ya muda; ya mwisho inaandikwa HATUA 5B.
               const mini2 = provisionalMini({ agendaIndex: item.index, agendaItem: item.item, decision: mergedDecision, consensus: true }, `**Pingamizi lililokubaliwa:** ${objection.agent}: ${objection.concern}`);
               const __relockAct = activityStart("Optimus anafunga upya agenda kwenye Ledger…");
+              // R30: mini ya re-lock inaandikwa kwenye mini_reports (collection); ledger ina rejea ya re-lock + pointer
+              const relockMiniDetail = `[OBJECTION ACCEPTED & RE-LOCKED]\nObjection ya ${objection.agent}: ${objection.concern}\nUamuzi mpya (unachukua nafasi ya wa zamani kabisa): ${newDecision}\n\n${mini2.detail}\n\n[Rejea tu — uamuzi uliobadilishwa (SUPERSEDED)]: ${decision.slice(0, 1500)}`;
+              const savedRelockMini = await saveMiniReport({
+                projectId: runner.id, sessionId: sessionId || runner.id, agendaIndex: item.index, agendaItem: item.item,
+                status: "LOCKED", decisionSummary: mergedDecision.slice(0, 4000),
+                detail: relockMiniDetail, carriedConstraints: mini2.constraints,
+              });
+              if (savedRelockMini) { miniCache.set(item.index, relockMiniDetail); blog("info", `🧾 [mini-reports] Agenda ${item.index}: mini ya re-lock imehifadhiwa collection (${relockMiniDetail.length} chars).`); }
               const newId = await saveLedgerEntry({
                 session_id: runner.id,
                 project_id: runner.id,
@@ -2597,7 +2671,7 @@ Keep under 220 words.
                 agenda_item: item.item,
                 status: "LOCKED",
                 decision_summary: mergedDecision.slice(0, 4000),
-                decision_detail: `[OBJECTION ACCEPTED & RE-LOCKED]\nObjection ya ${objection.agent}: ${objection.concern}\nUamuzi mpya (unachukua nafasi ya wa zamani kabisa): ${newDecision}\n\n${mini2.detail}\n\n[Rejea tu — uamuzi uliobadilishwa (SUPERSEDED)]: ${decision.slice(0, 1500)}`,
+                decision_detail: savedRelockMini ? MINI_LEDGER_POINTER : relockMiniDetail,
                 carried_constraints: mini2.constraints,
                 approved_code: Object.keys(codeByAgent).length > 0 ? JSON.stringify(codeByAgent) : undefined,
                 code_status: Object.keys(codeByAgent).length > 0 ? codeStatus || undefined : undefined,
@@ -2676,8 +2750,8 @@ Keep under 220 words.
         }
       }
 
-      // ===== [PATCH-XMD-V2] Deliverables zinaingia HAPA TU — baada ya objection phase kuisha =====
-      if (consensusReached && item.requiresCode && codeWriters.length > 0) {
+      // ===== [PATCH-XMD-V2] Deliverables zinaingia HAPA TU — baada ya objection phase kuisha (code mode tu) =====
+      if (consensusReached && item.requiresCode && !planModeRun && codeWriters.length > 0) {
         for (let dIdx = allDeliverables.length - 1; dIdx >= 0; dIdx--) {
           if (allDeliverables[dIdx].itemIndex === item.index) allDeliverables.splice(dIdx, 1);
         }
@@ -2708,12 +2782,21 @@ Keep under 220 words.
           observers: observerVerdicts,
           objection: objectionInfo,
         });
-        const okMini = await updateLedgerMini(finalEntryId, { decision_detail: finalMini.detail, carried_constraints: finalMini.constraints, trade_off: finalMini.tradeOff });
+        // R30: mini-report ya MWISHO → collection yake (mini_reports — ya Optimus). Ledger ina uamuzi rasmi + pointer.
+        const savedFinalMini = await saveMiniReport({
+          projectId: runner.id, sessionId: sessionId || runner.id, agendaIndex: item.index, agendaItem: item.item,
+          status: "LOCKED", decisionSummary: String(finalDecisionText || "").slice(0, 4000),
+          detail: finalMini.detail, carriedConstraints: finalMini.constraints,
+        });
+        const okMini = await updateLedgerMini(finalEntryId, savedFinalMini
+          ? { decision_detail: MINI_LEDGER_POINTER, carried_constraints: finalMini.constraints, trade_off: finalMini.tradeOff }
+          : { decision_detail: finalMini.detail, carried_constraints: finalMini.constraints, trade_off: finalMini.tradeOff });
+        if (savedFinalMini) miniCache.set(item.index, finalMini.detail);
         blog(
-          okMini ? "success" : "warning",
-          okMini
-            ? `🧾 Mini-report ya mwisho ya Agenda ${item.index} imehifadhiwa kwenye Ledger (${finalMini.detail.length} chars${finalMini.llm ? "" : " · fallback"}${finalMini.missing.length ? ` · thamani ${finalMini.missing.length} zimeongezwa` : ""}).`
-            : `⚠️ Mini-report ya mwisho ya Agenda ${item.index} haikuhifadhiwa — Ledger inabaki na ya muda.`,
+          savedFinalMini || okMini ? "success" : "warning",
+          savedFinalMini || okMini
+            ? `🧾 Mini-report ya mwisho ya Agenda ${item.index} imehifadhiwa (${savedFinalMini ? "collection mini_reports" : "Ledger fallback"}) (${finalMini.detail.length} chars${finalMini.llm ? "" : " · fallback"}${finalMini.missing.length ? ` · thamani ${finalMini.missing.length} zimeongezwa` : ""}).`
+            : `⚠️ Mini-report ya mwisho ya Agenda ${item.index} haikuhifadhiwa — ile ya muda inabaki.`,
         );
         await persist(`agenda_${item.index}_mini`, conversationTitle);
         brain.state({ phase: "memory checkpoints" });
@@ -2732,7 +2815,7 @@ Keep under 220 words.
         for (const it of runner.items) if (it.kind === "msg" && !keepIds.has(it.id)) bcast({ type: "msg_reset", id: it.id });
         runner.items = prior.keep as typeof runner.items;
       }
-      const need = missingParts({ status: "resume", items: runner.items as FinaleItem[], agendaTotal: agenda.length, done: agenda.map((a) => a.index), finale: runner.finale });
+      const need = missingParts({ status: "resume", items: runner.items as FinaleItem[], agendaTotal: agenda.length, done: agenda.map((a) => a.index), finale: runner.finale, mode: runner.mode });
       blog("system", `♻️ Endeleza: finale ilikuwa imeanza — ${need.length ? `inakamilisha: ${need.join(" · ")}` : "hakuna kilichokosekana"}.`);
       addChip(`♻️ Endeleza: ${need.length ? `inakamilisha ${need.join(" · ")}` : "inathibitisha finale"} — vipande vilivyokamilika havirudiwi.`);
     }
@@ -2794,7 +2877,10 @@ Keep under 220 words.
     }
 
     let finalScript = "";
-    if (prior?.scriptDone) {
+    if (planModeRun) {
+      // R30 · PLAN MODE: hakuna script ya mwisho — deliverable ni RIPOTI + MPANGO KAZI (HATUA 6.6)
+      blog("info", "📋 Plan mode: awamu ya kuunganisha script ya mwisho IMERUKWA — maamuzi (LOCKED) + Mpango Kazi wa Agent ndiyo deliverable.");
+    } else if (prior?.scriptDone) {
       finalScript = prior.script;
       blog("info", `♻️ Endeleza: script ya mwisho tayari imeunganishwa (${finalScript.length} chars) — haiandikwi upya.`);
     } else {
@@ -2818,23 +2904,176 @@ Keep under 220 words.
       }
     }
 
+// ===== HATUA 6.6 (R30 · plan mode): MPANGO KAZI WA AGENT (kwa computer-use) =====
+    // Optimus anajenga kutoka mini-reports zake (chanzo kikuu) + maamuzi ya Ledger: hatua 8-15 za Kiingereza
+    // zenye muundo uniform. Sehemu 2 (Official Data) na 3 (Constraints) zinaandikwa na MFUMO kutoka Fact Sheet.
+    // Kipande kimoja kwa wakati kinaonekana kwenye card ya "Mpango Kazi" (kama ripoti — shimmer, si chip).
+    let planHits: GuardHit[] = [];
+    let planStepsTotal = 0;
+    let planSavedId: string | null = runner.finale?.planId || null;
+    if (planModeRun && !planSavedId) {
+      const pc = (s: string | undefined | null, n: number) => (String(s || "").length > n ? String(s).slice(0, n) + " […]" : String(s || ""));
+      const planTitle = conversationTitle || "Agent Work Plan";
+      const planTexts: string[] = [...(prior?.planTexts || [])];
+      const planCollected: Record<number, string> = {};
+      const ingestPlan = (md: string) => {
+        const sec = extractPlanSections(md);
+        for (const [k, v] of Object.entries(sec)) { const n = Number(k); if (!planCollected[n] || sec[n].length > planCollected[n].length) planCollected[n] = v; }
+      };
+      for (const t of planTexts) ingestPlan(t);
+
+      brain.state({ phase: "plan" });
+      const planSystem = await brain.prompt(pm.id, { phase: "plan", role: "work plan writer", date: nowDate() });
+      // context: mini-reports za Optimus (collection kwanza, fallback ledger) + maamuzi
+      const fbrP = await finalBoardResolution(runner.id);
+      const miniLines = (
+        await Promise.all(
+          fbrP.map(async (e) => {
+            const md = await miniDetailOf(e);
+            let owners: string[] = [];
+            try { owners = JSON.parse(String(e.owners || "[]")); } catch { /* */ }
+            return `### A${e.agenda_index} [${e.status}] ${e.agenda_item}\nOwners: ${owners.join(", ") || "(haijulikani)"}\nDecision: ${pc(e.decision_summary, 1200)}\nOptimus mini-report:\n${pc(miniContext(md, 2000) || md || String(e.decision_summary || ""), 2200)}`;
+          }),
+        )
+      ).join("\n\n");
+      const planCtx = `PROJECT BRIEF: "${runner.project}"\n\n${facts ? `${factsBlock()}\n\n` : ""}${sysFiles.length ? `${dataFilesBlock(sysFiles)}\n\n` : ""}=== LOCKED DECISIONS + MINI-REPORTS (the Board has finished — this is the source of truth) ===\n${miniLines}`;
+
+      for (const p of PLAN_PARTS) {
+        if (p.nums.every((n) => planCollected[n])) {
+          blog("info", `♻️ Endeleza: Kipande ${p.label} cha Mpango Kazi tayari kimeandikwa kamili — kinarukwa.`);
+          continue;
+        }
+        blog("system", `📋 Optimus anaandika Mpango Kazi wa Agent — Kipande ${p.label}...`);
+        addChip(planPartChip(p.part)); // adapter inaifungua kuwa CARD ya plan (kama ripoti) — si chip ya UI
+        const planMsgId = addMsg(pm.id);
+        const secs =
+          p.part === 1
+            ? `## 1. Objective & Deliverable — what the agent is building (3-6 sentences, from the brief + Agenda 1 decision)
+## 2. Official Data — copy the DATA RASMI block above WORD FOR WORD as bullet lists (the system replaces this section with its own deterministic copy — never invent anything here)
+## 3. Constraints — copy the project constraints word for word (the system replaces this section too)
+## 4. Tech Stack & Design Tokens — from LOCKED decisions only: framework, fonts, colors (hex codes + where used), touch targets, layout rules`
+            : `## 5. File Structure — every file with its job and the agenda that owns it (tree or table)
+## 6. Work Steps — ${PLAN_STEPS_MIN} to ${PLAN_STEPS_MAX} steps; each step EXACTLY in this shape:
+${PLAN_STEP_TEMPLATE}
+Step rules: sequential numbering 1..N; coarse-grained (each step is one meaningful chunk of work with its own verification); copy every official value word for word; if something was not discussed, write "not discussed"; dependencies reference earlier steps only.
+## 7. QA Checklist — checkbox list (size budget, WCAG contrast, data accuracy vs Official Data, closed days, phone placeholder, no-JS rule)
+## 8. Agent Rules — DATA RASMI is law; never invent; mark additions beyond this plan as NYONGEZA (not discussed); stop and report on data conflicts or failed verification x2`;
+        const planPart = await streamTurn(
+          pm,
+          [
+            { role: "system", content: planSystem },
+            {
+              role: "user",
+              content: `${planCtx}
+
+=== YOUR TASK ===
+Write PART ${p.part} of the AGENT WORK PLAN in English. A computer-use coding agent that has NOT seen this Board will execute it step by step — it must be fully self-contained. Output ONLY the sections listed below, each starting with its exact heading.
+
+${secs}
+
+RULES:
+- English only. Markdown only. No preamble, no closing remarks.
+- Never invent prices, hours, names, phone numbers, emails or addresses — copy them from DATA RASMI / LOCKED decisions only.
+- If something was not discussed by the Board, write "not discussed" — never fill gaps.
+- Do NOT write complete files or full scripts; short reference snippets only (max 40 lines).${THINK_CAP}`,
+            },
+          ],
+          planMsgId,
+          true,
+          24000,
+          { critical: true },
+        );
+        setItemContent(planMsgId, planPart);
+        bcast({ type: "msg_done", id: planMsgId });
+        planTexts.push(planPart);
+        ingestPlan(planPart);
+        await persist(`plan_part_${p.part}`, conversationTitle);
+      }
+
+      // kuunganisha (deterministic): sehemu 2/3 za mfumo + hatua zinapewa namba mfululizo
+      let asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts });
+      planStepsTotal = asm.steps.length;
+      for (const pr of asm.problems) blog("warning", `📋 Mpango Kazi: ⚠️ ${pr}`);
+      // Data Guard (maandishi): kila bei/saa/simu/email/anwani lazima iwepo kwenye Fact Sheet
+      planHits = facts ? guardOf(asm.markdown) : [];
+      if (planHits.length) {
+        addChip(`📋 Optimus anarekebisha Mpango Kazi: ${planHits.slice(0, 4).map((h) => `"${h.found}"`).join(", ")}...`);
+        blog("warning", `🛡️ Data Guard · Mpango Kazi: tofauti ${planHits.length} — ${planHits.slice(0, 6).map((h) => `"${h.found}" (lazima: ${String(h.expected).slice(0, 60)})`).join(", ")}`);
+        const fixMsgId = addMsg(pm.id);
+        const fixed = await streamTurn(
+          pm,
+          [
+            { role: "system", content: planSystem },
+            {
+              role: "user",
+              content: `${planCtx}
+
+The work plan you wrote contains values that contradict DATA RASMI. These are ALL the mismatches found by the system's deterministic guard:
+${planHits.map((h) => `- Found: "${h.found}" — expected instead: ${String(h.expected).slice(0, 140)}`).join("\n")}
+
+Rewrite ONLY the affected sections (same headings, same structure), with every value corrected to match DATA RASMI word for word. Do not change anything else.${THINK_CAP}`,
+            },
+          ],
+          fixMsgId,
+          true,
+          8000,
+          { critical: true },
+        );
+        setItemContent(fixMsgId, fixed);
+        bcast({ type: "msg_done", id: fixMsgId });
+        planTexts.push(fixed);
+        ingestPlan(fixed);
+        asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts });
+        planStepsTotal = asm.steps.length;
+        planHits = facts ? guardOf(asm.markdown) : [];
+      }
+      const planStatus = planHits.length ? "guard_failed" : "active";
+      planSavedId = await saveProjectPlan({
+        projectId: runner.id,
+        sessionId: sessionId || runner.id,
+        title: planTitle,
+        objective: pc(asm.sections[1], 10_000),
+        status: planStatus,
+        constraints: constraintsMarkdown(facts),
+        officialData: officialDataMarkdown(facts),
+        planContent: asm.markdown,
+        totalSteps: planStepsTotal,
+      });
+      runner.finale = { ...(runner.finale || {}), planId: planSavedId };
+      if (planSavedId) {
+        addChip(`${PLAN_SAVED_CHIP} (hatua ${planStepsTotal}${planHits.length ? ` · ⚠️ tofauti ${planHits.length} za data zimeandikwa wazi` : ""}) — computer-use agent inaupata kwa /api/plans?session=${sessionId || runner.id}`);
+        blog("success", `📋 Mpango Kazi wa Agent umehifadhiwa (hatua ${planStepsTotal} · status ${planStatus} · doc ${planSavedId.slice(0, 8)}… · herufi ${asm.markdown.length}).`);
+      } else {
+        addChip("❌ Mpango Kazi umeshindwa kuhifadhiwa Appwrite — ripoti inaendelea; bonyeza Endeleza kujaribu tena.");
+        blog("error", "❌ [plans] Mpango Kazi haukuhifadhiwa Appwrite (angalia logs za server).");
+      }
+      await persist(planSavedId ? "plan_saved" : "plan_failed", conversationTitle);
+    } else if (planModeRun && planSavedId) {
+      blog("info", `♻️ Endeleza: Mpango Kazi tayari umehifadhiwa (${planSavedId.slice(0, 8)}…) — haandikwi upya.`);
+    }
+
 // ===== HATUA 7: RIPOTI KUTOKA LEDGER (FBR) =====
     const fbr = await finalBoardResolution(runner.id);
     const __cap = (s: string | undefined, n: number): string => ((s || "").length > n ? (s as string).slice(0, n) + " […]" : s || "");
     // R10: MINI-REPORT ya mwisho ndiyo chanzo kikuu cha ripoti (Optimus aliisoma agenda yote);
     // decision_summary ni akiba tu pale mini-report haipo.
-    const ledgerText = fbr
-      .map(
-        (e) =>
-          `## ${e.agenda_index}. ${e.agenda_item}\nStatus: ${e.status}${e.status === "LOCKED" ? "" : " (HAIKUFUNGWA — eleza sababu halisi ILIYOANDIKWA hapa tu; usibuni sababu nyingine; pendekezo la mwisho SI uamuzi)"}` +
-          (e.decision_detail
-            ? `\nMINI-REPORT YA OPTIMUS (chanzo kikuu — nakili orodha, cases, namba na thamani BILA kubadilisha):\n${__cap(e.decision_detail, 7000)}`
-            : `\nUamuzi: ${__cap(e.decision_summary, 1500)}`) +
-          (e.rationale ? `\nRationale: ${__cap(e.rationale, 600)}` : "") +
-          (e.evidence ? `\nEvidence: ${__cap(e.evidence, 500)}` : "") +
-          (e.objections ? `\nObjections: ${__cap(e.objections, 500)}` : ""),
+    // R30: mini-report inasomwa kutoka collection (mini_reports); ledger ya zamani = fallback.
+    const ledgerText = (
+      await Promise.all(
+        fbr.map(async (e) => {
+          const md = await miniDetailOf(e);
+          return (
+            `## ${e.agenda_index}. ${e.agenda_item}\nStatus: ${e.status}${e.status === "LOCKED" ? "" : " (HAIKUFUNGWA — eleza sababu halisi ILIYOANDIKWA hapa tu; usibuni sababu nyingine; pendekezo la mwisho SI uamuzi)"}` +
+            (md
+              ? `\nMINI-REPORT YA OPTIMUS (chanzo kikuu — nakili orodha, cases, namba na thamani BILA kubadilisha):\n${__cap(md, 7000)}`
+              : `\nUamuzi: ${__cap(e.decision_summary, 1500)}`) +
+            (e.rationale ? `\nRationale: ${__cap(e.rationale, 600)}` : "") +
+            (e.evidence ? `\nEvidence: ${__cap(e.evidence, 500)}` : "") +
+            (e.objections ? `\nObjections: ${__cap(e.objections, 500)}` : "")
+          );
+        }),
       )
-      .join("\n\n");
+    ).join("\n\n");
     brain.state({ phase: "report" });
     const reportSystem = await brain.prompt(pm.id, { phase: "report", role: "report writer", date: nowDate() });
     // R26 (F3): ukweli wa kiufundi kwa ripoti — ripoti haidai "bei halisi"/"imekaguliwa" bila ushahidi huu
@@ -2866,7 +3105,14 @@ const fullTranscript = Object.keys(byItem)
 
     const partSpecs = [
       { label: "1/2 (1-5)", nums: [1, 2, 3, 4, 5], secs: "## 1. Muhtasari\n## 2. Utafiti\n## 3. Mjadala\n## 4. Maamuzi\n## 5. Rangi (hex codes + emoji za rangi)", tail: "" },
-      { label: "2/2 (6-10)", nums: [6, 7, 8, 9, 10], secs: "## 6. Kurasa & Menu\n## 7. Safari ya Mteja\n## 8. Tech Stack\n## 9. Hatari\n## 10. Action Plan", tail: "UMESHA andika sehemu 1-5. Sasa ENDELEA na 6-10 TU. USIRUDIE kichwa cha ripoti wala sehemu 1-5." },
+      {
+        label: "2/2 (6-10)", nums: [6, 7, 8, 9, 10], secs: "## 6. Kurasa & Menu\n## 7. Safari ya Mteja\n## 8. Tech Stack\n## 9. Hatari\n## 10. Action Plan",
+        tail:
+          "UMESHA andika sehemu 1-5. Sasa ENDELEA na 6-10 TU. USIRUDIE kichwa cha ripoti wala sehemu 1-5." +
+          (planModeRun
+            ? ` Sehemu 10 (Action Plan): andika kwa MANENO mpangilio wa utekelezaji wa mradi, na taja wazi kwamba MPANGO KAZI KAMILI WA AGENT (hatua ${planStepsTotal || "N"}, Kiingereza) umetayarishwa na upo kwa endpoint /api/plans?session=${sessionId || runner.id} — computer-use agent ndiye atakayetekeleza. USIANDIKE code wala script nzima kwenye ripoti hii.`
+            : ""),
+      },
     ];
     for (const pp of partSpecs) {
       if (pp.nums.every((n) => collected[n])) {
@@ -2968,7 +3214,7 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
         // Stitch ya kiprogramu — hakuna agenda inayopotea.
         for (const a of miss) {
           const e = byIdx.get(a.index);
-          collected[4] = `${collected[4].trim()}\n\n- [A${a.index}] **${a.item}** — ${e ? (miniDecisionSection(e.decision_detail || "", 2500) || __cap(e.decision_summary, 2500)) : "UNRESOLVED (haipo kwenye Ledger)"}`;
+          collected[4] = `${collected[4].trim()}\n\n- [A${a.index}] **${a.item}** — ${e ? (miniDecisionSection(await miniDetailOf(e), 2500) || __cap(e.decision_summary, 2500)) : "UNRESOLVED (haipo kwenye Ledger)"}`;
         }
         blog("warning", `🧵 Validator: agenda ${miss.map((a) => a.index).join(", ")} zimeongezwa kiprogramu kutoka Ledger.`);
       }
@@ -3058,7 +3304,8 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
       return blocks;
     }
 
-    const deliverables = collectDeliverables(runner.items);
+    // R30: plan mode — hakuna "10.1 Deliverables" (sample code za mjadala si deliverable; plan ndiyo)
+    const deliverables = planModeRun ? [] : collectDeliverables(runner.items);
     const finalDeliverableBlock = finalScript
       ? `### 10.1 Script Kamili ya Mwisho (Imeunganishwa na mfumo kutoka Ledger)\n\nHii ni script inayokusanya faili ZOTE zilizokubaliwa (LOCKED) kwa njia ya faili, neno kwa neno kutoka approved_code ya Ledger — hakuna kilichoandikwa upya wala kubuniwa. Kila faili inaonyesha agenda iliyotoka.\n\n${finalScript}`
       : deliverables.length > 0
@@ -3067,7 +3314,9 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
 
     // R21: ukaguzi wa kideterministic — kilichoongezwa kwenye script ya mwisho (si kwenye approved_code / maamuzi ya Ledger)
     const scriptAuditBlock = finalScript
-      ? auditSection(auditScript(finalScript, [runner.project, ...fbr.map((e) => [e.approved_code, e.decision_summary, e.decision_detail, e.carried_constraints, e.rationale, e.trade_off].filter(Boolean).join("\n"))]))
+      ? auditSection(auditScript(finalScript, [runner.project, ...(
+            await Promise.all(fbr.map(async (e) => [e.approved_code, e.decision_summary, await miniDetailOf(e), e.carried_constraints, e.rationale, e.trade_off].filter(Boolean).join("\n")))
+          )]))
       : "";
     // R26 (F2/F3): 10.3 — DATA RASMI dhidi ya script ya mwisho NA dhidi ya maandishi ya ripoti (jedwali la code, si la LLM)
     let factsAuditBlock = "";
@@ -3088,7 +3337,7 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
         "|---|---|---|",
         ...rows,
         "",
-        finalScript ? `**Script ya mwisho:** ${guardSection(scriptHits)}` : "",
+        finalScript ? `**Script ya mwisho:** ${guardSection(scriptHits)}` : planModeRun ? `**Mpango Kazi wa Agent:** ${planHits.length ? guardSection(planHits) : "✅ kila bei, saa, simu, barua pepe na anwani inalingana na DATA RASMI."}` : "",
         "",
         proseHits.length ? `**Maandishi ya ripoti:** ${guardSection(proseHits)}` : "**Maandishi ya ripoti:** ✅ hakuna bei, saa, namba wala barua pepe isiyo rasmi iliyotajwa.",
         codeStatusLine ? `\n**Hali ya code kwa kila agenda (Ledger):** ${codeStatusLine}` : "",
@@ -3115,12 +3364,17 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
     // R10: code ya mwisho haipotei hata kama sehemu ya 10 haikuipokea
     if (finalDeliverableBlock && !collected[10]) assembled.push("## Kiambatisho: Code ya Mwisho", "", finalDeliverableBlock, "", ...(scriptAuditBlock ? [scriptAuditBlock, ""] : []), ...(factsAuditBlock ? [factsAuditBlock, ""] : []));
     else if (factsAuditBlock && !finalDeliverableBlock) assembled.push("## Kiambatisho: DATA RASMI na Ukaguzi", "", factsAuditBlock, "");
-    // R10: kiambatisho cha kideterministic — mini-reports za mwisho za Ledger (kilichojadiliwa = kilichoandikwa)
+    // R10: kiambatisho cha kideterministic — mini-reports za mwisho (R30: collection mini_reports; ledger = fallback)
     {
-      const minis = fbr
-        .filter((e) => e.decision_detail)
-        .map((e) => String(e.decision_detail).split("\n**Maneno halisi ya uamuzi uliofungwa (Ledger):**")[0].replace(/^### /, "### ").trim());
-      if (minis.length) assembled.push("## Kiambatisho: Mini-Reports za Agenda (Ledger)", "", "_Kumbukumbu rasmi za kila agenda kama Optimus alivyoziandika baada ya mjadala wote kuisha._", "", minis.join("\n\n"), "");
+      const minis = (
+        await Promise.all(
+          fbr.map(async (e) => {
+            const md = await miniDetailOf(e);
+            return md ? md.split("\n**Maneno halisi ya uamuzi uliofungwa (Ledger):**")[0].replace(/^### /, "### ").trim() : "";
+          }),
+        )
+      ).filter(Boolean);
+      if (minis.length) assembled.push("## Kiambatisho: Mini-Reports za Agenda (Optimus)", "", "_Kumbukumbu rasmi za kila agenda kama Optimus alivyoziandika baada ya mjadala wote kuisha._", "", minis.join("\n\n"), "");
     }
     const cleanReport = assembled.join("\n").replace(thinkRe, "").trim();
     onReport(cleanReport, [...boardSources, ...runner.items.flatMap((it: any) => (Array.isArray(it?.sources) ? it.sources : []))], blog);
@@ -3161,7 +3415,11 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
     } else {
       try {
         // R21: kila mstari una status ya Ledger — agenda OPEN haisomeki kama "DECISION LOCKED" kwenye reflection/company memory
-        const decisionsBrief = fbr.map((e) => `A${e.agenda_index} [${e.status === "LOCKED" ? "LOCKED" : "OPEN — NOT locked"}] ${e.agenda_item}: ${(miniDecisionSection(e.decision_detail || "", 500) || String(e.decision_summary || "").slice(0, 500)).replace(/\s+/g, " ")}`).join("\n");
+        const decisionsBrief = (
+          await Promise.all(
+            fbr.map(async (e) => `A${e.agenda_index} [${e.status === "LOCKED" ? "LOCKED" : "OPEN — NOT locked"}] ${e.agenda_item}: ${(miniDecisionSection(await miniDetailOf(e), 500) || String(e.decision_summary || "").slice(0, 500)).replace(/\s+/g, " ")}`),
+          )
+        ).join("\n");
         const mr = await brain.onBoardDone({ decisions: decisionsBrief, open: fbr.filter((e) => e.status !== "LOCKED").map((e) => ({ index: e.agenda_index, item: e.agenda_item })) });
         memoryOk = mr?.ok !== false;
       } catch (err: any) {
@@ -3169,7 +3427,7 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
       }
       if (memoryOk) runner.finale = { ...(runner.finale || {}), memory: true };
     }
-    const stillMissing = missingParts({ status: "finale", items: runner.items as FinaleItem[], agendaTotal: agenda.length, done: agenda.map((a) => a.index), finale: runner.finale });
+    const stillMissing = missingParts({ status: "finale", items: runner.items as FinaleItem[], agendaTotal: agenda.length, done: agenda.map((a) => a.index), finale: runner.finale, mode: runner.mode });
     if (stillMissing.length) {
       await persist("finale_incomplete", conversationTitle);
       blog("warning", `⚠️ Board haijakamilika: ${stillMissing.join(" · ")} — bonyeza Endeleza kukamilisha.`);

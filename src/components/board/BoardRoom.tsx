@@ -324,7 +324,7 @@ export function BoardRoom() {
               {items.length === 0 && conn === "connecting" && (
                 <p className="flex items-center justify-center gap-2 py-16 text-[12.5px] text-[var(--color-muted)]"><Loader2 size={14} className="anim-spin" /> {mode === "replay" ? "Inapakia session…" : "Inaunganisha na engine…"}</p>
               )}
-              <StageStream items={items} onResume={() => resumeId && board.resume(resumeId)} />
+              <StageStream items={items} onResume={() => resumeId && board.resume(resumeId)} sessionId={board.sessionId} />
             </div>
           </div>
         </div>
