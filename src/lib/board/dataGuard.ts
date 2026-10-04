@@ -35,9 +35,13 @@ export function guardText(text: string, f: FactSheet | null | undefined, o: Guar
   // ---- 1. SIMU / WHATSAPP ----
   if (f.phone) {
     const want = digits(f.phone.value);
+    // R30.1 (E4b): fomu ya KIMATAIFA ya namba ya TZ ni sawa na ya ndani — 0755 222 333 ↔ +255 755 222 333 ↔ 255755222333.
+    // (R24 "simu 255700000000" bado inakamatwa: kulinganisha ni digits kamili, si prefix.)
+    const wantIntl = want.startsWith("0") ? `255${want.slice(1)}` : "";
+    const okPhone = (v: string) => { const d = digits(v); return d === want || (!!wantIntl && d === wantIntl); };
     const re = /(?<![\w\d])(\+?255[\s-]?[\dX]{3}[\s-]?[\dX]{3}[\s-]?[\dX]{3}|\b0[67]\d{2}[\s-]?\d{3}[\s-]?\d{3})(?![\w\d])/gi;
     for (const m of code.matchAll(re)) {
-      if (digits(m[1]) === want) continue;
+      if (okPhone(m[1])) continue;
       // R27: kiolezo cha X tupu ("255XXXXXXXXX" — maelezo ya muundo wa E.164 kwenye ujumbe wa test) si namba;
       //      kinakamatwa tu kikitumika KAMA thamani ya simu (whatsapp: "…", phone = "…", tel:, wa.me/)
       const mask = /^\+?255[\s-]?X{3}[\s-]?X{3}[\s-]?X{3}$/i.test(m[1]);
@@ -49,7 +53,7 @@ export function guardText(text: string, f: FactSheet | null | undefined, o: Guar
       uniqPush(hits, { kind: "simu", found: m[1], expected: f.phone.value });
     }
     for (const m of code.matchAll(/wa\.me\/(\+?[\dX]{6,15})/gi)) {
-      if (digits(m[1]) !== want) uniqPush(hits, { kind: "simu", found: m[1], expected: f.phone.value });
+      if (!okPhone(m[1])) uniqPush(hits, { kind: "simu", found: m[1], expected: f.phone.value });
     }
   }
 
@@ -148,10 +152,13 @@ export function guardText(text: string, f: FactSheet | null | undefined, o: Guar
       const esc = parts[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
       for (const m of code.matchAll(new RegExp(esc, "gi"))) {
         const start = m.index ?? 0;
-        let win = code.slice(start, start + 240);
+        // R30.1 (E4a): apostrofi NDANI ya neno ("Chang'ombe", "Ng'ombe") si quote-delimiter — inafungwa kwa \u0001
+        // kabla ya kukata dirisha, vinginevyo anwani rasmi inakatika ("Mtaa wa Chang") na kuonekana imebadilishwa.
+        let win = code.slice(start, start + 240).replace(/([\w\u00c0-\u024f])'([\w\u00c0-\u024f])/g, "$1\u0001$2");
+        const unmask = (s: string) => s.replace(/\u0001/g, "'");
         const cut = win.search(/["'`<>\n|]|\.\s|\.$|\\n/);
         if (cut > 0) win = win.slice(0, cut);
-        const segs = win.split(",").map((x) => x.trim()).filter(Boolean);
+        const segs = win.split(",").map((x) => unmask(x).trim()).filter(Boolean);
         // kipande cha MWISHO kinaweza kuendelea na sentensi ("… Dar es Salaam kukuhudumia …") → kata kwenye sehemu rasmi
         if (segs.length) {
           const last = segs[segs.length - 1];
