@@ -1,6 +1,15 @@
 # R31 · Awamu F — Env za Koyeb kwa XMD Computer
 
-**Lazima ziewekwe kwenye service ya `professor-xmd` (Koyeb dashboard → Service → Settings → Environment Variables)** kabla ya Awamu G (run ya Temeke). Bila `E2B_API_KEY`, awamu ya computer-use **inasimama kimya** (cuEnabled() = false) — Board ya kawaida haiathiriwi kabisa.
+> ✅ **IMEKAMILIKA (04-10-2026):** env zote 5 zimesetiwa kwa API kwenye service `professor-xmd`
+> (deployment `a430b959` · sha `328ce56` · HEALTHY · env 44). Awamu ya CU ipo LIVE production.
+
+**Maelekezo ya kumbukumbu (kama zitasahaulika kufutwa au kwa service mpya):** zinawekwa kwenye service ya `professor-xmd` kwa Koyeb API. Bila `E2B_API_KEY`, awamu ya computer-use **inasimama kimya** (cuEnabled() = false) — Board ya kawaida haiathiriwi kabisa.
+
+**Koyeb API (ugunduzi 04-10):** base URL ni `https://app.koyeb.com` (`api.koyeb.com` haipo tena — NXDOMAIN).
+- Token: `/home/user/.koyeb-token` (nje ya repo — rotate baadaye kama zingine).
+- Definition kamili iko kwenye DEPLOYMENT (`GET /v1/deployments/{id}`), si kwenye service.
+- Ku-update: `PATCH /v1/services/{id}?update_mask=definition` na `{"definition": …}` —
+  bila `update_mask` env inapita lakini `git.sha` inapuuzwa (jenga commit ya zamani).
 
 ## Env zinazohitajika (5)
 
