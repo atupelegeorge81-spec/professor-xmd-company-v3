@@ -80,6 +80,7 @@ class Emitter:
         # (3) POST kwa Koyeb — LIVE (pamoja na data ya picha)
         if self.callback_url:
             body = dict(kw)
+            body["session"] = self.session  # orphan path (Koyeb restart) inaihitaji kupata session
             if big_data:
                 body["data"] = big_data
             try:

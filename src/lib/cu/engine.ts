@@ -30,6 +30,8 @@ import type { BoardEvent, LogEntry } from "@/lib/types";
 
 export const CU_TEMPLATE = process.env.CU_E2B_TEMPLATE || "professor-xmd-browser-v3";
 export const CU_MAX_STEPS = Number(process.env.CU_MAX_STEPS) || 60;
+/** R31-G: kikomo cha ku-subiri awamu ya CU (run() haiachi stream open milele). */
+const CU_HARD_CAP_MS = Number(process.env.CU_HARD_CAP_MS) || 30 * 60 * 1000;
 export const CU_BUCKET = SCREENSHOTS_BUCKET;
 /** URL ya umma ya app hii (sandbox ina-POST events hapa). */
 export const CU_PUBLIC_URL = (process.env.CU_PUBLIC_URL || process.env.KOYEB_PUBLIC_URL || "https://professor-xmd-professorcj-2c4d4efe.koyeb.app").replace(/\/$/, "");
@@ -69,6 +71,10 @@ export interface CuRunState {
   usage: { requests: number; tokens: number; prompt: number; completion: number };
   execs: Map<string, any>;
   textAcc: Map<number, string>;
+  /** R31-G: run() ina-await awamu nzima ya CU (stream isifunge mapema — Koyeb free inalala
+   *  ikikosa connection, runner na events zikipotea). finishComputer/cuError inaresolve. */
+  phaseDone?: Promise<void>;
+  phaseResolve?: () => void;
   thinkAcc: Map<number, string>;
   persistTimer?: ReturnType<typeof setTimeout>;
   lastPersistAt?: number;
@@ -300,6 +306,11 @@ function bridgeCommand(o: {
 export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promise<void> {
   const cu = ensureCuState(runner);
   if (cu.done) return;
+  if (!cu.phaseDone) cu.phaseDone = new Promise<void>((res) => { cu.phaseResolve = res; });
+  const awaitPhase = () => Promise.race([
+    cu.phaseDone ?? Promise.resolve(),
+    new Promise<void>((r) => setTimeout(r, CU_HARD_CAP_MS)),
+  ]);
 
   // ── divider + card ya kuanza (baada ya card ya MWISHO kabisa ya Board — memory imekamilika)
   hooks.bcast({ type: "cu", cu: { type: "divider" } });
@@ -334,17 +345,19 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
         const raw = await sbx.files.read("/home/user/events.jsonl");
         const lines = String(raw || "").split("\n").filter(Boolean);
         let replayed = 0;
+        let lastEnd: any = null;
         for (const line of lines) {
           try {
             const ev = JSON.parse(line);
             if (typeof ev.i !== "number") continue;
-            if (ev.type === "run_end") { cu.seen.add(`run_end:${ev.i}`); if (ev.i > cu.maxI) cu.maxI = ev.i; continue; }
+            if (ev.type === "run_end") { lastEnd = ev; if (ev.i > cu.maxI) cu.maxI = ev.i; continue; }
             const before = cu.seen.size;
             handleCuEvent(runner, hooks, ev);
             if (cu.seen.size > before) replayed++;
           } catch { /* mstari mbovu — ruuka */ }
         }
         hooks.blog("info", `♻️ Replay: events ${replayed} zimeproviwa kutoka sandbox (zilizokwishahifadhiwa hazirudiwi).`);
+        (cu as any).lastEnd = lastEnd;
       } catch {
         hooks.blog("warning", "♻️ events.jsonl haikusomeka (sandbox mpya au faili hakuna) — run inaanza safi.");
       }
@@ -353,10 +366,23 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
         const r = await sbx.commands.run("pgrep -f cu_bridge.py >/dev/null 2>&1 && echo ALIVE || echo DEAD", { timeoutMs: 15_000 });
         bridgeAlive = String(r?.stdout || "").includes("ALIVE");
       } catch { /* */ }
+      // run_end ipo events.jsonl + bridge IMEKUFA → awamu inakamilika kutoka replay
+      // (Koyeb ilipotea kabla ya POST zote kufika — muda wa ushairi). Idempotent: dedupe
+      // ya run_end inaondolewa ili finishComputer iweze kukamilisha hata kama item ipo tayari.
+      const lastEnd = (cu as any).lastEnd;
+      if (!bridgeAlive && lastEnd) {
+        hooks.blog("success", "♻️ Bridge imemaliza huko nyuma (Koyeb ilipotea) — run_end inacompletishwa kutoka replay.");
+        cu.seen.delete(`run_end:${lastEnd.i}`);
+        handleCuEvent(runner, hooks, lastEnd);
+        if (cu.done) return;
+        // run_end ya kosa → fatal card ipo; Endeleza itaanza run mpya (hapa chini haitaji — tunarudi)
+        return;
+      }
       if (bridgeAlive) {
         hooks.blog("success", "🖥️ Bridge bado inaendelea ndani ya sandbox — tume-attach tu ( hakuna run mpya).");
         cu.startedAt = Date.now();
         cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
+        await awaitPhase();
         return;
       }
     }
@@ -392,6 +418,10 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
         handleCuEvent(runner, hooks, { i: cu.maxI + 1, type: "run_end", status: "error", steps: cu.step, ms: Date.now() - cu.startedAt, fatal: `bridge exit ${r?.exitCode ?? "?"}` });
       }
     }).catch(() => { /* kimya — run_end imeshakuja */ });
+
+    // R31-G: run() ina-await awamu nzima — stream haifungi mapema (Koyeb free inalala
+    // bila connection, runner na events zote zikizama). Cap: dakika 30.
+    await awaitPhase();
   } catch (e: any) {
     cuError(runner, hooks, `Sandbox ya E2B haikuwezekana: ${String(e?.message || e).slice(0, 200)}`);
   }
@@ -411,6 +441,7 @@ export function cuError(runner: Runner, hooks: CuHooks, message: string): void {
   hooks.blog("error", `❌ XMD Computer: ${message}`);
   hooks.addChip("❌ XMD Computer imekosa: " + message.slice(0, 140) + " — bonyeza ▶ Endeleza kuijaribu tena.");
   stopHeartbeat(cu);
+  cu.phaseResolve?.();
   void hooks.persist("running", hooks.title);
 }
 
@@ -653,6 +684,7 @@ function finishComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): voi
   }
 
   // chip ya CU state (resume + Files badge) + persist ya mwisho
+  cu.phaseResolve?.();
   writeCuChip(runner);
   if (hooks) {
     schedulePersist(runner, hooks, true);

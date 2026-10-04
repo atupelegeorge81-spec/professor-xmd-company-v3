@@ -46,20 +46,26 @@ export async function POST(req: Request) {
   return Response.json(await orphanPersist(body));
 }
 
+/** Events za kupersist bila runner — muhimu tu (think/text/usage ni nyingi mno;
+ *  shots hazina fileId bila runner; yote yako events.jsonl kwa replay ya Endeleza). */
+const ORPHAN_KEEP = new Set(["run_start", "exec", "github", "deploy", "finish", "error", "run_end", "files"]);
+
 /** Hifadhi tukio moja kwa moja kwenye session doc (bila runner) — meters pia. */
 async function orphanPersist(ev: CuEvent): Promise<{ ok: boolean; orphan: boolean }> {
   try {
     noteProviderUsage(ev, Boolean(ev.ok));
   } catch { /* meters si kizuizi */ }
   if (!appwriteConfigured || !ev.session) return { ok: false, orphan: true };
+  if (!ORPHAN_KEEP.has(String(ev.type))) return { ok: true, orphan: true }; // meters tu — kimya
   try {
     const sid = String(ev.session);
     const saved = await getConversation(sid);
     if (!saved) return { ok: false, orphan: true };
     const items = (saved.items || []).filter((it: any) => !isHiddenChip(it));
-    // tukio la shot lenye data halipatikani bila bucket hapa (runner ndiye anapakia) — ruuka data
-    const clean: any = { ...ev, data: undefined };
-    items.push({ kind: "cu", id: `cu_${ev.type}_${ev.i}`, i: ev.i, ...shapeItem(ev) } as any);
+    // dedupe rahisi (orphan hauna seen-set): tukio lilelile halirudiwi
+    const key = `cu_${ev.type}_${ev.i}`;
+    if (items.some((it: any) => it?.id === key)) return { ok: true, orphan: true };
+    items.push({ kind: "cu", id: key, i: ev.i, ...shapeItem(ev) } as any);
     await updateSessionItems(sid, items, saved.status || "running", undefined);
     return { ok: true, orphan: true };
   } catch {
