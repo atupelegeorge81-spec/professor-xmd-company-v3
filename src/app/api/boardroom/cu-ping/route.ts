@@ -56,5 +56,22 @@ export async function GET() {
     out.createDevDomain = { ok: false, name: e?.name, message: String(e?.message || e).slice(0, 300) };
   }
 
+  // 4) reachability ya SANDBOX edge (subdomain ya sandbox maalum) kutoka Koyeb —
+  //    GET ?sbx=<sandboxId> (sandbox inaweza kuwa hai kutoka mahali pengine)
+  const sbxId = new URL(req.url).searchParams.get("sbx");
+  if (sbxId && /^[a-z0-9]+$/i.test(sbxId)) {
+    const probeSbx = async (label: string, url: string) => {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15_000), redirect: "manual" });
+        const body = await res.text();
+        return { status: res.status, server: res.headers.get("server"), bodyHead: body.slice(0, 160).replace(/\s+/g, " ") };
+      } catch (e: any) {
+        return { error: String(e?.message || e).slice(0, 160) };
+      }
+    };
+    out.sbxEdge = await probeSbx("sandbox-3000", `https://${sbxId}-3000.e2b.app/`);
+    out.sbxEdgeBogus = await probeSbx("bogus", `https://zzzz-nonexistent-${sbxId.slice(0, 4)}-3000.e2b.app/`);
+  }
+
   return Response.json(out);
 }
