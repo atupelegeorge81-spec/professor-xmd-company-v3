@@ -1246,6 +1246,8 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
           tool: String(cu.tool || "?"), kindX: String(cu.kind || "?"),
           command: String(cu.command || ""), path: cu.path || undefined,
           preview: cu.preview ? String(cu.preview) : undefined,
+          oldStr: cu.old_str ? String(cu.old_str) : undefined,
+          newStr: cu.new_str ? String(cu.new_str) : undefined,
         };
         if (cur) patch<CuExecItem>(cur.id, base);
         else add({ kind: "cuExec", id: nid(), execId, step: Number(cu.step) || 0, ...base, state: "run", startedAt: now() } as CuExecItem);
@@ -1279,6 +1281,8 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
           tool: String(cu.tool || "?"), kindX: String(cu.kindX || "?"),
           command: String(cu.command || ""), path: cu.path || undefined,
           preview: cu.preview ? String(cu.preview) : undefined,
+          oldStr: cu.oldStr || cu.old_str ? String(cu.oldStr || cu.old_str) : undefined,
+          newStr: cu.newStr || cu.new_str ? String(cu.newStr || cu.new_str) : undefined,
           exit: Number.isFinite(exit) ? exit : undefined, ms: Number(cu.ms) || undefined,
           lines: Number(cu.lines) || undefined, chars: Number(cu.chars) || undefined,
           summary: String(cu.summary || "").slice(0, 220) || undefined,

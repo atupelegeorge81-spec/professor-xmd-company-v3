@@ -10,7 +10,7 @@ import { AssemblyCard, DeliverableCard, ReviewCard, ScriptCard } from "./Code";
 import { MemoryStrip, ObserversCard, OverruledCard, SealCard, SupersedeCard, TaskLine, ValidatorCard } from "./Ledger";
 import { NoticeLine, ReportWriter, SummaryCard } from "./Finale";
 import { PlanWriter } from "./Plan";
-import { CuRunCard, CuReportCard, CuDividerMark } from "./Computer";
+import { CuRunCard, CuReportView, CuDividerMark } from "./Computer";
 import { CuErrorView, CuExecView, CuLinkView, CuShotView, CuTextView, CuThinkingView } from "./cu/cards";
 
 /** Dispatcher: kila StageItem → render yake (hakuna tukio bila render). */
@@ -60,7 +60,7 @@ const StageNode = memo(function StageNode({ it, onResume, sessionId }: { it: Sta
     case "summary": return <SummaryCard it={it} />;
     case "cuDivider": return <CuDividerMark />;
     case "cuRun": return <CuRunCard it={it} />;
-    case "cuReport": return <CuReportCard it={it} />;
+    case "cuReport": return <CuReportView it={it} />;
     /* R31 timeline (kama xmd3): kila tukio la CU lina render yake kwenye mkondo */
     case "cuThink": return <CuThinkingView it={it} />;
     case "cuText": return <CuTextView it={it} />;

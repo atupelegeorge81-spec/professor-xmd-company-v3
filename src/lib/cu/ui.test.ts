@@ -88,7 +88,19 @@ describe("R31 · adapter ya XMD Computer (timeline)", () => {
     expect(t.all("cuText")).toHaveLength(1);
   });
 
-  it("usage ok inahesabiwa kwenye card ya hali; usage ok=false HAIHESABIWI", () => {
+
+  it("exec edit: old_str/new_str zinapita (DiffCard ina before/after)", () => {
+    const t = run();
+    t.cu({ type: "divider" });
+    t.cu({ type: "exec_start", id: "e9", step: 6, tool: "edit_file", kind: "edit", command: "index.html", path: "index.html", old_str: "<h1>Mambo</h1>", new_str: "<h1>Duka la Majaribio</h1>" });
+    t.cu({ type: "exec_end", id: "e9", exit: 0, ms: 90 });
+    const ex = t.find<CuExecItem>("cuExec")!;
+    expect(ex.oldStr).toBe("<h1>Mambo</h1>");
+    expect(ex.newStr).toBe("<h1>Duka la Majaribio</h1>");
+    expect(ex.tool).toBe("edit_file");
+  });
+
+    it("usage ok inahesabiwa kwenye card ya hali; usage ok=false HAIHESABIWI", () => {
     const t = run();
     t.cu({ type: "divider" });
     t.cu({ type: "usage", lane: "gemini-1:gemini-3.8-flash", total: 24139, ok: true });

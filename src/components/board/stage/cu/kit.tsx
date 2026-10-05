@@ -69,6 +69,102 @@ export function shortPath(path: string, segments = 2): string {
   return `…/${parts.slice(-segments).join("/")}`;
 }
 
+/** `https://a.b/x` → `a.b` (xmd3 lib/format.ts) */
+export function hostname(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+/* ── ProgressBar (xmd3 primitives/ProgressBar.tsx — ileile; CSS badala ya motion) ── */
+export function ProgressBar({ value, className, height = 3, label = "Progress" }: { value?: number; className?: string; height?: number; label?: string }) {
+  const indeterminate = value === undefined;
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuenow={indeterminate ? undefined : Math.round(value * 100)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      className={cn("relative w-full overflow-hidden rounded-full bg-[var(--px-surface-2)]", className)}
+      style={{ height }}
+    >
+      {indeterminate ? (
+        <span className="absolute inset-y-0 left-0 w-1/2 rounded-full bg-[var(--px-accent)]" style={{ animation: "px-indeterminate 1.3s ease-in-out infinite" }} />
+      ) : (
+        <span
+          className="absolute inset-y-0 left-0 rounded-full bg-[var(--px-accent)] transition-[width] duration-500"
+          style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── diff (xmd3 lib/diff.ts — ileile, hakuna dependency) ────────────────── */
+export type DiffLine = {
+  type: "add" | "remove" | "context";
+  content: string;
+  oldNumber?: number | undefined;
+  newNumber?: number | undefined;
+};
+
+export type DiffStats = { additions: number; deletions: number };
+
+export function computeLineDiff(before: string, after: string): DiffLine[] {
+  const a = before.length ? before.split("\n") : [];
+  const b = after.length ? after.split("\n") : [];
+
+  const table: number[][] = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(b.length + 1).fill(0),
+  );
+
+  for (let i = a.length - 1; i >= 0; i -= 1) {
+    for (let j = b.length - 1; j >= 0; j -= 1) {
+      const row = table[i]!;
+      const next = table[i + 1]!;
+      row[j] = a[i] === b[j] ? next[j + 1]! + 1 : Math.max(next[j]!, row[j + 1]!);
+    }
+  }
+
+  const lines: DiffLine[] = [];
+  let i = 0;
+  let j = 0;
+  let oldNumber = 1;
+  let newNumber = 1;
+
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      lines.push({ type: "context", content: a[i]!, oldNumber: oldNumber++, newNumber: newNumber++ });
+      i += 1;
+      j += 1;
+    } else if (table[i + 1]![j]! >= table[i]![j + 1]!) {
+      lines.push({ type: "remove", content: a[i]!, oldNumber: oldNumber++ });
+      i += 1;
+    } else {
+      lines.push({ type: "add", content: b[j]!, newNumber: newNumber++ });
+      j += 1;
+    }
+  }
+  while (i < a.length) lines.push({ type: "remove", content: a[i++]!, oldNumber: oldNumber++ });
+  while (j < b.length) lines.push({ type: "add", content: b[j++]!, newNumber: newNumber++ });
+
+  return lines;
+}
+
+export function diffStats(lines: DiffLine[]): DiffStats {
+  return lines.reduce<DiffStats>(
+    (acc, line) => {
+      if (line.type === "add") acc.additions += 1;
+      if (line.type === "remove") acc.deletions += 1;
+      return acc;
+    },
+    { additions: 0, deletions: 0 },
+  );
+}
+
 /* ── useElapsed + DurationTicker (xmd3 — ileile) ─────────────────────────── */
 export function useElapsed(running: boolean, startedAt?: number, intervalMs = 100): number {
   const start = useRef<number>(startedAt ?? Date.now());

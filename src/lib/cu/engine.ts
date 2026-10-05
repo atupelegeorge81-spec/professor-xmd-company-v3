@@ -525,7 +525,8 @@ export function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: CuEvent
     }
     case "exec_start": {
       const id = String(ev.id || "");
-      cu.execs.set(id, { step: ev.step, tool: ev.tool, kind: ev.kind, command: ev.command, path: ev.path, preview: ev.preview, lines: ev.lines, out: "" });
+      cu.execs.set(id, { step: ev.step, tool: ev.tool, kind: ev.kind, command: ev.command, path: ev.path, preview: ev.preview, lines: ev.lines,
+        oldStr: ev.old_str ? String(ev.old_str).slice(0, CAP.preview) : undefined, newStr: ev.new_str ? String(ev.new_str).slice(0, CAP.preview) : undefined, out: "" });
       if (Number(ev.step) > cu.step) cu.step = Number(ev.step);
       break;
     }
@@ -542,6 +543,7 @@ export function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: CuEvent
         kind: "cu", id: `cu_exec_${runner.items.length}`, i: ev.i, cu: "exec", step: ev.step, execId: id,
         tool: e.tool, kindX: e.kind, command: String(e.command || "").slice(0, 2_000), path: e.path,
         preview: String(e.preview || "").slice(0, CAP.preview), lines: e.lines || undefined,
+        oldStr: e.oldStr ? String(e.oldStr).slice(0, CAP.preview) : undefined, newStr: e.newStr ? String(e.newStr).slice(0, CAP.preview) : undefined,
         exit: ev.exit, ms: ev.ms, chars: ev.chars, summary: String(ev.summary || "").slice(0, CAP.summary),
         output: String(e.out || "").slice(0, CAP.output) || undefined,
       } as any);

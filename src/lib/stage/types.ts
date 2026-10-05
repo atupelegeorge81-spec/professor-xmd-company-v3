@@ -251,6 +251,8 @@ export interface CuExecItem {
   tool: string; kindX: string;
   command: string; draft?: string;
   path?: string; preview?: string;
+  /** edit: before/after (DiffCard ya xmd3) */
+  oldStr?: string; newStr?: string;
   exit?: number; ms?: number; lines?: number; chars?: number;
   summary?: string; output?: string;
   state: "run" | "done" | "fail";

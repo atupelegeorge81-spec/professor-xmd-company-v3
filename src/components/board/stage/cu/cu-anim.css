@@ -38,6 +38,12 @@
   --px-timeout: var(--color-warn);
   --px-timeout-soft: rgb(251 191 36 / 0.13);
 
+  /* Diff (dark values za xmd3) */
+  --px-diff-add-bg: rgb(74 222 128 / 0.14);
+  --px-diff-add-fg: #4ade80;
+  --px-diff-del-bg: rgb(248 113 113 / 0.14);
+  --px-diff-del-fg: #f87171;
+
   /* Shimmer (ileile ya xmd3 — base ya dark theme) */
   --px-shimmer-base: var(--px-fg-muted);
   --px-shimmer-highlight: #ffffff;
@@ -147,3 +153,24 @@
   background: var(--px-accent);
   animation: px-caret 1s steps(1) infinite;
 }
+
+/* ── ProgressBar indeterminate (xmd3 — ileile) ───────────────────────────── */
+@keyframes px-indeterminate {
+  0% { transform: translateX(-100%) scaleX(0.4); }
+  50% { transform: translateX(30%) scaleX(0.7); }
+  100% { transform: translateX(160%) scaleX(0.4); }
+}
+
+/* ── Diff line stagger-in (xmd3 motion → CSS) ───────────────────────────── */
+@keyframes px-diff-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.px-diff-line { animation: px-diff-in 0.18s ease both; }
+
+/* ── Search result stagger-in (xmd3 motion → CSS) ───────────────────────── */
+@keyframes px-result-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.px-result-in { animation: px-result-in 0.2s ease both; }

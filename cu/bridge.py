@@ -630,6 +630,8 @@ async def main():
                                 tool=c["ui_tool"], kind=c["kind"], command=str(cmd_val)[:2000],
                                 path=args.get("file_path") or args.get("path"),
                                 preview=(args.get("content") or args.get("new_string") or "")[:24000],
+                                old_str=str(args.get("old_string") or "")[:24000],
+                                new_str=str(args.get("new_string") or "")[:24000],
                                 lines=len((args.get("content") or "").splitlines()) or None)
                     continue
                 continue

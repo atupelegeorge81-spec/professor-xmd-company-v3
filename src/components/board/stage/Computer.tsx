@@ -7,12 +7,11 @@
  * Files badge). Ripoti ni DOCUMENT (CuReportCard — idhini 04-10). */
 
 import { useState } from "react";
-import { CheckCircle2, FolderTree, Loader2, Monitor, X, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, FolderTree, GitBranch, Monitor, Rocket, X, XCircle } from "lucide-react";
 import type { CuReportItem, CuRunItem } from "@/lib/stage/types";
-import { cn, compact } from "@/lib/utils";
+import { compact } from "@/lib/utils";
 import { ReportBody } from "../../reports/ReportBody";
 import { Lane, Spinner, TONE, Tag } from "./kit";
-import { ChevronDown, FileCode2, GitBranch, Rocket, ExternalLink } from "lucide-react";
 
 /* ── Files tree — viewer tu (si editor) · simu: sheet ya fullscreen (back ya kadi). ── */
 export function FilesSheet({ files, count, onClose }: { files: string[]; count: number; onClose: () => void }) {
@@ -104,55 +103,16 @@ export function CuRunCard({ it }: { it: CuRunItem }) {
   );
 }
 
-/* ============================================================== CU REPORT — DOCUMENT
- * Idhini (04-10): ripoti ya computer-use inarender KAWAIDA TU kama document
- * (kama XMD ilivyoandika) — ReportBody: headings/table/mermaid/code zote.
- * SI card ya stream ya maneno madogo — ni hati kamili. */
-export function CuReportCard({ it }: { it: CuReportItem }) {
-  const [expanded, setExpanded] = useState(false);
-  const words = it.doc.trim() ? it.doc.trim().split(/\s+/).length : 0;
-  const partial = it.partial;
+/* ============================================================== CU REPORT — PLAIN
+ * Agizo la CEO (05-10): ripoti ya mwisho ya computer agent INAANDIKWA KAWAIDA
+ * kwenye mkondo — si ndani ya card. ReportBody: headings/table/mermaid/code. */
+export function CuReportView({ it }: { it: CuReportItem }) {
   return (
-    <Lane className="space-y-3">
-      <div className="overflow-hidden rounded-2xl border" style={{ borderColor: `rgb(${partial ? TONE.warn.rgb : TONE.ok.rgb} / 0.24)`, background: `linear-gradient(160deg, rgb(${partial ? TONE.warn.rgb : TONE.ok.rgb} / 0.06), rgb(8 10 14 / 0.2) 45%)` }}>
-        <div className="flex items-center gap-3 px-4 pb-2.5 pt-3.5">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgb(52_211_153/0.12)] text-[#34d399]"><FileCode2 size={16} /></span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[14.5px] font-semibold tracking-[-0.01em]">{it.title}</p>
-            <p className="text-[11.5px] text-[var(--color-muted)]">Hati kamili ya utekelezaji — kama document (table/diagram/code zinarender)</p>
-          </div>
-          {partial ? <Tag tone="warn">Sehemu</Tag> : <Tag tone="ok">Kamili</Tag>}
-        </div>
-
-        {/* ukurasa — document */}
-        <div className="relative mx-3 mt-1">
-          <div className="overflow-y-auto rounded-xl border border-[var(--color-line)] bg-[rgb(8_10_14/0.6)] px-4 py-3 text-[13px] [scrollbar-width:thin]"
-               style={{ maxHeight: expanded ? 640 : 380 }}>
-            <div className="st-doc">
-              <ReportBody text={it.doc || " "} />
-            </div>
-          </div>
-          {!expanded && (
-            <div className="pointer-events-none absolute inset-x-px bottom-px flex h-16 items-end justify-center rounded-b-xl bg-gradient-to-t from-[rgb(8_10_14)] to-transparent pb-1.5">
-              <button onClick={() => setExpanded(true)} className="pointer-events-auto flex h-7 items-center gap-1 rounded-full border border-[var(--color-line-strong)] bg-[var(--color-ink-2)] px-3 text-[11.5px] text-[var(--color-fg-2)] hover:text-[var(--color-fg)]">
-                Soma yote <ChevronDown size={12} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* takwimu + linki */}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[11px] text-[var(--color-muted)]">
-          <span><b className="font-mono font-semibold text-[var(--color-fg-2)]">{words}</b> maneno</span>
-          <span><b className="font-mono font-semibold text-[var(--color-fg-2)]">{compact(it.doc.length)}</b> herufi</span>
-          <span><b className="font-mono font-semibold text-[var(--color-fg-2)]">{it.screenshots}</b> picha</span>
-          <span><b className="font-mono font-semibold text-[var(--color-fg-2)]">{compact(it.tokens)}</b> tokens</span>
-          <span className="ml-auto flex items-center gap-2">
-            {it.github && <a href={it.github} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[var(--color-fg-2)] hover:text-[var(--color-fg)]"><GitBranch size={11} /> GitHub</a>}
-            {it.deploy && <a href={it.deploy} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[var(--color-fg-2)] hover:text-[var(--color-fg)]"><Rocket size={11} /> Live</a>}
-          </span>
-        </div>
+    <div className="cu-anim w-full py-0.5">
+      <div className="st-doc text-[13.5px] leading-relaxed">
+        <ReportBody text={it.doc || " "} />
+        {it.partial && <span className="px-caret" />}
       </div>
-    </Lane>
+    </div>
   );
 }
