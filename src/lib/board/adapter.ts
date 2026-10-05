@@ -14,6 +14,7 @@ import type {
 } from "@/lib/stage/types";
 import { pureCode } from "@/lib/codeFence";
 import { PLAN_SECTION_DEFS, PLAN_PART_RE, PLAN_SAVED_RE, PLAN_FAILED_RE, PLAN_REPAIR_RE, parsePlanSteps } from "@/lib/board/workPlan";
+import { readResumeState } from "./finale";
 
 /* ------------------------------------------------------------------ events */
 export interface EngineAgendaItem { index: number; item: string; owners: string[]; requiresCode: boolean }
@@ -130,6 +131,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
 
   let items: StageItem[] = [];
   let cuRunUi: string | null = null; // R31: id ya CuRunItem ya awamu husika
+  let planMode = false; // R31-G5: mode ya session — plan mode HAINA script/patch/review (awamu za code hazipo)
   let cuThinkSeq = 0; // R31-G5: kila block ya think = card yake (si step — mbili kwenye step ileile zilichanganyika)
   let cuThinkOpen: string | null = null; // card ya think iliyo wazi (think_start…think_end)
   const index = new Map<string, number>();
@@ -280,19 +282,25 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   /* ------------------------------------------------ classification */
   const classify = (m: Msg): MsgKind => {
     const c = m.raw;
-    if (/^\*\*Deliverable ya mwisho/.test(c)) return "deliverable";
-    if (/^↕️/.test(c)) return "skip";
     if (finale === "plan" && m.agent === "optimus") return "plan";
     if (finale === "report" && m.agent === "optimus") return "report";
     if (finale === "assemble" && m.agent === "optimus") return "assembly";
-    if (/^```scriptbox/.test(c)) return "patch";
-    if (objection && !responderTurn && m.agent === (cur?.owners[0] || "optimus")) return "turn";
-    if (objection && responderTurn && WRITERS.has(m.agent)) return "patch";
     if (afterLock && !objection && cur && !cur.owners.includes(m.agent)) return "observer";
     if (afterLock && !objection && !cur?.owners.length && !spoke.has(m.agent)) return "observer";
-    if (consensus.reached && !afterLock) {
-      if (WRITERS.has(m.agent) && (cur?.owners.includes(m.agent) ?? true)) return reviewRejected ? "patch" : "script";
-      return "review";
+    if (objection && !responderTurn && m.agent === (cur?.owners[0] || "optimus")) return "turn";
+    // R31-G5 · PLAN MODE: hakuna script/patch/review/deliverable — awamu hizo za CODE mode
+    // hazipo kabisa. (Kosa la 6ac42a20: consensus ikifika, ujumbe unaofuata wa writer uliingia
+    // ScriptBox TUPU "script", wa non-writer kwenye card ya "code review"; objection + writer
+    // uliingia "patch" — logic ya patching ya zamani. Sasa: kila kitu ni turn ya kawaida.)
+    if (!planMode) {
+      if (/^\*\*Deliverable ya mwisho/.test(c)) return "deliverable";
+      if (/^↕️/.test(c)) return "skip";
+      if (/^```scriptbox/.test(c)) return "patch";
+      if (objection && responderTurn && WRITERS.has(m.agent)) return "patch";
+      if (consensus.reached && !afterLock) {
+        if (WRITERS.has(m.agent) && (cur?.owners.includes(m.agent) ?? true)) return reviewRejected ? "patch" : "script";
+        return "review";
+      }
     }
     return "turn";
   };
@@ -881,6 +889,11 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   function applyCore(e: AdapterEvent) {
     switch (e.type) {
       case "user_prompt": add({ kind: "user", id: nid(), text: e.text }); break;
+      // R31-G5: plan mode — hakuna script/patch/review UI; stage.plan mapema (rail ya agenda pia)
+      case "mode":
+        planMode = e.mode === "plan";
+        stageSet({ plan: planMode || undefined });
+        break;
       case "agenda_meta": agendaMeta = e.agenda; applyAgendaMeta(); break;
       case "ledger_meta": applyLedger(e.entries); break;
       case "log": onLog(e.entry.message); break;
@@ -1436,6 +1449,10 @@ const HIDDEN = /^__PROFESSOR_XMD_(RESUME_STATE|USAGE|BRIEF|FACTS|CU_STATE)__:/; 
 /** Hugeuza items zilizohifadhiwa (Appwrite) kuwa mfululizo wa matukio kwa adapter. */
 export function savedToEvents(items: SavedItem[], project: string): AdapterEvent[] {
   const out: AdapterEvent[] = [];
+  // R31-G5: mode YA KWANZA — replay ya plan session isione script/patch/review (kosa la 6ac42a20:
+  // consensus → ScriptBox tupu; chip ya resume-state ina mode tangu R30)
+  const st = readResumeState((items || []) as any);
+  out.push({ type: "mode", mode: st?.mode === "code" ? "code" : st ? st.mode || "code" : "plan" });
   if (project) out.push({ type: "user_prompt", text: project });
   for (const it of items || []) {
     if ((it as any).kind === "cu") {
