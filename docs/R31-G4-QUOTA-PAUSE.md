@@ -71,3 +71,30 @@ Fix: `next.config.mjs` — `webpack: (cfg) => cfg` (identity → in-process buil
 
 ## Files zilizobadilishwa
 `cu/brain.py` `cu/bridge.py` `cu/tests/test_brain.py` (45/45 ✓) · `src/lib/cu/engine.ts` `src/lib/cu/autoResume.ts` (mpya) `src/lib/boardRunner.ts` `src/lib/board/adapter.ts` `src/lib/stage/types.ts` `src/app/api/boardroom/cu-event/route.ts` `src/app/api/boardroom/active/route.ts` `src/instrumentation.ts` `src/components/board/stage/Computer.tsx` `StageStream.tsx` `cu/cards.tsx` `cu/kit.tsx` `next.config.mjs` · vitest 61/61 ✓ · tsc ✓
+
+---
+
+## E2E RESULT (05-10 jioni — IMEFAULU ✓)
+
+**Session ya uthibitisho: `6ac3ce60088b8b0557b2`** — cycle nzima imeproofika:
+
+1. Board (agenda 3, plan, reports) ✓
+2. CU run #1 (run_start i:1) → test hook (multi-shot 529) → SDK retries zinaisha → bridge inakamata XMD-PAUSE → error+files+pause items + chip + doc **"paused"** + **snapshot → Appwrite bucket** + CU_STATE(pausedOnce/resumeAt/snapshot) ✓
+3. Auto-resume inawaka (timer at resumeAt — proven test 4; boot-scan — proven 17:23) ✓
+4. **Endeleza (njia ya "usiku" — instance restart → rebuild from Appwrite)**: chip ya CU inaseed → fast-path (CU moja kwa moja) → sandbox timeboxed → zombie/pgrep safi → bridge mpya `--restore-url` → **kazi halisi: 15 LLM calls · 94,999 tokens · exec×3 · think×4 · files · report** → run_end(i:78, done) → doc **completed** ✓
+
+### Fixes za E2E (deploy chain, zote kwenye `14c5775`):
+| Commit | Fix |
+|---|---|
+| `9a58962` | brain test hook **multi-shot** (SDK ya Anthropic ina-retry 529 — one-shot ilimezwa) |
+| `3058a70` | mtego wa replay (paused_quota run_end ilire-pause kila 5s = loop) + pause inaua sandbox (snapshot ndiyo hali) + persistTimer race ("running" ya milele) |
+| `475d3df` | pause ina-clear `cu.sandbox` (cache ya sandbox iliyouawa → "not found") + cuError → "finale_incomplete" |
+| `0c6086c` | **quota-resume fast-path** (CU moja kwa moja — finale hairodiwi) + phaseDone mpya kila awamu + run() error trail kwenye doc |
+| `7f2d698` | E2B timebox (connect 25s/create 90s — hang ya dakika 22) + dynamic imports alias @/ (timer/interval hazikufika) |
+| `c1282ab` | fast-path inafika na kwa rebuilt runner (ensureCuState kabla) + /active hook kwenye GET (module-level = mara moja tu) |
+| `a7394b8` | **FIX F**: rebuild inaseed chip ya CU_STATE kwenye items (isHiddenChip ilikuwa inaichuja → cu mpya: pausedOnce=false/maxI=0 → test hook ilirudi + events i:1..7 zikarudiwa → loop ya re-pause) |
+| `07e9c8d` | **FIX G**: bridge "hai" baada ya pause = ZOMBIE — inauawa, si attach (attach ilisubiri milele) |
+| `14c5775` | **FIX H**: `pgrep/pkill -f '[c]u_bridge.py'` (bash -lc inajimatch → false ALIVE kila resume; pkill iliua bridge mpya) + zombie block KABLA ya launch |
+
+### Usalishaji (baada ya test):
+- `CU_TEST_QUOTA_PAUSE_MS` **IMEONDOLEWA** kwenye Koyeb (PATCH definition) — production safi, `14c5775` HEALTHY.
