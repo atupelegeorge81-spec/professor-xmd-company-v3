@@ -1071,6 +1071,7 @@ async function run(runner: Runner) {
       if (runner.cu?.pausedOnce && !runner.cu?.done && runner.computerPlanned && cuEnabled()) {
         blog("system", "♻️ Quota ilirudi — XMD Computer inaendelea moja kwa moja (snapshot inarejesha workspace).");
         addChip("▶️ Quota ilirudi — XMD Computer inaendelea moja kwa moja kutoka pale ilipoishia.");
+        void persist("running"); // doc ionekane YA SASA (si kwa tukio la kwanza la CU)
         runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle };
         await startComputerPhase(runner, runner.cuHooks);
         if (runner.cu?.pausedOnce && !runner.cu?.done) {

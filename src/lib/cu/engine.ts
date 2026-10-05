@@ -270,13 +270,22 @@ async function getSandbox(cu: CuRunState): Promise<any> {
   if (cu.sandbox) return cu.sandbox;
   const apiKey = process.env.E2B_API_KEY!;
   if (cu.sandboxId) {
+    // R31-G4: sandbox ya zamani (pause/error) — connect kwenye iliyouawa inaweza HANGA
+    // bila kosa (run ya 6ac3ce60 ilikaa dakika 22!). Timebox sekunde 25 = kama imekufa.
     try {
-      const sbx = await Sandbox.connect(cu.sandboxId, { apiKey });
+      const sbx = await Promise.race([
+        Sandbox.connect(cu.sandboxId, { apiKey }),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("E2B connect timeout (25s)")), 25_000).unref?.()),
+      ]);
       cu.sandbox = sbx;
       return sbx;
-    } catch { /* imikufa → mpya */ }
+    } catch { /* imikufa / imehangia → mpya */ }
   }
-  const sbx = await Sandbox.create(CU_TEMPLATE, { apiKey });
+  // create pia inapewa timebox (90s) — E2B ikikwama run isife kimya
+  const sbx = await Promise.race([
+    Sandbox.create(CU_TEMPLATE, { apiKey }),
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error("E2B create timeout (90s)")), 90_000).unref?.()),
+  ]);
   cu.sandbox = sbx;
   cu.sandboxId = sbx.sandboxId;
   return sbx;
@@ -750,7 +759,9 @@ export function scheduleAutoResume(sessionId: string, resumeAt: number): void {
   // resumeAt iliyoisha kabla (mtego wa re-pause au resume ilipotea): 60s — si 5s (loop nzito)
   const ms = Math.max(resumeAt > Date.now() ? 5_000 : 60_000, Math.min(resumeAt - Date.now(), 2_000_000_000));
   setTimeout(() => {
-    void import("./autoResume").then((m) => m.autoResumeSession(sessionId)).catch(() => {});
+    void import("@/lib/cu/autoResume")
+      .then((m) => m.autoResumeSession(sessionId))
+      .catch((err) => console.warn(`[cu/autoResume] timer ya ${sessionId.slice(0, 8)}… imeshindikana: ${String(err).slice(0, 140)}`));
   }, ms);
 }
 
