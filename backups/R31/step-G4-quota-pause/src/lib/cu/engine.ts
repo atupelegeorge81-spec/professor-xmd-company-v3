@@ -407,7 +407,10 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
         // run_end ya kosa → fatal card ipo; Endeleza itaanza run mpya (hapa chini haitaji — tunarudi)
         return;
       }
-      if (bridgeAlive) {
+      // R31-G4: quota-pause + bridge "hai" = ZOMBIE (run_end yake imeshatoka; process imetulia
+      // bila kufa — kosa la 6ac3ce60: attach ilisubiri events za milele). Inauawa chini kabla ya launch.
+      (cu as any).__zombie = bridgeAlive && !!cu.pausedOnce && !cu.done;
+      if (bridgeAlive && !(cu as any).__zombie) {
         hooks.blog("success", "🖥️ Bridge bado inaendelea ndani ya sandbox — tume-attach tu ( hakuna run mpya).");
         cu.startedAt = Date.now();
         cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
@@ -445,6 +448,10 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
     });
 
     // heartbeat: sandbox isife wakati run inaendelea
+    if ((cu as any).__zombie) {
+      hooks.blog("warning", "🧟 Bridge ya pause ni zombie (run_end yake imeshatoka) — inauawa, run MPYA inaanzishwa.");
+      await sbx.commands.run("pkill -9 -f cu_bridge.py || true", { timeoutMs: 15_000 }).catch(() => {});
+    }
     cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
 
     // watchdog: bridge ikifa bila run_end → fatal card moja (+ Endelea inabaki)
