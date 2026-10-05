@@ -466,8 +466,11 @@ export function cuError(runner: Runner, hooks: CuHooks, message: string): void {
   hooks.blog("error", `❌ XMD Computer: ${message}`);
   hooks.addChip("❌ XMD Computer imekosa: " + message.slice(0, 140) + " — bonyeza ▶ Endeleza kuijaribu tena.");
   stopHeartbeat(cu);
+  if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; }
   cu.phaseResolve?.();
-  void hooks.persist("running", hooks.title);
+  // R31-G4: "running" haikufaa — kosa la session zilizo "running" milele; Endeleza inatumia
+  // status hii kujua session haijakamilika
+  void hooks.persist("finale_incomplete", hooks.title);
 }
 
 function stopHeartbeat(cu: CuRunState) {
@@ -727,8 +730,11 @@ function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void
   writeCuChip(runner);
   // sandbox haipaswi kubaki hai: snapshot IPO bucket (ndiyo hali ya kuendelea) — sandbox
   // iliyo hai kunashika slot ya E2B free na kuingiza resume kwenye mtego wa replay.
+  // (Kosa la 6ac3c019: kill bila ku-clear cu.sandbox → resume ilirudisha sandbox
+  // iliyokufa kwenye cache → "sandbox was not found" kwenye files.write.)
   const sbx = cu.sandbox;
   if (sbx && cu.snapshot) { setTimeout(() => sbx.kill?.().catch(() => {}), 15_000); }
+  cu.sandbox = undefined; // cache hai — getSandbox ita-connect (itakufa) kisha itatengeneza MPYA
   if (hooks) {
     void hooks.persist("paused", hooks.title);
     hooks.bcast({ type: "cu", cu: { type: "phase_done", ok: false, status: "paused" } });
