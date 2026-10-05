@@ -58,12 +58,30 @@ export function boardMarkdown(title: string, prompt: string, items: StageItem[])
       case "summary":
         L.push("### 📊 Muhtasari wa session", "", `- Muda: ${Math.round(it.seconds / 60)} min · LOCKED ${it.locked} · SUPERSEDED ${it.superseded} · OPEN ${it.open} · sources ${it.sources} · requests ${it.requests}`, ...it.usage.map((u) => `- ${u.agent === "computer" ? "🖥️ XMD Computer" : name(u.agent)}: ${u.requests} requests · ${u.tokens.toLocaleString()} tokens`), "");
         break;
+      case "cuDivider":
+        break;
       case "cuRun":
         L.push("---", "", `### 🖥️ XMD Computer — ${it.task}`, "",
-          `- Hali: ${it.status === "run" ? "inaendelea" : it.status === "error" ? "imesimama" : "imekamilika"} · steps ${it.step} · ${it.requests} LLM calls · ${it.tokens.toLocaleString()} tokens · files ${it.filesCount}`,
-          it.github ? `- GitHub: ${it.github}` : "", it.deploy ? `- Live: ${it.deploy}` : "",
-          ...(it.execs.length ? ["", "**Utekelezaji:**", ...it.execs.map((r) => `- \`${(r.command || r.tool).slice(0, 120)}\`${r.exit !== undefined && r.exit !== 0 ? ` (exit ${r.exit})` : r.ms ? ` (${(r.ms / 1000).toFixed(1)}s)` : ""}`)] : []),
-          ...(it.shots.length ? ["", `**Screenshots (${it.shots.length}):** ${it.shots.map((s) => s.label).join(", ")}`] : []), "");
+          `- Hali: ${it.status === "run" ? "inaendelea" : it.status === "error" ? "imesimama" : "imekamilika"} · hatua ${it.step} · ${it.requests} LLM calls · ${it.tokens.toLocaleString()} tokens · files ${it.filesCount} · screenshots ${it.screenshots}`,
+          it.github ? `- GitHub: ${it.github}` : "", it.deploy ? `- Live: ${it.deploy}` : "", "");
+        break;
+      case "cuThink":
+        if (it.text) L.push("> 💭 " + it.text.replace(/\n/g, " ").slice(0, 300), "");
+        break;
+      case "cuText":
+        if (it.text) L.push(it.text, "");
+        break;
+      case "cuExec":
+        L.push(`- \`${(it.command || it.tool).slice(0, 120)}\`${it.exit !== undefined && it.exit !== 0 ? ` (exit ${it.exit})` : it.ms ? ` (${(it.ms / 1000).toFixed(1)}s)` : ""}`);
+        break;
+      case "cuShot":
+        L.push(`- 📸 ${it.label}`);
+        break;
+      case "cuLink":
+        L.push(it.link === "github" ? `- GitHub: ${it.url}` : `- Live: ${it.url}`);
+        break;
+      case "cuError":
+        L.push(`- ⚠️ ${it.message}`);
         break;
       case "cuReport":
         L.push("---", "", "### 📑 Ripoti ya XMD Computer", "", it.doc, "");

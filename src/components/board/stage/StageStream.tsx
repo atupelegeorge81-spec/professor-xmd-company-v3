@@ -10,7 +10,8 @@ import { AssemblyCard, DeliverableCard, ReviewCard, ScriptCard } from "./Code";
 import { MemoryStrip, ObserversCard, OverruledCard, SealCard, SupersedeCard, TaskLine, ValidatorCard } from "./Ledger";
 import { NoticeLine, ReportWriter, SummaryCard } from "./Finale";
 import { PlanWriter } from "./Plan";
-import { CuRunCard, CuReportCard } from "./Computer";
+import { CuRunCard, CuReportCard, CuDividerMark } from "./Computer";
+import { CuErrorView, CuExecView, CuLinkView, CuShotView, CuTextView, CuThinkingView } from "./cu/cards";
 
 /** Dispatcher: kila StageItem → render yake (hakuna tukio bila render). */
 export function StageStream({ items, onResume, sessionId }: { items: StageItem[]; onResume?: () => void; sessionId?: string | null }) {
@@ -57,8 +58,16 @@ const StageNode = memo(function StageNode({ it, onResume, sessionId }: { it: Sta
     case "plan": return <PlanWriter it={it} sessionId={sessionId} />;
     case "notice": return <NoticeLine it={it} onResume={onResume} />;
     case "summary": return <SummaryCard it={it} />;
+    case "cuDivider": return <CuDividerMark />;
     case "cuRun": return <CuRunCard it={it} />;
     case "cuReport": return <CuReportCard it={it} />;
+    /* R31 timeline (kama xmd3): kila tukio la CU lina render yake kwenye mkondo */
+    case "cuThink": return <CuThinkingView it={it} />;
+    case "cuText": return <CuTextView it={it} />;
+    case "cuExec": return <CuExecView it={it} />;
+    case "cuShot": return <CuShotView it={it} />;
+    case "cuLink": return <CuLinkView it={it} />;
+    case "cuError": return <CuErrorView it={it} />;
     default: {
       const never: never = it;
       return never;

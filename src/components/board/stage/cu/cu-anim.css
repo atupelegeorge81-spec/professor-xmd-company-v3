@@ -1,0 +1,149 @@
+/* ============================================================ R31 · CU ANIM
+ * Uhamisho wa design system ya agent-anim (kutoka computer-use-xmd3 — maabara ya
+ * CEO). Muundo, tabia na shimmer: KAMA ZILIVO. Rangi tu ndizo za COMPANY theme
+ * (dark) — ndiyo maana kila kitu ni CSS variables hapa.
+ * Source of truth: computer-use-xmd3/copilotkit/src/agent-anim/styles/agent-anim.css */
+
+/* variables zinaonekana :root — cards za ToolRow hazina wrapper */
+:root {
+  /* Geometry (ileile ya xmd3) */
+  --px-radius: 10px;
+  --px-radius-lg: 14px;
+
+  /* Motion (ileile ya xmd3) */
+  --px-shimmer-duration: 1.6s;
+  --px-spin-duration: 0.7s;
+
+  /* Surfaces — RANGI ZA COMPANY (dark) */
+  --px-bg: transparent;
+  --px-surface: rgb(255 255 255 / 0.035);
+  --px-surface-2: rgb(255 255 255 / 0.07);
+  --px-border: var(--color-line);
+  --px-border-strong: var(--color-line-strong);
+
+  /* Text — company */
+  --px-fg: var(--color-fg);
+  --px-fg-muted: var(--color-muted);
+  --px-fg-subtle: var(--color-faint);
+
+  /* Accent + status — company */
+  --px-accent: #a78bfa;
+  --px-accent-soft: rgb(167 139 250 / 0.16);
+  --px-success: var(--color-ok);
+  --px-success-soft: rgb(52 211 153 / 0.13);
+  --px-danger: var(--color-bad);
+  --px-danger-soft: rgb(248 113 113 / 0.13);
+  --px-warning: var(--color-warn);
+  --px-warning-soft: rgb(251 191 36 / 0.13);
+  --px-timeout: var(--color-warn);
+  --px-timeout-soft: rgb(251 191 36 / 0.13);
+
+  /* Shimmer (ileile ya xmd3 — base ya dark theme) */
+  --px-shimmer-base: var(--px-fg-muted);
+  --px-shimmer-highlight: #ffffff;
+}
+
+/* ── Spinner arc (Cursor/Claude Code style — ileile) ─────────────────────── */
+@keyframes px-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Shimmer sweep (ileile ya xmd3) ──────────────────────────────────────── */
+@keyframes px-shimmer-sweep {
+  0% { background-position: 150% center; }
+  100% { background-position: -50% center; }
+}
+
+.px-shimmer-text {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--px-shimmer-base) 0%,
+    var(--px-shimmer-base) 35%,
+    var(--px-shimmer-highlight) 50%,
+    var(--px-shimmer-base) 65%,
+    var(--px-shimmer-base) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: px-shimmer-sweep var(--px-shimmer-duration) linear infinite;
+}
+
+/* ── Screenshot: scan line + flash + skeleton (ileile ya xmd3) ───────────── */
+@keyframes px-scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(400%); }
+}
+
+@keyframes px-flash {
+  0% { opacity: 0; }
+  12% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+@keyframes px-skeleton {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.px-skeleton-bg {
+  background-image: linear-gradient(
+    90deg,
+    var(--px-surface) 25%,
+    var(--px-surface-2) 37%,
+    var(--px-surface) 63%
+  );
+  background-size: 200% 100%;
+  animation: px-skeleton 1.4s ease-in-out infinite;
+}
+
+/* ── Status icon pop (badala ya motion/react — spring ya xmd3 kwa CSS) ───── */
+@keyframes px-pop {
+  0% { opacity: 0; transform: scale(0.5); }
+  60% { transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.px-pop { animation: px-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes px-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.px-fade-in { animation: px-fade-in 0.12s ease both; }
+
+/* ── CollapsibleSection (grid-rows collapse — badala ya motion/react) ────── */
+.px-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
+  opacity: 0;
+}
+.px-collapse[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.px-collapse > .px-collapse-inner { overflow: hidden; min-height: 0; }
+
+/* ── Chevron rotate (ileile ya ToolRow ya xmd3) ──────────────────────────── */
+.px-chevron { transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1); }
+.px-chevron[data-open="true"] { transform: rotate(90deg); }
+
+/* ── Screenshot image scale-in (ileile) ──────────────────────────────────── */
+@keyframes px-img-in {
+  from { opacity: 0; transform: scale(1.03); }
+  to { opacity: 1; transform: scale(1); }
+}
+.px-img-in { animation: px-img-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* ── Streaming caret (ya ThinkingCard/CuText) ────────────────────────────── */
+@keyframes px-caret {
+  0%, 45% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.px-caret {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--px-accent);
+  animation: px-caret 1s steps(1) infinite;
+}

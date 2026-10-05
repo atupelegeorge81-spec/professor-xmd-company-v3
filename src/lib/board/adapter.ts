@@ -10,7 +10,7 @@ import { REPORT_SECTIONS, type Source } from "@/lib/ui-types";
 import type {
   AgendaDef, AssemblyItem, LiveStage, MemoryItem, ObserversItem, PlanItem, ReportItem, ReviewItem, ScriptItem, SealItem,
   SearchTrace, StageItem, TaskItem, TaskKind, TurnItem,
-  CuExecRow, CuReportItem, CuRunItem, CuShot, SummaryItem,
+  CuExecItem, CuReportItem, CuRunItem, CuShotItem, SummaryItem, CuTextItem, CuThinkItem,
 } from "@/lib/stage/types";
 import { pureCode } from "@/lib/codeFence";
 import { PLAN_SECTION_DEFS, PLAN_PART_RE, PLAN_SAVED_RE, PLAN_FAILED_RE, PLAN_REPAIR_RE, parsePlanSteps } from "@/lib/board/workPlan";
@@ -1142,17 +1142,28 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
    * Matukio ya bridge (bcast live) na SessionItem za replay — yote {type:"cu", cu:{...}}.
    * Live: exec_start→exec_output*→exec_end, shot→shot_ok, think/text, usage, github/deploy, finish, run_end.
    * Replay (savedToEvents): item moja "exec" (iliyounganishwa), "shot" yenye fileId, "report", "run_end". */
+  /* ---------------------------------------------------- R31 · XMD Computer (TIMELINE kama xmd3)
+   * Kila tukio la CU lina StageItem YAKE kwenye mkondo: thinking card (shimmer),
+   * maneno ya agent (KAWAIDA — hakuna avatar, hakuna bubble, markdown+mermaid),
+   * exec cards (draft inamiminika → command → output), screenshot cards (scan→flash),
+   * GitHub/Live cards. CuRunItem ni card ya HALI tu (maandalizi ya e2b).
+   * Live: tool_draft→exec_start→exec_output→exec_end · Replay: items za engine. */
   function applyCu(cu: Record<string, any>): void {
     const t = String(cu?.type || "");
     const runItem = (): CuRunItem | null => {
       const it = items.find((x) => x.id === cuRunUi);
       return it && it.kind === "cuRun" ? it : null;
     };
+    const execBy = (execId: string): CuExecItem | undefined =>
+      items.find((x) => x.kind === "cuExec" && x.execId === execId) as CuExecItem | undefined;
+    const firstUrl = (v: any): string => (Array.isArray(v) ? String(v[0] || "") : String(v || ""));
+
     switch (t) {
       case "divider":
       case "run_start": {
+        // divider ya awamu (badge + mistari — mtindo wa agenda-start) inakuja mara moja
+        if (!items.some((x) => x.kind === "cuDivider")) add({ kind: "cuDivider", id: nid() });
         if (cuRunUi) {
-          // shell ipo tayari (replay: divider kisha run_start) — run_start inasasisha task
           if (t === "run_start" && cu.task) patch<CuRunItem>(cuRunUi, { task: String(cu.task) });
           return;
         }
@@ -1160,80 +1171,134 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         add({
           kind: "cuRun", id: cuRunUi,
           task: String(cu.task || "Utekelezaji wa Mpango Kazi"),
-          status: "run", live: "Inaandaliwa…", step: 0, tokens: 0, requests: 0,
-          execs: [], shots: [], files: [], filesCount: 0, github: "", deploy: "",
+          status: "run", step: 0, tokens: 0, requests: 0,
+          files: [], filesCount: 0, github: "", deploy: "", screenshots: 0,
           startedAt: now(), finished: false,
         });
         break;
       }
-      case "think":
+      // ── mawazo ya agent: thinking card (xmd3 ThinkingCard — shimmer → collapsed) ──
+      case "think_delta": {
+        if (!cuRunUi) return;
+        const s = Number(cu.step) || 0;
+        const id = `cuThink_${s}`;
+        const cur = get<CuThinkItem>(id);
+        if (cur) patch<CuThinkItem>(id, { text: (cur.text + String(cu.text || "")).slice(0, 4000), partial: true });
+        else add({ kind: "cuThink", id, step: s, text: String(cu.text || ""), partial: true });
+        break;
+      }
+      case "think_end":
+      case "think": {
+        if (!cuRunUi) return;
+        const s = Number(cu.step) || 0;
+        const id = `cuThink_${s}`;
+        const cur = get<CuThinkItem>(id);
+        const text = String(cu.text ?? cur?.text ?? "").slice(0, 4000);
+        const ms = Number(cu.ms) || undefined;
+        if (cur) patch<CuThinkItem>(id, { text, ms, partial: false });
+        else add({ kind: "cuThink", id, step: s, text, ms, partial: false });
+        break;
+      }
+      // ── maneno ya agent: mkondoni KAWAIDA (markdown + mermaid — hakuna card) ──
+      case "text_delta": {
+        if (!cuRunUi) return;
+        const s = Number(cu.step) || 0;
+        const id = `cuText_${s}`;
+        const cur = get<CuTextItem>(id);
+        if (cur) patch<CuTextItem>(id, { text: (cur.text + String(cu.text || "")).slice(0, 20_000), partial: true });
+        else add({ kind: "cuText", id, step: s, text: String(cu.text || ""), partial: true });
+        break;
+      }
+      case "text_end":
       case "text": {
-        const s = String(cu.text || "").replace(/\s+/g, " ").trim();
-        if (!cuRunUi || !s) return;
-        patch<CuRunItem>(cuRunUi, { live: (t === "think" ? "💭 " : "💬 ") + s.slice(0, 140) });
+        if (!cuRunUi) return;
+        const s = Number(cu.step) || 0;
+        const id = `cuText_${s}`;
+        const cur = get<CuTextItem>(id);
+        const text = String(cu.text ?? cur?.text ?? "").slice(0, 20_000);
+        if (cur) patch<CuTextItem>(id, { text, partial: false });
+        else add({ kind: "cuText", id, step: s, text, partial: false });
+        break;
+      }
+      // ── exec: draft (code ikimiminika) → start → output → end ──
+      case "tool_draft": {
+        if (!cuRunUi) return;
+        const execId = String(cu.id || "");
+        if (!execId) return;
+        const draft = String(cu.preview || cu.content || "");
+        const cur = execBy(execId);
+        if (cur) {
+          if (draft) patch<CuExecItem>(cur.id, { draft: draft.slice(0, 2000) });
+        } else {
+          add({
+            kind: "cuExec", id: nid(), execId, step: Number(cu.step) || 0,
+            tool: String(cu.name || "?"), kindX: "?", command: "", draft: draft.slice(0, 2000),
+            state: "run", startedAt: now(),
+          });
+        }
         break;
       }
       case "exec_start": {
         if (!cuRunUi) return;
-        const row: CuExecRow = {
-          id: String(cu.id || nid()), step: Number(cu.step) || 0,
+        const execId = String(cu.id || "");
+        const cur = execBy(execId);
+        const base: Partial<CuExecItem> = {
           tool: String(cu.tool || "?"), kindX: String(cu.kind || "?"),
           command: String(cu.command || ""), path: cu.path || undefined,
-          state: "run",
+          preview: cu.preview ? String(cu.preview) : undefined,
         };
-        patch<CuRunItem>(cuRunUi, (x) => ({ execs: [...x.execs, row], step: Math.max(x.step, row.step), live: "⚙️ " + row.command.slice(0, 120) }));
+        if (cur) patch<CuExecItem>(cur.id, base);
+        else add({ kind: "cuExec", id: nid(), execId, step: Number(cu.step) || 0, ...base, state: "run", startedAt: now() } as CuExecItem);
+        patch<CuRunItem>(cuRunUi, (x) => ({ step: Math.max(x.step, Number(cu.step) || 0) }));
         break;
       }
       case "exec_output": {
-        const run = runItem();
-        const row = run?.execs.find((r) => r.id === String(cu.id || ""));
-        if (!cuRunUi || !row) return;
-        const out = (row.output || "") + String(cu.chunk || "");
-        patch<CuRunItem>(cuRunUi, (x) => ({ execs: x.execs.map((r) => (r.id === row.id ? { ...r, output: out.slice(-900) } : r)) }));
+        const cur = execBy(String(cu.id || ""));
+        if (!cur) return;
+        patch<CuExecItem>(cur.id, { output: ((cur.output || "") + String(cu.chunk || "")).slice(-4000) });
         break;
       }
       case "exec_end": {
-        const run = runItem();
-        const row = run?.execs.find((r) => r.id === String(cu.id || ""));
-        if (!cuRunUi || !row) return;
+        const cur = execBy(String(cu.id || ""));
         const exit = Number(cu.exit);
-        patch<CuRunItem>(cuRunUi, (x) => ({
-          execs: x.execs.map((r) => (r.id === row.id ? {
-            ...r, state: (Number.isFinite(exit) && exit !== 0) ? "fail" : "done",
-            exit: Number.isFinite(exit) ? exit : undefined, ms: Number(cu.ms) || undefined,
-            lines: Number(cu.lines) || undefined, summary: String(cu.summary || "").slice(0, 220) || undefined,
-          } : r)),
-        }));
+        if (cur) {
+          patch<CuExecItem>(cur.id, {
+            state: (Number.isFinite(exit) && exit !== 0) ? "fail" : "done",
+            exit: Number.isFinite(exit) ? exit : undefined,
+            ms: Number(cu.ms) || undefined, lines: Number(cu.lines) || undefined, chars: Number(cu.chars) || undefined,
+            summary: String(cu.summary || "").slice(0, 220) || undefined,
+          });
+        }
         break;
       }
       case "exec": { // replay: item iliyounganishwa (exec kamili + output)
         if (!cuRunUi) return;
         const exit = Number(cu.exit);
-        const row: CuExecRow = {
-          id: String(cu.execId || nid()), step: Number(cu.step) || 0,
+        add({
+          kind: "cuExec", id: nid(), execId: String(cu.execId || nid()), step: Number(cu.step) || 0,
           tool: String(cu.tool || "?"), kindX: String(cu.kindX || "?"),
           command: String(cu.command || ""), path: cu.path || undefined,
+          preview: cu.preview ? String(cu.preview) : undefined,
           exit: Number.isFinite(exit) ? exit : undefined, ms: Number(cu.ms) || undefined,
-          lines: Number(cu.lines) || undefined, summary: String(cu.summary || "").slice(0, 220) || undefined,
-          output: String(cu.output || "").slice(0, 900) || undefined,
+          lines: Number(cu.lines) || undefined, chars: Number(cu.chars) || undefined,
+          summary: String(cu.summary || "").slice(0, 220) || undefined,
+          output: String(cu.output || "").slice(0, 4000) || undefined,
           state: Number.isFinite(exit) && exit !== 0 ? "fail" : "done",
-        };
-        patch<CuRunItem>(cuRunUi, (x) => ({ execs: [...x.execs, row], step: Math.max(x.step, row.step) }));
+          startedAt: now(),
+        });
+        patch<CuRunItem>(cuRunUi, (x) => ({ step: Math.max(x.step, Number(cu.step) || 0) }));
         break;
       }
+      // ── shot: live (bila fileId → scan line) → shot_ok (fileId) · replay: kamili ──
       case "shot": {
         if (!cuRunUi) return;
-        const shot: CuShot = { id: nid(), fileId: cu.fileId, bucketId: cu.bucketId, label: String(cu.label || "Picha"), ok: !!cu.fileId };
-        patch<CuRunItem>(cuRunUi, (x) => ({ shots: [...x.shots, shot] }));
+        add({ kind: "cuShot", id: nid(), step: Number(cu.step) || 0, label: String(cu.label || "Picha"), fileId: String(cu.fileId || ""), bucketId: String(cu.bucketId || ""), ok: !!cu.fileId });
+        patch<CuRunItem>(cuRunUi, (x) => ({ screenshots: x.screenshots + 1 }));
         break;
       }
       case "shot_ok": {
-        const run = runItem();
-        const idx = run ? run.shots.map((s) => s.label).lastIndexOf(String(cu.label || "")) : -1;
-        if (!cuRunUi || idx < 0) return;
-        patch<CuRunItem>(cuRunUi, (x) => ({
-          shots: x.shots.map((s, i) => (i === idx ? { ...s, fileId: String(cu.fileId || ""), bucketId: String(cu.bucketId || ""), ok: true } : s)),
-        }));
+        const pending = [...items].reverse().find((x) => x.kind === "cuShot" && !x.ok && (x as CuShotItem).label === String(cu.label || ""));
+        if (pending) patch<CuShotItem>(pending.id, { fileId: String(cu.fileId || ""), bucketId: String(cu.bucketId || ""), ok: true });
         break;
       }
       case "usage": {
@@ -1248,8 +1313,20 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         patch<CuRunItem>(cuRunUi, { files: tree, filesCount: Number(cu.filesCount) || tree.length });
         break;
       }
-      case "github": if (cuRunUi) patch<CuRunItem>(cuRunUi, { github: String(cu.url || "") }); break;
-      case "deploy": if (cuRunUi) patch<CuRunItem>(cuRunUi, { deploy: String(cu.url || "") }); break;
+      case "github": {
+        if (!cuRunUi) return;
+        const url = String(cu.url || "");
+        patch<CuRunItem>(cuRunUi, { github: url });
+        add({ kind: "cuLink", id: nid(), step: Number(cu.step) || 0, link: "github", url });
+        break;
+      }
+      case "deploy": {
+        if (!cuRunUi) return;
+        const url = String(cu.url || "");
+        patch<CuRunItem>(cuRunUi, { deploy: url });
+        add({ kind: "cuLink", id: nid(), step: Number(cu.step) || 0, link: "deploy", url });
+        break;
+      }
       case "report":
       case "finish": {
         const doc = String(cu.text || cu.report || "");
@@ -1259,7 +1336,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
           kind: "cuReport", id: nid(),
           title: "Ripoti ya XMD Computer",
           doc, partial: !!cu.partial, status: String(cu.status || "done"),
-          screenshots: run?.shots.length || 0, filesCount: run?.filesCount || 0, tokens: run?.tokens || 0,
+          screenshots: run?.screenshots || 0, filesCount: run?.filesCount || 0, tokens: run?.tokens || 0,
           github: run?.github || "", deploy: run?.deploy || "",
           startedAt: run?.startedAt || now(),
         });
@@ -1267,8 +1344,8 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       }
       case "error": {
         const msg = String(cu.message || "Kosa la XMD Computer");
-        if (cuRunUi) patch<CuRunItem>(cuRunUi, { live: "⚠️ " + msg.slice(0, 160) });
-        else notice("error", `🖥️ XMD Computer: ${msg}`);
+        add({ kind: "cuError", id: nid(), message: msg.slice(0, 500) });
+        if (!cuRunUi) notice("error", `🖥️ XMD Computer: ${msg}`);
         break;
       }
       case "run_end": {
@@ -1278,8 +1355,8 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
           status: String(cu.status || "done") === "error" ? "error" : "done",
           finished: true,
           ms: Number(cu.ms) || undefined,
-          github: String(cu.github || run?.github || ""),
-          deploy: String(cu.live || run?.deploy || ""),
+          github: firstUrl(cu.github) || run?.github || "",
+          deploy: firstUrl(cu.live) || run?.deploy || "",
           tokens: Number(cu.tokens) || run?.tokens || 0,
           requests: Number(cu.requests) || run?.requests || 0,
         });
@@ -1289,7 +1366,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         if (cuRunUi) patch<CuRunItem>(cuRunUi, { status: cu.ok ? "done" : "error", finished: true });
         break;
       }
-      default: break; // step_start, tool_draft, usage_total — live tu
+      default: break; // step_start, usage_total — live tu
     }
   }
 

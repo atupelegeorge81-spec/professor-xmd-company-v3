@@ -238,35 +238,55 @@ export interface SummaryItem {
   locked: number; superseded: number; open: number; sources: number; requests: number;
 }
 
-/* ---------------- R31 · XMD Computer (engine: cu/*) ---------------- */
+/* ---------------- R31 · XMD Computer (engine: cu/*) ----------------
+ * UI ya CU ni TIMELINE (kama xmd3): kila tukio lina StageItem yake kwenye
+ * mkondo (cuThink/cuText/cuExec/cuShot/cuLink/cuError). CuRunItem ni card ya
+ * HALI/maandalizi tu (task, status, tokens, Files badge) — si tank. */
 
-/** mstari mmoja wa utekelezaji (exec) — live: exec_start→exec_end · replay: item "exec" */
-export interface CuExecRow {
-  id: string; step: number;
+/** exec moja ya agent — live: tool_draft→exec_start→exec_output→exec_end · replay: item "exec" */
+export interface CuExecItem {
+  kind: "cuExec"; id: string;
+  /** id ya tool call (toolu_…) — inaunganisha draft na exec_start/end */
+  execId: string; step: number;
   tool: string; kindX: string;
-  command: string; path?: string;
-  exit?: number; ms?: number; lines?: number;
+  command: string; draft?: string;
+  path?: string; preview?: string;
+  exit?: number; ms?: number; lines?: number; chars?: number;
   summary?: string; output?: string;
   state: "run" | "done" | "fail";
+  startedAt: number;
 }
 
-/** picha ya ukurasa (Desktop/Mobile) — fileId ya Appwrite bucket ya screenshots */
-export interface CuShot { id: string; fileId?: string; bucketId?: string; label: string; ok: boolean }
+/** mawazo ya agent (think) — card ya thinking (shimmer; xmd3 ThinkingCard) */
+export interface CuThinkItem { kind: "cuThink"; id: string; step: number; text: string; ms?: number; partial: boolean }
 
-/** engine: startComputerPhase → bcast divider + kadi ya "XMD Computer" (agent mmoja, bila jina la agent)
- *  Inaonyesha: hali hai, execs, shots, files badge, GitHub/Vercel, tokens. */
+/** maneno ya agent (text) — KAWAIDA kwenye mkondo: hakuna avatar, hakuna bubble; markdown+mermaid */
+export interface CuTextItem { kind: "cuText"; id: string; step: number; text: string; partial: boolean }
+
+/** picha ya ukurasa (Desktop/Mobile) — fileId ya Appwrite bucket ya screenshots */
+export interface CuShotItem { kind: "cuShot"; id: string; step: number; label: string; fileId: string; bucketId: string; ok: boolean }
+
+/** link muhimu — github: repo imeundwa · deploy: tovuti iko live */
+export interface CuLinkItem { kind: "cuLink"; id: string; step: number; link: "github" | "deploy"; url: string }
+
+/** kosa la awamu ya CU (fatal tu) */
+export interface CuErrorItem { kind: "cuError"; id: string; message: string }
+
+/** divider ya mwanzo wa awamu ya CU — badge + mistari miwili (mtindo wa agenda-start; uamuzi #2) */
+export interface CuDividerItem { kind: "cuDivider"; id: string }
+
+/** engine: startComputerPhase → divider + card ya HALI ya "XMD Computer" (maandalizi ya e2b:
+ *  task, Inatekeleza/Imekamilika, step/tokens/requests, Files badge). Kila kitu kingine
+ *  kinamiminika kwenye mkondo kama items zake (cuText/cuExec/cuShot/…). */
 export interface CuRunItem {
   kind: "cuRun"; id: string;
   task: string;
   status: "run" | "done" | "error";
-  /** mstari wa hali ya sasa hivi (think/text/exec ya mwisho — shimmer wakati run) */
-  live: string;
   step: number;
   tokens: number; requests: number;
-  execs: CuExecRow[];
-  shots: CuShot[];
   files: string[]; filesCount: number;
   github: string; deploy: string;
+  screenshots: number;
   startedAt: number; finished: boolean; ms?: number;
 }
 
@@ -286,7 +306,8 @@ export type StageItem =
   | ScriptItem | ReviewItem | DeliverableItem
   | TaskItem | MemoryItem | SealItem | ObserversItem | SupersedeItem | OverruledItem
   | ValidatorItem | AssemblyItem | ReportItem | PlanItem | NoticeItem | SummaryItem
-  | CuRunItem | CuReportItem;
+  | CuRunItem | CuReportItem
+  | CuThinkItem | CuTextItem | CuExecItem | CuShotItem | CuLinkItem | CuErrorItem | CuDividerItem;
 
 /* ---------------- live stage (StageRail) ---------------- */
 export type AgendaPhase = "evidence" | "discussion" | "code" | "lock" | "review" | "relock" | "memory";
