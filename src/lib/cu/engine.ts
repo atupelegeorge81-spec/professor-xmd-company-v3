@@ -386,7 +386,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
       }
       // (2) bridge bado hai? → USIANZISHE Nyingine (double-run ni sumu)
       try {
-        const r = await sbx.commands.run("pgrep -f cu_bridge.py >/dev/null 2>&1 && echo ALIVE || echo DEAD", { timeoutMs: 15_000 });
+        const r = await sbx.commands.run("pgrep -f '[c]u_bridge.py' >/dev/null 2>&1 && echo ALIVE || echo DEAD", { timeoutMs: 15_000 });
         bridgeAlive = String(r?.stdout || "").includes("ALIVE");
       } catch { /* */ }
       // run_end ipo events.jsonl + bridge IMEKUFA → awamu inakamilika kutoka replay
@@ -441,6 +441,13 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
     hooks.blog("api", `🚀 Sandbox ${cu.sandboxId?.slice(0, 8)}… — bridge inaanzishwa${resume ? " (resume)" : ""}.`);
 
     cu.startedAt = Date.now();
+    // R31-G4: zombie (pause) inauawa KABLA ya launch — pkill pattern '[c]u_bridge.py'
+    // isijimatch bash inayoi-execute (kosa la 6ac3ce60: pkill -f cu_bridge.py iliua
+    // bridge MPYA yenyewe + bash yake mara tu baada ya launch)
+    if ((cu as any).__zombie) {
+      hooks.blog("warning", "🧟 Bridge ya pause ni zombie (run_end yake imeshatoka) — inauawa, run MPYA inaanzishwa.");
+      await sbx.commands.run("pkill -9 -f '[c]u_bridge.py' || true", { timeoutMs: 15_000 }).catch(() => {});
+    }
     const handle = await sbx.commands.run(`bash -lc ${q(cmd)}`, {
       background: true, timeoutMs: 60 * 60 * 1000,
       onStdout: (d: string) => { for (const l of String(d).split("\n")) if (l.startsWith("@@XMD ")) hooks.blog("info", `🖥️ ${l.slice(6, 400)}`); },
@@ -448,10 +455,6 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
     });
 
     // heartbeat: sandbox isife wakati run inaendelea
-    if ((cu as any).__zombie) {
-      hooks.blog("warning", "🧟 Bridge ya pause ni zombie (run_end yake imeshatoka) — inauawa, run MPYA inaanzishwa.");
-      await sbx.commands.run("pkill -9 -f cu_bridge.py || true", { timeoutMs: 15_000 }).catch(() => {});
-    }
     cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
 
     // watchdog: bridge ikifa bila run_end → fatal card moja (+ Endelea inabaki)
