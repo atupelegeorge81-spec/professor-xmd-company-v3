@@ -662,3 +662,12 @@ class PauseSnapshotTests(unittest.TestCase):
         # mara ya pili hook haichomi tena: flag ya _test_pause_fired imewekwa (guard);
         # (handle kamili inahitaji Brain ya init kamili — flag ndiyo uhakika wa mara-moja)
         self.assertTrue(b._test_pause_fired, "guard ya mara-moja imewekwa")
+
+    def test_bridge_hakuna_flags_zilizoondolewa(self):
+        """R31-G4: --max-steps/--max-turns zimeondolewa kabisa — reference yoyote iliyobaki
+        ni AttributeError ya runtime (kosa la 6ac3a9c3). Hii inakamata kabla ya deploy."""
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        src = open(os.path.join(os.path.dirname(__file__), "..", "bridge.py"), encoding="utf-8").read()
+        self.assertNotIn("a.max_steps", src, "a.max_steps imerudi — argparse flag imeondolewa!")
+        self.assertNotIn("a.max_turns", src, "a.max_turns imerudi — hakuna kikomo cha turns!")
+        self.assertNotIn("--max-steps", src)

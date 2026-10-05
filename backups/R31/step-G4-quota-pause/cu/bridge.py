@@ -495,8 +495,9 @@ async def main():
                           "TaskList", "TaskView", "WebSearch", "WebFetch"],
     )
 
+    # R31-G4: hakuna kikomo cha steps/turns (agizo la CEO 05-10) — budget steps=0 = unlimited
     em.emit("run_start", task=a.title, model="xmd-computer (Gemini Swap Brain)", size="kati",
-             protocol="claude", budget={"steps": a.max_steps, "tokens": 0}, files=files_tree(a.workspace)[:80])
+             protocol="claude", budget={"steps": 0, "tokens": 0}, files=files_tree(a.workspace)[:80])
 
     step = 0
     cur: dict[int, dict] = {}
