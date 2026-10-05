@@ -46,3 +46,28 @@ Real test #2 (live, stream open 408s): agent alijenga kazi YOTE (gh+vercel ✓) 
 - Repo za majaribio kwenye GitHub org + Vercel projects — user anaweza kuzifuta
 - finish "report" = text ya mwisho ya agent (sio document ndefu kamili) — quality ya content inatosha, muonekano ni document ✓
 - futa `cu-ping` route baada ya G (diagnostics)
+
+---
+
+## G2 — UI ya awamu ya CU = TIMELINE (agizo la CEO 05-10) — commit `5b64eb3`
+
+Kosa kikubwa liligunduliwa na CEO: kila kitu cha CU kilikuwa kimefungwa ndani ya card KUBWA
+moja. Imerekebishwa kama xmd3:
+
+- **Card ya "XMD Computer"** = card ya HALI/maandalizi ya e2b tu (task, status, step,
+  tokens, Files badge) + divider mpya `XMD COMPUTER` (mtindo wa agenda-start).
+- **Maneno ya agent** yanamiminika KAWAIDA kwenye mkondo — hakuna avatar, hakuna bubble;
+  markdown + MERMAID inarender (`cuText`).
+- **Kila kitendo card yake kama xmd3** (muundo+tabia+shimmer KAMA ZILIVO, rangi tu za
+  company dark theme): thinking card (`Inafikiri…` shimmer → `Alifikiri (Xs)`),
+  terminal card (traffic lights + `$` + output, exit badge), file write/read (skeleton),
+  screenshot (scan line → flash + modal zoom), GitHub card, Live card, error card.
+- Draft ya command inamiminika kwenye exec card (`tool_draft` → `exec_start` → output → end).
+- Replay ya session ZA ZAMANI inarender timeline ileile (engine items zipo tayari).
+
+Uthibitisho (Playwright, headless): page ya maonyesho na data halisi + **session ya CEO
+yenyewe 6ac2d4fc kwenye LIVE app** — divider ✓ status card ✓ exec cards 9/9 ✓ error card
+✓ Files badge ✓ mermaid svg ✓ picha 2/2 kutoka bucket ✓ modal ✓ shimmer live ✓ console
+0 errors. Screenshots: `audit/r31g/ui-preview-done.png · ui-preview-live.png · live-user-session-timeline.png`.
+
+Tests: vitest 60/60 (timeline mpya ya adapter) · tsc ✓ · build ✓.
