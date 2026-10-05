@@ -318,7 +318,9 @@ function bridgeCommand(o: {
 export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promise<void> {
   const cu = ensureCuState(runner);
   if (cu.done) return;
-  if (!cu.phaseDone) cu.phaseDone = new Promise<void>((res) => { cu.phaseResolve = res; });
+  // R31-G4: awamu MPYA = promise MPYA (ile ya run iliyopita imesharesolve — bila hii,
+  // awaitPhase ingerudi MARA MOJA na run ingeisha huku bridge bado unaendelea)
+  cu.phaseDone = new Promise<void>((res) => { cu.phaseResolve = res; });
   const awaitPhase = () => Promise.race([
     cu.phaseDone ?? Promise.resolve(),
     new Promise<void>((r) => setTimeout(r, CU_HARD_CAP_MS)),

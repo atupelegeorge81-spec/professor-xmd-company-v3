@@ -1064,6 +1064,33 @@ async function run(runner: Runner) {
       }
       addChip(`♻️ Board Room imeendelea — "${runner.project.slice(0, 80)}${runner.project.length > 80 ? "…" : ""}"`);
       blog("system", `♻️ Mjadala umeendelea kutoka pale ulipoishia (${agenda.length} vipengele).`);
+      // R31-G4 · QUOTA-PASTE RESUME: quota ilirudi na CU pekee ndiyo inayokosekana →
+      // awamu ya XMD Computer inaendelea MOJA KWA MOJA. Finale HAI-RUDIWI (kosa la test
+      // 6ac3b624/6ac3c713: LLM/Appwrite hiccup kwenye validator/reports za re-run iliuua
+      // resume ingawa CU ina snapshot yake ya workspace + chip yake ya hali).
+      if (runner.cu?.pausedOnce && !runner.cu?.done && runner.computerPlanned && cuEnabled()) {
+        blog("system", "♻️ Quota ilirudi — XMD Computer inaendelea moja kwa moja (snapshot inarejesha workspace).");
+        addChip("▶️ Quota ilirudi — XMD Computer inaendelea moja kwa moja kutoka pale ilipoishia.");
+        runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle };
+        await startComputerPhase(runner, runner.cuHooks);
+        if (runner.cu?.pausedOnce && !runner.cu?.done) {
+          // quota ikisha TENA kabla ya kumaliza — pause mpya (doc "paused" + timer mpya vipo)
+          runner.status = "error";
+          bcast({ type: "done" });
+          return;
+        }
+        const cuOk = !!runner.cu?.done;
+        if (cuOk) runner.finale = { ...(runner.finale || {}), computer: true };
+        await persist(cuOk ? "completed" : "finale_incomplete", conversationTitle);
+        const total = Object.values(usage).reduce(
+          (a, u) => ({ requests: a.requests + u.requests, tokens: a.tokens + u.tokens, prompt: a.prompt + u.prompt, completion: a.completion + u.completion }),
+          { requests: 0, tokens: 0, prompt: 0, completion: 0 },
+        );
+        bcast({ type: "summary", usage: { ...usage, total } });
+        runner.status = cuOk ? "completed" : "error";
+        bcast({ type: "done" });
+        return;
+      }
     } else {
       addChip(`🏛️ Board Room — "${runner.project.slice(0, 80)}${runner.project.length > 80 ? "…" : ""}"`);
       blog("system", "🧠 Optimus anaunda jina la conversation...");
@@ -3498,6 +3525,11 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
     blog("error", `❌ Critical: ${err?.message}`);
     stateBus.update(runner.id, { status: "halted" });
     runner.status = "error";
+    // R31-G4: kosa LINAHIFADHIWA doc (error trail — vifo visivyoonekana vya 6ac3b624/6ac3c713)
+    try {
+      runner.items.push({ kind: "chip", id: nid(), text: `❌ Run ilikufa: ${String(err?.message || err).slice(0, 220)} — bonyeza ▶ Endeleza kuipokeza.` } as SessionItem);
+      await persist("error");
+    } catch { /* kimya */ }
     bcast({ type: "done" });
   }
 }
