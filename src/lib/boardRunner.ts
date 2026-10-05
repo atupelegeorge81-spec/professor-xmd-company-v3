@@ -45,7 +45,7 @@ import { BOARD_PLAN_MODE } from "./env";
 import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, type MiniReportDoc } from "./server/miniReports";
 import { saveProjectPlan } from "./server/plans";
 // R31 · XMD COMPUTER (computer-use): engine ya phase ya mwisho — baada ya memory ya Board
-import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, type CuRunState, type CuHooks } from "./cu/engine";
+import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, type CuRunState, type CuHooks } from "./cu/engine";
 import {
   PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
   extractPlanSections, parsePlanSteps, assemblePlanDocument, officialDataMarkdown, constraintsMarkdown, constraintFallbackLines, PLAN_STEP_TEMPLATE,
@@ -327,6 +327,12 @@ export async function resumeRun(id: string): Promise<ResumeResult> {
   runner.mode = state.mode === "plan" ? "plan" : state.mode === "code" ? "code" : "code";
   // R31: computerPlanned inarudishwa; hali ya CU (sandboxId/token/maxI/links/files) inajengwa kutoka chip yake
   if ((state as any).computer) runner.computerPlanned = true;
+  // R31-G4: chip ya CU IINGIE items (isHiddenChip ilikuwa inaichuja nje → ensureCuState
+  // ilizaliwa UPYA: pausedOnce=false/maxI=0/snapshot=hakuna → fast-path iliruka, test
+  // hook ilirudi, events za bridge mpya zilirudia i:1..7 → loop ya re-pause ya 6ac3ce60).
+  // Persist haina madhara: inachuja hidden chips kisha inaandika fresh.
+  const cuChip = readCuChip((saved.items || []) as SessionItem[]);
+  if (cuChip && !runner.finale?.computer) { runner.items.push(cuChipItem(cuChip) as SessionItem); }
   if (runner.computerPlanned && !runner.finale?.computer) ensureCuState(runner);
   runners.set(runner.id, runner);
   if (trim.dropped) console.warn(`[resume] ${runner.id}: items ${trim.dropped} za ${trim.restarted ? `agenda ${trim.restarted}` : "finale"} iliyokatizwa zimeondolewa`);
