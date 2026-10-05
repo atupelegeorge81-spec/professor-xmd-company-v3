@@ -1034,12 +1034,16 @@ class Brain:
 
     def handle(self, body: dict, write):
         """write(event_dict) inatumwa kila event (baada ya gate). Inarudisha True kama run ikaisha vizuri."""
-        # TEST hook (traffic ya uongo ya quota): server inaweka test_quota_pause_ms MARA MOJA tu
-        # (pausedOnce guard ipo Koyeb) — inarudisha fatal yenye XMD-PAUSE ili kupima pause+auto-resume.
+        # TEST hook (traffic ya uongo ya quota): SDK ya Anthropic ina-RETRY 529 — kufa mara MOJA
+        # kunamezwa na retry (call ya pili inaendelea kwa Gemini halisi, pause haifiki bridge —
+        # kosa la run ya kwanza ya 6ac3a9c3). Kwa hiyo kila call inafunga fatal marker ILEILE
+        # hadi SDK ichoke; guard ya kweli ya "mara moja" ni pausedOnce ya engine (resume
+        # haandiki test_quota_pause_ms tena kwenye cu-config.json).
         tq = int((self.cfg or {}).get("test_quota_pause_ms") or 0)
-        if tq and not getattr(self, "_test_pause_fired", False):
-            self._test_pause_fired = True
-            raise BrainFatal(f"[TEST] quota ya uongo imeisha (accounts zote) XMD-PAUSE:{int(self._clock()) + tq}")
+        if tq:
+            if not getattr(self, "_test_pause_at", 0):
+                self._test_pause_at = int(self._clock()) + tq
+            raise BrainFatal(f"[TEST] quota ya uongo imeisha (accounts zote) XMD-PAUSE:{self._test_pause_at}")
         tried: set[str] = set()
         strip_images = False
         no_stream_options = False

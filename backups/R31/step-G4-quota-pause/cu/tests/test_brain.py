@@ -655,13 +655,14 @@ class PauseSnapshotTests(unittest.TestCase):
         b = brain.Brain.__new__(brain.Brain)
         b.cfg = cfg
         b._clock = lambda: 1234567890000
-        b._test_pause_fired = False
-        with self.assertRaises(brain.BrainFatal) as cm:
-            b.handle({}, lambda ev: None)
-        self.assertIn("XMD-PAUSE:", str(cm.exception))
-        # mara ya pili hook haichomi tena: flag ya _test_pause_fired imewekwa (guard);
-        # (handle kamili inahitaji Brain ya init kamili — flag ndiyo uhakika wa mara-moja)
-        self.assertTrue(b._test_pause_fired, "guard ya mara-moja imewekwa")
+        markers = []
+        for _ in range(3):  # SDK ina-retry 529 — hook lazima iwake KILA call, marker ILEILE
+            with self.assertRaises(brain.BrainFatal) as cm:
+                b.handle({}, lambda ev: None)
+            markers.append(str(cm.exception))
+        self.assertTrue(all("XMD-PAUSE:" in m for m in markers), "kila call inafunga fatal")
+        self.assertEqual(len(set(markers)), 1, "marker ni ileile (resume_at imara)")
+        self.assertIn(str(1234567890000 + 5000), markers[0])
 
     def test_bridge_hakuna_flags_zilizoondolewa(self):
         """R31-G4: --max-steps/--max-turns zimeondolewa kabisa — reference yoyote iliyobaki
