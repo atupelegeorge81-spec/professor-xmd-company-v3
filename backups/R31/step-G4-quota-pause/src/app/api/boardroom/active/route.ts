@@ -1,9 +1,9 @@
 import { activeRunner, pausedRunners } from "@/lib/boardRunner";
 export const dynamic = "force-dynamic";
-// R31-G4: ombi lolote linalofika → kagua sessions zilizopumzika (throttle 60s ndani yake).
-void import("@/lib/cu/autoResume").then((m) => m.checkPausedDue()).catch(() => {});
-
 export async function GET() {
+  // R31-G4: kila ombi linakagua sessions zilizopumzika (quota) — throttle 60s ndani ya check.
+  void import("@/lib/cu/autoResume").then((m) => m.checkPausedDue()).catch(() => {});
+
   const r = activeRunner();
   const p = pausedRunners()[0];
   return Response.json({

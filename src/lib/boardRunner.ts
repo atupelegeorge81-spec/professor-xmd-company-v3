@@ -1068,6 +1068,8 @@ async function run(runner: Runner) {
       // awamu ya XMD Computer inaendelea MOJA KWA MOJA. Finale HAI-RUDIWI (kosa la test
       // 6ac3b624/6ac3c713: LLM/Appwrite hiccup kwenye validator/reports za re-run iliuua
       // resume ingawa CU ina snapshot yake ya workspace + chip yake ya hali).
+      // (Kosa la 6ac3ce60: rebuilt runner hana `cu` bado — ensureCuState hapa, si baadaye)
+      if (runner.computerPlanned && !runner.finale?.computer) ensureCuState(runner);
       if (runner.cu?.pausedOnce && !runner.cu?.done && runner.computerPlanned && cuEnabled()) {
         blog("system", "♻️ Quota ilirudi — XMD Computer inaendelea moja kwa moja (snapshot inarejesha workspace).");
         addChip("▶️ Quota ilirudi — XMD Computer inaendelea moja kwa moja kutoka pale ilipoishia.");
