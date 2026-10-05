@@ -382,7 +382,13 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
       // (Koyeb ilipotea kabla ya POST zote kufika — muda wa ushairi). Idempotent: dedupe
       // ya run_end inaondolewa ili finishComputer iweze kukamilisha hata kama item ipo tayari.
       const lastEnd = (cu as any).lastEnd;
-      if (!bridgeAlive && lastEnd) {
+      if (!bridgeAlive && lastEnd && String(lastEnd.status) === "paused_quota") {
+        // R31-G4: pause tayari ipo records (item + chip + snapshot bucket) — USI-RE-PAUSE.
+        // (Kosa la test ya 6ac3b624: replay ilirudisha paused_quota run_end → pauseComputer
+        // tena → timer ya 5s → loop isiyo na mwisho bila traffic → instance ililala.)
+        // Mstari huu: bridge inaanzishwa upya HAPA CHINI na --restore-url ya snapshot.
+        hooks.blog("info", "♻️ Pause ya quota ipo records tayari — bridge inaanzishwa upya (workspace inarejeswa kutoka snapshot).");
+      } else if (!bridgeAlive && lastEnd) {
         hooks.blog("success", "♻️ Bridge imemaliza huko nyuma (Koyeb ilipotea) — run_end inacompletishwa kutoka replay.");
         cu.seen.delete(`run_end:${lastEnd.i}`);
         await handleCuEvent(runner, hooks, lastEnd);
@@ -707,6 +713,7 @@ function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void
   const cu = runner.cu!;
   if (cu.done) return;
   stopHeartbeat(cu);
+  if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; } // race: timer isiandike "running" juu ya "paused"
   cu.pausedOnce = true;
   const resumeAt = Number((ev as any).resume_at) || 0;
   cu.resumeAt = resumeAt;
@@ -718,6 +725,10 @@ function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void
   }
   cu.phaseResolve?.();
   writeCuChip(runner);
+  // sandbox haipaswi kubaki hai: snapshot IPO bucket (ndiyo hali ya kuendelea) — sandbox
+  // iliyo hai kunashika slot ya E2B free na kuingiza resume kwenye mtego wa replay.
+  const sbx = cu.sandbox;
+  if (sbx && cu.snapshot) { setTimeout(() => sbx.kill?.().catch(() => {}), 15_000); }
   if (hooks) {
     void hooks.persist("paused", hooks.title);
     hooks.bcast({ type: "cu", cu: { type: "phase_done", ok: false, status: "paused" } });
@@ -728,7 +739,8 @@ function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void
 /** Timer ya ndani (instance ikizima, instrumentation/active-check zinakamilisha). */
 export function scheduleAutoResume(sessionId: string, resumeAt: number): void {
   if (!sessionId || !resumeAt) return;
-  const ms = Math.max(5_000, Math.min(resumeAt - Date.now(), 2_000_000_000));
+  // resumeAt iliyoisha kabla (mtego wa re-pause au resume ilipotea): 60s — si 5s (loop nzito)
+  const ms = Math.max(resumeAt > Date.now() ? 5_000 : 60_000, Math.min(resumeAt - Date.now(), 2_000_000_000));
   setTimeout(() => {
     void import("./autoResume").then((m) => m.autoResumeSession(sessionId)).catch(() => {});
   }, ms);
@@ -738,6 +750,7 @@ function finishComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): voi
   const cu = runner.cu!;
   if (cu.done) return;
   stopHeartbeat(cu);
+  if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; } // race: "running" isiandike juu ya status ya mwisho
   const status = String(ev.status || "done");
   const ok = !!cu.report && status !== "error";
 
