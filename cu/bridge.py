@@ -37,9 +37,7 @@ BASE_TS = time.time()
 SHOT_RX = _re.compile(r"\[Screenshot[^\]]*\]\(([^)]+\.(?:png|jpe?g))\)", _re.I)
 GITHUB_URL_RX = _re.compile(r"(https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
 PAUSE_RX = _re.compile(r"XMD-PAUSE:(\d{9,15})")
-# R32: budget ya tokens ya run (gharama — idhini ya CEO 06-10: M 2 default) → paused_budget
-BUDGET_RX = _re.compile(r"XMD-BUDGET:(\d{9,15})")
-# R31-G4: snapshot ya workspace wakati wa pause (quota) — files zisirudike zero kesho
+# R31-G4: snapshot ya workspace wakati wa pause (quota) — files zilirudike zero kesho
 SNAP_SKIP = {"node_modules", ".git", ".playwright-mcp", ".cache", ".venv", "__pycache__", ".npm", "playwright-report", ".codeium", ".vscode"}
 
 
@@ -957,13 +955,10 @@ async def main():
     )
 
     # R31-G4: hakuna kikomo cha steps/turns (agizo la CEO 05-10) — budget steps=0 = unlimited.
-    # R32-E: budget ya TOKENS ya gharama (default M 2 — idhini 06-10) inasimamishwa na brain.
-    try:
-        token_budget = int(os.environ.get("CU_TOKEN_BUDGET") or 2_000_000)
-    except ValueError:
-        token_budget = 2_000_000
+    # (R32: HAKUNA token budget — agizo la CEO 06-10 usiku: quota-pause ya LLM ipo tayari;
+    #  models nyingi zinahesabiwa kwa request, si token.)
     em.emit("run_start", task=a.title, model="xmd-computer (Gemini Swap Brain)", size="kati",
-             protocol="claude", budget={"steps": 0, "tokens": token_budget}, files=files_tree(a.workspace)[:80])
+             protocol="claude", budget={"steps": 0, "tokens": 0}, files=files_tree(a.workspace)[:80])
 
     step = 0
     cur: dict[int, dict] = {}
@@ -976,7 +971,6 @@ async def main():
     tools_in_step = set()
     status = "done"
     pause_at_ms = 0   # R31-G4: XMD-PAUSE marker (quota ya siku imeisha) → paused_quota
-    budget_at_ms = 0  # R32-E: XMD-BUDGET marker (gharama ya run imepita budget) → paused_budget
     last_resize = (1280, 800)
     last_tree_emit = 0.0
     gh_url_seen: set[str] = set()
@@ -1239,9 +1233,6 @@ async def main():
                 pm = PAUSE_RX.search(rep or "")
                 if pm:
                     pause_at_ms = int(pm.group(1))
-                bm = BUDGET_RX.search(rep or "")
-                if bm:
-                    budget_at_ms = int(bm.group(1))
                 note_urls(rep, step)
                 em.emit("finish", report=rep or "(hakuna ripoti)", partial=status != "done", status=status)
     except Exception as e:
@@ -1249,9 +1240,6 @@ async def main():
         pm = PAUSE_RX.search(f"{type(e).__name__}: {e}")
         if pm:
             pause_at_ms = int(pm.group(1))
-        bm = BUDGET_RX.search(f"{type(e).__name__}: {e}")
-        if bm:
-            budget_at_ms = int(bm.group(1))
         em.emit("error", message=f"{type(e).__name__}: {str(e)[:300]}")
         sys.stderr.write(traceback.format_exc())
         status = "error"
@@ -1260,17 +1248,7 @@ async def main():
     # R32-C: brake ya hooks iliwaka → status "stuck" (si "done" ya uongo) — UI + Endeleza
     if hook_state.brake_fired and status == "done":
         status = "stuck"
-    if budget_at_ms:
-        # R32-E: gharama ya run imepita token budget → simama kwa uaminifu (si kifo kimya):
-        # snapshot ya workspace + status paused_budget; Endeleza inaendelea na budget MPYA.
-        # (Chip + ujumbe wa UI vinaandikwa na engine kwenye run_end → paused_budget.)
-        status = "paused_budget"
-        snap = make_snapshot(a.workspace)
-        if snap:
-            em.emit("snapshot", big_data=snap, path="ws-snapshot.tar.gz")
-        else:
-            sys.stderr.write("[bridge] snapshot imeachwa (kubwa mno au tupu) — resume bila restore\n")
-    elif pause_at_ms:
+    if pause_at_ms:
         # R31-G4: quota imeisha — snapshot ya workspace ifuate Koyeb (bucket) kabla ya pause;
         # resume ya kesho inairejesha (sandbox mpya, kazi ya jana ipo).
         status = "paused_quota"

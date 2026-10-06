@@ -34,7 +34,7 @@ Session yako uliyoistopisha, kwenye awamu ya XMD Computer:
 |---|---|
 | 1 | **HAKUNA cap ya turns/steps** (agizo lako la 05-10 limesimama). Hooks zinalenga **RUDIA bila maendeleo** pekee, si idadi ya jumla ya turns. |
 | 2 | Hakuna memory ya kudumu kati ya projects (umeikataa). Memory ya run = **file moja ndogo ya hali** (`STATUS.md`) ndani ya workspace. |
-| 3 | Token budget ni ya **gharama**, si ya turns: default **M 2** (idhini 06-10) — env `CU_TOKEN_BUDGET`; ikizidi, run inasimama kwa uaminifu (ripoti + chip + Endeleza inaendelea). |
+| 3 | **HAKUNA token budget kabisa** (agizo la CEO 06-10 usiku — imeondolewa): quota-pause ya LLM (R31-G4) ipo tayari — tokens zikiisha run inasimama na inaendelea YENYEWE; models nyingi zinahesabiwa kwa request, si token. |
 | 4 | Mashine ya SDK ya Claude inatumika kama ilivyo (CLAUDE.md/settings, hooks, compaction). **Hatujengi mfumo mpya wa kwetu.** |
 | 5 | WebSearch/WebFetch za server-side za Anthropic hazitawashwa — searching engine yetu (SearXNG) inakuja kama **MCP tool** ya kiharness (idhini 06-10). |
 | 6 | Hakuna mabadiliko ya UI, hakuna kugusa logic nyingine yoyote ya Board/CU isipokuwa hapo chini. |
@@ -120,15 +120,9 @@ Leo output ya `exit ≠ 0` inakatika kwenye herufi 8,000 kutoku **mwanzo** — v
 
 ---
 
-## 6. Awamu E — TOKEN BUDGET (gharama, si turns)
+## 6. Awamu E — TOKEN BUDGET: IMEONDOLEWA (agizo la CEO 06-10 usiku)
 
-- E1: Brain inahesabu jumla ya tokens za run (tayari inarekodi kila call kwenye `brain-usage.jsonl` — inajumlisha tu).
-- E2: Ikizidi **`CU_TOKEN_BUDGET`** (default inayopendekezwa: **tokens 2,000,000** za run moja — unaweza kubadilisha kwa env bila deploy ya code) → brain inarudisha marker maalum `XMD-BUDGET` (mfano wa XMD-PAUSE uliyoidhinisha) → bridge: run inasimama + **ripoti ya hali** ("nime tumia 2M tokens; nilifika hatua X; yaliyobaki: Y; sababu ya kukwama: Z") + chip ya UI "Imesimama kwa budget — ▶ Endeleza inaendelea".
-- E3: Endeleza inaanza na budget mpya (hali na snapshot vipo tayari kutoka R31-G4).
-
-**Kumbuka**: compaction ya SDK (auto-summarize ya history karibu ya 200K context) inabaki ikifanya kazi yake — hii ni juu yake, inalima gharama ya JUMLA ya run.
-
----
+Hakuna token budget kabisa — quota-pause ya LLM (R31-G4) ipo tayari: tokens za siku zikiisha, run inasimama na inaendelea YENYEWE ikirudi. Compaction ya SDK inaendelea kufanya kazi yake ya context.
 
 ## 7. Awamu F — VITARUSHI VIDOGO (SDK capabilities zilizokuwa zimewashwa-off)
 
@@ -158,7 +152,6 @@ Leo output ya `exit ≠ 0` inakatika kwenye herufi 8,000 kutoku **mwanzo** — v
 | Faili | Mabadiliko |
 |---|---|
 | `cu/bridge.py` | CLAUDE.md au system_prompt ya nidhamu · hooks (settings/`ClaudeAgentOptions`) · output-tail ya makosa · TodoWrite out ya blacklist · blog za hook |
-| `cu/brain.py` | jumlisha usage + `XMD-BUDGET` marker (mfano wa XMD-PAUSE) |
 | `cu/tests/*` | unit tests mpya (hooks, budget, tail) |
 | `src/lib/cu/engine.ts` | (ndogo tu) kupokelewa kwa run_end ya budget + chip ya UI — si mabadiliko ya flow |
 | `docs/`, `backups/R32/` | docs + backups |
@@ -174,7 +167,7 @@ Leo output ya `exit ≠ 0` inakatika kwenye herufi 8,000 kutoku **mwanzo** — v
 
 ## Swali 3 za idhini yako — ZIMEJIBIWA ✓ (06-10 jioni)
 
-1. **Token budget default**: **M 2 za tokens** ✓
+1. **Token budget**: IMEFUTWA kabisa (usiku wa 06-10) ✓
 2. **Ngazi ya hooks**: **Ushauri + brake ya majibu pekee — hakuna block ya command** ✓ (hoja yako: block inamsukuma agent kwenye mkakati mbaya zaidi na kula tokens nyingi zaidi)
 3. **Task\* tools (mrithi wa TodoWrite)**: **WASHA** ✓ (+ Subagents ON, MCP search tool ON — idhini za jioni)
 

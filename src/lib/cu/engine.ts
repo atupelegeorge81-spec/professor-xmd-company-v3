@@ -302,9 +302,8 @@ function bridgeCommand(o: {
     `ANTHROPIC_API_KEY=sk-xmd-local`,
     `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`,
     `PYTHONUNBUFFERED=1`,
-    // R32: budget ya tokens ya run (gharama — default M 2, idhini 06-10) + URL ya search
-    // tool (MCP in-process ya bridge inapiga route ya Koyeb kwanza, fallback SearXNG direct).
-    `CU_TOKEN_BUDGET=${q(process.env.CU_TOKEN_BUDGET || "2000000")}`,
+    // R32: URL ya search tool (MCP in-process ya bridge inapiga route ya Koyeb kwanza,
+    // fallback SearXNG direct). Hakuna token budget — agizo la CEO 06-10 usiku.
     `CU_SEARCH_URL=${q(CU_PUBLIC_URL + "/api/boardroom/cu-search")}`,
     `GITHUB_TOKEN=${q(process.env.CU_GITHUB_TOKEN || process.env.GITHUB_TOKEN || "")}`,
     `GH_TOKEN=${q(process.env.CU_GITHUB_TOKEN || process.env.GITHUB_TOKEN || "")}`,
@@ -746,12 +745,6 @@ export async function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: C
         pauseComputer(runner, hooks, ev);
         break;
       }
-      if (String(ev.status) === "paused_budget") {
-        // R32-E: gharama ya run imepita token budget — PAUSE ya uaminifu (si kifo): snapshot ipo,
-        // hakuna auto-resume (CEO anabonyeza Endeleza = budget mpya ya M 2 inaanza).
-        pauseComputer(runner, hooks, ev, "budget");
-        break;
-      }
       finishComputer(runner, hooks, ev);
       break;
     }
@@ -781,29 +774,21 @@ export function noteProviderUsage(ev: CuEvent, ok: boolean): void {
 }
 
 /** R31-G4: quota ya siku imeisha (accounts zote) → PAUSE, si kifo.
- *  R32-E: cause="budget" → token budget ya RUN imepita (si quota ya siku): hakuna auto-resume,
- *  CEO anabonyeza Endeleza (budget mpya inaanza — env CU_TOKEN_BUDGET, default M 2).
  *  Snapshot ipo bucket (event "snapshot" ilikuja kabla ya run_end); session inahifadhi "paused";
  *  auto-resume inapangwa (in-instance timer + checkPausedDue kwa traffic yoyote/instrumentation). */
-function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent, cause: "quota" | "budget" = "quota"): void {
+function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void {
   const cu = runner.cu!;
   if (cu.done) return;
   stopHeartbeat(cu);
   if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; } // race: timer isiandike "running" juu ya "paused"
   cu.pausedOnce = true;
-  const resumeAt = cause === "budget" ? 0 : (Number((ev as any).resume_at) || 0);
+  const resumeAt = Number((ev as any).resume_at) || 0;
   cu.resumeAt = resumeAt;
-  runner.items.push({ kind: "cu", id: `cu_pause_${runner.items.length}`, i: ev.i, cu: "pause", pauseCause: cause, resumeAt, ms: ev.ms, steps: ev.steps } as any);
+  runner.items.push({ kind: "cu", id: `cu_pause_${runner.items.length}`, i: ev.i, cu: "pause", resumeAt, ms: ev.ms, steps: ev.steps } as any);
   if (hooks) {
-    if (cause === "budget") {
-      const budget = Number(process.env.CU_TOKEN_BUDGET) || 2_000_000;
-      hooks.blog("warning", `🛑 Token budget ya run imepita (${(budget / 1_000_000).toFixed(1)}M) — run imesimama kwa uaminifu; hali imehifadhiwa. ▶ Endeleza = budget mpya.`);
-      hooks.addChip(`🛑 Imesimama kwa token budget — hali imehifadhiwa. ▶ Endeleza inaendelea na budget mpya.`);
-    } else {
-      const t = resumeAt ? new Date(resumeAt).toLocaleTimeString("en-GB", { timeZone: "Africa/Dar_es_Salaam", hour12: false }) : "baadaye";
-      hooks.blog("warning", `⏸️ Tokens za LLM zimeisha (quota ya siku, accounts zote) — session imepumzika; itaendelea YENYEWE ${t}.`);
-      hooks.addChip(`⏸️ XMD Computer imepumzika (quota imeisha) — itaendelea yenyewe ${t}.`);
-    }
+    const t = resumeAt ? new Date(resumeAt).toLocaleTimeString("en-GB", { timeZone: "Africa/Dar_es_Salaam", hour12: false }) : "baadaye";
+    hooks.blog("warning", `⏸️ Tokens za LLM zimeisha (quota ya siku, accounts zote) — session imepumzika; itaendelea YENYEWE ${t}.`);
+    hooks.addChip(`⏸️ XMD Computer imepumzika (quota imeisha) — itaendelea yenyewe ${t}.`);
   }
   cu.phaseResolve?.();
   writeCuChip(runner);

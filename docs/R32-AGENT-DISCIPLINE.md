@@ -1,10 +1,10 @@
 # R32 · Nidhamu ya Agent ya XMD Computer (Claude Agent SDK zenyewe)
 
-> ✅ **IMEKAMILIKA (06-10-2026):** ukaguzi wa sandbox (Awamu A) + implementation + unit tests 78 green +
+> ✅ **IMEKAMILIKA (06-10-2026):** ukaguzi wa sandbox (Awamu A) + implementation + unit tests 75 green +
 > integration test ya sandbox (fail×3 → ushauri×2 → brake → STATUS.md). Uamuzi wa CEO (06-10 jioni):
-> **ushauri + brake ya majibu pekee — HAKUNA block ya command** (block inaweza kumsukuma agent kwenye
-> mkakati mbaya zaidi na kula tokens nyingi zaidi). Budget **M 2** · Task\* tools ON · subagents ON ·
-> MCP search ON.
+> **ushauri + brake ya majibu pekee — HAKUNA block ya command**; **HAKUNA token budget kabisa**
+> (agizo la usiku: quota-pause ya LLM ipo tayari — inasimama na inaendelea yenyewe).
+> Task\* tools ON · subagents ON · MCP search ON.
 
 ## Chanzo cha tatizo (session 6ac4393b — "Modern Male Login System Design")
 
@@ -44,12 +44,11 @@
 
 | Faili | Mabadiliko |
 |---|---|
-| `cu/bridge.py` | `R32_CLAUDE_MD` (sheria 7) · `fingerprint_cmd` · `shape_fail_tail` · `HookState` + `build_xmd_hooks` (PostToolUseFailure/PostToolUse/Stop) · `xmd_web_search` + `build_search_tool` (MCP) · CLAUDE.md inaandikwa workspace · `setting_sources=["project"]` + `append-system-prompt` (badala ya `system_prompt`) · Task\*/Agent/web_search kwenye allowed · `BUDGET_RX` → paused_budget · exec_output tail kwa fails · pkill anchor-fix |
-| `cu/brain.py` | `CU_TOKEN_BUDGET` (default M 2) + `run_tokens` jumla → `BrainFatal … XMD-BUDGET:<ms>` |
+| `cu/bridge.py` | `R32_CLAUDE_MD` (sheria 7) · `fingerprint_cmd` · `shape_fail_tail` · `HookState` + `build_xmd_hooks` (PostToolUseFailure/PostToolUse/Stop) · `xmd_web_search` + `build_search_tool` (MCP) · CLAUDE.md inaandikwa workspace · `setting_sources=["project"]` + `append-system-prompt` (badala ya `system_prompt`) · Task\*/Agent/web_search kwenye allowed · exec_output tail kwa fails · pkill anchor-fix |
 | `src/app/api/boardroom/cu-search/route.ts` | MPYA — search ya sandbox: Bearer token ya run → `searchWeb()` (cache ya semantic inclusive); 401 → bridge ina fallback SearXNG direct |
-| `src/lib/cu/engine.ts` | env `CU_TOKEN_BUDGET` + `CU_SEARCH_URL` kwenye bridgeCommand · case `xmd_hook` (items + chip kwa brake) · `run_end paused_budget` → pauseComputer(cause="budget") — hakuna auto-resume, chip "▶ Endeleza" |
+| `src/lib/cu/engine.ts` | env `CU_SEARCH_URL` kwenye bridgeCommand · case `xmd_hook` (items + chip kwa brake) |
 | `cu/tests/test_r32_hooks.py` | MPYA — 21 tests (fingerprint, streaks 3/6, rewrites 5, brake semantics ×3, tail, search handler mock) |
-| `cu/tests/test_brain.py` | +3 tests (budget accumulation → BrainFatal XMD-BUDGET, default M2, BUDGET_RX) |
+
 
 ## Mtiririko wa nidhamu (unaoendelea sasa)
 
@@ -68,8 +67,6 @@ model imesimama (Stop):
    - jibu lileile tena ──► block#2 ("endelea na hatua nyingine / weka [~]")
    - jibu lileile mara 3 ──► BRAKE: run inasimama + ripoti ya NIMEKWAMA (STATUS.md)
                                 + chip "▶ Endeleza inaanza na hali iliyohifadhiwa"
-tokens za run ≥ M 2 ──► brain: XMD-BUDGET marker → bridge: snapshot + paused_budget
-                                + chip "Imesimama kwa budget — ▶ Endeleza (budget mpya)"
 ```
 
 **Muhakiki wa mapatano na maamuzi ya CEO:**
@@ -78,7 +75,7 @@ tokens za run ≥ M 2 ──► brain: XMD-BUDGET marker → bridge: snapshot + 
 - Ushauri hautafikiri kufika mara kwa mara: unapelekwa mara moja kwa kila kiwango (3, 6, 10, 15) cha streak.
 - Brake ya majibu inawaka tu jibu likirudiwa ≈90% (au prefix) mara 3 — na hook yenyewe ndiyo inayolazimisha
   continuations mbili za kwanza (semantiki za query-mode: `{}` = mwisho wa run).
-- Budget ni ya GHARAMA ya run (jumla ya tokens zote) — si context window; Endeleza = budget mpya (mchakato mpya).
+- HAKUNA token budget: quota ya siku ya LLM (R31-G4) ndiyo inayosimamisha — inaendelea YENYEWE ikirudi.
 - Hakuna memory ya kudumu: HookState + STATUS.md + CLAUDE.md vinaanzia run mpya kila mara.
 
 ## Uthibitisho wa integration (sandbox ya majaribio, fake brain)
@@ -94,4 +91,3 @@ kwenye tools, WebSearch/WebFetch hazipo.
 
 - Subagents za kawaida (AgentDefinition za kawaida kwa "researcher" n.k.) — sasa tool ya Agent ipo
   wazi; majina maalum yataongezwa kwa miradi mikubwa inapokuja.
-- `CU_TOKEN_BUDGET` inabadilika kwa env kwenye Koyeb (default M 2) — hakuna deploy inayohitajika.
