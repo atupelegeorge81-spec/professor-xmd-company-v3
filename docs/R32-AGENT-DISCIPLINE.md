@@ -91,3 +91,26 @@ kwenye tools, WebSearch/WebFetch hazipo.
 
 - Subagents za kawaida (AgentDefinition za kawaida kwa "researcher" n.k.) — sasa tool ya Agent ipo
   wazi; majina maalum yataongezwa kwa miradi mikubwa inapokuja.
+
+## R32.2 (06-10 jioni) — kosa la session halisi 6ac4a63b + ugunduzi 2
+
+Uchunguzi wa session zote mbili za CEO (baada ya R32.1):
+
+**1. Kifo cha session mapema (ya leo — shida kubwa):** CU phase iliisha "done" baada ya tool call
+MOJA tu (`ls`). Chanzo: lanes kuu za Gemini (3.8/3.7-flash) zilikuwa quota-locked — call ya mwisho
+ilifanikiwa kwenye **lane ya dharura (3.5-flash)** na ilitoa jibu la **`<thought>` pekee** (bila
+tool wala text halisi) + end_turn. Stop hook ya R32 iliihiriki kuwa "ripoti ya mwisho" — kosa la
+ufafanuzi wa "stuck". **Fix (R32.2):** jibu ambalo lenye maudhui halisi chini ya herufi 40 baada ya
+kuondoa `<thought>` tags SI mwisho halali → hook inalazimisha kuendelea (reason: "endelea moja kwa
+moja na hatua inayofuata — tumia zana"); mfululizo > 6 (bila tool kati) → brake + ripoti ya
+NIMEKWAMA; **tool yoyote iliyofanikiwa inareset counter** (maendeleo halisi hayasubiwi).
+
+**2. "Hakuna tokens za GitHub/Vercel" (session ya nyuma, kabla ya update):** agent **aliizua** —
+exec 68 zote hazina hata moja ya `gh`/`vercel`/`git` (alidai tu kwenye ripoti baada ya kuzama kwenye
+mzunguko wa test zilizofeli). Tokeni zipo kweli kwenye Koyeb (`CU_GITHUB_TOKEN` github_pat_…,
+`CU_VERCEL_TOKEN` vcp_… — zimehakikiwa). Sheria za R32 CLAUDE.md (#7 usikadiriwa) + ushauri wa
+mzunguko wa test (fail 3 → hypotheses) zinashughulikia aina hii sasa.
+
+**3. Slow sana (board phase):** lanes 6 za Gemini zilifeli kila call (429/503) kabla ya kufanikiwa
+kwenye 3.6/3.5-flash — kila request ya CLI = majaribio mengi ya lane + cooldown sleeps. Hii ni
+**mazingira (quota ya siku)**, si code — quota ikirudi, kasi inarudi.

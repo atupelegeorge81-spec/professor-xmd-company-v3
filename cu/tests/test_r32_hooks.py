@@ -123,12 +123,16 @@ class TestBrake(unittest.TestCase):
         out = st.note_answer("Hatua ya pili imekamilika: tests 12 zinapita, GitHub imepushiwa.")
         self.assertEqual(out, {})
 
-    def test_jibu_fupi_hauhesabiwi(self):
+    def test_jibu_fupi_hauhesabiwi_kwenye_answers(self):
         st = HookState()
         out = {}
         for _ in range(4):
             out = st.note_answer("sawa")
-        self.assertEqual(out, {})
+        # R32.2: jibu fupi si mwisho halali → block (lakini HAISHIRIKI kwenye answers za
+        # similarity — hapa ni empty-stops tu, si brake ya majibu)
+        self.assertIn("block_reason", out)
+        self.assertEqual(st.answers, [], "jibu fupi haingii kwenye orodha ya majibu")
+        self.assertFalse(st.brake_fired)
 
     def test_karibu_sawa_x3_brake(self):
         st = HookState()
@@ -265,3 +269,53 @@ class TestSearchTool(unittest.TestCase):
         out = asyncio.run(br.xmd_web_search({"query": "  "}, "", "", ""))
         body = json.loads(out["content"][0]["text"])
         self.assertEqual(body["results"], [])
+
+
+class TestEmptyStops(unittest.TestCase):
+    """R32.2: kosa la session 6ac4a63b — jibu la mwisho lilikuwa <thought> pekee (bila tool wala
+    text) kutoka lane ya dharura; run iliisha "done" baada ya tool 1. Sasa: SI mwisho halali."""
+
+    def test_thought_pekee_inarudishwa_kama_block(self):
+        st = HookState()
+        thought = ("<thought>**Initiating Next.js Project**\n\nI've determined the workspace is "
+                   "empty except for CLAUDE.md, so Next.js is the next logical step.\n</thought>")
+        out = st.note_answer(thought)
+        self.assertIn("block_reason", out)
+        self.assertIn("thought pekee", out["block_reason"])
+        self.assertEqual(st.empty_stops, 1)
+
+    def test_empty_stops_x7_brake(self):
+        st = HookState()
+        outs = [st.note_answer(f"<thought>tafakari ndefu sana nambari {i} kuhusu project hii</thought>")
+                for i in range(7)]
+        self.assertEqual(["block_reason" in o for o in outs[:6]], [True] * 6)
+        self.assertEqual(outs[6].get("brake"), True)
+        self.assertTrue(st.brake_fired)
+
+    def test_tool_progress_inareset_empty_stops(self):
+        st = HookState()
+        for _ in range(5):
+            st.note_answer("<thought>tafakari ndefu sana kuhusu project hii ya login system</thought>")
+        st.note_tool_progress()
+        out = st.note_answer("<thought>tafakari nyingine tena ndefu sana kuhusu hatua inayofuata</thought>")
+        self.assertIn("block_reason", out)
+        self.assertEqual(st.empty_stops, 1, "counter imerudi 1 baada ya tool — si brake")
+
+    def test_thought_na_text_halisi_ni_mwisho_wa_kawaida(self):
+        st = HookState()
+        ans = ("<thought>napanga muhtasari</thought>\n\nRIPOTI: Kazi yote imekamilika; live link "
+               "https://x.vercel.app na GitHub repo zipo tayari.")
+        out = st.note_answer(ans)
+        self.assertEqual(out, {}, "text halisi ipo nje ya thought — mwisho halali")
+
+    def test_text_tupu_au_fupi_ni_empty_stop(self):
+        st = HookState()
+        self.assertIn("block_reason", st.note_answer("   \nSawa.  "))
+        self.assertIn("block_reason", st.note_answer(""))
+
+    def test_jibu_halisi_baada_ya_empty_stop_inaisha_vizuri(self):
+        st = HookState()
+        st.note_answer("<thought>tafakari kwanza kabisa kuhusu jinsi ya kuanza project hii</thought>")
+        out = st.note_answer("RIPOTI YA MRADI: Hongera — kazi imekamilika, live link na GitHub repo zipo.")
+        self.assertEqual(out, {})
+        self.assertEqual(st.empty_stops, 0)

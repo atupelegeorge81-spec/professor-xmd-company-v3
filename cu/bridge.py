@@ -37,6 +37,8 @@ BASE_TS = time.time()
 SHOT_RX = _re.compile(r"\[Screenshot[^\]]*\]\(([^)]+\.(?:png|jpe?g))\)", _re.I)
 GITHUB_URL_RX = _re.compile(r"(https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
 PAUSE_RX = _re.compile(r"XMD-PAUSE:(\d{9,15})")
+# R32.2: thoughts za Gemini (zinavuja kwenye jibu la mwisho) — kuwa na maudhui halisi
+THOUGHT_RX = _re.compile(r"<(?:thought|thinking)>([\s\S]*?)</(?:thought|thinking)>", _re.I)
 # R31-G4: snapshot ya workspace wakati wa pause (quota) — files zilirudike zero kesho
 SNAP_SKIP = {"node_modules", ".git", ".playwright-mcp", ".cache", ".venv", "__pycache__", ".npm", "playwright-report", ".codeium", ".vscode"}
 
@@ -426,6 +428,10 @@ class HookState:
         self.brake_fired = False
         self.cont_blocks = 0
         self.advice_given_at: dict[str, int] = {}
+        # R32.2: "empty stops" — model imesimama ikiwa na <thought> pekee / bila maudhui halisi.
+        # (Kosa la 6ac4a63b: call ya mwisho ilitoka lane ya dharura ikiwa thought tu — run
+        #  ikaisha "done" baada ya tool 1. Sasa: thought-pekee SI mwisho halali.)
+        self.empty_stops = 0
 
     # ---- Bash
     def note_bash_fail(self, cmd: str, err: str) -> None:
@@ -479,17 +485,40 @@ class HookState:
             )
 
     # ---- majibu ya mwisho (brake)
+    @staticmethod
+    def _visible_text(answer: str) -> str:
+        """Maudhui halisi ya jibu — <thought>/<thinking> zimeondolewa (R32.2)."""
+        return THOUGHT_RX.sub(" ", answer or "").strip()
+
+    def note_tool_progress(self) -> None:
+        """Tool ilifanikiwa = kuna maendeleo — empty-stops mfululizo zianza upya (R32.2)."""
+        self.empty_stops = 0
+
     def note_answer(self, answer: str) -> dict:
         """Semantiki za query-mode: Stop hook ikirudisha {} run INAISHA — kwa hiyo "jibu lileile
         ×3" linawezekana tu kama hook yenyewe inalazimisha continuation kwanza.
 
         Inarudisha:
-          {"brake": True}          → jibu lileile ×3 (≈90%) → {"continue": false}
-          {"block_reason": "..."}  → run iko stuck (ushauri haujafika / jibu linarudiwa)
-                                     → {"decision": "block", "reason": …} (ushauri unaleta pili)
-          {}                        → mwisho wa kawaida — run inaisha vizuri
+          {"brake": True}          → jibu lileile ×3 (≈90%) AU empty-stops > 6 → {"continue": false}
+          {"block_reason": "..."}  → run iko stuck (ushauri haujafika / jibu linarudiwa /
+                                     jibu ni thought-pekee) → {"decision": "block", "reason": …}
+          {}                        → mwisho wa kawaida (jibu halisi) — run inaisha vizuri
         """
-        norm = _re.sub(r"\s+", " ", (answer or "")).strip().lower()
+        # R32.2: jibu lenye <thought> pekee / text isiyofikia herufi 40 SI mwisho halali —
+        # model (hasa lane za dharura) inaishisha "kimya" wakati kazi bado. Lazimisha aendelee.
+        visible = self._visible_text(answer)
+        if len(visible) < 40:
+            self.empty_stops += 1
+            if self.empty_stops > 6:
+                self.brake_fired = True
+                return {"brake": True}
+            return {"block_reason": (
+                f"XMD NIDHAMU: umeisha na thought pekee bila kutekeleza chochote "
+                f"(stop tupu #{self.empty_stops}/6 mfululizo). USISIMAME bila kazi: endelea "
+                "MOJA KWA MOJA na hatua inayofuata ya mpango kwa kutumia zana (Bash/Write/Edit). "
+                "Ripoti ya Kiswahili inakuja MWISHONI tu, baada ya kazi yote.")}
+        self.empty_stops = 0
+        norm = _re.sub(r"\s+", " ", visible).strip().lower()
         if len(norm) >= 40:   # majibu mafupi (mf. "sawa") hayashiriki
             self.answers.append(norm)
             self.answers = self.answers[-3:]
@@ -558,6 +587,7 @@ def build_xmd_hooks(state: HookState, em, workspace: str):
         try:
             name = hook_input.get("tool_name") or ""
             ti = hook_input.get("tool_input") or {}
+            state.note_tool_progress()   # R32.2: tool ilifanikiwa — empty-stops zianza upya
             if name == "Bash":
                 state.note_bash_ok(str(ti.get("command") or ""))
             elif name in ("Write", "Edit", "NotebookEdit"):
@@ -578,10 +608,13 @@ def build_xmd_hooks(state: HookState, em, workspace: str):
                 # Ripoti ya "NIMEKWAMA" inaandikwa na hook yenyewe (model haisikii stopReason)
                 try:
                     top = sorted(state.fail_streak.items(), key=lambda kv: -kv[1])[:3]
+                    why = (f"Model imesimama {state.empty_stops} mara mfululizo ikiwa na thought "
+                           "pekee bila kutekeleza kazi (stop tupu)." if state.empty_stops > 6 else
+                           "Jibu la mwisho limerudiwa karibu kwa usawa mara 3 — hakukuwa na maendeleo ya kutosha.")
                     lines = ["# NIMEKWAMA — Ripoti ya Brake (R32)", "",
                              f"*Wakati: {time.strftime('%Y-%m-%d %H:%M:%S')}*", "",
                              "## Kwa nini imesimama",
-                             "Jibu la mwisho limerudiwa karibu kwa usawa mara 3 — hakukuwa na maendeleo ya kutosha.", "",
+                             why, "",
                              "## Commands zilizo-feli zaidi (fingerprint streak)"]
                     for fp, n in top:
                         ex = (state.fail_examples.get(fp) or "").strip().splitlines()
