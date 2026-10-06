@@ -132,3 +132,32 @@ blocks zilizofungwa kwanza, KISHA (b) tag iliyofunguliwa isiyofungwa + kila kitu
 (`UNCLOSED_THOUGHT_RX` — mfano huununua ThinkTagSplitter). Vilevile `<thinking>`. Tests 86
 green (+5 za unclosed: block, ×7 brake, `<thinking>`, closed+kisha-unclosed, text halisi
 kabla ya tag isiyofungwa inaisha vizuri).
+
+## R33 (06-10 usiku) — screenshots moja kwa kila page + mabaki + Resume card (agizo la CEO)
+
+**1. Screenshot MOJA kwa kila page/view ("PICHA IPO TAYARI"):** CEO alikumbusha sheria ya xmd3 —
+kila page inatakiwa screenshot moja; ya pili ya page ileile inakataliwa. Ukweli wa code: xmd3/v3
+zilikuwa na dedup ya **content-hash pekee** (picha zilezile zinapuuliwa kimya kwenye UI). Sasa
+v3 ina **PreToolUse hook** inayomkataa AGENT yenyewe: key = (page_url, viewport); navigate/click/
+type/tabs/resize zinafungua picha mpya (desktop→mobile ya page moja bado inaruhusiwa — workflow
+ya verification inavyohitaji); kosa la kukataa linafika model kama reason. System prompt
+imeongezwa sheria: kila page ya mradi inahitaji screenshot yake moja. Bash bado HAKUBLOCKIWI
+(msimamo wa CEO unabaki) — hii ni pekee ya screenshots zilizokuwa zinapoteza tokens.
+
+**2. Mabaki (yaliyoidhinishwa "Sawa"):**
+- *Ripoti si code-dump* (kosa la 6ac4b789: `<tool_code>` dump ya file): `_is_code_dump()` —
+  ripoti yenye alama za sehemu (RIPOTI/Live/GitHub/Muhtasari/🌐🐙📱📁✅🔗) halali; `<tool_code>`
+  au >70% ya mistari ni code bila alama → block (max 2, kisha inaishishwa).
+- *Tests ziliyoandikwa lazima ziendeshwe*: Write ya test file (`tests/`, `*.spec/test.*`) inaweka
+  `tests_written`; Bash yoyote ya runner (playwright/vitest/jest/pytest/npm test/go test…) inaweka
+  `tests_run` (hata ikifeli baadaye — jaribio linahesabiwa); Stop ikiwa tests_written bila
+  tests_run → block "endelea: endesha tests, onesha matokeo, AU weka [~] + sababu" (max 2).
+
+**3. Resume card (frontend):** `pausedInfo` ni ya global — card ya "Mjadala umesimamishwa"
+ilikuwa inaonekana kwenye KILA session unayoifungua (hata zilizoisha). Sasa `pausedHere`:
+inaonekana kwenye session iliyopausiwa PEKEE (au board root bila session waliyoifungua). R20
+"Endeleza" card ya session zilizokatika pia imefungwa scope ileile (haifichwi tena na pause ya
+session nyingine).
+
+**Tests:** python 104/104 (+18: dedup 6, tests-tracking 5, report-language 5, regex 2);
+vitest 69/69; tsc OK.

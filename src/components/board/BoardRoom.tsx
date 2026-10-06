@@ -162,6 +162,12 @@ export function BoardRoom() {
   const turnsOf = (id: AgentId) => items.filter((i) => i.kind === "turn" && i.agent === id).length;
   const agendaTotal = agendaList.length || stage.total;
   const resumeId = board.runnerId || board.sessionId;
+  /* R33: card ya Resume ni ya session ILIYOPAUSIWA pekee — si ya kila session unayofungua.
+     (Kosa lililoripotiwa 06-10: ukifungua conversation nyingine iliyoisha, card ya pause
+     ya session nyingine ilikuwa inaonekana hapo. Sasa: inaonekana kwenye session husika,
+     au kwenye board root hakuna session waliyoifungua.) */
+  const pausedHere = !!board.pausedInfo &&
+    (!board.sessionId || board.pausedInfo.sessionId === board.sessionId);
 
   /* ================= EMPTY STATE ================= */
   if (phase === "idle") {
@@ -358,14 +364,15 @@ export function BoardRoom() {
             </div>
           )}
           {/* R20 — session iliyokatika (mtandao/server): kinachokosekana + Endeleza (inakamilisha kilichobaki tu) */}
-          {mode === "replay" && conn === "closed" && board.unfinished.length > 0 && board.sessionId && !board.pausedInfo && (
+          {mode === "replay" && conn === "closed" && board.unfinished.length > 0 && board.sessionId && !pausedHere && (
             <div className="mx-auto mb-2 flex max-w-[860px] items-center gap-2 rounded-xl border border-[var(--color-line)] bg-white/[0.02] px-3 py-2 text-[12px] text-[var(--color-muted)]">
               <AlertTriangle size={13} className="shrink-0 text-[var(--color-warn)]" />
               <span className="min-w-0 flex-1">Haijakamilika: <span className="text-[var(--color-fg-2)]">{board.unfinished.join(" · ")}</span></span>
               <button onClick={() => board.resume(board.sessionId!)} className="btn-white flex h-7 shrink-0 items-center gap-1 rounded-lg px-2.5 text-[11.5px] font-medium"><Play size={11} /> Endeleza</button>
             </div>
           )}
-          {mode !== "live" && board.pausedInfo && (
+          {/* R16.1/R33 — pause: card hii ni ya session HII iliyopausiwa pekee (au board root bila session) */}
+          {mode !== "live" && board.pausedInfo && pausedHere && (
             <div className="mx-auto mb-2 flex max-w-[860px] items-center gap-2 rounded-xl border border-[var(--color-line)] bg-white/[0.02] px-3 py-2 text-[12px] text-[var(--color-muted)]">
               <Pause size={13} className="shrink-0 text-[var(--color-warn)]" />
               <span className="min-w-0 flex-1 truncate">Mjadala umesimamishwa: <span className="text-[var(--color-fg-2)]">{board.pausedInfo.project}</span></span>

@@ -42,6 +42,12 @@ THOUGHT_RX = _re.compile(r"<(?:thought|thinking)>([\s\S]*?)</(?:thought|thinking
 # R32.2b: tag ILIYOFUNGULIWA isiyofungwa (hakuna </thought>) — kama ThinkTagSplitter, kila kitu
 # kutoka tag hapo hadi mwisho ni thought (session 6ac4a63b na 6ac4af5e zote zilikufa hivi).
 UNCLOSED_THOUGHT_RX = _re.compile(r"<(?:thought|thinking)>[\s\S]*$", _re.I)
+# R33: test files (zilizoandikwa) na test runners (zilizoendeshwa)
+TEST_FILE_RX = _re.compile(r"(?:^|[\\/])(?:tests?|__tests__)[\\/]|\.spec\.(?:ts|tsx|js|jsx|mjs)$|\.test\.(?:ts|tsx|js|jsx|mjs)$|_test\.(?:go|py)$|(^|[\\/])test_[^\\/]*\.py$", _re.I)
+TEST_RUN_RX = _re.compile(r"\b(?:npx\s+(?:--yes\s+)?playwright\s+test|playwright\s+test|vitest|jest\b|pytest\b|npm\s+(?:run\s+)?test|npm\s+test|yarn\s+test|pnpm\s+(?:run\s+)?test|node\s+--test|go\s+test\b|cargo\s+test\b)\b", _re.I)
+# R33: ripoti halisi ya Kiswahili ina alama za sehemu zake; code-dump haina
+REPORT_MARK_RX = _re.compile(r"RIPOTI|Live Website|GitHub|Muhtasari|vercel\.app|github\.com|🌐|🐙|📱|📁|✅|🔗", _re.I)
+CODE_LINE_RX = _re.compile(r"^\s*(?:import\s|from\s+\S+\s+import|const\s|let\s|var\s|function\s|def\s|class\s|test\(|describe\(|it\(|await\s|return\s|export\s|console\.|print\(|}\s*\)|\{|\}$|//|#include|<\?php|<!DOCTYPE|<html)", _re.IGNORECASE)
 # R31-G4: snapshot ya workspace wakati wa pause (quota) — files zilirudike zero kesho
 SNAP_SKIP = {"node_modules", ".git", ".playwright-mcp", ".cache", ".venv", "__pycache__", ".npm", "playwright-report", ".codeium", ".vscode"}
 
@@ -435,6 +441,17 @@ class HookState:
         # (Kosa la 6ac4a63b: call ya mwisho ilitoka lane ya dharura ikiwa thought tu — run
         #  ikaisha "done" baada ya tool 1. Sasa: thought-pekee SI mwisho halali.)
         self.empty_stops = 0
+        # R33: screenshot MOJA kwa kila page/view ("picha ipo tayari" — agizo la CEO 06-10 usiku)
+        self.page_url: str = ""
+        self.viewport: tuple = (1280, 800)
+        self.last_shot_key: tuple | None = None
+        self.page_dirty: bool = True    # kitu chochote kinachobadilisha page/view tangu shot ya mwisho
+        self.shot_denies: int = 0
+        # R33: mabaki — tests ziliyoandikwa lazima ziendeshwe; ripoti si code-dump
+        self.tests_written: bool = False
+        self.tests_run: bool = False
+        self.report_blocks: int = 0
+        self.test_blocks: int = 0
 
     # ---- Bash
     def note_bash_fail(self, cmd: str, err: str) -> None:
@@ -525,6 +542,26 @@ class HookState:
                 "MOJA KWA MOJA na hatua inayofuata ya mpango kwa kutumia zana (Bash/Write/Edit). "
                 "Ripoti ya Kiswahili inakuja MWISHONI tu, baada ya kazi yote.")}
         self.empty_stops = 0
+        # R33: ripoti si code-dump (max 2 blocks — model inapata nafasi 2 za kujirekebisha, kisha inaishishwa)
+        if self._is_code_dump(visible):
+            self.report_blocks += 1
+            if self.report_blocks <= 2:
+                return {"block_reason": (
+                    "XMD NIDHAMU: hii SI ripoti — umeituma maudhui ya CODE ya file (dump). "
+                    "Andika RIPOTI YA MRADI kwa Kiswahili: muhtasari wa kazi, 🌐 Live Website Link "
+                    "(au usema wazi haikufanyika), 🐙 GitHub Repository, 📱 Muhtasari wa Majaribio "
+                    "(picha ulizopiga), 📁 Muundo wa Faili, ✅ Ukaguzi wa Hatua. USIRUDIE code ya "
+                    "file — muhtasari tu.")}
+        # R33: tests ziliyoandikwa lazima ziendeshwe (max 2 blocks — kisha sababu + [~] halali)
+        if self.tests_written and not self.tests_run:
+            self.test_blocks += 1
+            if self.test_blocks <= 2:
+                return {"block_reason": (
+                    "XMD NIDHAMU: umeandika test files lakini HAZIJAEENDESHWA bado. Endesha zako "
+                    "(mf. `npx playwright test` / `npm test` / `pytest`) na onesha matokeo "
+                    "(zimepita / imefeli wapi na kwa nini), KISHA andika ripoti ya Kiswahili. "
+                    "Kama haikuwezekana kwa sababu halisi (dependencies, environment), andika "
+                    "sababu wazi kwenye ripoti na weka alama [~].")}
         norm = _re.sub(r"\s+", " ", visible).strip().lower()
         if len(norm) >= 40:   # majibu mafupi (mf. "sawa") hayashiriki
             self.answers.append(norm)
@@ -565,6 +602,70 @@ class HookState:
         out, self.pending = self.pending, ""
         return out
 
+    # ---- R33: screenshots — MOJA kwa kila page/view ("picha ipo tayari")
+    NAV_TOOLS = frozenset((
+        "mcp__pw__browser_navigate", "mcp__pw__browser_navigate_back", "mcp__pw__browser_tabs",
+        "mcp__pw__browser_click", "mcp__pw__browser_resize", "mcp__pw__browser_type",
+        "mcp__pw__browser_fill_form", "mcp__pw__browser_select_option", "mcp__pw__browser_press_key",
+    ))
+
+    def note_pre_tool(self, name: str, ti: dict) -> dict:
+        """PreToolUse (R33): kataa screenshot YA PILI ya page/view ileile — hakuna kilichobadilika
+        tangu ile ya kwanza. Mabadiliko ya page (navigate/click/type) au view (resize) yanafungua.
+        Pia: kila jaribio la kuendesha test-runner linafungua mlango wa "tests_run" (hata likifeli)."""
+        if name in self.NAV_TOOLS:
+            self.page_dirty = True
+        if name == "Bash":
+            if TEST_RUN_RX.search(str(ti.get("command") or "")):
+                self.tests_run = True
+        if name.endswith("browser_take_screenshot"):
+            key = (self.page_url, self.viewport)
+            if key == self.last_shot_key and not self.page_dirty:
+                self.shot_denies += 1
+                return {"deny": (
+                    f"PICHA IPO TAYARI kwa page hii ({self.page_url or 'ya sasa'} · view "
+                    f"{self.viewport[0]}x{self.viewport[1]}) — screenshot MOJA kwa kila page/view "
+                    "inatosha. USIPIGE tena ileile: endelea na hatua inayofuata ya mpango. Picha "
+                    "mpya inaruhusiwa TU baada ya kubadilisha page (navigate/click) au view (resize).")}
+        return {}
+
+    def note_post_tool(self, name: str, ti: dict) -> None:
+        """PostToolUse (R33): track page/viewport, shot iliyofanikiwa, na test files zilizoandikwa."""
+        if name == "mcp__pw__browser_navigate":
+            u = str(ti.get("url") or "")
+            if u:
+                self.page_url = u
+        elif name == "mcp__pw__browser_resize":
+            try:
+                w = int(ti.get("width") or 0)
+                h = int(ti.get("height") or 0)
+                if w > 0 and h > 0:
+                    self.viewport = (w, h)
+            except Exception:
+                pass
+        elif name.endswith("browser_take_screenshot"):
+            self.last_shot_key = (self.page_url, self.viewport)
+            self.page_dirty = False
+        elif name in ("Write", "Edit", "NotebookEdit"):
+            p = str(ti.get("file_path") or ti.get("path") or "")
+            if p and TEST_FILE_RX.search(p):
+                self.tests_written = True
+
+    @staticmethod
+    def _is_code_dump(text: str) -> bool:
+        """R33: ripoti ya mwisho ni muhtasari wa Kiswahili — si maudhui ya file/code.
+        (Kosa la 6ac4b789: lane ya dharura ilituma <tool_code>… dump ya file.)"""
+        t = text or ""
+        if REPORT_MARK_RX.search(t):
+            return False    # alama za sehemu za ripoti zipo — si dump
+        if "<tool_code" in t.lower() or "print(default_api." in t:
+            return True
+        lines = [l for l in t.splitlines() if l.strip()]
+        if len(lines) < 10:
+            return False
+        code = sum(1 for l in lines if CODE_LINE_RX.match(l))
+        return code / len(lines) > 0.7
+
 
 def build_xmd_hooks(state: HookState, em, workspace: str):
     """R32-C: hooks za SDK (ushauri + brake; HAKUNA block — idhini ya CEO 06-10 jioni).
@@ -574,8 +675,27 @@ def build_xmd_hooks(state: HookState, em, workspace: str):
       • PostToolUse (.*)           → inarekebisha streaks/rewrites NA inatoa ushauri uliokusanywa
                                     kupitia additionalContext (inafika model ✓, bila kuzuia chochote)
       • Stop                       → jibu lileile ×3 → {"continue": false} + ripoti ya NIMEKWAMA
+
+    R33 (agizo la CEO 06-10 usiku — pekee): PreToolUse inaKATAA screenshot ya pili ya page/view
+    ileile ("PICHA IPO TAYARI"). Hii ndizo tool zilizokuwa zinapoteza tokens bila mpangilio;
+    commands za Bash bila HAKUNA kublock (msimamo wa CEO unabaki).
     """
     import asyncio
+
+    async def pre_tool(hook_input, tool_input, ctx):
+        try:
+            name = hook_input.get("tool_name") or ""
+            ti = hook_input.get("tool_input") or {}
+            verdict = state.note_pre_tool(name, ti)
+            if verdict.get("deny"):
+                em.emit("xmd_hook", kind="shot_deny", text=str(verdict["deny"])[:500])
+                return {"decision": "block", "reason": verdict["deny"],
+                        "hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                               "permissionDecision": "deny",
+                                               "permissionDecisionReason": verdict["deny"]}}
+        except Exception as e:
+            sys.stderr.write(f"[bridge] hook pre_tool: {e}\n")
+        return {}
 
     async def bash_failed(hook_input, tool_input, ctx):
         try:
@@ -595,6 +715,7 @@ def build_xmd_hooks(state: HookState, em, workspace: str):
             name = hook_input.get("tool_name") or ""
             ti = hook_input.get("tool_input") or {}
             state.note_tool_progress()   # R32.2: tool ilifanikiwa — empty-stops zianza upya
+            state.note_post_tool(name, ti)   # R33: page/viewport/shot-success/tests-written
             if name == "Bash":
                 state.note_bash_ok(str(ti.get("command") or ""))
             elif name in ("Write", "Edit", "NotebookEdit"):
@@ -655,6 +776,7 @@ def build_xmd_hooks(state: HookState, em, workspace: str):
 
     from claude_agent_sdk import HookMatcher
     return {
+        "PreToolUse": [HookMatcher(matcher=".*", hooks=[pre_tool])],
         "PostToolUseFailure": [HookMatcher(matcher="Bash", hooks=[bash_failed])],
         "PostToolUse": [HookMatcher(matcher=".*", hooks=[any_tool_ok])],
         "Stop": [HookMatcher(matcher=".*", hooks=[on_stop])],
@@ -825,12 +947,16 @@ def build_system_prompt(gh_org: str, gh_user: str, done_steps: list[int], total_
         "     (or the project's own preview server on port 8080/4173/3000).\n"
         "   - Verify the server is healthy: `curl -sI http://127.0.0.1:8080`.\n"
         "   - Open the live page with `mcp__pw__browser_navigate` (e.g. `http://127.0.0.1:8080/index.html`).\n"
-        "   - Capture verification screenshots:\n"
+        "   - SCREENSHOT SHERIA: piga screenshot MOJA kwa KILA page/view muhimu ya mradi:\n"
         "       1. Desktop View (1280x800) of Tab 1 (Main view).\n"
         "       2. Phone View (375x667 via `mcp__pw__browser_resize`) of Tab 1.\n"
         "       3. Interact / Switch to Tab 2 (via `mcp__pw__browser_click`).\n"
         "       4. Phone View (375x667) of Tab 2.\n"
         "       5. Desktop View (1280x800) of Tab 2.\n"
+        "   - KILA page ya mradi (login, signup, dashboard, n.k.) inahitaji screenshot yake MOJA — usiruke page.\n"
+        "   - UKIJARIBU kupiga picha YA PILI ya page/view ILEILE bila kubadilisha chochote, mfumo unakataa\n"
+        "     (\"PICHA IPO TAYARI\") — hamna hasara; endelea na hatua inayofuata. Picha mpya\n"
+        "     inaruhusiwa baada ya kubadilisha page (navigate/click) au view (resize) tu.\n"
         "   - Close the browser when done (`mcp__pw__browser_close`).\n"
         "\n"
         "2. Git & GitHub Repository Push:\n"

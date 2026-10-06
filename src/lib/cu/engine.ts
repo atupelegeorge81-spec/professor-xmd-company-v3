@@ -736,6 +736,9 @@ export async function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: C
         hooks.addChip("🛑 XMD Computer imesimama (jibu lilelile ×3) — ripoti ipo STATUS.md. ▶ Endeleza inaendelea.");
       } else if (kind === "advice" && hooks) {
         hooks.blog("info", `⚠️ Nidhamu: ${String(ev.text || "").slice(0, 180)}`);
+      } else if (kind === "shot_deny" && hooks) {
+        // R33: screenshot ya pili ya page ileile imekataliwa ("picha ipo tayari")
+        hooks.blog("info", `📷 Picha ipo tayari (page ileile): ${String(ev.text || "").slice(0, 160)}`);
       }
       schedulePersist(runner, hooks!, true);
       break;
