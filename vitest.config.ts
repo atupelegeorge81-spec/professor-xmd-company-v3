@@ -6,4 +6,8 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },
+  // backups/ = nakala za kumbukumbu za Rxx (si code ya sasa) — tests zake hazina dependencies zote
+  test: {
+    exclude: ["**/node_modules/**", "**/dist/**", "backups/**"],
+  },
 });

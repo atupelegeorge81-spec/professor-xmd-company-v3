@@ -215,17 +215,28 @@ export function streamRunner(runner: Runner): Response {
   });
 }
 
-export function startRun(project: string): Runner {
+export function startRun(project: string, opts: { force?: boolean } = {}): Runner {
   const existing = activeRunner();
-  if (existing) {
+  if (existing && !opts.force) {
     broadcast(existing, { type: "system", text: "♻️ Kuna mjadala unaoendelea background — umerejea kwake." });
     return existing;
+  }
+  // R32.1 (agizo la CEO 06-10): kazi MPYA = session MPYA daima — mjadala unaoendelea
+  // unasimamishwa (unasalia resumable kutoka Sessions), mpya inachukua uwanja.
+  let pausedProject: string | null = null;
+  if (existing) {
+    pausedProject = existing.project;
+    broadcast(existing, { type: "system", text: "🆕 Session mpya imeanza (“" + project.slice(0, 80) + "”) — mjadala huu umesimamishwa; utaendelea nayo kutoka Sessions (Resume)." });
+    pauseRun(existing.id);
   }
   const id = nid();
   const runner: Runner = { id, project, status: "running", items: [], buffer: [], subs: new Set(), startedAt: Date.now(), pauseAbort: new AbortController(), mode: BOARD_PLAN_MODE ? "plan" : "code",
     // R31: sessions mpya zimepangiwa computer-use (mazingira yakiwa yamekamilika); zamani hazina flag → hazigusiwi
     computerPlanned: BOARD_PLAN_MODE && cuEnabled() ? true : undefined };
   runners.set(id, runner);
+  if (pausedProject) {
+    chip(runner, "⏸️ Mjadala uliopita (“" + pausedProject.slice(0, 60) + "”) umesimamishwa ili hii ianze — utaendelea nayo kutoka Sessions (Resume).");
+  }
   if (runners.size > 3) {
     for (const [k, v] of runners) { if (v.status !== "running" && v.status !== "paused" && k !== id) { runners.delete(k); break; } }
   }

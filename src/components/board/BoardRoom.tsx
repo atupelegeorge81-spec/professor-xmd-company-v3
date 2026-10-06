@@ -68,8 +68,11 @@ export function BoardRoom() {
       return;
     }
     if (params.get("new")) {
-      // session mpya: safisha historia iliyofunguliwa (mjadala hai hauguswi — engine inaruhusu mmoja tu)
-      if (!(board.mode === "live" && (board.conn === "streaming" || board.conn === "connecting"))) board.clear();
+      // R32.1: "New session" = board tupu DAIMA. Mjadala unaendelea haupotei — unaendelea
+      // kwenye server (unapatikana Sessions / auto-attach ya baadaye); kazi mpya (start force)
+      // ndiyo itaipuuza. Guard ya zamani (usisafishe ukiwa live) ilirudisha user kwenye
+      // session ya zamani bila kufanya kitu — ndiyo kilichulizwa.
+      board.clear();
       lastUrlAction = "new";
       router.replace("/board");
       return;

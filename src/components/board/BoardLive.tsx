@@ -91,6 +91,11 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
   const pausingRef = useRef(false);        // Detach imetumwa: stream ikifungwa → "paused" (si "detached")
   const replayingRef = useRef(false);      // historia ya buffer inacheza (mpaka tukio "sync")
   const lastLogAt = useRef(0);             // logs zilizokwisha onekana hazirudiwi wakati wa Resume
+  // R32.1: "New session" ilibonyezwa — auto-attach isirudishe mjadala wa zamani kabla user
+  // hajaweka kazi yake mpya (start/open/resume zinauondoa suppress mara moja)
+  const suppressAttachUntil = useRef(0);
+  const lastStartAt = useRef(0);           // kinga ya double-click (ombi lileile < 1.5s)
+  const lastStartText = useRef("");
   const [pausedInfo, setPausedInfo] = useState<PausedInfo | null>(null);
   const [unfinished, setUnfinished] = useState<string[]>([]);
 
@@ -265,6 +270,7 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
 
   /* ---------------- actions ---------------- */
   const attach = useCallback(async (id?: string) => {
+    suppressAttachUntil.current = 0;
     const act = await getActive();
     const target = id || act?.id;
     if (!target) return false;
@@ -299,14 +305,16 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
   const start = useCallback(async (text: string) => {
     const project = text.trim();
     if (!project) return;
-    const act = await getActive();
-    if (act) {
-      // engine inaruhusu mjadala mmoja kwa wakati — rudi kwenye unaoendelea
-      await attach(act.id);
-      adapter.current.apply({ type: "system", text: "⚠️ Kuna mjadala unaoendelea tayari — ombi jipya halikuanzishwa. Subiri umalizike." });
-      scheduleFlush();
-      return;
-    }
+    // kinga ya double-click: ombi LILEILE ndani ya 1.5s limerudiwa — subiri (re-click ya makusudi
+    // baada ya muda / maandishi tofauti haina mgomo: hiyo ni session mpya kwa makusudi)
+    const nowMs = Date.now();
+    if (nowMs - lastStartAt.current < 1500 && lastStartText.current === project) return;
+    lastStartAt.current = nowMs;
+    lastStartText.current = project;
+    // R32.1 (agizo la CEO 06-10): kazi mpya = session MPYA daima. Mjadala unaoendelea server
+    // unapuuzwa (paused — unaendelea nayo kutoka Sessions); UI inaonyesha KAZI HII ikienda live.
+    modeRef.current = "live"; // kinga ya race: auto-attach isirudishe kwenye mjadala wa zamani
+    suppressAttachUntil.current = 0;
     const g = fresh();
     setMode("live");
     setConn("connecting");
@@ -321,7 +329,7 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/boardroom", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project }),
+        body: JSON.stringify({ project, force: true }),
         signal: abortRef.current!.signal,
       });
       if (!res.ok) {
@@ -332,7 +340,7 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       if (err?.name !== "AbortError") fail(g, `Stream imekatika: ${err?.message || err}`);
     }
-  }, [attach, consume, fail, fresh, scheduleFlush]);
+  }, [consume, fail, fresh, scheduleFlush]);
 
   const replayInto = useCallback(async (id: string, g: number): Promise<{ status: string; project: string } | null> => {
     const j = await (await fetch(`/api/conversations?id=${encodeURIComponent(id)}`, { cache: "no-store" })).json().catch(() => null);
@@ -362,6 +370,7 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const open = useCallback(async (id: string) => {
+    suppressAttachUntil.current = 0;
     const act = await getActive();
     if (act && act.sessionId === id) { await attach(act.id); return; }
     const g = fresh({ instant: true });
@@ -382,6 +391,7 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
   }, [attach, fail, fetchAgenda, fetchLedger, fresh, replayInto, scheduleFlush]);
 
   const resume = useCallback(async (id: string) => {
+    suppressAttachUntil.current = 0;
     const g = fresh({ replay: true });
     setMode("live");
     setConn("connecting");
@@ -466,6 +476,9 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => {
     fresh();
+    // R32.1: hii ni "New session" ya makusudi — auto-attach isirudishe mjadala wa zamani
+    // ndani ya dakika 10 kabla user hajaweka kazi mpya (draft yake isipotee kwenye composer)
+    suppressAttachUntil.current = Date.now() + 10 * 60_000;
     setMode("idle");
     setConn("idle");
     setPrompt("");
@@ -499,6 +512,9 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
     let stop = false;
     const check = async () => {
       if (stop) return;
+      // R32.1: user amebonyeza "New session" — mjadala wa zamani haigwi kwake kwa nguvu;
+      // ataweka kazi mpya (start force) au kufungua session yake mwenyewe (open/resume)
+      if (Date.now() < suppressAttachUntil.current) return;
       const { active: act, paused } = await getBoardState();
       if (stop) return;
       // R16.1: mjadala uliosimamishwa HAUJIUNGANISHI wenyewe — unaonyeshwa kwa kitufe cha Resume
