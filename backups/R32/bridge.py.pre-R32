@@ -37,8 +37,6 @@ BASE_TS = time.time()
 SHOT_RX = _re.compile(r"\[Screenshot[^\]]*\]\(([^)]+\.(?:png|jpe?g))\)", _re.I)
 GITHUB_URL_RX = _re.compile(r"(https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
 PAUSE_RX = _re.compile(r"XMD-PAUSE:(\d{9,15})")
-# R32: budget ya tokens ya run (gharama — idhini ya CEO 06-10: M 2 default) → paused_budget
-BUDGET_RX = _re.compile(r"XMD-BUDGET:(\d{9,15})")
 # R31-G4: snapshot ya workspace wakati wa pause (quota) — files zisirudike zero kesho
 SNAP_SKIP = {"node_modules", ".git", ".playwright-mcp", ".cache", ".venv", "__pycache__", ".npm", "playwright-report", ".codeium", ".vscode"}
 
@@ -266,11 +264,9 @@ def classify_tool(name: str, cmd: str = "") -> tuple[str, str]:
         return "list", "list_files"
     if n == "grep":
         return "grep", "grep"
-    if n in ("websearch", "xmd-search", "search") or n.endswith("web_search"):
+    if n in ("websearch", "xmd-search", "search"):
         return "search", "search"
-    if n in ("task", "todowrite", "taskcreate", "taskupdate", "tasklist", "taskget", "taskstop"):
-        return "skill", "skill"
-    if n in ("agent", "listagents"):
+    if n in ("task", "todowrite"):
         return "skill", "skill"
     if "vercel" in c:
         return "deploy", "vercel"
@@ -344,365 +340,6 @@ def find_chrome() -> str:
         if hits:
             return sorted(hits)[-1]
     return ""
-
-
-# ================================================================ R32 · NIDHAMU YA AGENT
-# Sheria za Claude-docs zenyewe (soma-error-kwanza, iteration caps, STATUS.md) zinaishi kwenye
-# CLAUDE.md ya project; hooks za SDK ndizo enforcement (ushauri + brake — HAKUNA block, idhini
-# ya CEO 06-10). Kila kitu hapa ni harness-side: model (Gemini kupitia brain) hakiwezi kuzipuuza.
-
-R32_CLAUDE_MD = """# XMD Computer — Nidhamu ya Kazi (Agent Discipline)
-
-Ukitenda kazi hapa, fuata sheria hizi (zinatokana na mafunzo halisi ya Anthropic kwa Claude Code):
-
-1. **SOMA error kamili KABLA ya ku-rerun.** Command ikifeli (exit != 0): anza kwenye mstari wa
-   kwanza wenye "Error"/"Failed"/"exception" na usome hadi MWISHO. Violation ya 3 kwenye
-   output ya QA mara nyingi iko MWEISHO — usiicheke.
-2. **Command ILEILE ikifeli mara 3 mfululizo → badilisha mkakati.** Andika hypotheses 3 za
-   root-cause kwenye `STATUS.md`, kisha tijaribu MOJA tu. Ku-run command ileile tena SI jaribio.
-3. **File ILEILE ikiandikwa mara 5 bila QA kupita → kosa liko SEHEMU Nyingine.** Angalia
-   dependencies za file hiyo (mf. CSS var isiyokuwa defined kwenye globals.css, import
-   isiyofika, config iliyosautiliwa) — si component unayoirudia.
-4. **Mlango wa dharura:** QA/Verification ikifeli mara 2 BAADA ya kubadilisha mkakati → andika
-   kwenye ripoti *"⚠️ Haikupita: <sababu halisi> · Nilijaribu: X, Y"*, weka alama `[~]`,
-   **na ENDELEA na hatua nyingine** — mradi hausimami kwa kipengele kimoja.
-5. **`#0000ee`, `#0000ff`, `Times New Roman`** n.k. = default za browser = ishara ya CSS var
-   isiyokuwa defined au CSS isiyopakiwa. Kamata kwenye files za style, si kwenye component.
-6. **`STATUS.md` ndiyo memory ya run:** sasisha kila hatua inapokamilika (hatua ✓/…, makosa
-   yaliyofungwa, hali ya server, hypotheses zako). Compaction ikitokea, STATUS.md inakurudisha
-   kwenye track.
-7. Hakuna kukadiriwa: kosa usilolitambua → liandike wazi kama "sijalitambua" badala ya ku-probe
-   bila mpango.
-"""
-
-
-def fingerprint_cmd(cmd: str) -> str:
-    """R32: fingerprint ya command — whitespace za ziada + temp paths zime-normalize (sawa=sawa)."""
-    c = (cmd or "").strip()
-    c = _re.sub(r"\s+", " ", c)
-    c = _re.sub(r"/tmp/[^\s\"']+", "/tmp/X", c)
-    c = _re.sub(r"/var/folders/[^\s\"']+", "/tmp/X", c)
-    c = c.rstrip("; ")
-    return hashlib.md5(c.encode("utf-8", "replace")).hexdigest()[:16]
-
-
-def shape_fail_tail(txt: str, cap: int = 8000) -> str:
-    """R32-D: kwa command iliyo-fail, UI inaona TAIL yenye maana (si head tu).
-
-    Mistari ~60 ya mwisho + sehemu inayoanza na Error/Failed/✘ hadi mwisho (kwanza occurrence).
-    """
-    if not txt or len(txt) <= cap:
-        return txt
-    lines = txt.splitlines()
-    tail = "\n".join(lines[-60:])
-    err_start = None
-    for i, ln in enumerate(lines):
-        if _re.search(r"\b(error|failed|failure|exception|✘|assertion)\b", ln, _re.I):
-            err_start = i
-            break
-    if err_start is not None and err_start < len(lines) - 60:
-        err_part = "\n".join(lines[err_start:])
-        out = err_part if len(err_part) >= len(tail) else tail
-    else:
-        out = tail
-    if len(out) > cap:
-        out = out[-cap:]
-    return out
-
-
-class HookState:
-    """R32-C: hesabu za hooks za nidhamu (run moja, memory ya ndani tu — hakuna kudumu).
-
-    • fail_streak: fingerprint ya Bash command → fails mfululizo (success inareset)
-    • rewrites:   path ya file → idadi ya Write/Edit mfululizo
-    • answers:    majibu ya mwisho ya model (normalize) — ×3 yaleyale = brake
-    • pending:    ushauri unayosubiri kufikishwa model (via PostToolUse additionalContext)
-    """
-
-    def __init__(self):
-        self.fail_streak: dict[str, int] = {}
-        self.fail_examples: dict[str, str] = {}
-        self.rewrites: dict[str, int] = {}
-        self.answers: list[str] = []
-        self.pending: str = ""
-        self.brake_fired = False
-        self.cont_blocks = 0
-        self.advice_given_at: dict[str, int] = {}
-
-    # ---- Bash
-    def note_bash_fail(self, cmd: str, err: str) -> None:
-        fp = fingerprint_cmd(cmd)
-        self.fail_streak[fp] = self.fail_streak.get(fp, 0) + 1
-        self.fail_examples[fp] = (err or "")[-2000:]
-        n = self.fail_streak[fp]
-        if n in (3, 6, 10, 15):
-            self._advice_bash(fp, n)
-
-    def note_bash_ok(self, cmd: str) -> None:
-        fp = fingerprint_cmd(cmd)
-        n = self.fail_streak.pop(fp, 0)
-        self.fail_examples.pop(fp, None)
-        if n >= 3:
-            self.pending = (f"✅ Command iliyokuwa ikifeli (mara {n}) sasa IMEFANIKIWA — "
-                            f"hypothesis yako sahihi. Endelea; kumbuka kile kilichofunga kwenye STATUS.md.")
-
-    def _advice_bash(self, fp: str, n: int) -> None:
-        if self.advice_given_at.get(fp, 0) >= n:
-            return
-        self.advice_given_at[fp] = n
-        ex = (self.fail_examples.get(fp) or "").strip().splitlines()
-        last_err = next((ln for ln in reversed(ex) if ln.strip()), "")[:160]
-        if n < 6:
-            self.pending = (
-                f"⚠️ XMD NIDHAMU: command hii IMESHAFELI mara {n} mfululizo (mbaki: «{last_err}»). "
-                "KABLA ya ku-i-run tena: (1) soma error kamili kutoka mstari wa 'Error/Failed' hadi mwisho; "
-                "(2) andika hypotheses 3 za root-cause kwenye STATUS.md; (3) tijaribu MOJA tu. "
-                "Ku-run command ILEILE tena si jaribio. (Ushauri — uamuzi ni wako.)"
-            )
-        else:
-            self.pending = (
-                f"⚠️⚠️ XMD NIDHAMU: command hii imeshafeli mara {n} (mbaki: «{last_err}»). "
-                "Kwa kawaida kosa kama hili haliko kwenye command yenyewe bali SEHEMU Nyingine: "
-                "dependencies zisizofika, config, CSS var isiyokuwa defined, au environment. "
-                "Simama kidogo: badilisha mkakati kabisa au endelea na hatua nyingine na uiweke alama [~]. "
-                "(Ushauri — uamuzi ni wako.)"
-            )
-
-    # ---- Write/Edit
-    def note_write(self, path: str) -> None:
-        p = (path or "?").strip()
-        self.rewrites[p] = self.rewrites.get(p, 0) + 1
-        n = self.rewrites[p]
-        if n in (5, 9):
-            self.pending = (
-                f"⚠️ XMD NIDHAMU: file «{p}» imeandikwa mara {n} bila mabadiliko ya msingi. "
-                "Kosa linaweza kuwa KWENYE FILE Nyingine (dependency, CSS var, import, config) — "
-                "angalia files zinazohusiana na hii kabla ya kuandika tena. (Ushauri — uamuzi ni wako.)"
-            )
-
-    # ---- majibu ya mwisho (brake)
-    def note_answer(self, answer: str) -> dict:
-        """Semantiki za query-mode: Stop hook ikirudisha {} run INAISHA — kwa hiyo "jibu lileile
-        ×3" linawezekana tu kama hook yenyewe inalazimisha continuation kwanza.
-
-        Inarudisha:
-          {"brake": True}          → jibu lileile ×3 (≈90%) → {"continue": false}
-          {"block_reason": "..."}  → run iko stuck (ushauri haujafika / jibu linarudiwa)
-                                     → {"decision": "block", "reason": …} (ushauri unaleta pili)
-          {}                        → mwisho wa kawaida — run inaisha vizuri
-        """
-        norm = _re.sub(r"\s+", " ", (answer or "")).strip().lower()
-        if len(norm) >= 40:   # majibu mafupi (mf. "sawa") hayashiriki
-            self.answers.append(norm)
-            self.answers = self.answers[-3:]
-        if len(self.answers) == 3 and self._similar3():
-            self.brake_fired = True
-            return {"brake": True}
-        stuck = bool(self.pending) or (
-            len(self.answers) >= 2 and self._similar(self.answers[-1], self.answers[-2]))
-        # max blocks 2 kwa run (bound: ushauri umeleta pili; la tatu lileile = brake)
-        if stuck and self.cont_blocks < 2:
-            self.cont_blocks += 1
-            advice = self.take_pending() or (
-                "XMD: kazi inaonekana imesimama bila maendeleo. Endelea na hatua inayofuata; "
-                "kama hatua hii haipiti kwa sababu halisi, weka alama [~] kwenye ripoti na "
-                "uendelee — mradi hausimami kwa kipengele kimoja.")
-            return {"block_reason": advice}
-        return {}
-
-    @staticmethod
-    def _similar(a: str, b: str) -> bool:
-        """≈90% fanana AU moja ni prefix ya nyingine (jibu lileile + counter/suffix)."""
-        if a == b:
-            return True
-        if len(a) >= 40 and len(b) >= 40 and (a.startswith(b) or b.startswith(a)):
-            return True
-        try:
-            import difflib
-            return difflib.SequenceMatcher(None, a, b).ratio() >= 0.9
-        except Exception:
-            return False
-
-    def _similar3(self) -> bool:
-        a, b, c = self.answers[-3:]
-        return self._similar(a, b) and self._similar(b, c) and self._similar(a, c)
-
-    def take_pending(self) -> str:
-        out, self.pending = self.pending, ""
-        return out
-
-
-def build_xmd_hooks(state: HookState, em, workspace: str):
-    """R32-C: hooks za SDK (ushauri + brake; HAKUNA block — idhini ya CEO 06-10 jioni).
-
-    Njia za ushauri (zimehakikiwa kwenye sandbox na proxy ya Gemini):
-      • PostToolUseFailure (Bash)  → streak++ (hii haina channel ya kumfikia model — inarekodi tu)
-      • PostToolUse (.*)           → inarekebisha streaks/rewrites NA inatoa ushauri uliokusanywa
-                                    kupitia additionalContext (inafika model ✓, bila kuzuia chochote)
-      • Stop                       → jibu lileile ×3 → {"continue": false} + ripoti ya NIMEKWAMA
-    """
-    import asyncio
-
-    async def bash_failed(hook_input, tool_input, ctx):
-        try:
-            ti = hook_input.get("tool_input") or {}
-            err = hook_input.get("error") or ""
-            cmd = ti.get("command") or ""
-            if cmd:
-                state.note_bash_fail(cmd, err)
-                em.emit("xmd_hook", kind="fail", streak=state.fail_streak.get(fingerprint_cmd(cmd), 0),
-                        command=str(cmd)[:300], text=str(err)[-400:])
-        except Exception as e:
-            sys.stderr.write(f"[bridge] hook bash_failed: {e}\n")
-        return {}
-
-    async def any_tool_ok(hook_input, tool_input, ctx):
-        try:
-            name = hook_input.get("tool_name") or ""
-            ti = hook_input.get("tool_input") or {}
-            if name == "Bash":
-                state.note_bash_ok(str(ti.get("command") or ""))
-            elif name in ("Write", "Edit", "NotebookEdit"):
-                state.note_write(str(ti.get("file_path") or ti.get("path") or ""))
-            advice = state.take_pending()
-            if advice:
-                em.emit("xmd_hook", kind="advice", text=advice[:500])
-                return {"hookSpecificOutput": {"hookEventName": "PostToolUse",
-                                               "additionalContext": advice}}
-        except Exception as e:
-            sys.stderr.write(f"[bridge] hook any_tool_ok: {e}\n")
-        return {}
-
-    async def on_stop(hook_input, tool_input, ctx):
-        try:
-            verdict = state.note_answer(str(hook_input.get("last_assistant_message") or ""))
-            if verdict.get("brake"):
-                # Ripoti ya "NIMEKWAMA" inaandikwa na hook yenyewe (model haisikii stopReason)
-                try:
-                    top = sorted(state.fail_streak.items(), key=lambda kv: -kv[1])[:3]
-                    lines = ["# NIMEKWAMA — Ripoti ya Brake (R32)", "",
-                             f"*Wakati: {time.strftime('%Y-%m-%d %H:%M:%S')}*", "",
-                             "## Kwa nini imesimama",
-                             "Jibu la mwisho limerudiwa karibu kwa usawa mara 3 — hakukuwa na maendeleo ya kutosha.", "",
-                             "## Commands zilizo-feli zaidi (fingerprint streak)"]
-                    for fp, n in top:
-                        ex = (state.fail_examples.get(fp) or "").strip().splitlines()
-                        lines.append(f"- mara {n}: {ex[-1][:200] if ex else fp}")
-                    if not top:
-                        lines.append("- (hakuna fails za mfululizo za Bash)")
-                    lines += ["", "## Files zilizoandikwa mara nyingi"]
-                    for p, n in sorted(state.rewrites.items(), key=lambda kv: -kv[1])[:5]:
-                        lines.append(f"- mara {n}: {p}")
-                    lines += ["", "## Hatua inayofuata (kwa Endeleza)",
-                              "1. Soma hypotheses za mwisho kwenye STATUS.md (au ziandike sasa kama hazipo).",
-                              "2. Badilisha mkakati kwa moja ya hypotheses — si ku-rerun command ileile.",
-                              "3. Au endelea na hatua nyingine na uiweke alama [~] kwenye ripoti."]
-                    with open(os.path.join(workspace, "STATUS.md"), "a", encoding="utf-8") as fh:
-                        fh.write("\n\n" + "\n".join(lines) + "\n")
-                except Exception as e:
-                    sys.stderr.write(f"[bridge] NIMEKWAMA ripoti: {e}\n")
-                em.emit("xmd_hook", kind="brake",
-                        text="Jibu lilelile ×3 — run imesimamishwa (ripoti: STATUS.md). "
-                             "▶ Endeleza inaanza na hali iliyohifadhiwa.")
-                return {"continue": False,
-                        "stopReason": "XMD-BRAKE: jibu lilelile mara 3 — hakuna maendeleo."}
-            if verdict.get("block_reason"):
-                # ushauri unamfika model kama reason ya kulazimisha kuendelea (si block ya kitu
-                # chochote — ni "endelea kazi" + ushauri wa nidhamu; max 2 kwa run)
-                em.emit("xmd_hook", kind="continue", text=str(verdict["block_reason"])[:500])
-                return {"decision": "block", "reason": verdict["block_reason"]}
-        except Exception as e:
-            sys.stderr.write(f"[bridge] hook on_stop: {e}\n")
-        return {}
-
-    from claude_agent_sdk import HookMatcher
-    return {
-        "PostToolUseFailure": [HookMatcher(matcher="Bash", hooks=[bash_failed])],
-        "PostToolUse": [HookMatcher(matcher=".*", hooks=[any_tool_ok])],
-        "Stop": [HookMatcher(matcher=".*", hooks=[on_stop])],
-    }
-
-
-# ================================================================ R32 · MCP search (SearXNG)
-
-async def xmd_web_search(inp: dict, search_url: str, callback_token: str, searxng: str) -> dict:
-    """R32-F4: handler ya web_search (inayepimwa moja kwa moja — SDK wrapper iko juu).
-
-    Sheria za Claude (idhini ya CEO 06-10): agent anajulishwa kuwepo kwake TU (description ya
-    tool) — hatumwiwi wapi aitumie. Kwanza inapiga route ya Koyeb (cache ya Appwrite inclusive,
-    Bearer pattern ya cu-event); ikifa → SearXNG moja kwa moja.
-    """
-    import urllib.parse
-    q = str((inp or {}).get("query") or "").strip()
-    try:
-        max_results = max(1, min(int((inp or {}).get("max_results") or 5), 10))
-    except Exception:
-        max_results = 5
-    if not q:
-        return {"content": [{"type": "text", "text": '{"results": [], "error": "query ni tupu"}'}]}
-    # (1) route ya Koyeb — cache ya semantic + hygiene ya query
-    if search_url:
-        try:
-            data = json.dumps({"query": q, "max_results": max_results}).encode()
-            req = urllib.request.Request(search_url, data=data, method="POST",
-                                         headers={"Content-Type": "application/json",
-                                                  "Authorization": "Bearer " + callback_token})
-            with urllib.request.urlopen(req, timeout=30) as r:
-                payload = json.loads(r.read().decode("utf-8", "replace"))
-            hits = payload.get("results") or []
-            if hits:
-                return {"content": [{"type": "text", "text": json.dumps({"query": q, "results": hits[:max_results]},
-                                                                        ensure_ascii=False)}]}
-        except Exception:
-            pass  # (2) fallback chini — SearXNG moja kwa moja
-    try:
-        u = f"{searxng.rstrip('/')}/search?q={urllib.parse.quote(q)}&format=json"
-        req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                                                 "Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            payload = json.loads(r.read().decode("utf-8", "replace"))
-        hits = [{"title": str(it.get("title") or "")[:300],
-                 "url": it.get("url") or "",
-                 "snippet": str(it.get("content") or "")[:600]}
-                for it in (payload.get("results") or [])[:max_results] if it.get("url")]
-        return {"content": [{"type": "text", "text": json.dumps({"query": q, "results": hits},
-                                                                ensure_ascii=False)}]}
-    except Exception as e:
-        return {"content": [{"type": "text", "text": json.dumps({"query": q, "results": [],
-                                                                "error": f"search imekufa: {str(e)[:200]}"})}]}
-
-
-def build_search_tool(callback_url: str, callback_token: str, session: str):
-    """R32-F4: search engine ya XMD (SearXNG) kama MCP tool ya kiharness — in-process."""
-    search_url = (os.environ.get("CU_SEARCH_URL") or "").strip()
-    if not search_url and callback_url:
-        search_url = callback_url.rsplit("/cu-event", 1)[0] + "/cu-search"
-    searxng = (os.environ.get("SEARXNG_URL") or "https://searxng-northflank.onrender.com")
-
-    async def web_search(inp: dict) -> dict:
-        return await xmd_web_search(inp, search_url, callback_token, searxng)
-
-    try:
-        from claude_agent_sdk import SdkMcpTool, create_sdk_mcp_server
-        server = create_sdk_mcp_server(
-            name="xmd-search", version="1.0.0",
-            tools=[SdkMcpTool(
-                name="web_search",
-                description=("Tafuta mtandaoni kwa mada/hoja yoyote (search engine ya XMD — SearXNG). "
-                             "Inarudisha orodha ya matokeo yenye title, url na snippet. "
-                             "Inatumika kwa habari, mifano, docs na uthibitisho wa facts."),
-                input_schema={"type": "object",
-                              "properties": {"query": {"type": "string", "description": "Neno au swali la kutafuta"},
-                                             "max_results": {"type": "integer", "description": "Idadi ya matokeo (1-10, default 5)"}},
-                              "required": ["query"]},
-                handler=web_search,
-            )],
-        )
-        return server
-    except Exception as e:
-        sys.stderr.write(f"[bridge] MCP search server haiwezekani: {e}\n")
-        return None
-
 
 
 # ---------------------------------------------------------------- brain + usage tailer
@@ -887,9 +524,6 @@ async def main():
         pw_args += ["--executable-path", chrome]
 
     allowed = ["Bash", "Read", "Write", "Edit", "Glob", "Grep"]
-    # R32-F1: Task* tools (mrithi wa TodoWrite kwenye CLI 2.x) + subagents (idhini 06-10)
-    allowed += ["TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskStop", "Agent", "ListAgents"]
-    allowed += ["mcp__xmd-search__web_search"]
     allowed += ["mcp__pw__" + t for t in (
         "browser_navigate", "browser_take_screenshot", "browser_snapshot", "browser_click",
         "browser_type", "browser_fill_form", "browser_press_key", "browser_resize",
@@ -903,25 +537,6 @@ async def main():
     if a.resume_note:
         system_instructions += "\n\nRESUME CONTEXT (true state of a previous interrupted run):\n" + a.resume_note
 
-    # R32-B: CLAUDE.md ya project (sheria za nidhamu — inapakiwa na CLI kwenye KILA request
-    # kama system-reminder, inabaki baada ya compaction). Muhakiki: ina-load bila git pia.
-    try:
-        cm_path = os.path.join(a.workspace, "CLAUDE.md")
-        existing = ""
-        if os.path.exists(cm_path):
-            with open(cm_path, "r", encoding="utf-8") as fh:
-                existing = fh.read()
-        if "XMD Computer — Nidhamu ya Kazi" not in existing:
-            with open(cm_path, "w", encoding="utf-8") as fh:
-                fh.write(R32_CLAUDE_MD + (("\n\n" + existing) if existing else ""))
-    except Exception as e:
-        sys.stderr.write(f"[bridge] CLAUDE.md haikuwekwa: {e}\n")
-
-    # R32: hali ya hooks (ushauri + brake) + MCP search server (SearXNG via Koyeb/direct)
-    hook_state = HookState()
-    xmd_hooks = build_xmd_hooks(hook_state, em, a.workspace)
-    search_server = build_search_tool(a.callback_url, a.callback_token, a.session)
-
     task_prompt = (
         f"TEKELEZA MPANGO KAZI HUU (\"{a.title}\") hatua kwa hatua, kwa ukamilifu.\n\n"
         "Kumbuka: Official Data ni sheria — nakili kwa usahihi; utekeleze Verification ya kila hatua.\n"
@@ -933,37 +548,22 @@ async def main():
     # Jina la model: CLI ya Claude Code ina-validite model zake — tunatumia jina halali
     # "claude-sonnet-4-5" ILA cuBrain yetu INAIIGNORE model ya request na inaroute Gemini
     # (brain ndiyo bwana — lane/models zinatawaliwa na cu-config.json).
-    #
-    # R32: system_prompt ina-REPLACE system nzima (CLAUDE.md + defaults za CLI hazijumuishwi) —
-    # kwa hiyo workflow inaenda kupitia extra_args append-system-prompt (bila "--"; SDK inaiongeza)
-    # na CLAUDE.md ya project inapakiwa na setting_sources=["project"].
-    mcp_servers = {"pw": {"command": "npx", "args": pw_args}}
-    if search_server is not None:
-        mcp_servers["xmd-search"] = search_server
     opts = ClaudeAgentOptions(
         model=os.environ.get("CU_SDK_MODEL", "claude-sonnet-4-5"),
-        setting_sources=["project"],
-        extra_args={"append-system-prompt": system_instructions},
+        system_prompt=system_instructions,
         include_partial_messages=True,
         permission_mode="bypassPermissions",
         cwd=a.workspace,
         max_buffer_size=64 * 1024 * 1024,
-        mcp_servers=mcp_servers,
+        mcp_servers={"pw": {"command": "npx", "args": pw_args}},
         allowed_tools=allowed,
-        hooks=xmd_hooks,
-        # R32-F1: Task* + Agent zinaruhusiwa hapo juu. WebSearch/WebFetch za server-side za
-        # Anthropic hazitekelezeki kupitia brain — search inakuja kama mcp__xmd-search__web_search.
-        disallowed_tools=["WebSearch", "WebFetch"],
+        disallowed_tools=["TodoWrite", "Task", "TaskCreate", "TaskUpdate",
+                          "TaskList", "TaskView", "WebSearch", "WebFetch"],
     )
 
-    # R31-G4: hakuna kikomo cha steps/turns (agizo la CEO 05-10) — budget steps=0 = unlimited.
-    # R32-E: budget ya TOKENS ya gharama (default M 2 — idhini 06-10) inasimamishwa na brain.
-    try:
-        token_budget = int(os.environ.get("CU_TOKEN_BUDGET") or 2_000_000)
-    except ValueError:
-        token_budget = 2_000_000
+    # R31-G4: hakuna kikomo cha steps/turns (agizo la CEO 05-10) — budget steps=0 = unlimited
     em.emit("run_start", task=a.title, model="xmd-computer (Gemini Swap Brain)", size="kati",
-             protocol="claude", budget={"steps": 0, "tokens": token_budget}, files=files_tree(a.workspace)[:80])
+             protocol="claude", budget={"steps": 0, "tokens": 0}, files=files_tree(a.workspace)[:80])
 
     step = 0
     cur: dict[int, dict] = {}
@@ -976,7 +576,6 @@ async def main():
     tools_in_step = set()
     status = "done"
     pause_at_ms = 0   # R31-G4: XMD-PAUSE marker (quota ya siku imeisha) → paused_quota
-    budget_at_ms = 0  # R32-E: XMD-BUDGET marker (gharama ya run imepita budget) → paused_budget
     last_resize = (1280, 800)
     last_tree_emit = 0.0
     gh_url_seen: set[str] = set()
@@ -1206,10 +805,7 @@ async def main():
                         if not shots and txt:
                             shots = shots_from_text(txt, a.workspace)
                         if txt:
-                            # R32-D: kwa command iliyo-fail UI inaona TAIL yenye maana
-                            # (CLI yenyewe inampa model head+tail tayari — hii ni upande wa UI/ripoti)
-                            chunk = shape_fail_tail(txt) if err else txt[:8000]
-                            em.emit("exec_output", step=stp, id=tid, chunk=chunk)
+                            em.emit("exec_output", step=stp, id=tid, chunk=txt[:8000])
                             note_urls(txt, stp)
                         for s in shots:
                             b64 = (s["data"].split(",", 1) + [""])[1]
@@ -1233,15 +829,9 @@ async def main():
                     rep = str(rep)
                 sub = getattr(m, "subtype", "") or ""
                 status = "done" if sub == "success" else ("stuck" if "max_turns" in sub else "error")
-                # R32-C: brake ya hooks iliwaka → status "stuck" (si "done" ya uongo)
-                if hook_state.brake_fired and status == "done":
-                    status = "stuck"
                 pm = PAUSE_RX.search(rep or "")
                 if pm:
                     pause_at_ms = int(pm.group(1))
-                bm = BUDGET_RX.search(rep or "")
-                if bm:
-                    budget_at_ms = int(bm.group(1))
                 note_urls(rep, step)
                 em.emit("finish", report=rep or "(hakuna ripoti)", partial=status != "done", status=status)
     except Exception as e:
@@ -1249,28 +839,12 @@ async def main():
         pm = PAUSE_RX.search(f"{type(e).__name__}: {e}")
         if pm:
             pause_at_ms = int(pm.group(1))
-        bm = BUDGET_RX.search(f"{type(e).__name__}: {e}")
-        if bm:
-            budget_at_ms = int(bm.group(1))
         em.emit("error", message=f"{type(e).__name__}: {str(e)[:300]}")
         sys.stderr.write(traceback.format_exc())
         status = "error"
 
     maybe_files(force=True)
-    # R32-C: brake ya hooks iliwaka → status "stuck" (si "done" ya uongo) — UI + Endeleza
-    if hook_state.brake_fired and status == "done":
-        status = "stuck"
-    if budget_at_ms:
-        # R32-E: gharama ya run imepita token budget → simama kwa uaminifu (si kifo kimya):
-        # snapshot ya workspace + status paused_budget; Endeleza inaendelea na budget MPYA.
-        # (Chip + ujumbe wa UI vinaandikwa na engine kwenye run_end → paused_budget.)
-        status = "paused_budget"
-        snap = make_snapshot(a.workspace)
-        if snap:
-            em.emit("snapshot", big_data=snap, path="ws-snapshot.tar.gz")
-        else:
-            sys.stderr.write("[bridge] snapshot imeachwa (kubwa mno au tupu) — resume bila restore\n")
-    elif pause_at_ms:
+    if pause_at_ms:
         # R31-G4: quota imeisha — snapshot ya workspace ifuate Koyeb (bucket) kabla ya pause;
         # resume ya kesho inairejesha (sandbox mpya, kazi ya jana ipo).
         status = "paused_quota"
@@ -1280,16 +854,14 @@ async def main():
         else:
             sys.stderr.write("[bridge] snapshot imeachwa (kubwa mno au tupu) — resume bila restore\n")
     tail.stop = True
-    # brain (detached) inafungwa kabisa — pipes za E2B zisibaki hai.
-    # (R32-fix: pattern i-ANCHOR — "python <brain_path>" — usimatchie bridge yenyewe ambayo
-    #  ina "--brain <path>" kwenye cmdline yake ikiwa imepewa flag hiyo explicit.)
+    # brain (detached) inafungwa kabisa — pipes za E2B zisibaki hai
     if brain_proc is not None:
         try:
             brain_proc.terminate()
         except Exception:
             pass
         try:
-            subprocess.run(["pkill", "-f", f"python {a.brain}"], timeout=10, capture_output=True)
+            subprocess.run(["pkill", "-f", "cu_brain.py"], timeout=10, capture_output=True)
         except Exception:
             pass
     em.emit("run_end", status=status, steps=step, ms=int((time.time() - BASE_TS) * 1000),

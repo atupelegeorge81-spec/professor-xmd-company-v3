@@ -645,13 +645,6 @@ class Brain:
         self.emergency = False
         self.calls = 0
         self.usage_path = usage_path or os.environ.get("CU_USAGE_OUT", "/home/user/brain-usage.jsonl")
-        # R32-E: budget ya TOKENS ya gharama kwa run (si turns — idhini ya CEO 05-10 + 06-10:
-        # default M 2, inabadilika kwa env CU_TOKEN_BUDGET bila deploy). Endeleza = budget mpya.
-        try:
-            self.token_budget = int(os.environ.get("CU_TOKEN_BUDGET") or 2_000_000)
-        except ValueError:
-            self.token_budget = 2_000_000
-        self.run_tokens = 0
         self._clock = clock or (lambda: time.time() * 1000)
         self._sleep = sleeper or time.sleep
         self._transport = transport or self._http_transport
@@ -843,9 +836,6 @@ class Brain:
                     fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
             except OSError:
                 pass
-        # R32-E: jumla ya tokens za run (gharama) — budget check inafanya kazi kwenye handle()
-        if ok and (prompt + completion) > 0:
-            self.run_tokens += prompt + completion
         if ok and lane:
             s = self.st(lane)
             s.tokens += prompt + completion
@@ -1054,14 +1044,6 @@ class Brain:
             if not getattr(self, "_test_pause_at", 0):
                 self._test_pause_at = int(self._clock()) + tq
             raise BrainFatal(f"[TEST] quota ya uongo imeisha (accounts zote) XMD-PAUSE:{self._test_pause_at}")
-        # R32-E: budget ya gharama ya run imepita → marker XMD-BUDGET:<epoch_ms> inafika bridge
-        # (mfumo uleule wa XMD-PAUSE) → snapshot ya ws + run_end(paused_budget) → chip + Endeleza.
-        # Hii si kifo kimya: model inamaliza turn iliyopo, call INFUATAYO ndiyo inafunga.
-        if self.run_tokens >= self.token_budget:
-            blog("warning", f"🛑 cuBrain: token budget ya run imepita ({self.run_tokens:,} ≥ {self.token_budget:,}) — "
-                            f"run inasimama kwa uaminifu (Endeleza = budget mpya).")
-            raise BrainFatal(f"token budget ya run imepita ({self.run_tokens:,} ≥ {self.token_budget:,}) "
-                             f"XMD-BUDGET:{int(self._clock())}")
         tried: set[str] = set()
         strip_images = False
         no_stream_options = False
