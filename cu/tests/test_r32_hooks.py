@@ -319,3 +319,42 @@ class TestEmptyStops(unittest.TestCase):
         out = st.note_answer("RIPOTI YA MRADI: Hongera — kazi imekamilika, live link na GitHub repo zipo.")
         self.assertEqual(out, {})
         self.assertEqual(st.empty_stops, 0)
+
+    # ---------------- R32.2b: tags ZISIZOFUNGWA (session halisi 6ac4af5e) ----------------
+    # Gemini 3.8-flash ilituma "<thought>**Checking Environment Tools**..." bila </thought> kabisa —
+    # THOUGHT_RX ya zamani (inayohitaji closing) haikupasui → "visible" ndefu → run iliisha "done"
+    # baada ya exec 1. Zote hapa hazihitagi closing tag.
+
+    def test_thought_isiyofungwa_inarudishwa_kama_block(self):
+        st = HookState()
+        # exact pattern ya 6ac4af5e (unclosed, hakuna text nje ya tag)
+        raw = ("<thought>**Checking Environment Tools**\n\nNow, I'm checking the development "
+               "environment. I need to know the Node.js version and if tools like `npm`, `p")
+        out = st.note_answer(raw)
+        self.assertIn("block_reason", out)
+        self.assertIn("thought pekee", out["block_reason"])
+        self.assertEqual(st.empty_stops, 1)
+
+    def test_thought_isiyofungwa_x7_brake(self):
+        st = HookState()
+        outs = [st.note_answer(f"<thought>tafakari ndefu sana nambari {i} bila kufunga tag hata kidogo")
+                for i in range(7)]
+        self.assertEqual(["block_reason" in o for o in outs[:6]], [True] * 6)
+        self.assertEqual(outs[6].get("brake"), True)
+        self.assertTrue(st.brake_fired)
+
+    def test_thinking_tag_isiyofungwa_ni_empty_stop(self):
+        st = HookState()
+        self.assertIn("block_reason", st.note_answer("<thinking>plan ya muda mrefu hapa bila kufunga"))
+
+    def test_closed_kisha_isiyofungwa_inabaki_empty(self):
+        st = HookState()
+        raw = "<thought>block ya kwanza imefungwa</thought><thought>hii haina kufungwa tena"
+        self.assertIn("block_reason", st.note_answer(raw))
+
+    def test_text_halisi_kabla_ya_tag_isiyofungwa_inaisha_vizuri(self):
+        st = HookState()
+        raw = ("RIPOTI: Kazi imekamilika; live link https://x.vercel.app na GitHub repo zipo tayari "
+               "<thought>napanga jambo la ziada")
+        out = st.note_answer(raw)
+        self.assertEqual(out, {}, "text halisi kabla ya tag isiyofungwa — mwisho halali")

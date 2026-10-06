@@ -39,6 +39,9 @@ GITHUB_URL_RX = _re.compile(r"(https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-
 PAUSE_RX = _re.compile(r"XMD-PAUSE:(\d{9,15})")
 # R32.2: thoughts za Gemini (zinavuja kwenye jibu la mwisho) — kuwa na maudhui halisi
 THOUGHT_RX = _re.compile(r"<(?:thought|thinking)>([\s\S]*?)</(?:thought|thinking)>", _re.I)
+# R32.2b: tag ILIYOFUNGULIWA isiyofungwa (hakuna </thought>) — kama ThinkTagSplitter, kila kitu
+# kutoka tag hapo hadi mwisho ni thought (session 6ac4a63b na 6ac4af5e zote zilikufa hivi).
+UNCLOSED_THOUGHT_RX = _re.compile(r"<(?:thought|thinking)>[\s\S]*$", _re.I)
 # R31-G4: snapshot ya workspace wakati wa pause (quota) — files zilirudike zero kesho
 SNAP_SKIP = {"node_modules", ".git", ".playwright-mcp", ".cache", ".venv", "__pycache__", ".npm", "playwright-report", ".codeium", ".vscode"}
 
@@ -487,8 +490,12 @@ class HookState:
     # ---- majibu ya mwisho (brake)
     @staticmethod
     def _visible_text(answer: str) -> str:
-        """Maudhui halisi ya jibu — <thought>/<thinking> zimeondolewa (R32.2)."""
-        return THOUGHT_RX.sub(" ", answer or "").strip()
+        """Maudhui halisi ya jibu — <thought>/<thinking> zimeondolewa (R32.2; R32.2b: na zisizofungwa)."""
+        t = THOUGHT_RX.sub(" ", answer or "")
+        # R32.2b: kwanza ondoa blocks zilizofungwa, KISHA iliyofunguliwa isiyofungwa
+        # (yote kutoka hapo hadi mwisho = thought). Mfuatano huununua kama ThinkTagSplitter.
+        t = UNCLOSED_THOUGHT_RX.sub(" ", t)
+        return t.strip()
 
     def note_tool_progress(self) -> None:
         """Tool ilifanikiwa = kuna maendeleo — empty-stops mfululizo zianza upya (R32.2)."""

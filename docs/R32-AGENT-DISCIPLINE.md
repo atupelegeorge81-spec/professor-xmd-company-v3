@@ -114,3 +114,21 @@ mzunguko wa test (fail 3 → hypotheses) zinashughulikia aina hii sasa.
 **3. Slow sana (board phase):** lanes 6 za Gemini zilifeli kila call (429/503) kabla ya kufanikiwa
 kwenye 3.6/3.5-flash — kila request ya CLI = majaribio mengi ya lane + cooldown sleeps. Hii ni
 **mazingira (quota ya siku)**, si code — quota ikirudi, kasi inarudi.
+
+## R32.2b (06-10 usiku) — fix ya R32.2 ilikuwa na pengo: tags ZISIZOFUNGWA
+
+E2E test na prompt ileile ya CEO (session 6ac4af5e, "Modern Male Auth Pages", baada ya deploy
+a2aaca3) iliifa NJE ILE ILE baada ya exec 1: gemini-3.8-flash (lane kuu, ok) ilituma
+**`<thought>…` ILIYOFUNGULIWA PEKEE** — hakuna `</thought>` wala text nje ya tag.
+
+**Chanzo:** `THOUGHT_RX` ya R32.2 inahitaji opening+closing (`<thought>…</thought>`) — tag
+isiyo-fungwa haipaswi, "visible text" ilibaki na herufi zote za thought (>40) → hook iliruhusu
+mwisho. `ThinkTagSplitter` (ya UI) tayari inajua semantics sahihi: tag isiyofungwa = kila kitu
+kutoka hapo hadi mwisho ni thought. Tests za R32.2 zote zilitumia tags zilizofungwa — ndiyo
+maana zilipita huku production ikifa.
+
+**Fix (mstari wa regex, hakuna mabadiliko ya logic):** `_visible_text()` sasa (a) inaondoa
+blocks zilizofungwa kwanza, KISHA (b) tag iliyofunguliwa isiyofungwa + kila kitu baada yake
+(`UNCLOSED_THOUGHT_RX` — mfano huununua ThinkTagSplitter). Vilevile `<thinking>`. Tests 86
+green (+5 za unclosed: block, ×7 brake, `<thinking>`, closed+kisha-unclosed, text halisi
+kabla ya tag isiyofungwa inaisha vizuri).
