@@ -426,7 +426,11 @@ class TestBrainRouting(unittest.TestCase):
         self.assertEqual(tr.calls[0][0].id, "gemini-2:gemini-3.8-flash")  # gemini-1 imejaa leo
         clock.now = after_midnight  # siku mpya ya Pacific
         b.handle({"stream": True, "messages": [{"role": "user", "content": "hi"}]}, lambda e: None)
-        self.assertEqual(tr.calls[1][0].id, "gemini-1:gemini-3.8-flash", "siku mpya = reset")
+        # R34-A (agizo la CEO 06-10): mafanikio ya gemini-2 yaliweka STICKY — request ijayo
+        # inarudi kwake MOJA KWA MOJA (hata baada ya reset), mpaka yeye mwenyewe afike limit.
+        self.assertEqual(tr.calls[1][0].id, "gemini-2:gemini-3.8-flash",
+                         "sticky inashinda mpangilio — ndiyo tabia iliyotakiwa (R34-A)")
+        self.assertEqual(b.work_lane, "gemini-2:gemini-3.8-flash")
 
     def test_non_stream_complete(self):
         def ok_nonstream(lane, payload, stream):
@@ -672,3 +676,68 @@ class PauseSnapshotTests(unittest.TestCase):
         self.assertNotIn("a.max_steps", src, "a.max_steps imerudi — argparse flag imeondolewa!")
         self.assertNotIn("a.max_turns", src, "a.max_turns imerudi — hakuna kikomo cha turns!")
         self.assertNotIn("--max-steps", src)
+
+
+# ---------------------------------------------------------------- R34-A · STICKY LANE
+# Agizo la CEO (06-10): request iliyofanikiwa inashikilia lane yake — requests zinazofuata
+# zinaenda MOJA KWA MOJA kwake; inabadilika TU ikifa kweli (quota ya siku) au ikipopumzika
+# muda mrefu. (Kosa la zamani: kila request ilianza kutafuta upya — 3.8/3.7 zilipoteza
+# requests 28 huku zikifa kila mara.)
+
+class TestStickyLane(unittest.TestCase):
+    def _brain(self, sleeper=None):
+        b, tr, clock, path = make_brain(sleeper=sleeper)
+        self.addCleanup(os.unlink, path)
+        return b, clock
+
+    def test_mafanikio_yanaweka_work_lane(self):
+        b, _ = self._brain()
+        lane = b.pick_lane(set())
+        self.assertEqual(lane.id, "gemini-1:gemini-3.8-flash")  # mpangilio wa kawaida
+        self.assertIsNone(b.work_lane, "bado hakuna mafanikio — hakuna sticky")
+        b.record_usage(lane, True, 10, 5)
+        self.assertEqual(b.work_lane, "gemini-1:gemini-3.8-flash", "ok=True → sticky")
+
+    def test_request_ya_pili_inarudi_work_lane_moja_kwa_moja(self):
+        """Sticky inashinda MPANGILIO: lane ya chini ya priority inarudi kwanza."""
+        b, _ = self._brain()
+        b.work_lane = "gemini-1:gemini-3.5-flash"   # ilifanikiwa jana (mfano)
+        lane = b.pick_lane(set())
+        self.assertEqual(lane.id, "gemini-1:gemini-3.5-flash",
+                         "sticky tayari na iko live — haipiti 3.8/3.7 tena")
+
+    def test_quota_ya_siku_inafuta_sticky_na_mafanikio_mapya_yanaweka_nyingine(self):
+        b, clock = self._brain()
+        b.work_lane = "gemini-1:gemini-3.8-flash"
+        b.st(b.order[0]).exhausted_until = clock() + 3_600_000   # imekufa kwa siku
+        lane = b.pick_lane(set())
+        self.assertEqual(lane.id, "gemini-2:gemini-3.8-flash", "iliyofuata kwenye orodha")
+        self.assertIsNone(b.work_lane, "sticky imefutwa — bado hakuna mafanikio mapya")
+        b.record_usage(lane, True, 7, 3)
+        self.assertEqual(b.work_lane, "gemini-2:gemini-3.8-flash", "sticky mpya = mafanikio mapya")
+
+    def test_kosa_fupi_la_dakika_inasubiri_kimya_bado_yake(self):
+        sleeps = []
+        b, clock = self._brain(sleeper=lambda s: (sleeps.append(s), clock.advance(int(s * 1000) + 5)))
+        b.work_lane = "gemini-1:gemini-3.8-flash"
+        b.st(b.order[0]).retry_at = clock() + 15_000            # 429 ya dakika (fupi)
+        lane = b.pick_lane(set())
+        self.assertEqual(lane.id, "gemini-1:gemini-3.8-flash", "ilisubiri — bado yake")
+        self.assertTrue(sleeps and 14 <= sleeps[0] <= 16, f"sleep ~15s: {sleeps}")
+
+    def test_cooling_ndefu_inashuka_orodha(self):
+        b, clock = self._brain(sleeper=lambda s: None)
+        b.work_lane = "gemini-1:gemini-3.8-flash"
+        b.st(b.order[0]).retry_at = clock() + 120_000           # zaidi ya STICKY_MAX_WAIT_MS
+        lane = b.pick_lane(set())
+        self.assertEqual(lane.id, "gemini-2:gemini-3.8-flash", "haikungoja — ilishuka")
+        self.assertIsNone(b.work_lane)
+
+    def test_sticky_iliyofeli_katika_request_hii_haitengwi_kabisa(self):
+        """Failover ya NDANI ya request (tried) haifuti sticky — request ijayo inajaribu yake
+        kwanza tena; kama imefa kweli, pick ijayo ndiyo itaiondoa."""
+        b, _ = self._brain(sleeper=lambda s: None)
+        b.work_lane = "gemini-1:gemini-3.8-flash"
+        lane = b.pick_lane({"gemini-1:gemini-3.8-flash"})       # imeshafeli kwa request hii
+        self.assertEqual(lane.id, "gemini-2:gemini-3.8-flash")
+        self.assertEqual(b.work_lane, "gemini-1:gemini-3.8-flash", "sticky inabaki kwa request ijayo")

@@ -36,6 +36,7 @@ UPSTREAM_CONNECT_TIMEOUT = 20
 UPSTREAM_READ_TIMEOUT = 240
 GATE_MAX_WAIT = 90_000        # ms — kusubiri lane za Gemini zilizopo dakika-cooling kabla ya dharura
 EMERGENCY_MAX_WAIT = 120_000  # ms — kusubiri lanes za dharura zilizo cooling
+STICKY_MAX_WAIT_MS = 25_000   # ms — R34-A: kosa la dakika la sticky lane: subiri kimya chini ya hii, vingine shuka
 MAX_ATTEMPTS = 24             # jaribio kwa ombi moja kabla ya fatal
 IDLE_ABORT_MS = 180_000       # hakuna data kutoka upstream → lane inahisiwa imekufa
 XKIRO_MIN_REMAINING = 15_000  # tokens — chini ya hii, XKiro inarukwa kimya ("kama kuna nafasi")
@@ -644,6 +645,12 @@ class Brain:
         self.state: dict[str, LaneState] = {}
         self.emergency = False
         self.calls = 0
+        # R34-A STICKY LANE (agizo la CEO 06-10): lane iliyofanikiwa mwisho inashikiliwa —
+        # requests zinazo fuata zinaenda MOJA KWA MOJA kwake, si kutembeza orodha kila mara
+        # (kosa la zamani: 3.8/3.7 zilipokea requests 28 huku zikifa kila mara, kila request
+        # ikianza kutafuta upya). Inabadilika TU ikifa kweli (quota ya siku/disabled) au
+        # ikipumzika muda mrefu; kosa fupi la dakika = subiri kimya, bado yake.
+        self.work_lane: str | None = None
         self.usage_path = usage_path or os.environ.get("CU_USAGE_OUT", "/home/user/brain-usage.jsonl")
         self._clock = clock or (lambda: time.time() * 1000)
         self._sleep = sleeper or time.sleep
@@ -773,11 +780,38 @@ class Brain:
         return min(times) if times else 0
 
     def pick_lane(self, tried: set, depth: int = 0) -> Lane | None:
-        """Chagua lane iliyopo — kwa mpangilio; subiri cooling fupi (silent) kabla ya kushuka dharura."""
+        """Chagua lane iliyopo — kwa mpangilio; subiri cooling fupi (silent) kabla ya kushuka dharura.
+
+        R34-A: kuna work lane (sticky) → inatumika MOJA KWA MOJA; orodha inatembezwa TU
+        ikifa kweli (siku/disabled) au ikipopumzika zaidi ya STICKY_MAX_WAIT_MS."""
         if depth > 6:
             return None
         self._rollover_check()
         now = self._clock()
+        # ---- R34-A: sticky lane — lane iliyofanikiwa mara ya mwisho inashikiliwa
+        if self.work_lane:
+            wl = next((l for l in self.order if l.id == self.work_lane), None)
+            if wl is not None and wl.id not in tried:
+                r, wake = self._ready(wl, now)
+                if r:
+                    return wl
+                s = self.st(wl)
+                if s.disabled or s.exhausted_until > now:
+                    blog("info", f"📌 Sticky lane {wl.label()} imeisha kwa siku — natafuta nyingine.")
+                    self.work_lane = None          # imefa kweli — tafutiwa mpya
+                elif wake and 0 < wake - now <= STICKY_MAX_WAIT_MS:
+                    blog("info", f"⏳ Sticky lane {wl.label()} ina dakika-cooling fupi — nisubiri "
+                                 f"{int((wake - now) / 1000)}s (silent) badala ya kubadilisha.")
+                    self._sleep((wake - now) / 1000 + 0.05)
+                    tried.discard(wl.id)
+                    return self.pick_lane(tried, depth + 1)
+                else:
+                    blog("info", f"📌 Sticky lane {wl.label()} inapumzika muda mrefu — nashuka kwenye orodha.")
+                    self.work_lane = None          # cooling ndefu — tafutiwa nyingine sasa
+            elif wl is not None and wl.id in tried:
+                # imefeli KWA request hii (failover ya ndani) — orodha inaendelea; sticky inabaki
+                # (ikifa kweli, pick ijayo itaiondoa)
+                pass
         if not self.emergency:
             gem_all = [l for l in self.order if l.tier == "normal"]
             gem_untried = [l for l in gem_all if l.id not in tried]
@@ -844,6 +878,9 @@ class Brain:
                 s.rpm_calls.append(self._clock())
             elif lane.provider == "xkiro" and s.xkiro_remaining is not None:
                 s.xkiro_remaining -= (prompt + completion)
+            # R34-A: mafanikio ya kweli = hii ndiyo work lane sasa (sticky)
+            if self.work_lane != lane.id:
+                self.work_lane = lane.id
             self.calls += 1
 
     # ---------- usafiri (HTTP halisi; tests zinabadilisha)

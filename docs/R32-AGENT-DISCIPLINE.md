@@ -161,3 +161,24 @@ session nyingine).
 
 **Tests:** python 104/104 (+18: dedup 6, tests-tracking 5, report-language 5, regex 2);
 vitest 69/69; tsc OK.
+
+## R34 (06-10 jioni) — Sticky Lane + Empty Deliverables (agizo la CEO)
+
+**A — Sticky Lane (brain.py):** kila request ilianza kutembeza orodha upya — 3.8/3.7 zilizokufa
+zilipokea requests 28 za bure kwenye session 6ac4c32c, kila mara. Sasa: **lane iliyofanikiwa
+mwisho (`record_usage ok=True`) inakuwa work lane — requests zinazofuata zinaenda MOJA KWA MOJA
+kwake.** Inabadilika TU: (a) quota ya siku/disabled → inafutwa, orodha inatafuta mpya (na
+mafanikio mapya yanaweka sticky mpya), (b) kosa fupi la dakika (≤25s) → inasubiri kimya bado
+yake, (c) cooling ndefu (>25s) → inashuka orodha. Failover ya ndani ya request (tried) haifuti
+sticky. Emergency tier inabaki kama ilivyo; sticky inarudisha model bora likiwa limerejea.
+
+**B — Empty Deliverables (bridge.py):** kosa la 6ac4c32c — `index.html` ilirejelea
+`js/login.js` ya 0 bytes (touch-tu); ripoti + STATUS.md zikadai "Step 9 ✓". Sasa Stop hook,
+ikiruhusu mwisho halali, inascan HTML zote za workspace (bila node_modules/hidden): kila rejea
+ya ndani (`<script src>`, `<link rel=stylesheet href>`, `<img src>`) lazima iwepo wenye maudhui
+>0 bytes. `find_empty_deliverables()` → [("js/login.js", "0 bytes"|"haipo")…] → block "andika
+maudhui KAMILI au ondoa rejea — USIISHIE hivi" (max 2, kisha inaishishwa). External
+(http/https/data/mailto/#) na rel-isio-stylesheet (favicon n.k.) zinarukwa.
+
+**Tests:** python 121/121 (+17: sticky 6 — pamoja na test_pacific_reset iliyosasishwa kwa
+semantiki mpya ya sticky; deliverables 11). vitest 69/69.

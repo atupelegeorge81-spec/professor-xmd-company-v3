@@ -48,6 +48,11 @@ TEST_RUN_RX = _re.compile(r"\b(?:npx\s+(?:--yes\s+)?playwright\s+test|playwright
 # R33: ripoti halisi ya Kiswahili ina alama za sehemu zake; code-dump haina
 REPORT_MARK_RX = _re.compile(r"RIPOTI|Live Website|GitHub|Muhtasari|vercel\.app|github\.com|🌐|🐙|📱|📁|✅|🔗", _re.I)
 CODE_LINE_RX = _re.compile(r"^\s*(?:import\s|from\s+\S+\s+import|const\s|let\s|var\s|function\s|def\s|class\s|test\(|describe\(|it\(|await\s|return\s|export\s|console\.|print\(|}\s*\)|\{|\}$|//|#include|<\?php|<!DOCTYPE|<html)", _re.IGNORECASE)
+# R34-B: pages zinarejelea assets zisizo tayari (kosa la 6ac4c32c: js/login.js 0 bytes —
+# touch-tu, ripoti ikadai "Step 9 ✓ Imekamilika")
+TAG_RX = _re.compile(r"<(script|link|img)\b[^>]*>", _re.I)
+REF_RX = _re.compile(r"\b(?:src|href)\s*=\s*[\"']([^\"']+)[\"']", _re.I)
+SKIP_REF_PREFIXES = ("http://", "https://", "//", "data:", "mailto:", "tel:", "#", "javascript:")
 # R31-G4: snapshot ya workspace wakati wa pause (quota) — files zilirudike zero kesho
 SNAP_SKIP = {"node_modules", ".git", ".playwright-mcp", ".cache", ".venv", "__pycache__", ".npm", "playwright-report", ".codeium", ".vscode"}
 
@@ -419,6 +424,57 @@ def shape_fail_tail(txt: str, cap: int = 8000) -> str:
     return out
 
 
+def find_empty_deliverables(workspace: str) -> list[tuple[str, str]]:
+    """R34-B: pages za mradi (HTML) zinarejelea files zisizo tayari — 0 bytes au haipo.
+
+    (Kosa la 6ac4c32c: index.html ilirejelea js/login.js iliyoundwa kwa `touch` tu —
+    0 bytes — na ripoti ikadai "Step 9 ✓".) Inarudisha [(ref, "0 bytes"|"haipo"), …].
+    Rejea za nje (http/https/data/mailto/#) na rel isiyo stylesheet hazihesabiwi."""
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    try:
+        htmls: list[str] = []
+        for root, dirs, files in os.walk(workspace):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
+            for f in files:
+                if f.lower().endswith(".html") or f.lower().endswith(".htm"):
+                    htmls.append(os.path.join(root, f))
+    except OSError:
+        return out
+    for hp in htmls:
+        try:
+            with open(hp, encoding="utf-8", errors="replace") as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        for tag in TAG_RX.finditer(src):
+            t = tag.group(0) or ""
+            name = (tag.group(1) or "").lower()
+            if name == "link" and "stylesheet" not in t.lower():
+                continue  # favicon/preload n.k. si deliverable ya lazima
+            m = REF_RX.search(t)
+            if not m:
+                continue
+            ref = (m.group(1) or "").strip()
+            low = ref.lower()
+            if not ref or low.startswith(SKIP_REF_PREFIXES):
+                continue
+            ref = ref.split("#", 1)[0].split("?", 1)[0]
+            if not ref or ref.lower().startswith(SKIP_REF_PREFIXES):
+                continue
+            if ref in seen:
+                continue
+            seen.add(ref)
+            p = os.path.normpath(os.path.join(workspace, ref.lstrip("./")))
+            if os.path.normpath(p) == os.path.normpath(workspace):
+                continue
+            if not os.path.isfile(p):
+                out.append((ref, "haipo"))
+            elif os.path.getsize(p) == 0:
+                out.append((ref, "0 bytes"))
+    return out
+
+
 class HookState:
     """R32-C: hesabu za hooks za nidhamu (run moja, memory ya ndani tu — hakuna kudumu).
 
@@ -452,6 +508,8 @@ class HookState:
         self.tests_run: bool = False
         self.report_blocks: int = 0
         self.test_blocks: int = 0
+        # R34-B: pages zinarejelea files zisizo tayari (0 bytes / haipo) — block max 2
+        self.deliverable_blocks: int = 0
 
     # ---- Bash
     def note_bash_fail(self, cmd: str, err: str) -> None:
@@ -651,8 +709,22 @@ class HookState:
             if p and TEST_FILE_RX.search(p):
                 self.tests_written = True
 
+    def note_deliverables(self, empties: list[tuple[str, str]]) -> dict:
+        """R34-B: Stop hook ikiruhusu mwisho — pages zinarejelea files zisizo tayari?
+        (kosa la 6ac4c32c: js/login.js 0 bytes + ripoti "Step 9 ✓"). Max 2 blocks,
+        kisha inaishishwa (kikomo cha mfumo mzima)."""
+        if not empties or self.deliverable_blocks >= 2:
+            return {}
+        self.deliverable_blocks += 1
+        lst = ", ".join(f"«{p}» ({k})" for p, k in empties[:4])
+        return {"block_reason": (
+            f"XMD NIDHAMU: pages za mradi zinarejelea files zisizo tayari: {lst}. "
+            "Andika maudhui yao KAMILI kama mpango unavyosema (au ondoa rejea hiyo kabisa) "
+            "— USIISHIE hivi; ripoti ya Kiswahili inakuja baada ya kazi yote halisi.")}
+
     @staticmethod
     def _is_code_dump(text: str) -> bool:
+
         """R33: ripoti ya mwisho ni muhtasari wa Kiswahili — si maudhui ya file/code.
         (Kosa la 6ac4b789: lane ya dharura ilituma <tool_code>… dump ya file.)"""
         t = text or ""
@@ -770,6 +842,13 @@ def build_xmd_hooks(state: HookState, em, workspace: str):
                 # chochote — ni "endelea kazi" + ushauri wa nidhamu; max 2 kwa run)
                 em.emit("xmd_hook", kind="continue", text=str(verdict["block_reason"])[:500])
                 return {"decision": "block", "reason": verdict["block_reason"]}
+            # R34-B: jibu ni halali — lakini kazi yenyewe? pages zinarejelea files 0 bytes/haipo
+            # (kosa la 6ac4c32c: js/login.js touch-tu + ripoti "Step 9 ✓") → block max 2.
+            if not verdict.get("brake"):
+                dv = state.note_deliverables(find_empty_deliverables(workspace))
+                if dv.get("block_reason"):
+                    em.emit("xmd_hook", kind="continue", text=str(dv["block_reason"])[:500])
+                    return {"decision": "block", "reason": dv["block_reason"]}
         except Exception as e:
             sys.stderr.write(f"[bridge] hook on_stop: {e}\n")
         return {}
