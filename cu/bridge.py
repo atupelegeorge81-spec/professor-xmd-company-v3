@@ -53,6 +53,8 @@ CODE_LINE_RX = _re.compile(r"^\s*(?:import\s|from\s+\S+\s+import|const\s|let\s|v
 TAG_RX = _re.compile(r"<(script|link|img)\b[^>]*>", _re.I)
 REF_RX = _re.compile(r"\b(?:src|href)\s*=\s*[\"']([^\"']+)[\"']", _re.I)
 SKIP_REF_PREFIXES = ("http://", "https://", "//", "data:", "mailto:", "tel:", "#", "javascript:")
+# R34.1: saraka za build — generated na npm run build, si deliverable za kuandikwa
+BUILD_DIRS = frozenset(("dist", "build", "out", ".next", ".output", ".cache", "coverage"))
 # R31-G4: snapshot ya workspace wakati wa pause (quota) — files zilirudike zero kesho
 SNAP_SKIP = {"node_modules", ".git", ".playwright-mcp", ".cache", ".venv", "__pycache__", ".npm", "playwright-report", ".codeium", ".vscode"}
 
@@ -429,19 +431,26 @@ def find_empty_deliverables(workspace: str) -> list[tuple[str, str]]:
 
     (Kosa la 6ac4c32c: index.html ilirejelea js/login.js iliyoundwa kwa `touch` tu —
     0 bytes — na ripoti ikadai "Step 9 ✓".) Inarudisha [(ref, "0 bytes"|"haipo"), …].
-    Rejea za nje (http/https/data/mailto/#) na rel isiyo stylesheet hazihesabiwi."""
+    Rejea za nje (http/https/data/mailto/#) na rel isiyo stylesheet hazihesabiwi.
+
+    R34.1 (kosa la 6ac6c6e5 — false positive): rejea zinatafutwa KUTOKA na directory ya
+    HTML yenyewe (dist/index.html → ./assets/app.js = dist/assets/app.js, si ws/assets/),
+    na saraka za build (dist/ n.k.) ni generated — hazihesabiwi kabisa."""
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
+    ws = os.path.normpath(workspace)
     try:
         htmls: list[str] = []
         for root, dirs, files in os.walk(workspace):
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"
+                       and d not in BUILD_DIRS]
             for f in files:
                 if f.lower().endswith(".html") or f.lower().endswith(".htm"):
                     htmls.append(os.path.join(root, f))
     except OSError:
         return out
     for hp in htmls:
+        base = os.path.dirname(hp)
         try:
             with open(hp, encoding="utf-8", errors="replace") as fh:
                 src = fh.read()
@@ -462,11 +471,21 @@ def find_empty_deliverables(workspace: str) -> list[tuple[str, str]]:
             ref = ref.split("#", 1)[0].split("?", 1)[0]
             if not ref or ref.lower().startswith(SKIP_REF_PREFIXES):
                 continue
+            while ref.startswith("./"):        # R34.1: lstrip("./") ilivunja "../" — sasa sahihi
+                ref = ref[2:]
+            if ref.startswith("../"):
+                continue                        # inatoroka kutoka kwenye page — si deliverable hapa
+            if ref.startswith("/"):
+                ref = ref.lstrip("/")           # root-absolute → directory ya HTML (app inaserviwa hapo)
+            if not ref or ref.lower().startswith(SKIP_REF_PREFIXES):
+                continue
             if ref in seen:
                 continue
             seen.add(ref)
-            p = os.path.normpath(os.path.join(workspace, ref.lstrip("./")))
-            if os.path.normpath(p) == os.path.normpath(workspace):
+            p = os.path.normpath(os.path.join(base, ref))
+            if not (p == ws or p.startswith(ws + os.sep)):
+                continue                        # nje ya workspace
+            if p == os.path.normpath(hp):
                 continue
             if not os.path.isfile(p):
                 out.append((ref, "haipo"))

@@ -182,3 +182,13 @@ maudhui KAMILI au ondoa rejea — USIISHIE hivi" (max 2, kisha inaishishwa). Ext
 
 **Tests:** python 121/121 (+17: sticky 6 — pamoja na test_pacific_reset iliyosasishwa kwa
 semantiki mpya ya sticky; deliverables 11). vitest 69/69.
+
+## R34.1 (08-10) — false positive ya Empty Deliverables (session halisi 6ac6c6e5)
+
+Session ya kwanza baada ya R34: hook iliwaka kwa uongo mara 2 — `dist/index.html` (vite build)
+ilirejelea `./assets/index-*.js` zenye maudhui, lakini hook ilitafuta `ws/assets/` (mzizi) badala
+ya `dist/assets/`. Agent aliiita kwa usahihi "ripoti chanya ya uwongo" kwenye ripoti yake na
+kaihama kwa kufuta index.html ya source (baada ya push — hakuna uharibifu). Fix: (a) rejea
+zinatafutwa KUTOKA na directory ya HTML yenyewe (+"./" prefix removal sahihi, "../" inatoroka
+hairuhusiwi), (b) saraka za build (dist/build/out/.next/.output/.cache/coverage) ni generated —
+hazihesabiwi. Tests 124/124 (+3: dist skip, subdir resolution, ../ escape).

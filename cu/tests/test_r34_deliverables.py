@@ -87,6 +87,38 @@ class TestFindEmptyDeliverables(unittest.TestCase):
         self.assertIn(("css/b.css", "haipo"), got)
         self.assertEqual(len(got), 1)
 
+    # ---------------- R34.1: false positive ya 6ac6c6e5 ----------------
+    # dist/index.html (vite build) ilirejelea ./assets/index-*.js — hook ya zamani ilitafuta
+    # ws/assets/ (mzizi) badala ya dist/assets/ → block ya uongo mara 2. Sasa:
+    # (a) saraka za build (dist/ n.k.) hazihesabiwi kabisa, (b) rejea zinatafutwa kutoka
+    # directory ya HTML yenyewe.
+
+    def test_dist_ya_build_haighairiwi_kabisa(self):
+        ws = make_ws({
+            "index.html": '<html><body><script type="module" src="/src/main.jsx"></script></body></html>',
+            "src/main.jsx": "render();",
+            "dist/index.html": '<html><head><link rel="stylesheet" href="./assets/index-BtJ1Q6qY.css"></head>'
+                              '<body><script type="module" src="./assets/index-Cyvuk1eG.js"></script></body></html>',
+            # KUMBUKA: dist/assets/ haipo kabisa — build output si deliverable ya kuhesabiwa
+        })
+        self.assertEqual(find_empty_deliverables(ws), [], "dist/ ni generated — hakuna ghairi")
+
+    def test_rejea_inatafutwa_kutoka_directory_ya_html(self):
+        """HTML ndani ya subdir inarejelea ./js/app.js → subdir/js/app.js (si ws/js/)."""
+        ws = make_ws({
+            "site/page.html": '<html><body><script src="./js/app.js"></script></body></html>',
+            "site/js/app.js": "ok();",          # ipo NDANI ya site/ — ya zamani ingedai haipo
+        })
+        self.assertEqual(find_empty_deliverables(ws), [])
+
+    def test_rejea_inayotoroka_haighairiwi(self):
+        """HTML ya subdir ikitafuta ../shared.css (inatoroka) — hairuhusiwi kuhesabiwa."""
+        ws = make_ws({
+            "site/page.html": '<html><head><link rel="stylesheet" href="../shared.css"></head></html>',
+            "shared.css": "x{}",
+        })
+        self.assertEqual(find_empty_deliverables(ws), [], "../ inatoroka — hairuhusiwi")
+
 
 class TestNoteDeliverables(unittest.TestCase):
     def test_block_ya_kwanza_na_ya_pili(self):
