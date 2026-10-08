@@ -734,12 +734,9 @@ export async function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: C
       if (kind === "brake" && hooks) {
         hooks.blog("warning", `🛑 ${String(ev.text || "XMD brake").slice(0, 200)}`);
         hooks.addChip("🛑 XMD Computer imesimama (jibu lilelile ×3) — ripoti ipo STATUS.md. ▶ Endeleza inaendelea.");
-      } else if (kind === "advice" && hooks) {
-        hooks.blog("info", `⚠️ Nidhamu: ${String(ev.text || "").slice(0, 180)}`);
-      } else if (kind === "shot_deny" && hooks) {
-        // R33: screenshot ya pili ya page ileile imekataliwa ("picha ipo tayari")
-        hooks.blog("info", `📷 Picha ipo tayari (page ileile): ${String(ev.text || "").slice(0, 160)}`);
       }
+      // R36: advice/continue/shot_deny/fail = BACKGROUND — hakuna blog ya UI (agizo la CEO:
+      // warnings za nidhamu hazionekani mbele; hook yenyewe inamdirect agent kama kawaida).
       schedulePersist(runner, hooks!, true);
       break;
     }

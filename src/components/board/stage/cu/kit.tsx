@@ -316,25 +316,14 @@ export function CodeStreamBlock({
   );
 }
 
-/* ── useTypewriter (xmd3 lib/hooks.ts — ileile) ──────────────────────────── */
+/* ── useTypewriter — R36: INSTANT (agizo la CEO 08-10): UI inaendana na SPEED HALISI ya
+   model (milliseconds). Hakuna replay ya kucheza herufi 70/s — ilikuwa inachelewesha
+   maonyesho dhidi ya Gemini (thought ya 600 chars = sekunde 9 za "kuandika" bila sababu).
+   Text inayoingia (delta ya SSE) inaonekana MOJA KWA MOJA; mtiririko wa asili wa chunks
+   ndio unatoa hisia ya streaming. `active` bado inaonyesha caret/t shimmer ya "Writing". ── */
 export function useTypewriter(text: string, active: boolean, charsPerSecond = 70): string {
-  const [shown, setShown] = useState(active ? "" : text);
-  useEffect(() => {
-    if (!active) {
-      setShown(text);
-      return;
-    }
-    setShown("");
-    let index = 0;
-    const step = Math.max(16, 1000 / charsPerSecond);
-    const id = window.setInterval(() => {
-      index += 1;
-      setShown(text.slice(0, index));
-      if (index >= text.length) window.clearInterval(id);
-    }, step);
-    return () => window.clearInterval(id);
-  }, [text, active, charsPerSecond]);
-  return shown;
+  void active; void charsPerSecond;   // param za API-compat — hazitumiki tena
+  return text;
 }
 
 /* ── CollapsibleSection (xmd3 — kwa CSS grid, muundo ileile) ─────────────── */

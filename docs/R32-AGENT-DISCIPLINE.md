@@ -204,3 +204,17 @@ hazihesabiwi. Tests 124/124 (+3: dist skip, subdir resolution, ../ escape).
 - **Vikomo vimeondolewa kwa kazi kubwa:** PLAN_STEPS_MAX 15 → **60** (env PLAN_STEPS_MAX), agenda
   cap 20 → **30**. Min 8 ya steps inabaki (kina cha chini, si limiter).
 - Tests: vitest 71/71 (+2: hooks kwenye adapter + export kamili), tsc OK.
+
+## R36 (08-10 jioni) — Nidhamu = BACKGROUND + UI kwa SPEED HALISI ya model (agizo la CEO)
+
+- **Hook cards hazionekani kwenye UI:** cuHook zote (advice/continue/shot_deny/fail) zinaruka
+  render kwenye timeline; blog za engine za "⚠️ Nidhamu" na "📷 Picha ipo tayari" zimeondolewa.
+  PEKE ya **brake** (NIMEKWAMA — run imekwama kabisa) inaonekana kwenye UI + chip (ni error
+  halisi). Hook zenyewe ZINAENDELEA kumdirect agent background kama kawaida; data zote bado
+  zinahifadhiwa — **Export kamili (R35) haikubadilishwa** (hooks + picha + kila kitu badoipo).
+- **Speed ya UI = speed ya Gemini:** `useTypewriter` sasa INSTANT — text/delta inayoingia
+  inaonekana MOJA KWA MOJA (awali: replay ya herufi 70/s — thought ya 600 chars = sekunde 9,
+  script ya 3000 chars = sekunde 43 kwenye 140/s "Writing"). Thinking card: window ya reveal
+  (hadi 5000ms) imekuwa settle fupi ya shimmer 300ms. Hakuna kugusa speed ya model wala
+  njia yake — ni upande wa onyesho tu.
+- vitest 71/71, tsc OK.

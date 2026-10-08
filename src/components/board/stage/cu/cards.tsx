@@ -353,8 +353,8 @@ export function CuThinkingView({ it }: { it: CuThinkItem }) {
   useEffect(() => {
     if (!it.text || it.partial) { if (!it.text) setRevealing(false); return; }
     setRevealing(true);
-    const revealMs = Math.min(5000, Math.max(280, (it.text.length / 70) * 1000 + 200));
-    const timer = window.setTimeout(() => setRevealing(false), revealMs);
+    // R36: text inaonekana INSTANT — hii ni settle fupi ya shimmer tu (si pacing ya maandishi)
+    const timer = window.setTimeout(() => setRevealing(false), 300);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [it.text]);

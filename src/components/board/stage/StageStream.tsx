@@ -68,7 +68,11 @@ const StageNode = memo(function StageNode({ it, onResume, sessionId }: { it: Sta
     case "cuExec": return <CuExecView it={it} />;
     case "cuShot": return <CuShotView it={it} />;
     case "cuLink": return <CuLinkView it={it} />;
-    case "cuHook": return <CuHookView it={it} />;
+    case "cuHook":
+      // R36 (agizo la CEO): nidhamu za hooks zinaisha BACKGROUND — hazionekani kwenye UI.
+      // Data inabaki kwenye items (Export kamili inaendelea kuizihifadhi). PEKE ya "brake"
+      // (run imekwama kabisa — NIMEKWAMA) inaonekana kwa sababu ni error halisi ya run.
+      return it.hookKind === "brake" ? <CuHookView it={it} /> : null;
     case "cuError": return <CuErrorView it={it} />;
     default: {
       const never: never = it;
