@@ -13,7 +13,7 @@ import {
   computeLineDiff, diffStats, formatBytes, formatDuration, hostname, isRunning, ProgressBar, ShimmerText, shortPath, ToolRow, useSettledStatus, useTypewriter, CodeStreamBlock, type ToolStatus,
 } from "./kit";
 import type {
-  CuErrorItem, CuExecItem, CuLinkItem, CuShotItem, CuTextItem, CuThinkItem,
+  CuErrorItem, CuHookItem, CuExecItem, CuLinkItem, CuShotItem, CuTextItem, CuThinkItem,
 } from "@/lib/stage/types";
 import { ReportBody } from "../../../reports/ReportBody";
 
@@ -467,6 +467,23 @@ export function CuLinkView({ it }: { it: CuLinkItem }) {
 }
 
 /* ── error → card ya kosa (xmd3 ErrorRetryCard bila retry — Endeleza ipo notice) ── */
+
+/* R35 · nidhamu ya bridge hooks — mstari mfupi (advice/continue/brake/shot_deny/fail) */
+export function CuHookView({ it }: { it: CuHookItem }) {
+  const icon = it.hookKind === "brake" ? "🛑" : it.hookKind === "continue" ? "🔁" : it.hookKind === "shot_deny" ? "📷" : it.hookKind === "fail" ? "⚠️" : "ℹ️";
+  return (
+    <div className="cu-anim flex w-full items-start gap-2 rounded-[var(--px-radius-lg)] border border-[var(--px-line)] bg-[var(--px-surface-2)] px-3 py-2">
+      <span className="shrink-0 text-[12px] leading-5">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11.5px] leading-relaxed text-[var(--px-fg-muted)]">
+          <span className="font-mono text-[10.5px] uppercase tracking-wider text-[var(--px-fg-3)]">nidhamu/{it.hookKind}{it.streak ? ` ×${it.streak}` : ""}</span>
+          {" — "}{it.text.slice(0, 400)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function CuErrorView({ it }: { it: CuErrorItem }) {
   return (
     <div className="cu-anim flex w-full items-start gap-2.5 rounded-[var(--px-radius-lg)] border border-[var(--px-danger-soft)] bg-[var(--px-danger-soft)] px-3 py-2.5">

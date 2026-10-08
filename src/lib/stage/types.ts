@@ -271,6 +271,9 @@ export interface CuShotItem { kind: "cuShot"; id: string; step: number; label: s
 /** link muhimu — github: repo imeundwa · deploy: tovuti iko live */
 export interface CuLinkItem { kind: "cuLink"; id: string; step: number; link: "github" | "deploy"; url: string }
 
+/** R35: tukio la nidhamu la hooks za bridge (advice/continue/brake/shot_deny/fail) — kwenye timeline na export */
+export interface CuHookItem { kind: "cuHook"; id: string; step: number; hookKind: string; text: string; command?: string; streak?: number }
+
 /** kosa la awamu ya CU (fatal tu) */
 export interface CuErrorItem { kind: "cuError"; id: string; message: string }
 
@@ -319,7 +322,7 @@ export type StageItem =
   | TaskItem | MemoryItem | SealItem | ObserversItem | SupersedeItem | OverruledItem
   | ValidatorItem | AssemblyItem | ReportItem | PlanItem | NoticeItem | SummaryItem
   | CuRunItem | CuReportItem | CuPauseItem
-  | CuThinkItem | CuTextItem | CuExecItem | CuShotItem | CuLinkItem | CuErrorItem | CuDividerItem;
+  | CuThinkItem | CuTextItem | CuExecItem | CuShotItem | CuLinkItem | CuHookItem | CuErrorItem | CuDividerItem;
 
 /* ---------------- live stage (StageRail) ---------------- */
 export type AgendaPhase = "evidence" | "discussion" | "code" | "lock" | "review" | "relock" | "memory";

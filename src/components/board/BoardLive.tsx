@@ -489,17 +489,29 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
     setSnap(adapter.current.snapshot());
   }, [fresh]);
 
-  /* ---------------- export (kipengele cha zamani: window.__xmdExportConversation) ---------------- */
-  const exportMarkdown = useCallback(() => {
+  /* ---------------- export (R35: KILA KITU — discussion + computer + picha embedded) ---------------- */
+  const exportMarkdown = useCallback(async () => {
     const s = adapter.current.snapshot();
-    const md = boardMarkdown(s.title, prompt, s.items);
+    // R35: picha zote za CU zinafetoliwa kutoka bucket na kuingizwa kama data-URI (base64)
+    const shotData: Record<string, string> = {};
+    await Promise.all((s.items.filter((x) => x.kind === "cuShot") as any[])
+      .filter((x) => x.fileId).map(async (x) => {
+        try {
+          const r = await fetch(`/api/boardroom/cu-file?bucket=${encodeURIComponent(x.bucketId || "")}&file=${encodeURIComponent(x.fileId)}`);
+          if (!r.ok) return;
+          const blob = await r.blob();
+          const b64: string = await new Promise((res) => { const fr = new FileReader(); fr.onloadend = () => res(String(fr.result || "")); fr.readAsDataURL(blob); });
+          if (b64.startsWith("data:")) shotData[x.fileId] = b64;
+        } catch { /* picha inayokwama hairudishi export nzima */ }
+      }));
+    const md = boardMarkdown(s.title, prompt, s.items, shotData);
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `${(s.title || "board-room").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "board-room"}.md`;
     a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
   }, [prompt]);
 
   useEffect(() => {

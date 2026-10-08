@@ -70,4 +70,4 @@ export function readEnv(name: string): string | undefined {
 // "off" = flow ya zamani ya code (HATUA 6.5 script ya mwisho + review loops) — logic ya zamani haivunjwi.
 export const BOARD_PLAN_MODE = (process.env.BOARD_PLAN_MODE || "on").toLowerCase() !== "off";
 /** Kikomo cha hatua za plan (coarse — amri ya Mkuu). */
-export const PLAN_STEPS_LIMITS = { min: Number(process.env.PLAN_STEPS_MIN) || 8, max: Number(process.env.PLAN_STEPS_MAX) || 15 };
+export const PLAN_STEPS_LIMITS = { min: Number(process.env.PLAN_STEPS_MIN) || 8, max: Number(process.env.PLAN_STEPS_MAX) || 60 };  // R35

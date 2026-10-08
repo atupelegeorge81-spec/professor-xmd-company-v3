@@ -286,7 +286,7 @@ STRICT RULES:
 - The agenda must describe concrete work required to fulfill the CEO request.
 - For a full website/app build, DO NOT merge multiple distinct concerns into one item. Create ONE item per concrete UI section, component, interaction, or technical decision (example: hero animation, navigation, product grid, product detail page, cart drawer, checkout flow, color system, typography system, button/interaction states, responsive behavior — each is its own item, not one combined item).
 - Never split ONE activity into several items by input, case or amount (e.g. testing three amounts is ONE verification item; researching facts and storing those same facts is ONE item). Every item must need its own distinct discussion.
-- Propose at most 20 agenda items total. Prioritize the most important, concrete concerns within that limit — prefer many small, precise items over few broad ones.
+- Propose at most 30 agenda items total (kazi kubwa inahitaji items wengi — usiogope kufika juu ya kikomo kwa miradi mikubwa). Prioritize the most important, concrete concerns within that limit — prefer many small, precise items over few broad ones.
 - Set "requiresCode": true ONLY when the item's deliverable is actual source code to implement/build (e.g. a component, an API endpoint, an animation script, a test suite). Set "requiresCode": false for pure decision/architecture items (e.g. choosing a color palette, naming a page structure) that produce no code by themselves.
           `.trim(), "agenda", `${project}\n${scope.objective}\n${scope.deliverable}\n${scope.requirements.join("\n")}`, AGENDA_NOTE),
         },

@@ -9,8 +9,9 @@ const name = (id: AgentId) => getAgent(id)?.name || id;
 const fence = (lang: string, code: string) => ["```" + (lang || "text"), code.replace(/\s+$/, ""), "```"];
 const sources = (list?: { title: string; url: string }[]) => (list?.length ? [list.map((x) => `- [${x.title || x.url}](${x.url})`).join("\n"), ""] : []);
 
-export function boardMarkdown(title: string, prompt: string, items: StageItem[]): string {
-  const L: string[] = [`# ${title || "Board Room"}`, ""];
+export function boardMarkdown(title: string, prompt: string, items: StageItem[], shotData: Record<string, string> = {}): string {
+  const L: string[] = [`# ${title || "Board Room"}`, "",
+    `_Imeandaliwa: ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC · Export kamili (R35): discussion → maamuzi → mpango → XMD Computer (mawazo, commands+output, diff, picha, nidhamu, ripoti)_`, ""];
   if (prompt) L.push(`> ${prompt.replace(/\n/g, "\n> ")}`, "");
   for (const it of items) {
     switch (it.kind) {
@@ -62,20 +63,37 @@ export function boardMarkdown(title: string, prompt: string, items: StageItem[])
         break;
       case "cuRun":
         L.push("---", "", `### 🖥️ XMD Computer — ${it.task}`, "",
-          `- Hali: ${it.status === "run" ? "inaendelea" : it.status === "error" ? "imesimama" : "imekamilika"} · hatua ${it.step} · ${it.requests} LLM calls · ${it.tokens.toLocaleString()} tokens · files ${it.filesCount} · screenshots ${it.screenshots}`,
-          it.github ? `- GitHub: ${it.github}` : "", it.deploy ? `- Live: ${it.deploy}` : "", "");
+          `- Hali: ${it.status === "run" ? "inaendelea" : it.status === "error" ? "imesimama" : it.status === "paused" ? "imepumzika (quota)" : "imekamilika"} · hatua ${it.step} · ${it.requests} LLM calls · ${it.tokens.toLocaleString()} tokens · files ${it.filesCount} · screenshots ${it.screenshots}`,
+          it.github ? `- GitHub: ${it.github}` : "", it.deploy ? `- Live: ${it.deploy}` : "", "",
+          ...(it.files.length ? ["**Files za mwisho za workspace:**", "", ...it.files.slice(0, 60).map((f) => `- \`${typeof f === "string" ? f : f.path}\`${typeof f === "object" && f.isDir ? "/" : typeof f === "object" ? ` (${f.size}B)` : ""}`), ""] : []));
         break;
       case "cuThink":
-        if (it.text) L.push("> 💭 " + it.text.replace(/\n/g, " ").slice(0, 300), "");
+        // R35: thought KAMILI (haikatwi 300) — kila detail
+        if (it.text) L.push("> 💭 **[thought]** " + it.text.replace(/\n/g, "\n> "), "");
         break;
       case "cuText":
         if (it.text) L.push(it.text, "");
         break;
-      case "cuExec":
-        L.push(`- \`${(it.command || it.tool).slice(0, 120)}\`${it.exit !== undefined && it.exit !== 0 ? ` (exit ${it.exit})` : it.ms ? ` (${(it.ms / 1000).toFixed(1)}s)` : ""}`);
+      case "cuHook":
+        L.push(`- 🛡️ **nidhamu/${it.hookKind}${it.streak ? ` ×${it.streak}` : ""}**: ${it.text}${it.command ? ` (cmd: \`${it.command.slice(0, 120)}\`)` : ""}`);
         break;
+      case "cuExec": {
+        // R35: command KAMILI + output + diff — kila detail ya utekelezaji
+        const head = `**⚙️ Hatua ${it.step} · ${it.tool}${it.path ? ` · \`${it.path}\`` : ""}${it.exit !== undefined && it.exit !== 0 ? ` · ❌ exit ${it.exit}` : it.ms ? ` · ${(it.ms / 1000).toFixed(1)}s` : ""}**`;
+        L.push(head, "", ...fence("bash", it.command || it.tool));
+        if (it.oldStr || it.newStr) {
+          L.push("", "**Diff:**", "", ...fence("diff", `--- before\n+++ after\n${it.oldStr ? it.oldStr.split("\n").map((l) => `- ${l}`).join("\n") : ""}\n${it.newStr ? it.newStr.split("\n").map((l) => `+ ${l}`).join("\n") : ""}`));
+        } else if (it.preview) {
+          L.push("", "**Maudhui:**", "", ...fence("text", it.preview.slice(0, 4000)));
+        }
+        if (it.output) L.push("", "**Output:**", "", ...fence("text", it.output.slice(0, 4000)));
+        L.push("");
+        break;
+      }
       case "cuShot":
-        L.push(`- 📸 ${it.label}`);
+        // R35: PICHA YENYEWE inaingizwa kama data-URI (shotData: fileId → base64)
+        if (shotData[it.fileId]) L.push(`**📸 ${it.label}** (step ${it.step})`, "", `![${it.label}](${shotData[it.fileId]})`, "");
+        else L.push(`- 📸 ${it.label}${it.fileId ? ` (picha: /api/boardroom/cu-file?bucket=${it.bucketId}&file=${it.fileId})` : " (haipakuliwi)"}`);
         break;
       case "cuLink":
         L.push(it.link === "github" ? `- GitHub: ${it.url}` : `- Live: ${it.url}`);

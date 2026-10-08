@@ -221,3 +221,43 @@ describe("R31 · adapter ya XMD Computer (timeline)", () => {
     expect(t.snap().usage.optimus.tokens).toBe(0);
   });
 });
+
+describe("R35 · nidhamu (hooks) kwenye timeline + export kamili", () => {
+  it("xmd_hook (live) na hook (replay) zinakuwa cuHook items", () => {
+    const t = run();
+    t.cu({ type: "divider" });
+    t.cu({ type: "run_start", task: "Dashboards" });
+    t.cu({ type: "xmd_hook", kind: "continue", text: "XMD NIDHAMU: endelea MOJA KWA MOJA", streak: 2 });
+    t.cu({ type: "hook", hookKind: "brake", text: "jibu lilelile x3" });
+    const hooks = t.all<any>("cuHook");
+    expect(hooks).toHaveLength(2);
+    expect(hooks[0].hookKind).toBe("continue");
+    expect(hooks[0].streak).toBe(2);
+    expect(hooks[1].hookKind).toBe("brake");
+  });
+
+  it("export ina: thought kamili, command+output, diff, hook, picha data-URI, files tree", async () => {
+    const { boardMarkdown } = await import("@/components/board/exportMarkdown");
+    const t = run();
+    t.cu({ type: "divider" });
+    t.cu({ type: "run_start", task: "Dashboards Kubwa" });
+    t.cu({ type: "think_delta", step: 1, text: "napanga".repeat(50) });
+    t.cu({ type: "think_end", step: 1, ms: 5 });
+    t.cu({ type: "xmd_hook", kind: "advice", text: "ushauri wa nidhamu hapa" });
+    t.cu({ type: "exec", step: 2, execId: "e1", tool: "Bash", kindX: "bash", command: "npm run build", exit: 0, output: "build succeeded in 3.2s" });
+    t.cu({ type: "exec", step: 3, execId: "e2", tool: "Edit", kindX: "edit", command: "Edit", path: "src/App.jsx", oldStr: "const x = 1;", newStr: "const x = 2;", exit: 0 });
+    t.cu({ type: "shot", step: 4, label: "Desktop 1280x800", fileId: "f1", bucketId: "b1" });
+    t.cu({ type: "files", tree: [{ p: "src/App.jsx", d: false, s: 120 }] });
+    t.cu({ type: "report", text: "RIPOTI: imekamilika", status: "done", partial: false });
+    const md = boardMarkdown("Dashboards Kubwa", "jenga dashboards", t.snap().items, { f1: "data:image/png;base64,QUJD" });
+    expect(md).toContain("napanga".repeat(50));            // thought KAMILI (haikatwi)
+    expect(md).toContain("npm run build");                 // command kamili
+    expect(md).toContain("build succeeded in 3.2s");       // output
+    expect(md).toContain("- const x = 1;");                // diff before
+    expect(md).toContain("+ const x = 2;");                // diff after
+    expect(md).toContain("nidhamu/advice");                // hook line
+    expect(md).toContain("data:image/png;base64,QUJD");    // picha embedded
+    expect(md).toContain("src/App.jsx");                   // files tree
+    expect(md).toContain("RIPOTI: imekamilika");           // ripoti
+  });
+});

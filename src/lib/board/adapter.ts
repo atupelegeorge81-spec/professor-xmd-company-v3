@@ -1359,6 +1359,15 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         add({ kind: "cuLink", id: nid(), step: Number(cu.step) || 0, link: "github", url });
         break;
       }
+      // R35: nidhamu ya hooks (live: xmd_hook + kind · replay: hook + hookKind) — kwenye timeline na export
+      case "xmd_hook":
+      case "hook": {
+        add({ kind: "cuHook", id: nid(), step: Number(cu.step) || 0,
+              hookKind: String(cu.kind || cu.hookKind || "advice"),
+              text: String(cu.text || ""), command: cu.command ? String(cu.command).slice(0, 300) : undefined,
+              streak: Number(cu.streak) || 0 });
+        break;
+      }
       case "deploy": {
         if (!cuRunUi) return;
         const url = String(cu.url || "");

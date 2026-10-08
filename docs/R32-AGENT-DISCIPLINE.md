@@ -192,3 +192,15 @@ kaihama kwa kufuta index.html ya source (baada ya push — hakuna uharibifu). Fi
 zinatafutwa KUTOKA na directory ya HTML yenyewe (+"./" prefix removal sahihi, "../" inatoroka
 hairuhusiwi), (b) saraka za build (dist/build/out/.next/.output/.cache/coverage) ni generated —
 hazihesabiwi. Tests 124/124 (+3: dist skip, subdir resolution, ../ escape).
+
+## R35 (08-10 jioni) — Export kamili + hakuna vikomo (agizo la CEO)
+
+- **Export "kila kitu hadi picha":** think KAMILI (haikatwi 300), exec = command kamili + output
+  + diff (before/after) + path + exit/muda, hooks za nidhamu (cuHook mpya — live `xmd_hook` na
+  replay `hook` zote), picha za CU **embedded kama data-URI** (fetch kutoka bucket wakati wa export),
+  files tree ya workspace, header ya muda. Export ni async sasa (Promise.all ya picha).
+- **cuHook kwenye timeline:** adapter + CuHookView (mstari mfupi wenye icon kwa kind) — nidhamu
+  sasa inaonekana kwenye mkondo, si blog tu.
+- **Vikomo vimeondolewa kwa kazi kubwa:** PLAN_STEPS_MAX 15 → **60** (env PLAN_STEPS_MAX), agenda
+  cap 20 → **30**. Min 8 ya steps inabaki (kina cha chini, si limiter).
+- Tests: vitest 71/71 (+2: hooks kwenye adapter + export kamili), tsc OK.

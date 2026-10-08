@@ -11,7 +11,7 @@ import { MemoryStrip, ObserversCard, OverruledCard, SealCard, SupersedeCard, Tas
 import { NoticeLine, ReportWriter, SummaryCard } from "./Finale";
 import { PlanWriter } from "./Plan";
 import { CuRunCard, CuPauseView, CuReportView, CuDividerMark } from "./Computer";
-import { CuErrorView, CuExecView, CuLinkView, CuShotView, CuTextView, CuThinkingView } from "./cu/cards";
+import { CuErrorView, CuHookView, CuExecView, CuLinkView, CuShotView, CuTextView, CuThinkingView } from "./cu/cards";
 
 /** Dispatcher: kila StageItem → render yake (hakuna tukio bila render). */
 export function StageStream({ items, onResume, sessionId }: { items: StageItem[]; onResume?: () => void; sessionId?: string | null }) {
@@ -68,6 +68,7 @@ const StageNode = memo(function StageNode({ it, onResume, sessionId }: { it: Sta
     case "cuExec": return <CuExecView it={it} />;
     case "cuShot": return <CuShotView it={it} />;
     case "cuLink": return <CuLinkView it={it} />;
+    case "cuHook": return <CuHookView it={it} />;
     case "cuError": return <CuErrorView it={it} />;
     default: {
       const never: never = it;

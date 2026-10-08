@@ -14,7 +14,7 @@ import type { FactSheet } from "./factSheet";
 
 /** Coarse (amri ya Mkuu): kila hatua ni kazi kubwa yenye verification yake. */
 export const PLAN_STEPS_MIN = 8;
-export const PLAN_STEPS_MAX = 15;
+export const PLAN_STEPS_MAX = Number(process.env.PLAN_STEPS_MAX) || 60;  // R35: kazi kubwa — hakuna kikomo kidogo (agizo la CEO 08-10)
 /** Sample code ya kurejelea kwenye plan (snippet ya hoja, si faili kamili). */
 export const SAMPLE_CODE_MAX_LINES = 40;
 
