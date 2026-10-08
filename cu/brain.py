@@ -180,9 +180,14 @@ def build_order(cfg: dict) -> list[Lane]:
     base = gem.get("baseUrl") or "https://generativelanguage.googleapis.com/v1beta/openai"
     flash_rpm = int(gem.get("flashRpm") or 5)
     lite_rpm = int(gem.get("liteRpm") or 15)
+    # R38: (akaunti × model) zilizo 404 "no longer available to new users" — hazizalishwi kabisa
+    # (mf. gemini-2:gemini-2.5-flash — live probe 08-10; gemini-1 inabaki nayo)
+    skip = gem.get("modelSkip") or {}
     rank = 0
     for model in flash:
         for acct in ("gemini-1", "gemini-2"):
+            if model in (skip.get(acct) or []):
+                continue
             k = keys.get(acct)
             if k:
                 lanes.append(Lane("gemini", acct, model, base, k, 65_536, 1_000_000, "normal", rank, False, flash_rpm))
@@ -190,6 +195,8 @@ def build_order(cfg: dict) -> list[Lane]:
     rank = 100
     for model in lite:
         for acct in ("gemini-1", "gemini-2"):
+            if model in (skip.get(acct) or []):
+                continue
             k = keys.get(acct)
             if k:
                 lanes.append(Lane("gemini", acct, model, base, k, 65_536, 1_000_000, "normal", rank, False, lite_rpm))

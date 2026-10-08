@@ -270,3 +270,13 @@ na Itifaki kwa agenda zilizobaki).
 deliberation 11, openRecord 4 — ikiwemo replay ya msg #17 halisi ya A3: hakuna hit; Saluni/Mama Lishe
 zinakatwa bado). Replay ya msgs 44 zote za session 6ac7576d kwa logic mpya: **hakuna hit hata moja** —
 A3 ingefunga LOCKED kwa AGREE za owners.
+
+## R38 — gemini-2.5-flash @ gemini-2 = 404 (lane iliyo kufa imeondolewa)
+
+Live probe 08-10 (kila model × account, request halisi): `gemini-2.5-flash` → **gemini-1 ✅ 200 OK**
+(lane kuu ya CU run) · **gemini-2 ❌ 404 "no longer available to new users"**. Fix (upunjaji mdogo kabisa):
+`GEMINI_MODEL_SKIP: { "gemini-2": ["gemini-2.5-flash"] }` (`src/lib/env.ts`) — broker ya Board
+(`lanes.ts` allLanes) na config ya CU (`engine.ts` → `brain.py build_order`) hazizalishi lane hiyo PEKEE;
+gemini-1 inabaki na 2.5-flash, models/lane ZOTE nyingine hazikuguswa. Back-compat: config bila `modelSkip`
+inaendelea kufanya kazi kama zamani. Uthibitisho: python 125/125 (+1), vitest 98/98 (+3), tsc clean.
+(Uchunguzi kamili wa session 6ac78bc6: docs/R38-DEEP-INSPECTION.md — root causes RC1–RC5 na fix plan.)

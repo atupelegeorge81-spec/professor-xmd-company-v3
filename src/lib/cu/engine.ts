@@ -22,6 +22,7 @@ import {
   ledger, type GemAcct,
 } from "@/lib/server/usageLedger";
 import { slotKeys } from "@/lib/server/usageKeys";
+import { GEMINI_MODEL_SKIP } from "@/lib/env";
 import type { ProviderUsage, UsageMap } from "@/lib/usageChip";
 import type { Runner } from "@/lib/boardRunner";
 import type { BoardEvent, LogEntry } from "@/lib/types";
@@ -223,6 +224,7 @@ export function buildCuConfig(): Record<string, unknown> {
     gemini: {
       keys: { ...(process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY ? { "gemini-1": process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY } : {}), ...(process.env.GEMINI_API_KEY_2 ? { "gemini-2": process.env.GEMINI_API_KEY_2 } : {}) },
       flashModels: flash, liteModels: lite,
+      modelSkip: GEMINI_MODEL_SKIP, // R38: (akaunti × model) zilizo 404 — mf. gemini-2:gemini-2.5-flash (brain.py hazizalishi)
       flashRpd: Number(process.env.GEMINI_FLASH_RPD) || 20,
       liteRpd: Number(process.env.GEMINI_LITE_RPD) || 500,
       flashRpm: Number(process.env.GEMINI_FLASH_RPM) || 5,

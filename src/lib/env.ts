@@ -28,6 +28,10 @@ const list = (v: string | undefined, d: string) => (v || d).split(",").map((s) =
 export const GEMINI_FLASH_MODELS: string[] = list(process.env.GEMINI_FLASH_MODELS, "gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,gemini-2.5-flash");
 /** Flash-Lite (haraka, nyingi) — kazi za LIGHT/BACKGROUND: observers, memory, search query, title */
 export const GEMINI_LITE_MODELS: string[] = list(process.env.GEMINI_LITE_MODELS, "gemini-3.5-flash-lite,gemini-3.1-flash-lite");
+/** R38: models zilizo 404 kwa akaunti MAALUM tu — live probe 08-10: gemini-2.5-flash
+ *  gemini-1 ✅ 200 OK · gemini-2 ❌ 404 "no longer available to new users".
+ *  Lane ya kombinations hizi haizalishwi kabisa (broker ya Board + config ya CU / brain.py); gemini-1 inabaki nayo. */
+export const GEMINI_MODEL_SKIP: Record<string, string[]> = { "gemini-2": ["gemini-2.5-flash"] };
 /** Embeddings za search cache: ya kwanza = msingi, ya pili = akiba (space yake — vectors hazichanganywi) */
 export const GEMINI_EMBED_MODELS: string[] = list(process.env.GEMINI_EMBED_MODELS, "gemini-embedding-001,gemini-embedding-2");
 export const GEMINI_FLASH_RPD = Number(process.env.GEMINI_FLASH_RPD) || 20;

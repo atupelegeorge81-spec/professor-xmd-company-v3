@@ -8,7 +8,7 @@
 // Lane zisizo na key hazipo kabisa (broker hazioni).
 import { ACCOUNTS, type AccountId, type ProviderId } from "@/lib/usage/accounts";
 import {
-  GEMINI_BASE_URL, GEMINI_FLASH_MODELS, GEMINI_LITE_MODELS, GROQ_BASE_URL, GROQ_MODELS, OPENROUTER_BASE_URL, OPENROUTER_MODEL,
+  GEMINI_BASE_URL, GEMINI_FLASH_MODELS, GEMINI_LITE_MODELS, GEMINI_MODEL_SKIP, GROQ_BASE_URL, GROQ_MODELS, OPENROUTER_BASE_URL, OPENROUTER_MODEL,
   UNOROUTER_BASE_URL, UNOROUTER_MODELS, XTROUTER_BASE_URL, XTROUTER_MODEL,
 } from "@/lib/env";
 import { slotKeyCount } from "@/lib/server/usageKeys";
@@ -54,6 +54,8 @@ export function allLanes(): Lane[] {
     if (slotKeyCount(a.id) === 0) continue;
     const s = SPEC[a.provider];
     for (const model of s.models()) {
+      // R38: (akaunti × model) iliyokufa 404 "no longer available to new users" — mf. gemini-2:gemini-2.5-flash
+      if ((GEMINI_MODEL_SKIP[a.id] || []).includes(model)) continue;
       out.push({
         id: `${a.id}:${model}`, account: a.id, provider: a.provider, label: `${a.short} · ${shortModel(model)}`,
         model, baseURL: s.base(), maxOut: s.maxOut, ctx: s.ctx, reasoning: s.reasoning,

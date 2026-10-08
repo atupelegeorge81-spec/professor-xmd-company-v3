@@ -143,6 +143,22 @@ class TestLaneOrder(unittest.TestCase):
         ])
         self.assertTrue(all(l.tier == "normal" for l in lanes[:6]))
 
+    def test_modelskip_akaunti_maalum_haizalishi_lane_ya_404(self):
+        """R38: gemini-2.5-flash ni 404 kwa gemini-2 ("no longer available to new users" — live probe 08-10)
+        lakini 200 OK kwa gemini-1. modelSkip inaondoa (akaunti × model) hiyo PEKEE."""
+        cfg = make_cfg()
+        cfg["gemini"]["flashModels"] = ["gemini-2.5-flash", "gemini-3.8-flash"]
+        cfg["gemini"]["modelSkip"] = {"gemini-2": ["gemini-2.5-flash"]}
+        ids = [l.id for l in brain.build_order(cfg)]
+        self.assertNotIn("gemini-2:gemini-2.5-flash", ids)   # lane iliyo kufa haizalishwi
+        self.assertIn("gemini-1:gemini-2.5-flash", ids)      # gemini-1 inabaki nayo (200 OK)
+        self.assertIn("gemini-2:gemini-3.8-flash", ids)      # models nyingine za akaunti hiyo zinabaki
+        # bila modelSkip (config ya zamani) — list inabaki kamili (back-compat)
+        cfg2 = make_cfg()
+        cfg2["gemini"]["flashModels"] = ["gemini-2.5-flash"]
+        ids2 = [l.id for l in brain.build_order(cfg2)]
+        self.assertIn("gemini-2:gemini-2.5-flash", ids2)
+
     def test_emergency_mpangilio_xkiro_or_groq_uno(self):
         lanes = [l for l in brain.build_order(make_cfg()) if l.tier == "emergency"]
         ids = [l.id for l in lanes]
