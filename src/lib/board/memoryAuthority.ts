@@ -62,8 +62,18 @@ export function pastProjectNames(currentTitle: string, brief = ""): string[] {
   return [...pastSet()].filter((c) => c !== cur && !cur.includes(c) && !c.includes(cur || "\u0000") && !(b && (b.includes(c) || b.includes(c.split(" ")[0]))));
 }
 
-/** Vipande vya maandishi vinavyodai mamlaka ya kikao/mradi mwingine. Rejea za Ledger ya kikao hiki hazihesabiwi. */
-export function pastAuthorityHits(text: string, pastNames: string[] = []): string[] {
+/** Maneno ya muktadha wa kikao cha SASA (title/brief/agenda) — R37 (A1): neno la kikao hiki haliwezi kuwa
+ *  alama ya kidole (head) ya mradi wa zamani. Mwanzo: session 6ac7576d Agenda 3 — "enterprise" ni neno la
+ *  kwanza la title ya sasa ("Enterprise Business Intelligence Platform Specification") NA head ya mradi wa
+ *  zamani ("Enterprise BI Platform Blueprint") → TRADE-OFF halali ya designer ("acceptable for an enterprise
+ *  BI tool") iliangukia false positive → proposal iliuliwa → AGREE 12 hazikuhesabiwa → OPEN. */
+export function contextWords(currentContext: string): Set<string> {
+  return new Set((String(currentContext || "").toLowerCase().match(/[a-z]{3,}/g) || []));
+}
+
+/** Vipande vya maandishi vinavyodai mamlaka ya kikao/mradi mwingine. Rejea za Ledger ya kikao hiki hazihesabiwi.
+ *  R37 (A1): currentContext = maneno ya kikao cha sasa (title + brief + agenda item) — heads zilizo ndani yake hazitumiki. */
+export function pastAuthorityHits(text: string, pastNames: string[] = [], currentContext = ""): string[] {
   const out: string[] = [];
   const low = String(text || "").toLowerCase().replace(/\s+/g, " ");
   for (const n of pastNames) {
@@ -72,7 +82,10 @@ export function pastAuthorityHits(text: string, pastNames: string[] = []): strin
   // R29 (Bakery A5 review): "locked Ledger (Gereji/Saluni) … require 48x48px" — neno la kwanza la jina la mradi wa zamani
   // (≥5 herufi) kwenye sentensi ya MAMLAKA (ledger/locked/required/per/decided) = dai la mamlaka ya kikao kingine.
   const COMMON = /^(?:restaurant|login|modern|create|build|responsive|website|company|business|online|simple|digital|personal|mobile|landing|professor|design|visual|brand|clean|dashboard|portfolio|store|shop|school|hotel|clinic)$/;
-  const heads = [...new Set(pastNames.map((n) => n.split(" ")[0]).filter((h) => h.length >= 5 && !COMMON.test(h)))];
+  // R37 (A1): head iliyo kwenye muktadha wa kikao CHA SASA (title/brief/agenda) si alama ya mradi wa zamani —
+  // kikao chenyewe kinaweza kutumia neno hilo kwa kawaida (mf. "enterprise" kwenye kikao cha BI ya enterprise).
+  const ctx = contextWords(currentContext);
+  const heads = [...new Set(pastNames.map((n) => n.split(" ")[0]).filter((h) => h.length >= 5 && !COMMON.test(h) && !ctx.has(h)))];
   if (heads.length) {
     for (const sentence of String(text || "").split(/(?<=[.!?])\s+|\n+/)) {
       if (!/\b(?:ledger|locked|lock|required?|requires|mandated?|per|decided|decision|agreed|standard|imefungwa|uamuzi)\b/i.test(sentence)) continue;
@@ -92,9 +105,20 @@ export function pastAuthorityHits(text: string, pastNames: string[] = []): strin
   return [...new Set(out)].slice(0, 4);
 }
 
-/** Maelekezo ya zamu ijayo baada ya pendekezo kukataliwa (Kiingereza — mjadala wa Board ni kwa Kiingereza). */
-export function pastAuthorityNote(hits: string[], by: string): string {
-  return `SYSTEM CHECK (automatic): ${by}'s last proposal was NOT accepted because it relied on a past project/session (${hits.map((h) => `"${h}"`).join(", ")}). A past session is never evidence or a decision for THIS session — even if it had the same name or client. Do not claim anything was "verified", "locked" or "chosen before", and do not argue continuity. Propose from this brief, DATA RASMI, this session's discussion and the evidence listed above.`;
+/** Maelekezo ya zamu ijayo baada ya pendekezo kukataliwa (Kiingereza — mjadala wa Board ni kwa Kiingereza).
+ *  R37 (A2): quote ya sentensi halisi iliyotrigga guard inaingizwa — agent aone KWA UFUSA kosa lake, na
+ *  uchunguzi wa baadaye (mf. kwa Mkuu) usihitaji kucheua session nzima. */
+export function pastAuthorityNote(hits: string[], by: string, quote = ""): string {
+  return `SYSTEM CHECK (automatic): ${by}'s last proposal was NOT accepted because it relied on a past project/session (${hits.map((h) => `"${h}"`).join(", ")}).${quote ? ` The exact sentence that triggered this check was: "${quote.replace(/\s+/g, " ").slice(0, 300)}" — do not argue continuity on that basis again.` : ""} A past session is never evidence or a decision for THIS session — even if it had the same name or client. Do not claim anything was "verified", "locked" or "chosen before", and do not argue continuity. Propose from this brief, DATA RASMI, this session's discussion and the evidence listed above.`;
+}
+
+/** R37 (A2): sentensi halisi ya kwanza yenye hit + hits zake — quote ya uwazi kwenye kill-log/note/Ledger. */
+export function authorityTriggerSentence(text: string, pastNames: string[] = [], currentContext = ""): { sentence: string; hits: string[] } | null {
+  for (const sentence of String(text || "").split(/(?<=[.!?])\s+|\n+/)) {
+    const hits = pastAuthorityHits(sentence, pastNames, currentContext);
+    if (hits.length) return { sentence: sentence.trim().slice(0, 400), hits };
+  }
+  return null;
 }
 
 /** R29: majina ya vikao vingine kutoka Appwrite (si tu yale memory ilileta) → gate ya mamlaka ina orodha kamili. */
@@ -103,19 +127,20 @@ export function rememberPastTitles(titles: string[], currentTitle: string) {
   for (const t of titles) if (t && projectCore(t) !== cur) rememberPastProject(t);
 }
 
-/** R29: ondoa hoja za review zinazotegemea mradi wa zamani (mstari/bullet wenye hit) — mwandishi wa code asizifukuzie. */
-export function stripPastAuthority(review: string, pastNames: string[]): { text: string; removed: string[] } {
+/** R29: ondoa hoja za review zinazotegemea mradi wa zamani (mstari/bullet wenye hit) — mwandishi wa code asizifukuzie.
+ *  R37 (A1): currentContext wa kikao cha sasa unapitishwa (heads za maneno ya kikao hiki hazikatwi). */
+export function stripPastAuthority(review: string, pastNames: string[], currentContext = ""): { text: string; removed: string[] } {
   const removed: string[] = [];
   const keep: string[] = [];
   const parts = String(review || "").split(/\n(?=\s*(?:[-*•]|\d+[.)])\s)/);
   for (const p of parts) {
-    const h = pastAuthorityHits(p, pastNames);
+    const h = pastAuthorityHits(p, pastNames, currentContext);
     if (!h.length) { keep.push(p); continue; }
     removed.push(...h);
     if (!/^\s*(?:REJECT|APPROVE)\b/i.test(p.trim().split("\n")[0] || "")) continue;
     // kichwa "REJECT: 1. … 3. … (Gereji) …" → ondoa hoja/sentensi yenye hit tu, kichwa kinabaki
     const segs = p.split(/(?=\s\d+[.)]\s)|(?<=[.!?])\s+/);
-    keep.push(segs.filter((x) => !pastAuthorityHits(x, pastNames).length).join(" ").replace(/\s\d+[.)]\s*(?=\s\d+[.)]\s|$)/g, "").replace(/\s{2,}/g, " ").trim());
+    keep.push(segs.filter((x) => !pastAuthorityHits(x, pastNames, currentContext).length).join(" ").replace(/\s\d+[.)]\s*(?=\s\d+[.)]\s|$)/g, "").replace(/\s{2,}/g, " ").trim());
   }
   return { text: keep.join("\n"), removed: [...new Set(removed)] };
 }

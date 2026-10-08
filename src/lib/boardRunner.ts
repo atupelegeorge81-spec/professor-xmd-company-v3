@@ -15,7 +15,7 @@ import { generateAgenda, type AgendaItem } from "./agenda";
 import type { BoardEvent } from "./types";
 import { readUsage, createLiveMeter, type ExactUsage } from "./tokenMeter";
 import { writeMiniReport as writeMiniReportCore, provisionalMini, miniDecisionSection, miniContext, needsMiniRedo, miniTries, cleanDecision, type MiniReport, type MiniInput } from "./miniReport";
-import { openRecord } from "./board/openRecord";
+import { openRecord, closeRecord } from "./board/openRecord";
 import { auditScript, auditSection } from "./board/scriptAudit";
 import { updateLedgerMini } from "./ledgerUpdate";
 import { trimInterrupted, seedEvents, agendaTalk } from "./board/rehydrate";
@@ -34,7 +34,7 @@ import { extractFactSheet, factSheetBlock, factSummary, mergeLlmFacts, readBrief
 import { systemDataFiles, dataFilesBlock, enforceDataFiles, dataRefHits } from "./board/dataFiles";
 import { guardText, guardRejectNote, guardSummary, guardSection, swahiliHoursDecided, type GuardHit } from "./board/dataGuard";
 import { normalizeDeliverable } from "./board/codeBlocks";
-import { sessionLabel, pastAuthorityHits, pastAuthorityNote, pastProjectNames, rememberPastTitles, stripPastAuthority } from "@/lib/board/memoryAuthority";
+import { sessionLabel, pastAuthorityHits, pastAuthorityNote, pastProjectNames, rememberPastTitles, stripPastAuthority, authorityTriggerSentence } from "@/lib/board/memoryAuthority";
 import { listSessionMeta } from "@/lib/server/sessionIndex";
 import { contrastHits, contrastNote, contrastSummary } from "@/lib/board/contrastGuard";
 import { echoOf } from "@/lib/board/echoGuard";
@@ -685,6 +685,7 @@ async function run(runner: Runner) {
     let authorityNote = ""; // R27: pendekezo lililotegemea kikao/mradi mwingine lilikataliwa → owners wanaambiwa zamu ijayo
     let contrastNoteS = "";
     let echoNote = ""; // R27: AGREE ya kunakili → owners wanaambiwa // R27: madai ya contrast yaliyokosewa (hesabu ya WCAG kwa code) → owners wanapewa thamani halisi
+    let agreeNote = ""; // R37 (A3): AGREE bila pendekezo hai haikusababisha chochote → note wazi (hakuna silent discard tena)
     const streamTurn = async (
       agent: typeof pm,
       messages: Record<string, unknown>[],
@@ -1461,6 +1462,7 @@ async function run(runner: Runner) {
       authorityNote = ""; // R27: onyo la kikao kingine ni la agenda hii tu
       contrastNoteS = "";
       echoNote = "";
+      agreeNote = "";
 
       const budget: Record<string, number> = {};
       ownerAgents.forEach((a) => (budget[a.id] = Number.POSITIVE_INFINITY));
@@ -1470,6 +1472,9 @@ async function run(runner: Runner) {
       const subTalk: { name: string; text: string; tag?: string }[] = [];
       let proposed = ""; let proposedBy = ""; const agrees = new Set<string>();
       let decision = "";
+      // R37 (A2/D): kill-log ya guards (uwazi — quote ya sentensi iliyotrigga inarekodiwa) + assumptions za owners
+      const killLog: { by: string; guard: string; hits: string[]; quote: string; turn: number }[] = [];
+      const assumptionLog: string[] = [];
       // R10: washiriki (kwa memory checkpoints) + CLARIFY: @agent
       const participants: { id: string; role: string }[] = [];
       const joined = (id: string, role: string) => { if (!participants.some((x) => x.id === id)) participants.push({ id, role }); };
@@ -1637,7 +1642,9 @@ ${runner.project}`;
       const delib = createDeliberation({ owners: ownerAgents.map((a) => ({ id: a.id, name: a.name })), chairId: "pm" });
       const desk = createSourceDesk({ blog, bcast, addMsg, setItemContent });
       const syncDelib = () => brain.state({ delib: { ...delib.snapshot(), docsRead: desk.count } });
-      const HARD_TURNS = Math.min(MAX_TURNS, delib.maxTurns + ownerAgents.length + 2);
+      // R37: reserve ya Itifaki ya Kufunga (chair → kura → marekebisho → kura ya pili → fallback) —
+      // consensus ya kawaida bado inafunga mapema; reserve inatumika tu kwenye agenda iliyokwama.
+      const HARD_TURNS = Math.min(MAX_TURNS, delib.maxTurns + ownerAgents.length * 2 + 6);
       for (let turn = 0; turn < HARD_TURNS && !decision && !delib.closed(); turn++) {
         // CLARIFY: @Owner inampa owner huyo zamu hii; CHAIR/VOTE (deliberation) inalazimisha mzungumzaji
         const forcedId = delib.forcedSpeaker();
@@ -1668,8 +1675,9 @@ ${runner.project}`;
           // R10: mjadala WOTE wa agenda hii (code imebanwa), si jumbe 3 zilizokatwa herufi 500
           const recentTalk = compactTranscript(subTalk, 9000);
 
+          // R37 (C): dirisha la evidence 16 za mwisho — sources za searches za mwanzo wa mjadala hazipotei tena
           const evidenceContext = itemSources
-            .slice(-8)
+            .slice(-16)
             .map((s) => `- ${s.title}\n  ${s.url}\n  ${s.content.slice(0, 450)}`)
             .join("\n");
 
@@ -1728,7 +1736,7 @@ Your job in this exchange:
 11. If accepting the CURRENT proposal, begin with:
    AGREE:
 ${facts ? `12. DATA RASMI: every price, service name, hour, address, phone or email you write must be copied EXACTLY from the DATA RASMI block of PROJECT above — never invent, round or convert (e.g. no Swahili-time conversion unless the Board explicitly decides it). The system verifies this by code.\n` : ""}${planModeRun ? `13. PLAN MODE (this Board): short illustrative code snippets (under 40 lines, e.g. a button, a CSS rule, a data file) are welcome as evidence for a decision. Do NOT write complete files or full page scripts — this Board's deliverable is LOCKED decisions plus a work plan; the implementation agent writes the code later.\n` : ""}
-${authorityNote ? `${authorityNote}\n` : ""}${contrastNoteS ? `${contrastNoteS}\n` : ""}${echoNote ? `${echoNote}\n` : ""}IMPORTANT:
+${authorityNote ? `${authorityNote}\n` : ""}${contrastNoteS ? `${contrastNoteS}\n` : ""}${echoNote ? `${echoNote}\n` : ""}${agreeNote ? `${agreeNote}\n` : ""}${(delib.mode === "chair" || delib.mode === "amend" || delib.mode === "fallback") && killLog.length ? `=== PROPOSALS REMOVED BY SYSTEM GUARDS (R37 — context; do not repeat their basis) ===\n${killLog.map((k) => `- ${k.by} (zamu ${k.turn}): ${k.guard} — "${k.quote.replace(/\s+/g, " ").slice(0, 200)}"${k.hits.length ? ` [${k.hits.join(", ")}]` : ""}`).join("\n")}\n\n` : ""}IMPORTANT:
 - Base every claim on THIS session only (brief, DATA RASMI, discussion above, evidence above). Never cite a past project or session as a reason, as "verified" or as "locked".
 - Do not reopen already LOCKED decisions unless this agenda item directly depends on them.
 - The goal is consensus, not endless discussion.
@@ -1818,20 +1826,31 @@ ${delib.instructionFor(agent.id)}`;
           // R20: pendekezo lililo sehemu ya MWISHO ya ujumbe (bila RATIONALE baadaye) sasa linakamatwa — `$` ya zamani
           // ilikuwa ndani ya `\n(?:…|$)` na ilihitaji newline kabla ya mwisho (A6 ya Mama Lishe: pendekezo la Optimus lilipotea)
           let pd = parseProposal(cleanT);
+          // R37 (B2): mzunguko wa marekebisho (amend) — UPDATED DECISION ya mwenyekiti inakamatwa kama pendekezo jipya
+          if (!pd && delib.mode === "amend") {
+            pd = cleanT.match(/\*{0,2}UPDATED DECISION\*{0,2}\s*:\s*\*{0,2}\s*([\s\S]+?)(?=\n\s*\*{0,2}(?:RATIONALE|TRADE-OFF|EVIDENCE|ASSUMPTION)\*{0,2}\s*:|$)/i) as RegExpMatchArray | null;
+          }
           // R26 (B2) LOCK GATE: pendekezo kutoka jibu lililobaki limekatika (finish_reason=length hata baada ya kuendelezwa)
           // halikubaliwi — uamuzi nusu haufungwi kamwe
           if (pd && turnInfo.get(msgId)?.lengthCut) {
             blog("warning", `✂️ ${agent.name}: PROPOSED DECISION ilikatika (kikomo cha tokens) — haikubaliwi kama pendekezo; owner ataombwa kuliandika kamili zamu ijayo.`);
+            killLog.push({ by: agent.name, guard: "length-cut (tokens)", hits: ["ujumbe umekatika"], quote: cleanT.slice(0, 200), turn: delib.turns });
             pd = null;
             cutTexts.add(cleanT);
           }
           // R27 LOCK GATE: pendekezo linalotegemea kikao/mradi MWINGINE ("previous project chose…", "verified token set",
           // "continuity") halikubaliwi — memory ni somo, si ushahidi wala uamuzi wa kikao hiki
+          // R37 (A1): maneno ya kikao cha SASA (title/brief/agenda) hayatumiki kama alama za mradi wa zamani;
+          // R37 (A2): guard ikiua proposal inaacha QUOTE ya sentensi iliyotrigga (uwasi — hakuna silent kill tena)
           if (pd) {
-            const ah = pastAuthorityHits(cleanT, pastProjectNames(conversationTitle, runner.project));
+            const pastNamesNow = pastProjectNames(conversationTitle, runner.project);
+            const sessionCtx = `${conversationTitle} ${runner.project} ${item.item}`;
+            const ah = pastAuthorityHits(cleanT, pastNamesNow, sessionCtx);
             if (ah.length) {
-              blog("warning", `🧱 ${agent.name}: PROPOSED DECISION inategemea kikao/mradi mwingine (${ah.map((h) => `"${h}"`).join(", ")}) — haikubaliwi; owners wanaombwa pendekezo kutoka brief na ushahidi wa kikao hiki.`);
-              authorityNote = pastAuthorityNote(ah, agent.name);
+              const trig = authorityTriggerSentence(cleanT, pastNamesNow, sessionCtx);
+              killLog.push({ by: agent.name, guard: "past-authority", hits: ah, quote: trig?.sentence || cleanT.slice(0, 200), turn: delib.turns });
+              blog("warning", `🧱 ${agent.name}: PROPOSED DECISION inategemea kikao/mradi mwingine (${ah.map((h) => `"${h}"`).join(", ")}) — haikubaliwi; trigger: "${(trig?.sentence || cleanT).replace(/\s+/g, " ").slice(0, 160)}".`);
+              authorityNote = pastAuthorityNote(ah, agent.name, trig?.sentence || "");
               pd = null;
               cutTexts.add(cleanT);
             } else authorityNote = "";
@@ -1843,7 +1862,7 @@ ${delib.instructionFor(agent.id)}`;
             if (ch.length) {
               blog("warning", `🎨 ${agent.name}: madai ${ch.length} ya contrast si sahihi (hesabu ya WCAG kwa code): ${contrastSummary(ch)}${pd ? " — PROPOSED DECISION haikubaliwi" : ""}`);
               contrastNoteS = contrastNote(ch, agent.name);
-              if (pd) { pd = null; cutTexts.add(cleanT); }
+              if (pd) { killLog.push({ by: agent.name, guard: "contrast (WCAG)", hits: ch.slice(0, 2).map((h) => `${h.fg} on ${h.bg}`), quote: cleanT.slice(0, 200), turn: delib.turns }); pd = null; cutTexts.add(cleanT); }
             } else if (pd) contrastNoteS = "";
           }
 
@@ -1867,6 +1886,7 @@ ${delib.instructionFor(agent.id)}`;
           if (pd && !isAgreeMessage) {
             proposed = pd[1].trim();
             proposedBy = agent.id;
+            agreeNote = ""; // R37 (A3): pendekezo jipya likiwa mezani, tathmini zinaweza kuhesabiwa tena
 
           // MUHIMU:
           // proposal mpya = approvals zote za zamani zinafutwa
@@ -1882,6 +1902,12 @@ ${delib.instructionFor(agent.id)}`;
           if (echoed) {
             blog("warning", `🪞 ${agent.name}: AGREE imenakili ujumbe wa ${echoed} neno kwa neno — haihesabiwi kama kura; atatoa tathmini yake mwenyewe.`);
             echoNote = `SYSTEM CHECK (automatic): ${agent.name}'s last AGREE copied ${echoed}'s message word for word and was NOT counted. Every AGREE must contain YOUR OWN evaluation from your role (what you checked and why it holds).`;
+          } else if (isAgreeMessage && !proposed) {
+            // R37 (A3 · 6ac7576d): AGREE ikifika bila pendekezo hai haipotei KIMYA tena — sababu inaonyeshwa wazi.
+            // Mwanzo: AGREE 12 za A3 zilitupwa kimya kwa sababu proposal iliuliwa na guard; hakuna aliyelijua.
+            const lastKill = killLog[killLog.length - 1];
+            agreeNote = `SYSTEM CHECK (automatic): ${agent.name}, your AGREE was NOT counted — there is no live proposal on the table right now.${lastKill ? ` The last proposal (${lastKill.by}'s) was removed by the ${lastKill.guard} guard; the sentence that triggered it was: "${lastKill.quote.replace(/\s+/g, " ").slice(0, 180)}"` : ""} Propose a decision yourself (PROPOSED DECISION: ...) or state DISAGREE: <the single concrete defect>.`;
+            blog("warning", `🗳️ ${agent.name}: AGREE haikusababisha chochote — hakuna pendekezo hai${lastKill ? ` (la ${lastKill.by} liliondolewa na guard ya ${lastKill.guard})` : ""}.`);
           } else if (
       proposed &&
       isAgreeMessage
@@ -1950,13 +1976,16 @@ ${delib.instructionFor(agent.id)}`;
           const v = delib.observe(agent.id, clean, { proposal: pd && !isAgreeMessage ? pd[1].trim() : undefined });
           const df = clean.match(/(?:^|\n)\s*\*{0,2}\s*DEFER:\s*([\s\S]{3,600})/i);
           if (df) (item as any).__deferred = df[1].trim();
+          // R37 (D): ASSUMPTION za owners zinakusanywa — zinaingia kwenye uamuzi (rough/fallback/defer) na close-record
+          const asm = cleanT.match(/(?:^|\n)\s*\*{0,2}\s*ASSUMPTION\*{0,2}\s*:\s*([\s\S]{3,700})/i);
+          if (asm) assumptionLog.push(asm[1].trim());
           blog(
             v.progress ? "info" : "warning",
             `🧭 [delib] ${agent.name} · zamu ${delib.turns}/${delib.maxTurns} · overlap ${v.maxOverlap} · ${v.progress ? `✓ ${v.reasons.join(", ")}` : `hakuna jipya (stall ${v.stall})`}${v.action !== "continue" ? ` → ${v.action.toUpperCase()}` : ""}`,
           );
           if (v.action === "chair") {
             const chair = ownerAgents.find((a) => a.id === delib.forcedSpeaker())?.name || "Optimus";
-            addChip(`⚖️ Mjadala umekwama (${v.stall >= 3 ? `zamu ${v.stall} bila jipya` : `kikomo cha zamu ${delib.maxTurns}`}) — ${chair} (mwenyekiti) anafunga: uamuzi bora uliopo au DEFER.`);
+            addChip(`⚖️ Mjadala wa Agenda ${item.index} umekwama (${v.stall >= 3 ? `zamu ${v.stall} bila jipya` : `kikomo cha zamu ${delib.maxTurns}`}) — ${chair} (mwenyekiti) anafunga Itifaki ya Kufunga: pendekezo bora → kura ya mwisho (binding) → fallback kama hakuna wingi.`);
           } else if (v.action === "vote") {
             blog("info", `🗳️ Kura ya mwisho: ${ownerAgents.find((a) => a.id === delib.forcedSpeaker())?.name || "owner"} anapiga kura moja (AGREE/DISAGREE).`);
           } else if (v.action === "close") {
@@ -1986,9 +2015,56 @@ ${delib.instructionFor(agent.id)}`;
         ownerAgents.length > 0 &&
         ownerAgents.every((a) => agrees.has(a.id));
 
+      // ========================================================
+      // ===== R37 · ITIFAKI YA KUFUNGA — kila agenda inafungwa; hali ya OPEN/UNRESOLVED haizalishwi tena =====
+      // Consensus (owners wote) inabaki njia ya kwanza na haikuguswa. Ikikosekana: kura ya mwisho (binding) →
+      // rough consensus (DISSENT inarekodiwa, haizuii) → fallback (toleo la chini kutoka yaliyojadiliwa tu +
+      // ASSUMPTION wazi) → defer ya ndani (rekodi ya ukweli — hakuna swali linaenda kwa Mkuu; coding agents
+      // hupata maagazi kamili, si shimo la kubuni). Njia ya dharura (exception bila uamuzi kabisa) pekee
+      // inabaki na rekodi ya OPEN ya zamani — kwa uaminifu, si kwa kawaida.
+      // ========================================================
+      let closeKind: "consensus" | "rough" | "fallback" | "defer" = "consensus";
+      let closeReason = "";
+      let dissentLines: { name: string; text: string }[] = [];
+      if (!consensusReached) {
+        const fv = delib.finalVotes();
+        const ownerYes = ownerAgents.filter((a) => agrees.has(a.id));
+        if (delib.fallbackTaken && proposed) {
+          closeKind = "fallback"; closeReason = delib.closedReason || "fallback decision";
+          decision = cleanDecision(proposed);
+        } else if (fv.majority && proposed) {
+          closeKind = "rough"; closeReason = delib.closedReason || "final vote: majority";
+          decision = cleanDecision(proposed);
+          dissentLines = fv.votes.filter((x) => x.vote === "disagree").map((x) => ({ name: x.name, text: x.text }));
+        } else if (proposed && ownerYes.length * 2 > ownerAgents.length) {
+          closeKind = "rough"; closeReason = "kikomo cha zamu — pendekezo mezani lina wingi wa owners (kura haikukamilika)";
+          decision = cleanDecision(proposed);
+          dissentLines = ownerAgents.filter((a) => !agrees.has(a.id)).map((a) => ({ name: a.name, text: "haikurekodi AGREE" }));
+        } else if (proposed) {
+          closeKind = "fallback"; closeReason = "kikomo cha zamu — toleo bora linalowezekana kutoka yaliyojadiliwa";
+          decision = cleanDecision(proposed);
+        } else {
+          closeKind = "defer";
+          closeReason = delib.closedReason || "hakuna pendekezo lililowahi kukamatwa";
+        }
+        if (closeKind === "rough") {
+          decision = `[ROUGH CONSENSUS — kura ya mwisho: wingi] ${decision}${dissentLines.length ? `\n\n[DISSENT — Imerekodiwa, haizuii ujenzi]: ${dissentLines.map((d) => `${d.name}: ${String(d.text).replace(/\s+/g, " ").slice(0, 220)}`).join(" · ")}` : ""}`;
+        } else if (closeKind === "fallback") {
+          decision = `[FALLBACK DECISION — ${closeReason}] ${decision}`;
+        } else {
+          decision = `[DEFER — YA NDANI] ${String(delib.deferredText || (item as any).__deferred || closeReason).replace(/\s+/g, " ").slice(0, 600)}\n[BUILD NOTE] Tekeleza tafsiri ya chini salama ya kipengele hiki kutoka kwenye mjadala uliorekodiwa; kila thamani isiyo rasmi katika eneo hili ni ASSUMPTION — ithibitishe kabla ya launch.`;
+        }
+        if (assumptionLog.length) {
+          decision += `\n[ASSUMPTIONS — za owners, zimerekodiwa]: ${[...new Set(assumptionLog)].join(" | ").slice(0, 700)}`;
+        }
+        blog("warning", `⚖️ [R37] Agenda ${item.index} imefungwa kwa Itifaki ya Kufunga: ${closeKind.toUpperCase()} — ${closeReason}${dissentLines.length ? ` · dissent: ${dissentLines.map((d) => d.name).join(", ")}` : ""}.`);
+      }
+      const itemLocked = consensusReached || closeKind !== "consensus";
+
       // R26 · DATA GUARD ya UAMUZI: uamuzi uliokubaliwa wenye bei/saa/namba zisizo rasmi hauingii Ledger hivyo hivyo —
       // marekebisho ya mfumo (thamani sahihi za DATA RASMI) yanaongezwa WAZI ndani ya uamuzi, na code inafuata DATA RASMI.
-      if (consensusReached && facts) {
+      // R37: uamuzi za Itifaki (rough/fallback/defer) pia zinapita Data Guard — DATA RASMI inabaki mamlaka.
+      if (itemLocked && facts) {
         if (swahiliHoursDecided(decision)) swahiliHours = true;
         const dh = guardText(decision, facts, { prose: true, swahiliHoursLocked: swahiliHours });
         if (dh.length) {
@@ -2002,7 +2078,7 @@ ${delib.instructionFor(agent.id)}`;
       // lakini awamu ya code ilipewa orodha tupu ya mfumo {name, price} → code haikuweza kufuata uamuzi, reviewer akakataa mara 3.
       // Sasa: consensus ikifika, JSON ya faili la mfumo iliyopendekezwa na owner (thamani zimehakikiwa kwa code) inakuwa
       // toleo la marejeo KABLA ya code. Pendekezo lililokataliwa na guard (cutTexts) halitumiki.
-      if (consensusReached && facts && sysFiles.length) {
+      if (itemLocked && facts && sysFiles.length) {
         for (const t of subTalk) {
           if (t.tag !== "owner" || cutTexts.has(t.text) || !/```json/i.test(t.text)) continue;
           enforce(t.text);
@@ -2020,7 +2096,7 @@ ${delib.instructionFor(agent.id)}`;
       // faili kamili wala review-fix loops; sample code ndogo ya hoja
       // imeshaonyeshwa kwenye mjadala wenyewe.
       // ========================================================
-      let codeApproved = !item.requiresCode || !consensusReached || planModeRun;
+      let codeApproved = !item.requiresCode || !itemLocked || planModeRun;
       // R26: hali halisi ya code ya agenda hii (Ledger: code_status) — approved | unreviewed | data_errors | rejected
       let codeStatus = "";
       const codeByAgent: Record<string, string> = {};
@@ -2032,7 +2108,7 @@ ${delib.instructionFor(agent.id)}`;
       }
       const lastVisibleMsgId: Record<string, string> = {};
 
-      if (consensusReached && item.requiresCode && !planModeRun) {
+      if (itemLocked && item.requiresCode && !planModeRun) {
         if (codeWriters.length > 0) {
           const reviewer =
             ownerAgents.find((a) => !codeWriters.includes(a)) || pm;
@@ -2237,7 +2313,8 @@ Your FIRST line must be APPROVE or REJECT: … Keep the answer under 150 words.
             // R29 (Bakery A5): review ilidai "locked Ledger (Gereji/Saluni) … 48x48px" — mamlaka ya mradi wa zamani ikaingia
             // kwenye fix, mini-report na ripoti. Sasa hoja hizo zinaondolewa kabla ya kufika kwa mwandishi/mini-report.
             {
-              const sp = stripPastAuthority(cleanReview, pastProjectNames(conversationTitle, runner.project));
+              // R37 (A1): context ya kikao cha sasa (title/brief/agenda) — heads za maneno yake hazikatwi kwenye review
+              const sp = stripPastAuthority(cleanReview, pastProjectNames(conversationTitle, runner.project), `${conversationTitle} ${runner.project} ${item.item}`);
               if (sp.removed.length) {
                 blog("warning", `🧭 ${reviewer.name}: hoja za review zilizotegemea mradi wa zamani zimeondolewa (${sp.removed.join(", ")}).`);
                 cleanReview = /^\s*REJECT:?\s*$/i.test(sp.text.trim()) ? "APPROVE" : sp.text;
@@ -2313,8 +2390,23 @@ Your FIRST line must be APPROVE or REJECT: … Keep the answer under 150 words.
 // ===== HATUA 5: LOCK — mini-report ya MUDA (bila LLM) ili Resume iwe salama =====
       // R10: mini-report KAMILI inaandikwa MWISHO wa agenda (baada ya observers wote SILENT au objection
       // kutatuliwa) — angalia "HATUA 5B" chini. Hapa hakuna wito wa LLM.
-      // R21: agenda OPEN (si DEFER) → rekodi ya ukweli: sababu halisi, pendekezo la mwisho mezani, nani alikubali
-      const openNote = !consensusReached && !(item as any).__deferred
+      // R21/R37 (D): rekodi ya UKWELI ya kufunga. Sasa kwa kila kufunga kisicho consensus rahiti (rough/fallback/defer):
+      // jinsi ilivyofunga, pendekezo lililofungwa, nani alikubali, DISSENT, guards zilizoondoa mapendekezo (na quotes),
+      // na assumptions za owners. openRecord ya zamani inabaki kwa njia ya DHARURA pekee (exception bila uamuzi kabisa).
+      const closeNote = closeKind !== "consensus"
+        ? closeRecord({
+            kind: closeKind,
+            reason: closeReason || delib.closedReason || "",
+            proposal: cleanDecision(proposed || ""),
+            proposedBy: proposedBy ? getAgent(proposedBy)?.name || proposedBy : undefined,
+            owners: ownerAgents.map((a) => a.name),
+            agreed: ownerAgents.filter((a) => agrees.has(a.id)).map((a) => a.name),
+            dissent: dissentLines,
+            kills: killLog,
+            assumptions: [...new Set(assumptionLog)],
+          })
+        : "";
+      const openNote = !itemLocked && !consensusReached
         ? openRecord({
             reason: delib.closedReason || "hakuna consensus ya kutosha",
             proposal: cleanDecision(proposed || ""),
@@ -2323,14 +2415,14 @@ Your FIRST line must be APPROVE or REJECT: … Keep the answer under 150 words.
             agreed: ownerAgents.filter((a) => agrees.has(a.id)).map((a) => a.name),
           })
         : "";
-      const mini = provisionalMini({ agendaIndex: item.index, agendaItem: item.item, decision, consensus: consensusReached }, openNote);
+      const mini = provisionalMini({ agendaIndex: item.index, agendaItem: item.item, decision, consensus: consensusReached }, closeNote || openNote);
       const __lockAct = activityStart("Optimus anafunga agenda kwenye Ledger…");
             const entryId = await saveLedgerEntry({
         session_id: runner.id,
         project_id: runner.id,
         agenda_index: item.index,
         agenda_item: item.item,
-        status: consensusReached
+        status: itemLocked
           ? "LOCKED"
           : "OBJECTED_OPEN",
         decision_summary:
@@ -2342,9 +2434,11 @@ Your FIRST line must be APPROVE or REJECT: … Keep the answer under 150 words.
         code_status: Object.keys(codeByAgent).length > 0 ? codeStatus || undefined : undefined,
         rationale:
           (item as any).__rationale ||
-          (proposedBy
+          (closeKind !== "consensus"
+            ? `Itifaki ya Kufunga (R37): ${closeKind}${closeReason ? ` — ${closeReason}` : ""}${proposedBy ? ` · pendekezo la ${getAgent(proposedBy)?.name || proposedBy}` : ""}`
+            : proposedBy
             ? `Imekubaliwa na ${getAgent(proposedBy)?.name || proposedBy}`
-            : "Hakuna tie-break; unresolved huachwa OPEN"),
+            : ""),
         trade_off: (item as any).__tradeoff || mini.tradeOff,
         evidence: (item as any).__evidence || "",
         sources: JSON.stringify(
@@ -2358,7 +2452,7 @@ Your FIRST line must be APPROVE or REJECT: … Keep the answer under 150 words.
       if (entryId) {
         const savedProvisional = await saveMiniReport({
           projectId: runner.id, sessionId: sessionId || runner.id, agendaIndex: item.index, agendaItem: item.item,
-          status: consensusReached ? "LOCKED" : "OBJECTED_OPEN",
+          status: itemLocked ? "LOCKED" : "OBJECTED_OPEN",
           decisionSummary: String(decision || "UNRESOLVED").slice(0, 4000),
           detail: mini.detail, carriedConstraints: mini.constraints,
         });
@@ -2384,27 +2478,26 @@ Your FIRST line must be APPROVE or REJECT: … Keep the answer under 150 words.
       let finalDecisionText: string = decision;
       const observerVerdicts: { name: string; verdict: string }[] = [];
       let objectionInfo: MiniInput["objection"] = undefined;
-      brain.lock({ index: item.index, item: item.item, decision: decision || "UNRESOLVED", status: consensusReached ? "LOCKED" : "OPEN" });
-      brain.state({ phase: consensusReached ? "observers" : "open" });
-      if (consensusReached) {
-        addChip(`🔒 LOCKED: ${item.item} → ${decision.slice(0, 90)}`);
+      brain.lock({ index: item.index, item: item.item, decision: decision || "UNRESOLVED", status: itemLocked ? "LOCKED" : "OPEN" });
+      brain.state({ phase: itemLocked ? "observers" : "open" });
+      // R37: kila agenda inafungwa — chip inaonyesha AINA ya kufunga (consensus / rough / fallback / defer ya ndani)
+      if (itemLocked) {
+        const kindLabel = closeKind === "consensus" ? "" : closeKind === "rough" ? " (rough consensus)" : closeKind === "fallback" ? " (fallback)" : " (defer ya ndani)";
+        addChip(`🔒 LOCKED${kindLabel}: ${item.item} → ${decision.slice(0, 90)}${closeKind === "rough" && dissentLines.length ? ` · dissent: ${dissentLines.map((d) => d.name).join(", ")}` : ""}`);
+        blog("success", `🔒 Ledger entry imehifadhiwa: ${item.item}${kindLabel || " (consensus)"}`);
       } else {
         addChip(`🟠 OPEN: ${item.item} → ${(item as any).__deferred ? `DEFER: ${String((item as any).__deferred).slice(0, 110)}` : `hakuna consensus ya kutosha${delib.closedReason ? ` · ${delib.closedReason}` : ""}`}`);
-      }
-      if (consensusReached) {
-        blog("success", `🔒 Ledger entry imehifadhiwa: ${item.item}`);
-      } else {
         blog("warning", `🟠 Ledger item imeachwa OPEN: ${item.item}`);
       }
       await persist(
-        consensusReached
+        itemLocked
           ? `agenda_${item.index}_locked`
           : `agenda_${item.index}_open`,
         conversationTitle
       );
 
       // ===== Observers objection — max 1 valid objection =====
-      if (entryId && consensusReached) {
+      if (entryId && itemLocked) {
         const observers = AGENTS.filter(
           (a) => !item.owners.includes(a.id)
         );
@@ -2816,7 +2909,7 @@ Keep under 220 words.
       }
 
       // ===== [PATCH-XMD-V2] Deliverables zinaingia HAPA TU — baada ya objection phase kuisha (code mode tu) =====
-      if (consensusReached && item.requiresCode && !planModeRun && codeWriters.length > 0) {
+      if (itemLocked && item.requiresCode && !planModeRun && codeWriters.length > 0) {
         for (let dIdx = allDeliverables.length - 1; dIdx >= 0; dIdx--) {
           if (allDeliverables[dIdx].itemIndex === item.index) allDeliverables.splice(dIdx, 1);
         }
@@ -2834,7 +2927,7 @@ Keep under 220 words.
       // Optimus anasoma MJADALA WOTE (owners, code, review, observers, pingamizi na jibu lake) na kuandika
       // mini-report sahihi; inachukua nafasi ya ile ya muda kwenye entry ya MWISHO ya Ledger. Kisha memory
       // checkpoints za washiriki — na HAPO NDIPO agenda inayofuata inaanza.
-      if (consensusReached && finalDecisionText.trim()) {
+      if (itemLocked && finalDecisionText.trim()) {
         brain.state({ phase: "mini-report" });
         const finalMini = await writeMiniReport({
           agendaIndex: item.index,
@@ -3497,9 +3590,15 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
     } else {
       try {
         // R21: kila mstari una status ya Ledger — agenda OPEN haisomeki kama "DECISION LOCKED" kwenye reflection/company memory
+        // R37 (B4): aina ya kufunga inaonekana kwenye mpango/memory — sessions mpya haziona "OPEN" kama neno tena
+        const lockKindTag = (summary: string) =>
+          /^\[ROUGH CONSENSUS/i.test(summary.trim()) ? "LOCKED rough consensus"
+          : /^\[FALLBACK DECISION/i.test(summary.trim()) ? "LOCKED fallback"
+          : /^\[DEFER/i.test(summary.trim()) ? "LOCKED defer"
+          : "LOCKED";
         const decisionsBrief = (
           await Promise.all(
-            fbr.map(async (e) => `A${e.agenda_index} [${e.status === "LOCKED" ? "LOCKED" : "OPEN — NOT locked"}] ${e.agenda_item}: ${(miniDecisionSection(await miniDetailOf(e), 500) || String(e.decision_summary || "").slice(0, 500)).replace(/\s+/g, " ")}`),
+            fbr.map(async (e) => `A${e.agenda_index} [${e.status === "LOCKED" ? lockKindTag(String(e.decision_summary || "")) : "OPEN — NOT locked"}] ${e.agenda_item}: ${(miniDecisionSection(await miniDetailOf(e), 500) || String(e.decision_summary || "").slice(0, 500)).replace(/\s+/g, " ")}`),
           )
         ).join("\n");
         const mr = await brain.onBoardDone({ decisions: decisionsBrief, open: fbr.filter((e) => e.status !== "LOCKED").map((e) => ({ index: e.agenda_index, item: e.agenda_item })) });

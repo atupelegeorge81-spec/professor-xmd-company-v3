@@ -4,11 +4,15 @@
 //   • stall 2  → STALL NOTICE kwenye prompt ya zamu inayofuata (chaguo 4 tu: pendekeza / tafuta tofauti / soma chanzo / DEFER)
 //   • stall 3 au kikomo cha zamu → CHAIR RESOLUTION: mwenyekiti (Optimus akiwa owner) analazimika kutoa PROPOSED DECISION
 //     (yenye ASSUMPTION: zilizo wazi) au DEFER; kisha kila owner mwingine anapiga KURA MOJA ya mwisho (AGREE/DISAGREE)
-//   • hakuna muafaka → agenda inabaki OPEN na Board inaendelea (njia iliyopo ya UNRESOLVED) — HAKUNA infinite loop.
+//   • DEFER ya owner haifungi agenda — inaleta FALLBACK (toleo la chini + ASSUMPTION wazi)
+// R37 · ITIFAKI YA KUFUNGA: hakuna hali ya OPEN/UNRESOLVED tena. Mnyororo: consensus (njia ya kawaida) →
+//   kura ya mwisho BINDING (wote = consensus; wingi + kosa la wachache = mzunguko MMOJA wa marekebisho → kura ya pili →
+//   rough consensus na DISSENT irekodiwa) → hakuna wingi → FALLBACK (mwenyekiti anachagua toleo la chini salama kutoka
+//   yaliyojadiliwa tu + ASSUMPTION) → kama haipatikani kabisa: DEFER YA NDANI (rekodi ya ukweli; hakuna swali kwenda kwa Mkuu).
 // Vizingiti vimepimwa kwenye log halisi: zamu zenye maendeleo ≤0.53, marudio ≥0.60 (overlap ya maneno ya maana).
 
 export const MAX_OWNER_TURNS = Math.max(4, Number(process.env.BRAIN_MAX_OWNER_TURNS) || 12);
-export const RESEARCH_CAP = Math.max(1, Number(process.env.BRAIN_RESEARCH_PER_ITEM) || 6);
+export const RESEARCH_CAP = Math.max(1, Number(process.env.BRAIN_RESEARCH_PER_ITEM) || 12);
 export const REPEAT_OVERLAP = 0.58;
 const STALL_NOTICE_AT = 2;
 const STALL_CHAIR_AT = 3;
@@ -62,7 +66,9 @@ export interface TurnVerdict {
   action: "continue" | "notice" | "chair" | "vote" | "close";
 }
 
-type Mode = "open" | "chair" | "vote" | "closed";
+type Mode = "open" | "chair" | "vote" | "amend" | "fallback" | "closed";
+
+export interface VoteRecord { id: string; name: string; vote: "agree" | "disagree"; text: string }
 
 export interface DelibOpts { owners: { id: string; name: string }[]; chairId?: string; maxTurns?: number; researchCap?: number }
 
@@ -84,6 +90,16 @@ export function createDeliberation(o: DelibOpts) {
   let newEvidence = 0; // vyanzo/hati mpya tangu zamu iliyopita
   let chairReason = "";
   let closedReason = "";
+  // R37 · Itifaki ya Kufunga
+  let voteRound = 0;
+  let roundVotes: VoteRecord[] = [];
+  const voteLog: { round: number; votes: VoteRecord[] }[] = [];
+  let amendRound = 0;
+  let amendDefects: VoteRecord[] = [];
+  let fallbackReason = "";
+  let fallbackAttempted = false;
+  let fallbackTaken = false;
+  let deferText = "";
 
   const nameOf = (id: string) => o.owners.find((x) => x.id === id)?.name || id;
 
@@ -94,9 +110,19 @@ export function createDeliberation(o: DelibOpts) {
     get maxTurns() { return maxTurns; },
     get researchCap() { return researchCap; },
     get closedReason() { return closedReason; },
+    get fallbackTaken() { return fallbackTaken; },
+    get deferredText() { return deferText; },
     researchUsed: (id: string) => research[id] || 0,
     queriesSoFar: () => queries.map((x) => x.q),
     closed: () => mode === "closed",
+
+    /** R37: kura ya RAIDI ya mwisho (round ya mwisho tu) — majority = wingi wa walio pigora kura. */
+    finalVotes(): { votes: VoteRecord[]; majority: boolean; unanimous: boolean } {
+      const last = voteLog[voteLog.length - 1];
+      if (!last) return { votes: [], majority: false, unanimous: false };
+      const yes = last.votes.filter((v) => v.vote === "agree").length;
+      return { votes: last.votes, majority: yes * 2 > last.votes.length, unanimous: last.votes.length > 0 && yes === last.votes.length };
+    },
 
     /** Vyanzo vipya (URL ambazo hazijaonekana) — vinahesabika kama maendeleo ya zamu inayofuata. */
     noteEvidence(urls: string[]) {
@@ -119,9 +145,9 @@ export function createDeliberation(o: DelibOpts) {
       queries.push({ id, q, words: contentWords(q) });
     },
 
-    /** Nani azungumze sasa (chair/vote wanalazimishwa). null = mzunguko wa kawaida. */
+    /** Nani azungumze sasa (chair/vote/amend/fallback wanalazimishwa). null = mzunguko wa kawaida. */
     forcedSpeaker(): string | null {
-      if (mode === "chair") return chairId || null;
+      if (mode === "chair" || mode === "amend" || mode === "fallback") return chairId || null;
       if (mode === "vote") return voters[0] || null;
       return null;
     },
@@ -140,7 +166,7 @@ A) The best decision the team can defend with the evidence already gathered (pri
    EVIDENCE: <sources used, each with its URL and tier>
    ASSUMPTION: <each unverified value/claim, one per line, marked so the build can flag it (e.g. a "verify" note or config table)>
 B) If NOTHING defensible can be built yet:
-   DEFER: <exactly what is missing and who/what can supply it — this goes into the report's open questions>
+   DEFER: <exactly what is missing and who/what can supply it — the item still closes (DEFER record) and the build proceeds on the safest interpretation with explicit ASSUMPTIONs>
 Under 200 words.\n`;
       }
       if (mode === "vote" && voters[0] === id) {
@@ -149,6 +175,30 @@ The chair has put the proposal above to a final vote. Evaluate it once.
 - Accept: begin with "AGREE:" (you may add ONE condition in the same line).
 - Reject: begin with "DISAGREE:" and give the single concrete defect that makes it unshippable.
 No research, no restating the blocker, no new proposal. Under 90 words.\n`;
+      }
+      if (mode === "amend" && id === chairId) {
+        const defects = amendDefects.map((d) => `   · ${d.name}: ${d.text.replace(/\s+/g, " ").slice(0, 220)}`).join("\n");
+        return `\n=== AMENDMENT ROUND (one round only — the final vote raised concrete defects) ===
+Defects raised by owners:
+${defects || "   (none recorded)"}
+Fix EVERY defect. Output the COMPLETE amended decision (it REPLACES the previous proposal entirely — restate every part that still applies):
+UPDATED DECISION: <the complete new decision>
+RATIONALE: <why>
+TRADE-OFF: <what is weaker>
+EVIDENCE: <sources used, each with its URL and tier>
+ASSUMPTION: <each unverified value/claim, one per line>
+Under 200 words.\n`;
+      }
+      if (mode === "fallback" && id === chairId) {
+        return `\n=== FALLBACK DECISION (the owners could not agree — you must still close this item with a decision) ===
+Reason: ${fallbackReason}.${deferText ? `\nWhat the team said is missing: ${deferText.replace(/\s+/g, " ").slice(0, 300)}` : ""}
+Produce the LOWEST-RISK defensible version, using ONLY what was already discussed and the evidence already gathered — do not invent new scope. Every unknown becomes an explicit ASSUMPTION line so the build can flag it.
+PROPOSED DECISION: <the safest buildable version>
+RATIONALE: <why this is defensible>
+TRADE-OFF: <what is weaker because evidence is incomplete>
+EVIDENCE: <sources used, each with its URL and tier>
+ASSUMPTION: <each unverified value/claim, one per line>
+Under 200 words. This item MUST close with a decision — "we could not decide" is not an option.\n`;
       }
       if (stall >= STALL_NOTICE_AT && mode === "open") {
         const qs = queries.slice(-6).map((x) => `   · ${x.q}`).join("\n");
@@ -159,7 +209,7 @@ This turn you MUST do exactly one NEW thing:
 2) READ_SOURCE: <url> — read the full text of a promising source already listed (e.g. an official PDF) instead of searching again, or
 3) RESEARCH_REQUEST: <a query that is clearly DIFFERENT from these earlier ones>
 ${qs || "   (none yet)"}
-4) DEFER: <what is missing> — if nothing can be decided.
+4) DEFER: <what is missing> — the item is NOT dropped: the chair locks the lowest-risk version and your missing items become explicit ASSUMPTION lines.
 If you cannot do one of these, the chair will close the item on the next stall.\n`;
       }
       return "";
@@ -199,21 +249,59 @@ If you cannot do one of these, the chair will close the item on the next stall.\
       let action: TurnVerdict["action"] = "continue";
       if (mode === "chair") {
         if (signals.includes("proposal") && !signals.includes("defer")) {
+          voteRound = 1; roundVotes = [];
           voters = o.owners.map((x) => x.id).filter((x) => x !== chairId);
           mode = voters.length ? "vote" : "closed";
           if (mode === "closed") closedReason = "chair decided (single owner)";
           action = mode === "vote" ? "vote" : "close";
+        } else if (signals.includes("defer")) {
+          mode = "closed"; closedReason = "chair deferred the item"; action = "close";
         } else {
-          mode = "closed";
-          closedReason = signals.includes("defer") ? "chair deferred the item" : "chair could not produce a proposal";
-          action = "close";
+          // R37: mwenyekiti hakutoa pendekezo — hali ya OPEN haizalishwi tena; anaingia FALLBACK (toleo la chini salama)
+          mode = "fallback"; fallbackReason = "chair resolution produced no decision — fallback (lowest safe version) required"; fallbackAttempted = false; action = "chair";
         }
       } else if (mode === "vote") {
+        // R37: kura ya mwisho inarekodiwa (BINDING) — si tu kumondoa mpigaji kura
+        roundVotes.push({ id, name: nameOf(id), vote: signals.includes("agree") ? "agree" : "disagree", text: String(text || "").slice(0, 400) });
         voters = voters.filter((x) => x !== id);
-        if (!voters.length) { mode = "closed"; closedReason = "final vote complete"; action = "close"; }
-        else action = "vote";
+        if (voters.length) {
+          action = "vote";
+        } else {
+          voteLog.push({ round: voteRound, votes: roundVotes.slice() });
+          const yes = roundVotes.filter((x) => x.vote === "agree").length;
+          const total = roundVotes.length;
+          if (total > 0 && yes === total) {
+            mode = "closed"; closedReason = "final vote unanimous"; action = "close";
+          } else if (yes * 2 > total && amendRound < 1) {
+            mode = "amend"; amendRound++; amendDefects = roundVotes.filter((x) => x.vote === "disagree"); action = "chair";
+          } else if (yes * 2 > total) {
+            mode = "closed"; closedReason = "final vote majority after amendment (rough consensus)"; action = "close";
+          } else {
+            mode = "fallback"; fallbackReason = `final vote: ${yes}/${total} in favour — no majority`; fallbackAttempted = false; action = "chair";
+          }
+        }
+      } else if (mode === "amend") {
+        if (opts.proposal) {
+          voteRound++; roundVotes = [];
+          voters = o.owners.map((x) => x.id).filter((x) => x !== chairId);
+          mode = voters.length ? "vote" : "closed";
+          if (mode === "closed") closedReason = "chair amended (single owner)";
+          action = mode === "vote" ? "vote" : "close";
+        } else {
+          mode = "fallback"; fallbackReason = "amendment turn produced no updated decision"; fallbackAttempted = false; action = "chair";
+        }
+      } else if (mode === "fallback") {
+        if (opts.proposal) {
+          fallbackTaken = true; mode = "closed"; closedReason = `fallback decision locked (${fallbackReason})`; action = "close";
+        } else if (!fallbackAttempted) {
+          fallbackAttempted = true; action = "chair"; // jaribio la pili — quote za guards zinaonyeshwa kwenye prompt
+        } else {
+          mode = "closed"; closedReason = `chair could not produce a fallback (${fallbackReason})`; action = "close";
+        }
       } else if (signals.includes("defer") && !signals.includes("proposal")) {
-        mode = "closed"; closedReason = `${nameOf(id)} deferred the item`; action = "close";
+        // R37: DEFER ya owner haifungi agenda kama OPEN tena — mwenyekiti anatengeneza toleo la chini + ASSUMPTION wazi
+        deferText = String(text || "").slice(0, 400);
+        mode = "fallback"; fallbackReason = `${nameOf(id)} deferred — missing information becomes explicit ASSUMPTION lines`; fallbackAttempted = false; action = "chair";
       } else if (stall >= STALL_CHAIR_AT || turns >= maxTurns) {
         mode = "chair";
         chairReason = stall >= STALL_CHAIR_AT ? `${stall} consecutive turns without new information` : `owner-turn cap ${maxTurns} reached`;

@@ -1,7 +1,7 @@
 // src/lib/board/sourceDesk.ts — DAWATI LA HATI la agenda moja (R12): READ_SOURCE + usomaji wa moja kwa moja wa chanzo cha msingi.
 //   • read(agent, url)  → agent aliomba (READ_SOURCE: <url>) — inaonekana kwenye stage kama tukio la search (📄)
 //   • autoRead(agent, results, context) → baada ya search: chanzo cha MSINGI ambacho bado hakijasomwa (PDF/ukurasa wa
-//     taasisi inayotajwa kwenye agenda, tovuti ya serikali, au tier "high") kinasomwa chenyewe — max 3 kwa agenda.
+//     taasisi inayotajwa kwenye agenda, tovuti ya serikali, au tier "high") kinasomwa chenyewe — max 5 kwa agenda (R37).
 //   • block(query) → "DOCUMENTS READ IN FULL" kwa prompt ya owner/chair.
 import { readSource, isReadFail, documentsBlock, cleanUrl, type ReadDoc } from "../sourceReader";
 import { classifySource } from "../brain/skills/tools/research-lookup";
@@ -18,7 +18,7 @@ export interface DeskDeps {
   setItemContent: (id: string, raw: string, sources?: SearchResult[]) => void;
 }
 
-const AUTO_MAX = 3;
+const AUTO_MAX = 5; // R37 (C): deep-read 5 kwa agenda (zamani 3) — chanzo halisi > snippet; uwanja wa tokens unaruhusu
 const GOV = /(^|\.)(go\.[a-z]{2}|gov|gov\.[a-z]{2}|gouv\.[a-z]{2}|gob\.[a-z]{2}|europa\.eu|who\.int|un\.org)$/i;
 const AGGREGATOR = /(wikipedia|youtube|facebook|twitter|x\.com|linkedin|reddit|quora|scribd|medium|pinterest|amazon|dailymotion)\./i;
 

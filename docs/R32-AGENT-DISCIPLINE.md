@@ -218,3 +218,55 @@ hazihesabiwi. Tests 124/124 (+3: dist skip, subdir resolution, ../ escape).
   (hadi 5000ms) imekuwa settle fupi ya shimmer 300ms. Hakuna kugusa speed ya model wala
   njia yake — ni upande wa onyesho tu.
 - vitest 71/71, tsc OK.
+
+## R37 — Itifaki ya Kufunga (hakuna UNRESOLVED tena) + uwasi wa guards
+
+Chanzo: Agenda 3 ya session 6ac7576d ("Enterprise BI Platform Specification") — owners walikubaliana
+100% (AGREE 12) lakini agenda ilifungwa 🟠 OPEN. Mnyororo: "enterprise" (neno la kwanza la title ya
+kikao CHA SASA na pia head ya mradi wa zamani "Enterprise BI Platform Blueprint") → TRADE-OFF halali ya
+designer ("subgrid requires modern browser support, acceptable for an enterprise BI tool") → guard ya
+past-authority (R27) false positive → proposal iliuliwa + karantini (cutTexts) → AGREE 12 zilitupwa KIMYA
+(hakuna pendekezo hai) → mwenyekiti akazuiwa kuona (karantini) → "chair could not produce a proposal" → OPEN.
+
+**Sehemu A — mlinzi asimue makubaliano halisi:**
+- `memoryAuthority.ts`: neno linalojitokeza kwenye title/brief/agenda ya kikao cha SASA haliwezi kuwa
+  head/alama ya mradi wa zamani (`contextWords` filter kwenye `pastAuthorityHits`). Jina KAMILI la mradi
+  wa zamani linabaki linakamatwa (wizi halisi haujaguswa).
+- Guard yoyote ikiua proposal inaacha **QUOTE ya sentensi halisi iliyotrigga** (`authorityTriggerSentence`
+  → kill-log + note ya mfumo + close-record). Hakuna silent kill tena.
+- AGREE ikifika bila pendekezo hai → **note wazi** (`agreeNote`): "haikusababisha chochote — sababu: …".
+  Hakuna silent discard tena.
+
+**Sehemu B — Itifaki ya Kufunga (OPEN inafutwa kama hali):** `deliberation.ts` + `boardRunner.ts`
+- Mnyororo: consensus (owners wote — haikubadilishwa) → kura ya mwisho **BINDING** (kila owner: AGREE na
+  sharti moja au DISAGREE na kosa moja konkreti) → wote = LOCKED consensus; wingi + kosa la wachache =
+  mzunguko MMOJA wa marekebisho (UPDATED DECISION) → kura ya pili → wingi = **LOCKED rough consensus**
+  (+ DISSENT inarekodiwa kwenye uamuzi na Ledger); hakuna wingi = **LOCKED fallback** (mwenyekiti huchagua
+  toleo la chini salama kutoka yaliyojadiliwa tu + ASSUMPTION wazi); hakipatikani kabisa = **LOCKED defer
+  ya ndani** (kilitokosekana kimeandikwa wazi + BUILD NOTE — kamwe si swali kwenda kwa Mkuu).
+- DEFER ya owner haifungi agenda kama OPEN tena — inaleta FALLBACK (missing → ASSUMPTION wazi).
+- Mwenyekiti "could not produce a proposal" haizalishiwi tena — anaingia fallback (jaribio 2, na
+  kill-log + quotes zinaonekana kwenye prompt yake — haishi kipofu tena).
+- `status` ya Ledger inabaki "LOCKED" kwa kila kufunga; aina (rough/fallback/defer) inaingia
+  decision_summary (`[ROUGH CONSENSUS — …]`, `[FALLBACK DECISION — …]`, `[DEFER — YA NDANI]`).
+- Awamu zote za baada (Data Guard, enforce JSON, code-writing, observers, objection, mini-report 5B,
+  deliverables) sasa zinaendesha kwa `itemLocked` — uamuzi wa Itifaki pia unaandikwa code yake.
+- HARD_TURNS: reserve ya Itifaki (`maxTurns + owners*2 + 6`) — consensus ya kawaida bado inafunga mapema.
+
+**Sehemu C — research (uwanja wa tokens unatumika):** searches/owner/agenda 6→**12**, matokeo/query
+8→**12**, dirisha la evidence 8→**16 za mwisho** (sources za mwanzo hazipotei tena), deep-read 3→**5**.
+
+**Sehemu D — close-record (`openRecord.ts`):** kila kufunga kisicho consensus rahiti kina rekodi ya
+ukweli: jinsi ilivyofunga, pendekezo, nani alikubali, DISSENT, guards zilizoondoa mapendekezo (na
+quotes za R37/A2), assumptions za owners. Mpango kazi/memory unaonyesha aina: `A5 [LOCKED rough
+consensus] …` — coding/computer agents hupata maagazi kamili, si "OPEN — NOT locked".
+
+**Visivyobadilika:** DATA RASMI + Data Guard (uamuzi za Itifaki pia zinapita), wizi halisi
+(Saluni Nuru / Mama Lishe Bora) unabaki anakatwa (regression tests), exemption ya "locked in Agenda 1",
+Export kamili (R35), UI ya R36, sessions zilizopo (historia haipitiwi — Resume ya 6ac7576d inaendelea
+na Itifaki kwa agenda zilizobaki).
+
+**Uthibitisho:** tsc clean; vitest **95/95** (71 za zamani + 24 mpya: memoryAuthority 10,
+deliberation 11, openRecord 4 — ikiwemo replay ya msg #17 halisi ya A3: hakuna hit; Saluni/Mama Lishe
+zinakatwa bado). Replay ya msgs 44 zote za session 6ac7576d kwa logic mpya: **hakuna hit hata moja** —
+A3 ingefunga LOCKED kwa AGREE za owners.
