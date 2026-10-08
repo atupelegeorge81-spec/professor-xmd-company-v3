@@ -200,3 +200,25 @@ export function contrastNote(hits: ContrastHit[], by: string): string {
 export function contrastSummary(hits: ContrastHit[]): string {
   return hits.slice(0, 4).map((h) => `${h.fgHex}/${h.bgHex} ${h.claimed}→${h.actual.toFixed(2)}`).join(" · ");
 }
+
+/** R39: swali la contrast/WCAG (mf. "has #00D4AA on #0A0F1A been verified for WCAG AA?") —
+ *  MFUMO unajibu kwa hesabu (contrastRatio, WCAG 2.x) kabla agent hajibu kwa kinywa.
+ *  Kosa la 6ac7d777: Optimus alirudisha swali la Ultron kama "I confirm … verified" bila
+ *  tool/number yoyote (echo) — hesabu halisi ilikuwa 10.03:1. Sasa namba inamfikia
+ *  anayejibu DIRECT kwenye prompt, na anatajwa kuitumia. Hakuna hex 2+ au hakuna
+ *  neno la contrast/WCAG → mstari mtupu (havamii). */
+export function contrastQuestionNote(text: string): string {
+  const t = String(text || "");
+  if (!/\b(contrast|wcag|apca|readab|legib)\b/i.test(t)) return "";
+  const hexes = [...new Set((t.match(/#(?:[0-9a-f]{6}|[0-9a-f]{3})\b/gi) || [])
+    .map((h) => (h.length === 4 ? `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}` : h).toUpperCase()))].slice(0, 4);
+  if (hexes.length < 2) return "";
+  const lines: string[] = [];
+  for (const fg of hexes) for (const bg of hexes) {
+    if (fg === bg) continue;
+    const r = contrastRatio(fg, bg);
+    const verdict = r >= 7 ? "passes AA and AAA" : r >= 4.5 ? "passes AA" : r >= 3 ? "AA large text only — fails AA for normal text" : "fails AA";
+    lines.push(`- ${fg} on ${bg} = ${r.toFixed(2)}:1 (${verdict})`);
+  }
+  return `\n[SYSTEM VERIFIED — WCAG 2.x contrast, computed by code (authoritative; overrides any number an agent writes)]:\n${lines.join("\n")}\nCite these computed numbers exactly when answering; do not invent or estimate your own ratio.\n`;
+}

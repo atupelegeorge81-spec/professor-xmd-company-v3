@@ -4,7 +4,7 @@ export interface LedgerObjection {
   agent: string;
   concern: string;
   severity: string;
-  resolution: "open" | "accepted" | "rejected";
+  resolution: "open" | "pending" | "accepted" | "rejected"; // R39: "pending" = bado inatathminiwa (default ya zamani "accepted" ilidanganya)
 }
 
 export interface LedgerEntry {

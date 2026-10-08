@@ -11,7 +11,7 @@
 //   yaliyojadiliwa tu + ASSUMPTION) → kama haipatikani kabisa: DEFER YA NDANI (rekodi ya ukweli; hakuna swali kwenda kwa Mkuu).
 // Vizingiti vimepimwa kwenye log halisi: zamu zenye maendeleo ≤0.53, marudio ≥0.60 (overlap ya maneno ya maana).
 
-export const MAX_OWNER_TURNS = Math.max(4, Number(process.env.BRAIN_MAX_OWNER_TURNS) || 12);
+export const MAX_OWNER_TURNS = Math.max(4, Number(process.env.BRAIN_MAX_OWNER_TURNS) || 15);
 export const RESEARCH_CAP = Math.max(1, Number(process.env.BRAIN_RESEARCH_PER_ITEM) || 12);
 export const REPEAT_OVERLAP = 0.58;
 const STALL_NOTICE_AT = 2;
@@ -321,11 +321,28 @@ If you cannot do one of these, the chair will close the item on the next stall.\
 
 export type Deliberation = ReturnType<typeof createDeliberation>;
 
+/** R39: jibu la swali ni ECHO ya swali/maulizo yenyewe? (kurudia maneno bila namba/URL/kitu kipya
+ *  = "I confirm that X" ya Optimus 6ac7d777 — si ushahidi). Ushahidi = URL mpya au namba mpya
+ *  ambayo haikuwepo kwenye swali; bila hiyo, ≥80% ya maneno ya jibu yakiwa ni ya swali → echo. */
+export function isEchoAnswer(question: string, answer: string): boolean {
+  const q = contentWords(question);
+  const a = contentWords(answer);
+  if (!q.size || !a.size) return false;
+  const newUrls = [...urlsOf(answer)].filter((u) => !urlsOf(question).has(u));
+  if (newUrls.length) return false;
+  const newNums = [...numsOf(answer)].filter((n) => !numsOf(question).has(n));
+  if (newNums.length >= 1) return false;
+  let n = 0;
+  for (const w of a) if (q.has(w)) n++;
+  return n / a.size >= 0.8;
+}
+
 /** Kanuni za mjadala kwa owners (zinaingia kwenye prompt ya owner). */
 export const DELIBERATION_RULES = `=== DELIBERATION RULES (depth without looping) ===
 - Every turn must ADD something new: a proposal, a new source or document read, a new number/fact, a concrete defect, or a decision. Never restate your own or another owner's earlier point; the system measures repetition and counts repeated turns as stalls.
 - "AGREE:" is only meaningful when a PROPOSED DECISION exists. Agreeing with a blocker or with "we are aligned" is not progress — make a proposal instead.
 - Go deep by READING, not by re-searching: when a promising source is listed (official site, PDF), write READ_SOURCE: <url> to get its full text instead of issuing another near-identical search.
 - Missing external data is never a reason to loop. Decide with the best evidence available (primary > secondary), mark every unverified value with ASSUMPTION:, and design the deliverable so those values are easy to verify later (e.g. a config table with source + "verify" flag). If truly nothing can be built, write DEFER: <what is missing>.
-- Mkuu is NOT present during the Board. Do not wait for him or ask him; questions for him go into the final report's open questions.
+- ANSWERING A QUESTION: answer with evidence — a number with its source, a document you READ, a calculation you show, or an explicit "I don't know — record it as ASSUMPTION:". Never restate the question back as "I confirm X" / "yes, X has been verified" without showing the evidence. An answer with no number, no source and no check is not an answer.
+- JUDGING AN ANSWER: when someone answers your question, weigh the EVIDENCE in the answer (number, source, check), not its confident tone. An answer that merely echoes your question has no evidence — treat the value as unverified (ASSUMPTION:) or verify it yourself (READ_SOURCE, your own calculation).
 - WAIT: is only for waiting on a specific answer from another owner in this same item, never for Mkuu or for "more search".`;

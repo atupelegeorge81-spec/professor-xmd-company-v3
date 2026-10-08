@@ -230,16 +230,17 @@ export function ConsensusTick({ it }: { it: ConsensusItem }) {
   const by = ag(it.by);
   const total = it.owners.length;
   const n = it.approvals.length;
-  const tone: Tone = it.event === "reached" ? "ok" : it.event === "exhausted" ? "warn" : it.event === "reset" ? "violet" : "blue";
+  const tone: Tone = it.event === "reached" ? "ok" : it.event === "exhausted" ? "warn" : it.event === "reset" || it.event === "retract" ? "violet" : "blue";
   const t = TONE[tone];
   const text = {
     proposed: <>Pendekezo <b>v{it.version}</b> la {by.name} liko mezani</>,
     reset: <>{by.name} ameleta <b>v{it.version}</b> — kura za zamani zimefutwa</>,
     agreed: <>{by.name} amekubali</>,
     reached: <>Consensus <b>{n}/{total}</b> — v{it.version} imekubaliwa</>,
+    retract: <>{by.name} <b>amekataa</b> — consensus imefunguka, mjadala unaendelea</>,
     exhausted: <>Zamu zimeisha bila consensus — <b>{n}/{total}</b></>,
   }[it.event];
-  const Icon = it.event === "reached" ? Handshake : it.event === "exhausted" ? Hourglass : it.event === "reset" ? RotateCcw : Vote;
+  const Icon = it.event === "reached" ? Handshake : it.event === "exhausted" ? Hourglass : it.event === "reset" || it.event === "retract" ? RotateCcw : Vote;
   return (
     <Lane>
       <div className="flex items-center gap-2.5 rounded-xl border px-3 py-2 text-[12.5px]" style={{ borderColor: `rgb(${t.rgb} / 0.16)`, background: `rgb(${t.rgb} / 0.04)` }}>

@@ -300,6 +300,9 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       if (/^```scriptbox/.test(c)) return "patch";
       if (objection && responderTurn && WRITERS.has(m.agent)) return "patch";
       if (consensus.reached && !afterLock) {
+        // R39: DISAGREE au pendekezo jipya baada ya "reached" = consensus inafunguka —
+        // ujumbe huu ni TURN ya mjadala (si script/review); ndiyo inayorejesha card nyuma.
+        if (/(^|\n)\s*\*{0,2}\s*DISAGREE:\s*\*{0,2}/i.test(c) || /(^|\n)\s*\*{0,2}\s*PROPOSED DECISION:/.test(c)) return "turn";
         if (WRITERS.has(m.agent) && (cur?.owners.includes(m.agent) ?? true)) return reviewRejected ? "patch" : "script";
         return "review";
       }
@@ -818,23 +821,40 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   };
 
   const mirrorConsensus = (agent: AgentId, clean: string) => {
-    if (!cur || !cur.owners.includes(agent) || afterLock || consensus.reached) return;
+    // R39: consensus.reached haizuii tena usindikaji — DISAGREE au pendekezo jipya BAADA ya
+    // "reached" inarejesha card nyuma (kosa la OmniSight 6ac7d777: card ya "Consensus 2/2 v1"
+    // ilitokea kabla ya DISAGREE ya Ultron, kisha haikubadilika kamere).
+    if (!cur || !cur.owners.includes(agent) || afterLock) return;
     const isAgree = /(^|\n)\s*\*{0,2}\s*AGREE:\s*\*{0,2}/i.test(clean);
+    const isDisagree = /(^|\n)\s*\*{0,2}\s*DISAGREE:\s*\*{0,2}/i.test(clean);
     const pd = clean.match(/PROPOSED DECISION:\s*([\s\S]+?)(?=\n(?:RATIONALE:|TRADE-OFF:|EVIDENCE:|$))/i);
     const owners = cur.owners;
     if (pd && !isAgree) {
       const hadVotes = consensus.agrees.size > 1;
       consensus.proposed = pd[1].trim();
       consensus.by = agent;
-      consensus.agrees = new Set([agent]);
+      // R39: mtoa pendekezo HAHESABIWI "amekubali" automatic (kosa: AGREE moja ya Optimus
+      // ilifunga 2/2 huku Ultron hajawahi kusema neno juu ya v1). Owner MMOJA pekee:
+      // pendekezo lake = kura yake (hakuna mtu wa pili kuthibitisha).
+      consensus.agrees = owners.length === 1 ? new Set<AgentId>([agent]) : new Set<AgentId>();
       consensus.version++;
+      consensus.reached = false;
       add({ kind: "consensus", id: nid(), event: consensus.version > 1 && hadVotes ? "reset" : "proposed", by: agent, version: consensus.version, owners, approvals: [...consensus.agrees] });
     }
-    if (consensus.proposed && isAgree) {
+    if (isDisagree && consensus.proposed) {
+      // R39: kataa = kura yake inarudishwa; consensus iliyofikiwa inafunguka tena
+      const had = consensus.agrees.has(agent);
+      consensus.agrees.delete(agent);
+      if (had || consensus.reached) {
+        consensus.reached = false;
+        add({ kind: "consensus", id: nid(), event: "retract", by: agent, version: consensus.version, owners, approvals: [...consensus.agrees] });
+      }
+    }
+    if (consensus.proposed && isAgree && !isDisagree) {
       consensus.agrees.add(agent);
       add({ kind: "consensus", id: nid(), event: "agreed", by: agent, version: consensus.version, owners, approvals: [...consensus.agrees] });
     }
-    if (consensus.proposed && owners.length && owners.every((o) => consensus.agrees.has(o))) {
+    if (consensus.proposed && owners.length && owners.every((o) => consensus.agrees.has(o)) && !consensus.reached) {
       consensus.reached = true;
       add({ kind: "consensus", id: nid(), event: "reached", by: (consensus.by || agent) as AgentId, version: consensus.version, owners, approvals: [...consensus.agrees] });
     }

@@ -23,9 +23,9 @@ import type { SavedItem } from "./board/adapter";
 import { compactTranscript } from "./brain/memory/transcript";
 import { createBoardBrain, type BrainUiEvent } from "./brain/hooks";
 import { stateBus } from "./brain/stateBus";
-import { parseClarify, pickSpeaker, clarifyNote, type ClarifyAsk } from "./brain/clarify";
+import { parseClarify, parseDirectQuestion, pickSpeaker, clarifyNote, type ClarifyAsk } from "./brain/clarify";
 import { hasRealCode } from "./codeFence";
-import { createDeliberation, DELIBERATION_RULES } from "./brain/deliberation";
+import { createDeliberation, DELIBERATION_RULES, isEchoAnswer } from "./brain/deliberation";
 import { createSourceDesk } from "./board/sourceDesk";
 import { uniqueByUrl } from "./searchHygiene";
 import { emptyUsage, isHiddenChip, readUsageChip, usageChipItem, type ProviderUsage, type UsageMap } from "./usageChip";
@@ -36,7 +36,7 @@ import { guardText, guardRejectNote, guardSummary, guardSection, swahiliHoursDec
 import { normalizeDeliverable } from "./board/codeBlocks";
 import { sessionLabel, pastAuthorityHits, pastAuthorityNote, pastProjectNames, rememberPastTitles, stripPastAuthority, authorityTriggerSentence } from "@/lib/board/memoryAuthority";
 import { listSessionMeta } from "@/lib/server/sessionIndex";
-import { contrastHits, contrastNote, contrastSummary } from "@/lib/board/contrastGuard";
+import { contrastHits, contrastNote, contrastSummary, contrastQuestionNote } from "@/lib/board/contrastGuard";
 import { echoOf } from "@/lib/board/echoGuard";
 import { assembleScript } from "./board/assemble";
 import { reviewVerdict } from "./board/reviewVerdict";
@@ -1804,7 +1804,8 @@ ${delib.instructionFor(agent.id)}`;
           // R10: SKILL_REQUEST + CLARIFY: @Owner (zamu inayofuata)
           brain.noteSignals(agent.id, clean, item.index, msgId);
           onOwnerTurn(clean, itemSources, agent.name, blog);
-          const ask: ClarifyAsk | null = parseClarify(clean, agent, ownerAgents);
+          // R39: CLARIFY rasmi AU swali la moja kwa moja (jina + "?", bila signal ya uamuzi)
+          const ask: ClarifyAsk | null = parseClarify(clean, agent, ownerAgents) || parseDirectQuestion(clean, agent, ownerAgents);
           if (ask) {
             pendingClarify = ask;
             blog("info", `🙋 ${agent.name} → CLARIFY @${ask.toName}: "${ask.question.slice(0, 90)}" — ${ask.toName} anapata zamu inayofuata.`);
@@ -1833,6 +1834,7 @@ ${delib.instructionFor(agent.id)}`;
           // Proposal parser
           // ------------------------------------------------------
           const isAgreeMessage = /(^|\n)\s*\*{0,2}\s*AGREE:\s*\*{0,2}/i.test(clean);
+          const isDisagreeMessage = /(^|\n)\s*\*{0,2}\s*DISAGREE:\s*\*{0,2}/i.test(clean);
 
           // R20: pendekezo lililo sehemu ya MWISHO ya ujumbe (bila RATIONALE baadaye) sasa linakamatwa — `$` ya zamani
           // ilikuwa ndani ya `\n(?:…|$)` na ilihitaji newline kabla ya mwisho (A6 ya Mama Lishe: pendekezo la Optimus lilipotea)
@@ -1888,7 +1890,8 @@ ${delib.instructionFor(agent.id)}`;
               proposed = prev[1].trim();
               proposedBy = by?.id || agent.id;
               agrees.clear();
-              if (by) agrees.add(by.id);
+              // R39: mtoa pendekezo wa asili hatuhesabiwi automatic (owner MMOJA pekee)
+              if (by && ownerAgents.length === 1) agrees.add(by.id);
               blog("info", `🧷 ${agent.name} alikubali pendekezo la ${t.name} — pendekezo limerejeshwa kutoka mjadala (parser ya awali haikulikamata).`);
               break;
             }
@@ -1901,8 +1904,12 @@ ${delib.instructionFor(agent.id)}`;
 
           // MUHIMU:
           // proposal mpya = approvals zote za zamani zinafutwa
+          // R39: mtoa pendekezo HAHESABIWI "amekubali" automatic — owners WOTE wanasema AGREE
+          // waziwazi kabla consensus (kosa la 6ac7d777: AGREE moja ilifunga 2/2 huku mtoa
+          // pendekezo hajawahi kuthibitisha; DISAGREE yake ilikuja BAADA ya card). Owner MMOJA
+          // pekee: pendekezo lake = kura yake (hakuna mthibitishaji wa pili).
           agrees.clear();
-          agrees.add(agent.id);
+          if (ownerAgents.length === 1) agrees.add(agent.id);
           }
 
           // ------------------------------------------------------
@@ -1945,6 +1952,12 @@ ${delib.instructionFor(agent.id)}`;
       if (__agreeBody.length > 30 && __isCondition) {
         proposed = `${proposed}\n\n[Condition added by ${agent.name}]: ${__agreeBody}`;
       }
+    }
+    // R39: DISAGREE inaondoa kura ya aliye-kataa (akutwa alikwisha AGREE) — consensus
+    // inafunguka tena; mjadala unaendelea hadi muafaka kamili.
+    if (isDisagreeMessage && agrees.has(agent.id)) {
+      agrees.delete(agent.id);
+      blog("info", `↩️ ${agent.name} amejivua kura (DISAGREE) — consensus inahesabiwa upya.`);
     }
 
           // ------------------------------------------------------
@@ -2601,7 +2614,7 @@ Keep the answer under 80 words.
                 agent: ob.name,
                 concern: om[1].trim().slice(0, 400),
                 severity: "high",
-                resolution: "accepted",
+                resolution: "pending", // R39: resolution haina "accepted" ya default — inawekwa na matokeo halisi (updated→accepted · rejected/no-decision→rejected)
               });
             }
 
@@ -2682,7 +2695,17 @@ Keep the answer under 80 words.
             itemSources,
             hasSearchedItem
           );
-const uid = addMsg(responder.id);
+          // R39 · OBJECTION LOOP ya professionals: owner anajibu; akiuliza SWALI (CLARIFY rasmi
+          // au swali la moja kwa moja) — objector ANAPEWA zamu yake ya kujibu, kisha owner
+          // LAZIMA aamue (UPDATED DECISION / OBJECTION REJECTED). Hakuna swali linalokufa hewani
+          // tena (kosa la 6ac7d777: CLARIFY ya Optimus kwa Cybertron haikupewa jibu — objection
+          // ikafungwa bila resolution yoyote). Mzunguko mmoja wa swali tu — tokens zinalindwa.
+          let cleanResponse = "";
+          let updated: RegExpMatchArray | null = null;
+          let rejected: RegExpMatchArray | null = null;
+          let lastUid = "";
+          let objectorAnswer = "";
+          const MAX_OBJECTION_ROUNDS = 2;
 
           try {
                         const objectionEvidence = itemSources
@@ -2690,12 +2713,19 @@ const uid = addMsg(responder.id);
               .map((src) => `- ${src.title}\n  ${src.url}\n  ${src.content.slice(0, 450)}`)
               .join("\n");
 
+            for (let round = 1; round <= MAX_OBJECTION_ROUNDS; round++) {
+              const uid = addMsg(responder.id);
+              lastUid = uid;
+              const roundNote = round === 1
+                ? ""
+                : `\n=== ${objection.agent} ANSWERED YOUR QUESTION ===\n${objectorAnswer.slice(0, 800)}\n\nYour question has been answered. Do NOT ask another question — you MUST now decide:\nUPDATED DECISION: <the COMPLETE new decision> (if the objection has merit)\nOBJECTION REJECTED: <short reason> (if it does not)\n`;
+
 const response = await streamTurn(
               responder,
               [
                 {
                   role: "system",
-                  content: await brain.prompt(responder.id, { phase: "objection", role: "owner answering an objection", agenda: agendaCtx, task: `${objection.agent}: ${objection.concern}`, need: "evidence claim objection", msgId: uid, date: nowDate() }),
+                  content: await brain.prompt(responder.id, { phase: "objection", role: round === 1 ? "owner answering an objection" : "owner deciding after the objector answered", agenda: agendaCtx, task: `${objection.agent}: ${objection.concern}`, need: "evidence claim objection", msgId: uid, date: nowDate() }),
                 },
                 {
                   role: "user",
@@ -2708,9 +2738,9 @@ ${objection.concern}
 
 === VERIFIED OBJECTION EVIDENCE ===
 ${objectionEvidence || "(Hakuna usable evidence mpya iliyopatikana.)"}
-
+${contrastQuestionNote(`${objection.concern} ${decision.slice(0, 800)}`)}
 Use this evidence when evaluating the objection.
-Do not invent facts, standards, benchmarks, or security claims.
+Do not invent facts, standards, benchmarks, or security claims. Never claim something "has been verified" unless the verification (number, source or check) is shown above.
 
 You are an owner of this agenda item.
 
@@ -2723,9 +2753,11 @@ RATIONALE: <why the change is required>
 If the objection is NOT valid, output:
 OBJECTION REJECTED: <short reason>
 
+If you genuinely need ONE fact from ${objection.agent} before you can decide, you may ask it (start the line with "CLARIFY: @${objection.agent}") — you will then have to decide on your next turn, whatever the answer.
+
 Do not reopen unrelated decisions.
 Keep under 220 words.
-`,
+${roundNote}`,
                 },
               ],
               uid,
@@ -2733,23 +2765,90 @@ Keep under 220 words.
               1500 // R26 (B1): 500 ilikata UPDATED DECISION ya A3 (R24) katikati
             );
 
-            const cleanResponse = response
+            cleanResponse = response
               .replace(thinkRe, "")
               .replace(/<think>[\s\S]*?<\/think>/gi, "")
               .trim();
 
             setItemContent(uid, cleanResponse);
+            bcast({ type: "msg_done", id: uid });
             subTalk.push({ name: responder.name, text: cleanResponse, tag: `jibu la pingamizi la ${objection.agent}` });
             transcript.push({ name: responder.name, text: cleanResponse, item: item.index });
             joined(responder.id, "owner (objection response)");
 
-            const updated = cleanResponse.match(
+            updated = cleanResponse.match(
               /UPDATED DECISION:\s*([\s\S]+?)(?=\nRATIONALE:|$)/i
             );
 
-            const rejected = cleanResponse.match(
+            rejected = cleanResponse.match(
               /OBJECTION REJECTED:\s*([\s\S]+)$/i
             );
+
+            if (updated || rejected) break;
+
+            // owner aliuliza swali? (CLARIFY rasmi au swali lolote lenye "?")
+            const qm = cleanResponse.match(/CLARIFY:?\s*@?\w+[,:\s-]+([\s\S]+?)(?=\n\s*[A-Z_]{3,}[A-Z ]*:|$)/i);
+            const asksBack = !!qm || /\?\s*$/m.test(cleanResponse);
+            if (!asksBack || round === MAX_OBJECTION_ROUNDS) break;
+
+            // ★ R39: OBJECTOR anajibu swali la owner — zamu yake (hii ndiyo iliyokosekana 6ac7d777)
+            const objectorAgent = AGENTS.find((a) => a.name === objection.agent) || pm;
+            const oid2 = addMsg(objectorAgent.id);
+            blog("info", `🙋 ${responder.name} aliuliza swali kuhusu pingamizi — ${objection.agent} anajibu (msingi wa uamuzi).`);
+            const answer = await streamTurn(
+              objectorAgent,
+              [
+                {
+                  role: "system",
+                  content: await brain.prompt(objectorAgent.id, { phase: "objection", role: "objector answering the owner's question", agenda: agendaCtx, task: String(objection.concern).slice(0, 600), need: "evidence answer", msgId: oid2, date: nowDate() }),
+                },
+                {
+                  role: "user",
+                  content: `
+YOU RAISED THIS OBJECTION (the decision is locked while it is evaluated):
+${objection.concern}
+
+THE OWNER ASKED YOU:
+${(qm ? qm[1] : cleanResponse).slice(0, 600)}
+${contrastQuestionNote(objection.concern)}
+Answer the question with CONCRETE evidence: specific numbers, measurements, devices or values you can name, a source, or the exact check you would perform. If you have NO specific evidence, say so plainly ("I do not have specific evidence — my concern is precautionary") — that is an acceptable answer.
+Do NOT restate the objection; ANSWER the question. Under 120 words.
+`,
+                },
+              ],
+              oid2,
+              true,
+              700,
+              { priority: "observer", cls: "light", effort: "low" }, // jibu fupi la ushahidi
+            );
+            const cleanAnswer = answer
+              .replace(thinkRe, "")
+              .replace(/<think>[\s\S]*?<\/think>/gi, "")
+              .trim();
+            setItemContent(oid2, cleanAnswer);
+            bcast({ type: "msg_done", id: oid2 });
+            subTalk.push({ name: objection.agent, text: cleanAnswer, tag: "jibu la swali la owner" });
+            transcript.push({ name: objection.agent, text: cleanAnswer, item: item.index });
+            joined(objectorAgent.id, "objector (answer)");
+
+            // R39: echo-check — jibu la ruguso (kurudia pingamizi bila ushahidi mpya) si ushahidi
+            if (isEchoAnswer(`${objection.concern} ${qm ? qm[1] : cleanResponse}`, cleanAnswer)) {
+              blog("warning", `🪞 ${objection.agent}: jibu la swali ni ruguso ya pingamizi bila ushahidi mpya — owner ataamua kwa aliyopo.`);
+              objectorAnswer = `"(no new evidence — ${objection.agent}'s answer restated the objection without numbers or sources)"`;
+            } else {
+              objectorAnswer = cleanAnswer;
+            }
+            }
+
+            // R39: mzunguko ukisha bila uamuzi (owner aliendelea kuswali) → objection inafungwa
+            // kwa UKWELI — si "accepted" ya uongo: uamuzi wa awali unabaki LOCKED, rekodi inasema kilichotokea.
+            if (!updated && !rejected) {
+              objection.resolution = "rejected";
+              objectionInfo = { by: objection.agent, concern: objection.concern, responder: responder.name, outcome: "rejected", answer: `Owner (${responder.name}) aliuliza maswali bila kutoa uamuzi baada ya jibu la objector — objection imefungwa; uamuzi wa awali unabaki LOCKED.` };
+              blog("warning", `⚠️ ${responder.name} hakutoa uamuzi kuhusu pingamizi la ${objection.agent} — limefungwa (uamuzi wa awali unabaki LOCKED).`);
+              addChip(`⚠️ Pingamizi la ${objection.agent} limefungwa bila uamuzi wa owner (maswali tu) — uamuzi wa awali unabaki LOCKED.`);
+              brain.objection({ index: item.index, by: objection.agent, outcome: "rejected (no decision from owner)" });
+            }
 
             // R27: UPDATED DECISION inayotegemea kikao/mradi mwingine haifungwi — uamuzi wa awali unabaki
             const updAuth = updated ? [...pastAuthorityHits(cleanResponse, pastProjectNames(conversationTitle, runner.project)), ...contrastHits(cleanResponse).map((h) => `contrast ${h.fgHex}/${h.bgHex} ${h.claimed}:1 ≠ ${h.actual.toFixed(2)}:1`)] : [];
@@ -2757,7 +2856,7 @@ Keep under 220 words.
               blog("warning", `🧱 ${responder.name}: UPDATED DECISION inategemea kikao/mradi mwingine (${updAuth.map((h) => `"${h}"`).join(", ")}) — haifungwi; uamuzi wa awali unabaki.`);
               objection.resolution = "rejected";
               objectionInfo = { by: objection.agent, concern: objection.concern, responder: responder.name, outcome: "rejected", answer: "Jibu (UPDATED DECISION) lilitegemea kikao kingine, si ushahidi wa kikao hiki — uamuzi wa awali unabaki." };
-            } else if (updated && turnInfo.get(uid)?.lengthCut) {
+            } else if (updated && turnInfo.get(lastUid)?.lengthCut) {
               // R26 (B2): UPDATED DECISION iliyokatika haifungwi — lock ya awali inabaki (kamili)
               blog("error", `✂️ ${responder.name}: UPDATED DECISION ilikatika (kikomo cha tokens) — haifungwi; uamuzi uliofungwa awali unabaki.`);
               addChip(`✂️ Jibu la pingamizi la ${objection.agent} lilikatika kabla ya kukamilika — uamuzi wa awali (kamili) unabaki LOCKED.`);
@@ -2873,6 +2972,7 @@ Keep under 220 words.
                 finalDecisionText = mergedDecision;
               }
               objectionInfo = { by: objection.agent, concern: objection.concern, responder: responder.name, outcome: "accepted", answer: newDecision };
+              objection.resolution = "accepted"; // R39: resolution halisi (si default)
               brain.objection({ index: item.index, by: objection.agent, outcome: newId ? "accepted (re-locked)" : "accepted (re-lock failed)" });
               if (newId) brain.lock({ index: item.index, item: item.item, decision: mergedDecision, status: "LOCKED" });
 
@@ -2895,6 +2995,7 @@ Keep under 220 words.
 
             } else if (rejected) {
               objectionInfo = { by: objection.agent, concern: objection.concern, responder: responder.name, outcome: "rejected", answer: rejected[1].trim() };
+              objection.resolution = "rejected"; // R39: resolution halisi (si default)
               brain.objection({ index: item.index, by: objection.agent, outcome: "rejected" });
               addChip(
                 `↩️ Objection imekataliwa: ${rejected[1]
@@ -2914,7 +3015,7 @@ Keep under 220 words.
 
           bcast({
             type: "msg_done",
-            id: uid,
+            id: lastUid, // R39: zamu ya mwisho ya owner (loop)
           });
         }
       }

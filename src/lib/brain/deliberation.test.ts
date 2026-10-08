@@ -1,7 +1,7 @@
 // src/lib/brain/deliberation.test.ts — R37 (B2): mashine ya Itifaki ya Kufunga.
 // Hakuna hali ya OPEN tena: consensus → kura binding (amend mara moja) → rough/fallback → defer ya ndani.
 import { describe, expect, it } from "vitest";
-import { createDeliberation, RESEARCH_CAP } from "./deliberation";
+import { createDeliberation, isEchoAnswer, MAX_OWNER_TURNS, RESEARCH_CAP } from "./deliberation";
 
 const OWNERS = [
   { id: "pm", name: "Optimus" },
@@ -158,5 +158,38 @@ describe("R37 — kura inarekodiwa kikamilifu", () => {
     x.observe("pm", "PROPOSED DECISION: everything", { proposal: "everything" });
     expect(x.closed()).toBe(true);
     expect(x.closedReason).toBe("chair decided (single owner)");
+  });
+});
+
+// ===== R39 · FIX 3 — kanuni ya majibu: echo si ushahidi + mizunguko 15 =====
+describe("R39 · FIX 3 — isEchoAnswer (echo ya swali si jibu)", () => {
+  const Q = "@Optimus, can you confirm that #00D4AA on #0A0F1A has been verified as WCAG AA compliant?";
+
+  it("echo ya swali ('I confirm that … verified') → echo, si jibu", () => {
+    // jibu la Optimus halisi la 6ac7d777 — hakuna namba/source mpya, maneno ya swali tu
+    expect(isEchoAnswer(Q, "AGREE: I confirm that #00D4AA on #0A0F1A has been verified as WCAG AA compliant. It passes.")).toBe(true);
+  });
+
+  it("jibu lenye NAMBA mpya halali → si echo", () => {
+    expect(isEchoAnswer(Q, "Computed with the WCAG formula: #00D4AA on #0A0F1A = 10.03:1, which passes AA (>= 4.5:1) and AAA (>= 7:1).")).toBe(false);
+  });
+
+  it("jibu lenye URL mpya halali → si echo", () => {
+    expect(isEchoAnswer(Q, "Verified via https://webaim.org/resources/contrastchecker/ — the pair passes.")).toBe(false);
+  });
+
+  it("unganisho wa maneno tofauti kabisa → si echo (si kesi yetu, lakini usiue majibu halali)", () => {
+    expect(isEchoAnswer(Q, "I measured the palette on an OLED panel at 200 nits; the teal reads clearly against near-black in bright office light.")).toBe(false);
+  });
+
+  it("'sijui' fupi → si echo (njia halali — inakuwa ASSUMPTION)", () => {
+    expect(isEchoAnswer(Q, "I don't know. Record it as ASSUMPTION.")).toBe(false);
+  });
+});
+
+describe("R39 — mizunguko ya agenda 12 → 15", () => {
+  it("MAX_OWNER_TURNS default ni 15", () => {
+    expect(MAX_OWNER_TURNS).toBe(15);
+    expect(createDeliberation({ owners: OWNERS, chairId: "pm" }).maxTurns).toBe(15);
   });
 });

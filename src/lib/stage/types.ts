@@ -84,7 +84,7 @@ export interface TurnItem {
 /** engine: proposal parser / agrees Set / consensus gate / MAX_TURNS */
 export interface ConsensusItem {
   kind: "consensus"; id: string;
-  event: "proposed" | "reset" | "agreed" | "reached" | "exhausted";
+  event: "proposed" | "reset" | "agreed" | "reached" | "retract" | "exhausted";
   by: AgentId; version: number;
   owners: AgentId[]; approvals: AgentId[];
 }
