@@ -39,6 +39,10 @@ EMERGENCY_MAX_WAIT = 120_000  # ms — kusubiri lanes za dharura zilizo cooling
 STICKY_MAX_WAIT_MS = 25_000   # ms — R34-A: kosa la dakika la sticky lane: subiri kimya chini ya hii, vingine shuka
 MAX_ATTEMPTS = 24             # jaribio kwa ombi moja kabla ya fatal
 IDLE_ABORT_MS = 180_000       # hakuna data kutoka upstream → lane inahisiwa imekufa
+# R38-RC1: kikomo cha JUMLA cha stream moja (data inafika lakini stream haikomi kamwe —
+# generator usio na mwisho). 15 dk = kutosha kwa jibu kubwa (65K tokens); baada yake lane
+# inahisiwa busy na inarudiwa kwenye nyingine.
+STREAM_MAX_MS = 900_000
 XKIRO_MIN_REMAINING = 15_000  # tokens — chini ya hii, XKiro inarukwa kimya ("kama kuna nafasi")
 
 
@@ -925,13 +929,27 @@ class Brain:
             gate_open = False
             pending: list = []
             usage_prompt, usage_completion = 0, 0
-            last_data = time.time()
+            # R38-RC1: idle-check HALISI. Zamani `last_data` ilesasishwa kabla ya check
+            # (mistari ilikuwa dead code — stream iliyokwama haikukamatwa kamwe). Sasa:
+            #   - last_data inasasishwa na DATA HALISI pekee (mstari unaanza "data:")
+            #   - ping/keep-alive/maandishi mengine HAYAHESABIWI — yakiendelea dakika 3 bila
+            #     chunk moja ya data, lane inahisiwa imekufa (busy) na inarudiwa
+            #   - kikomo cha jumla (STREAM_MAX_MS) kinakata generator usiokoma
+            # (socket yenyewe ina timeout=30: kimya kabisa kinajikata tayari.)
+            now_s = lambda: self._clock() / 1000.0
+            last_data = now_s()
+            deadline = now_s() + STREAM_MAX_MS / 1000.0
             try:
                 for raw in resp:
+                    t_now = now_s()
+                    if t_now - last_data > IDLE_ABORT_MS / 1000.0:
+                        raise LaneError("busy", f"stalled — hakuna data mpya kwa {int(t_now - last_data)}s")
+                    if t_now > deadline:
+                        raise LaneError("busy", f"stream imevuka {int(STREAM_MAX_MS / 60000)} dk bila kuisha — imekatwa")
                     line = raw.decode("utf-8", "replace").strip() if isinstance(raw, (bytes, bytearray)) else str(raw).strip()
                     if not line or not line.startswith("data:"):
-                        continue
-                    last_data = time.time()
+                        continue  # ping/keep-alive/maoni — si data halisi, hayasasishi last_data
+                    last_data = t_now  # data HALISI pekee inasasisha
                     data_str = line[5:].strip()
                     if data_str == "[DONE]":
                         break
@@ -943,8 +961,6 @@ class Brain:
                     if chunk.get("usage"):
                         usage_prompt = int((chunk.get("usage") or {}).get("prompt_tokens") or usage_prompt)
                         usage_completion = int((chunk.get("usage") or {}).get("completion_tokens") or usage_completion)
-                    if time.time() - last_data > IDLE_ABORT_MS / 1000:
-                        raise LaneError("busy", "stalled — hakuna data")
                     if not gate_open:
                         if translator.gate_passed:
                             gate_open = True

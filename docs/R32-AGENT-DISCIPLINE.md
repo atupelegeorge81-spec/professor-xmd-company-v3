@@ -280,3 +280,35 @@ Live probe 08-10 (kila model × account, request halisi): `gemini-2.5-flash` →
 gemini-1 inabaki na 2.5-flash, models/lane ZOTE nyingine hazikuguswa. Back-compat: config bila `modelSkip`
 inaendelea kufanya kazi kama zamani. Uthibitisho: python 125/125 (+1), vitest 98/98 (+3), tsc clean.
 (Uchunguzi kamili wa session 6ac78bc6: docs/R38-DEEP-INSPECTION.md — root causes RC1–RC5 na fix plan.)
+
+## R38-B — FIX ZA KUBWA (RC1–RC5 + usage hang) — 08-10 jioni
+
+Msingi: docs/R38-DEEP-INSPECTION.md (ripoti v2, evidence-based). Zote zimeandikwa kwa
+minimal-scope — hakuna logic nyingine iliyoguswa. Uthibitisho: **python 128/128 (+3), vitest
+111/111 (+13: engine.pause 10, ui RC4 3), tsc clean, build ✓**.
+
+- **RC1 · stream iliyokwama haikukamatwa** (`cu/brain.py` open_stream): idle-check ilikuwa dead
+  code (`last_data` ilesasishwa kabla ya check). Sasa: check iko JUU ya loop; **data halisi pekee**
+  (mstari unaanza `data:`) unawasha `last_data` — ping/keep-alive hauhesabiwi; idle >180s →
+  LaneError busy (lane inarudiwa). Kipya: **STREAM_MAX_MS=15dk** — generator usiokoma unakatwa.
+  Watchdog ya pili (`engine.ts`): `checkCuStall` interval ya 30s kwenye kila phase — hakuna tukio
+  la bridge 5dk → onyo (moja); 15dk (`CU_STALL_PAUSE_MS`) → pause + auto-retry 10dk.
+- **RC5 · pause haishimangi CU** (`pauseRun`): awamu ya computer ilikuwa ikiendelea chini ya pause
+  (ushahidi [243]: matukio ~600 baada ya pause). Sasa `pauseComputerFromServer`: tar ya workspace →
+  bucket (snapshot, ≤40MB, timeboxed ~7dk max) → pkill bridge+brain → sandbox inafiwa (+15s) kama
+  snapshot ipo (bila snapshot inabaki hai kuokoa kazi) → session "paused" + chip + awamu
+  inarudishwa. resumeAt=0 = pause ya mwandamizi (hakuna auto-resume); Resume inapita
+  quota-paste-resume path ileile. Guard mpya ya `pausedNow` (pause ya SASA) tofauti na
+  `pausedOnce` (historia — inaruhusu quota-pause ya pili na resume-continue). Events za bridge
+  wakati wa pause: "kelele" (think/text/exec) zinakataliwa; za mwisho (run_end/report/snapshot/
+  github/deploy) zinapita — kazi halisi haipotei. Resume wakati snapshot inapangwa → 409 "pausing".
+- **RC4 · orphan think cards** (`adapter.ts`): think_start mpya inafunga iliyotangulia
+  (partial:false — ushahidi [311]/[314]); run_end/phase_done/pause pia zinafunga think wazi.
+- **RC2 · matumizi ya tokens ya Board** (R37-C caps): dirisha la evidence 16→12
+  (`boardRunner.ts`), matokeo ya search 12→10 kwa query (`search.ts`).
+- **RC3 · vifo vya process ya Koyeb**: keep-alive ya ndani — instrumentation ina-ping
+  `/api/health` ya URL ya umma kila dakika 4 (production tu, `CU_KEEPALIVE=off` inazima) —
+  instance isiife kwa kukosa traffic wakati run/runner ziko memory. (Vifo vya deploy/OOM
+  havizuiiki — recovery ya nje (Ledger/boot-scan) inabaki kama ilivyo.)
+- **`/api/usage/accounts` hang**: probes zote zina timeouts zao (8-10s) lakini jumla sasa
+  imefungwa — `Promise.race` ya sekunde 15; snapshot ya ledger inarudi hata probe ikikwama.

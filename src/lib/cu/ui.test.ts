@@ -260,4 +260,50 @@ describe("R35 · nidhamu (hooks) kwenye timeline + export kamili", () => {
     expect(md).toContain("src/App.jsx");                   // files tree
     expect(md).toContain("RIPOTI: imekamilika");           // ripoti
   });
+
+  // ── R38-RC4: orphan think cards — think_start mpya/pause/run_end inafunga iliyotangulia ──
+
+  it("RC4: think_start MBILI bila think_end — ya kwanza inafungwa (partial:false), si orphan", () => {
+    const t = run();
+    t.cu({ type: "divider" });
+    t.cu({ type: "run_start", task: "Duka", model: "xmd" });
+    t.cu({ type: "think_start", step: 1 });
+    t.cu({ type: "think_delta", step: 1, text: "nafikiri kwanza" });
+    t.cu({ type: "think_start", step: 1 }); // think_end haikuwahi kuja (stream ikirudiwa)
+    t.cu({ type: "think_delta", step: 1, text: "nafikiri pili" });
+    const cards = t.all<CuThinkItem>("cuThink");
+    expect(cards).toHaveLength(2);
+    expect(cards[0].partial).toBe(false); // ← orphan imefungwa (ushahidi [311]/[314])
+    expect(cards[0].text).toContain("kwanza");
+    expect(cards[1].partial).toBe(true);  // wazi bado (stream inaendelea)
+  });
+
+  it("RC4: run_end inafunga think iliyo wazi — hakuna partial:true mwishoni", () => {
+    const t = run();
+    t.cu({ type: "divider" });
+    t.cu({ type: "run_start", task: "Duka", model: "xmd" });
+    t.cu({ type: "think_start", step: 2 });
+    t.cu({ type: "think_delta", step: 2, text: "nawaza" });
+    t.cu({ type: "run_end", status: "done", steps: 3, ms: 9000 });
+    const th = t.find<CuThinkItem>("cuThink")!;
+    expect(th.partial).toBe(false);
+    expect(t.find<CuRunItem>("cuRun")!.status).toBe("done");
+  });
+
+  it("RC4: pause (replay) + phase_done (live pause) zinafunga think wazi", () => {
+    const t = run();
+    t.cu({ type: "divider" });
+    t.cu({ type: "run_start", task: "Duka", model: "xmd" });
+    t.cu({ type: "think_start", step: 3 });
+    t.cu({ type: "pause", resumeAt: 0, ms: 5000, steps: 2 });
+    expect(t.find<CuThinkItem>("cuThink")!.partial).toBe(false);
+
+    const t2 = run();
+    t2.cu({ type: "divider" });
+    t2.cu({ type: "run_start", task: "Duka", model: "xmd" });
+    t2.cu({ type: "think_start", step: 1 });
+    t2.cu({ type: "phase_done", ok: false, status: "paused" });
+    expect(t2.find<CuThinkItem>("cuThink")!.partial).toBe(false);
+    expect(t2.find<CuRunItem>("cuRun")!.status).toBe("paused");
+  });
 });

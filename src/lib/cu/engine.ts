@@ -32,6 +32,11 @@ import type { BoardEvent, LogEntry } from "@/lib/types";
 export const CU_TEMPLATE = process.env.CU_E2B_TEMPLATE || "professor-xmd-browser-v3";
 /** R31-G: kikomo cha ku-subiri awamu ya CU (run() haiachi stream open milele). */
 const CU_HARD_CAP_MS = Number(process.env.CU_HARD_CAP_MS) || 30 * 60 * 1000;
+/** R38-RC1: bridge hai lakini hakuna tukio (stream ya LLM imekwama) → onyo (⅓) kisha pause+auto-resume.
+ *  Matukio ya kawaida (think_delta/exec) yanafika kila sekunde chache; kutokuwepa kwa dakika 15 = kifo hakika. */
+export const CU_STALL_PAUSE_MS = Number(process.env.CU_STALL_PAUSE_MS) || 15 * 60 * 1000;
+/** R38-RC5: events zinazoruhusiwa kupita hata run ikiwa pausedNow (kazi halisi ya mwisho haipotei). */
+const CU_PAUSE_PASSTHROUGH = new Set(["run_end", "report", "snapshot", "github", "deploy", "finish"]);
 export const CU_BUCKET = SCREENSHOTS_BUCKET;
 /** URL ya umma ya app hii (sandbox ina-POST events hapa). */
 export const CU_PUBLIC_URL = (process.env.CU_PUBLIC_URL || process.env.KOYEB_PUBLIC_URL || "https://professor-xmd-professorcj-2c4d4efe.koyeb.app").replace(/\/$/, "");
@@ -79,6 +84,15 @@ export interface CuRunState {
   pausedOnce?: boolean;
   resumeAt?: number;
   snapshot?: { fileId: string; bucketId: string };
+  /** R38-RC5: pause ya sasa (manual/watchdog) — tofauti na pausedOnce (historia).
+   *  pausedNow=true → events za bridge (isipokuwa run_end) zinakataliwa; inafutwa startComputerPhase ikianza. */
+  pausedNow?: boolean;
+  /** R38-RC5: pause ya server iko mbioni (tar/snapshot inapangwa) — Resume inasubiri isimalize. */
+  pausing?: boolean;
+  /** R38-RC1: watchdog ya stall — tukio la mwisho la bridge (live). */
+  lastEventAt?: number;
+  stallWarned?: boolean;
+  watchdogTimer?: ReturnType<typeof setInterval>;
   thinkAcc: Map<number, string>;
   persistTimer?: ReturnType<typeof setTimeout>;
   lastPersistAt?: number;
@@ -332,6 +346,8 @@ function bridgeCommand(o: {
 export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promise<void> {
   const cu = ensureCuState(runner);
   if (cu.done) return;
+  // R38-RC5: awamu inaanza → pause ya ZAMANI inaisha (events mpya za bridge zinakubalika tena)
+  cu.pausedNow = false;
   // R31-G4: awamu MPYA = promise MPYA (ile ya run iliyopita imesharesolve — bila hii,
   // awaitPhase ingerudi MARA MOJA na run ingeisha huku bridge bado unaendelea)
   cu.phaseDone = new Promise<void>((res) => { cu.phaseResolve = res; });
@@ -419,6 +435,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
         hooks.blog("success", "🖥️ Bridge bado inaendelea ndani ya sandbox — tume-attach tu ( hakuna run mpya).");
         cu.startedAt = Date.now();
         cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
+        startWatchdog(runner, hooks, cu); // R38-RC1: bridge hai lakini ikinyamaza → onyo/pause
         await awaitPhase();
         return;
       }
@@ -461,6 +478,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
 
     // heartbeat: sandbox isife wakati run inaendelea
     cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
+    startWatchdog(runner, hooks, cu); // R38-RC1: bridge hai lakini ikinyamaza → onyo/pause
 
     // watchdog: bridge ikifa bila run_end → fatal card moja (+ Endelea inabaki)
     handle.wait().then(async (r: any) => {
@@ -501,6 +519,43 @@ export function cuError(runner: Runner, hooks: CuHooks, message: string): void {
 
 function stopHeartbeat(cu: CuRunState) {
   if (cu.heartbeat) { clearInterval(cu.heartbeat); cu.heartbeat = undefined; }
+  stopWatchdog(cu);
+}
+
+function stopWatchdog(cu: CuRunState) {
+  if (cu.watchdogTimer) { clearInterval(cu.watchdogTimer); cu.watchdogTimer = undefined; }
+}
+
+/* ============================ R38-RC1 · watchdog ya stall + RC5 · pause ya server ============================ */
+
+/** Ukaguzi mmoja wa stall (unanijishika na watchdog interval; unaweza kuitwa moja kwa moja kwenye test).
+ *  "ok" = kila kitu mzuri · "warned" = onyo limetumwa · "paused" = pause imetokwa na kuanza. */
+export function checkCuStall(runner: Runner, hooks: CuHooks | null): "ok" | "warned" | "paused" {
+  const cu = runner.cu;
+  if (!cu || cu.done || cu.pausedNow || cu.pausing) return "ok";
+  const idleMs = Date.now() - (cu.lastEventAt || cu.startedAt);
+  if (idleMs > CU_STALL_PAUSE_MS) {
+    hooks?.blog("error", `🖥️ XMD Computer: hakuna tukio kwa ${Math.round(idleMs / 60000)} dk (stream ya LLM imekwama) — inapumzishwa; itajaring tena baada ya dakika 10.`);
+    void pauseComputerFromServer(runner, hooks, `hakuna tukio la bridge kwa ${Math.round(idleMs / 60000)} dk (LLM imekwama)`, Date.now() + 10 * 60_000).catch(() => {});
+    return "paused";
+  }
+  if (idleMs > CU_STALL_PAUSE_MS / 3 && !cu.stallWarned) {
+    cu.stallWarned = true;
+    hooks?.blog("warning", `⏳ XMD Computer: hakuna tukio kwa ${Math.round(idleMs / 60000)} dk — LLM inapoa au imekwama. Ikikaa zaidi ya dakika ${Math.round(CU_STALL_PAUSE_MS / 60000)} bila tukio, itapumzishwa na kujaribiwa tena.`);
+    return "warned";
+  }
+  return "ok";
+}
+
+function startWatchdog(runner: Runner, hooks: CuHooks, cu: CuRunState) {
+  stopWatchdog(cu);
+  cu.lastEventAt = Date.now();
+  cu.stallWarned = false;
+  cu.watchdogTimer = setInterval(() => {
+    if (!runner.cu || runner.cu.done || runner.cu.pausedNow || runner.cu.pausing) { stopWatchdog(runner.cu!); return; }
+    checkCuStall(runner, hooks);
+  }, 30_000);
+  (cu.watchdogTimer as any)?.unref?.(); // timer ya ndani — isizuie exit ya Node
 }
 
 /* ============================ events (endpoint + watchdog) ============================ */
@@ -551,6 +606,12 @@ export async function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: C
   if (cu.seen.has(key)) return;
   cu.seen.add(key);
   if (ev.i > cu.maxI) cu.maxI = ev.i;
+  // R38-RC1/RC5: tukio lolote la live linaonyesha bridge inazungumza (watchdog ya stall inapumzika);
+  // run iliyopumzishwa (pausedNow) inakataa events za "kelele" (think/text/exec/usage…) — bridge
+  // inayokufa haizidi kugeuza hali — lakini events za MWISHO za kazi halisi (ripoti/links/snapshot/
+  // run_end) zinapitishwa: kazi iliyokamilika halisi haipotei.
+  cu.lastEventAt = Date.now();
+  if (cu.pausedNow && !CU_PAUSE_PASSTHROUGH.has(ev.type)) return;
 
   // broadcast LIVE kila tukio (UI ina-animation ya live) — shot bila base64 (fileId inakuja baadaye)
   if (hooks) hooks.bcast({ type: "cu", cu: ev.type === "shot" ? { ...ev, data: undefined, has_data: true } : ev });
@@ -780,10 +841,13 @@ export function noteProviderUsage(ev: CuEvent, ok: boolean): void {
  *  auto-resume inapangwa (in-instance timer + checkPausedDue kwa traffic yoyote/instrumentation). */
 function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void {
   const cu = runner.cu!;
-  if (cu.done) return;
+  // R38-RC5: pause iliyokwisha (manual/watchdog ya sasa — pausedNow) — usirudie. pausedOnce
+  // ni HISTORIA (quota inaweza ikawa tena siku ijayo baada ya resume — haisimamishi).
+  if (cu.done || cu.pausedNow || cu.pausing) return;
   stopHeartbeat(cu);
   if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; } // race: timer isiandike "running" juu ya "paused"
   cu.pausedOnce = true;
+  cu.pausedNow = true;
   const resumeAt = Number((ev as any).resume_at) || 0;
   cu.resumeAt = resumeAt;
   runner.items.push({ kind: "cu", id: `cu_pause_${runner.items.length}`, i: ev.i, cu: "pause", resumeAt, ms: ev.ms, steps: ev.steps } as any);
@@ -806,6 +870,101 @@ function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void
     hooks.bcast({ type: "cu", cu: { type: "phase_done", ok: false, status: "paused" } });
   }
   scheduleAutoResume(runner.sessionId || runner.id, resumeAt);
+}
+
+/** R38-RC5 · PAUSE YA SERVER (manual Detach / watchdog ya stall): bridge haipewi nafasi
+ *  ya "kuendelea raha" — inauawa, workspace inahifadhiwa (snapshot → bucket), session
+ *  inaandikwa "paused", na awamu (awaitPhase) inarudishwa. resumeAt=0 = pause ya
+ *  MWANDAMIZI (haina auto-resume — Resume ya user tu); resumeAt>0 = watchdog (retry 10dk).
+ *  Mkondo uleule wa quota-pause (pauseComputer) — tofauti kubwa: snapshot inatengenezwa
+ *  NA SERVER hapa (bridge haijashiriki), kwa tar+files.read kutoka sandbox hai. */
+export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | null, reason: string, resumeAt: number): Promise<boolean> {
+  const cu = runner.cu;
+  // pausedNow = pause ya SASA (si historia ya pausedOnce — hiyo inaruhusu resume-continue)
+  if (!cu || cu.done || cu.pausedNow || cu.pausing) return false;
+  cu.pausing = true;
+  stopHeartbeat(cu); // heartbeat + watchdog (RC1)
+  if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; }
+  cu.pausedOnce = true;
+  cu.resumeAt = resumeAt;
+  cu.stallWarned = false;
+  runner.items.push({ kind: "cu", id: `cu_pause_${runner.items.length}`, i: cu.maxI, cu: "pause", resumeAt, reason: String(reason).slice(0, 200), steps: cu.step } as any);
+  if (hooks) {
+    const t = resumeAt ? new Date(resumeAt).toLocaleTimeString("en-GB", { timeZone: "Africa/Dar_es_Salaam", hour12: false }) : "";
+    hooks.blog("warning", `⏸️ XMD Computer imepumzishwa — ${reason}. Workspace inahifadhiwa...`);
+    hooks.addChip(resumeAt
+      ? `⏸️ XMD Computer imepumzika (${reason}) — itajaribiwa tena yenyewe ${t}.`
+      : `⏸️ XMD Computer imepumzishwa (${reason}) — hali ya workspace imehifadhiwa; ▶ Resume inarejesha pale pale.`);
+  }
+
+  // (1) SNAPSHOT: tar.gz ya workspace kutoka sandbox hai (bridge yenyewe hushiriki quota-path
+  //     pekee — hapa ni server inayopanga). Imefungwa kwa muda (≤2dk) ili pause isighairi kuisha.
+  const sbx = cu.sandbox;
+  if (sbx && !cu.snapshot) {
+    try {
+      const r = await Promise.race([
+        sbx.commands.run(
+          `cd /home/user/ws 2>/dev/null || cd /home/user; tar czf /tmp/cu-ws-pause.tar.gz --exclude node_modules --exclude .git --exclude .cache --exclude playwright-report -S . 2>/dev/null; stat -c%s /tmp/cu-ws-pause.tar.gz 2>/dev/null || echo 0`,
+          { timeoutMs: 120_000 },
+        ),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("tar timeout")), 150_000).unref?.()),
+      ]);
+      const size = Number(String(r?.stdout || "").trim().split(/\s+/).pop()) || 0;
+      if (size > 0 && size <= 40 * 1024 * 1024) {
+        const bytes = await Promise.race([
+          sbx.files.read("/tmp/cu-ws-pause.tar.gz", { format: "bytes", requestTimeoutMs: 150_000 } as any),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error("read timeout")), 180_000).unref?.()),
+        ]);
+        if (bytes && bytes.length) {
+          if (appwriteConfigured) {
+            const f: any = await Promise.race([
+              storage.createFile(CU_BUCKET, "unique()", InputFile.fromBuffer(Buffer.from(bytes), `cu-ws-${Date.now()}.tar.gz`)),
+              new Promise<never>((_, rej) => setTimeout(() => rej(new Error("upload timeout")), 150_000).unref?.()),
+            ]);
+            cu.snapshot = { fileId: f.$id, bucketId: CU_BUCKET };
+          }
+          hooks?.blog("info", `🎒 Snapshot ya workspace imehifadhiwa (${Math.round(bytes.length / 1024)}KB) — Resume itairejesha.`);
+        }
+      } else if (size > 40 * 1024 * 1024) {
+        hooks?.blog("warning", `🎒 Workspace ni kubwa mno kwa snapshot (${Math.round(size / 1024 / 1024)}MB) — sandbox itabaki hai kuhifadhi kazi; haijaangamia.`);
+      }
+    } catch (err: any) {
+      hooks?.blog("warning", `🎒 Snapshot haikupatikana (${String(err?.message || err).slice(0, 120)}) — sandbox itabaki hai kuhifadhi kazi; haijaangamia.`);
+    }
+  }
+
+  // (2) Ukweli wa nje umebadilika? Bridge ikaimaliza kazi yOTE wakati sisi tunapanga pause
+  //     (run_end imefika → finishComputer) → pause inaghairiwa; kazi imekamilika halisi.
+  if (cu.done) { cu.pausing = false; return true; }
+
+  // (3) BRIDGE INAUAWA sasa (isiendelee kuchoma quota/hack events) — pkill pattern '[c]u_'
+  //     haijimatchi yenyewe (kosa la 6ac3ce60). brain.py ni process tofauti — inauawa pia.
+  //     Snapshot IKIWA ipo: sandbox yote inafiwa baada ya sekunde 15 (nafasi ya E2B free —
+  //     kiutaratibu wa quota-pause). Snapshot IKOSA kubfikia: sandbox INABAKI hai (workspace
+  //     ya mwisho iko diskini — resume ina-connect kwake badala ya kuanza upya).
+  const sbx2 = cu.sandbox;
+  if (sbx2) {
+    try {
+      await Promise.race([
+        sbx2.commands.run("pkill -9 -f '[c]u_bridge.py'; pkill -9 -f '[c]u_brain.py'; true", { timeoutMs: 20_000 }),
+        new Promise((r2) => setTimeout(r2, 25_000).unref?.()),
+      ]);
+    } catch { /* bridge haikuuliwa — sandbox-kill hapa chini inaugua */ }
+    if (cu.snapshot) setTimeout(() => sbx2.kill?.().catch(() => {}), 15_000).unref?.();
+  }
+  cu.sandbox = undefined; // cache hai — getSandbox ita-connect (hai → workspace ipo; imetoweka → mpya+snapshot)
+
+  // (4) PAUSE INAKAMILIKA: awamu inarudishwa, session "paused", chip ya CU state inasasishwa.
+  cu.pausing = false;
+  cu.pausedNow = true;
+  cu.phaseResolve?.();
+  writeCuChip(runner);
+  if (hooks) {
+    void hooks.persist("paused", hooks.title);
+    hooks.bcast({ type: "cu", cu: { type: "phase_done", ok: false, status: "paused" } });
+  }
+  if (resumeAt) scheduleAutoResume(runner.sessionId || runner.id, resumeAt);
+  return true;
 }
 
 /** Timer ya ndani (instance ikizima, instrumentation/active-check zinakamilisha). */

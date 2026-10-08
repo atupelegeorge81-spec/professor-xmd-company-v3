@@ -134,6 +134,8 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   let planMode = false; // R31-G5: mode ya session — plan mode HAINA script/patch/review (awamu za code hazipo)
   let cuThinkSeq = 0; // R31-G5: kila block ya think = card yake (si step — mbili kwenye step ileile zilichanganyika)
   let cuThinkOpen: string | null = null; // card ya think iliyo wazi (think_start…think_end)
+  /** R38-RC4: fikia card ya think iliyo wazi bila kuisaha (orphan limewekwa partial:false). */
+  const closeCuThink = () => { if (cuThinkOpen) { patch<CuThinkItem>(cuThinkOpen, { partial: false }); cuThinkOpen = null; } };
   const index = new Map<string, number>();
   let stage: LiveStage = { ...EMPTY_STAGE };
   let title = "";
@@ -1195,6 +1197,9 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       // ── mawazo ya agent: thinking card (xmd3 ThinkingCard — shimmer → collapsed) ──
       case "think_start": {
         // R31-G5: kila block ya think = card YAKE (wawili kwenye step ileile walichanganyika)
+        // R38-RC4: card iliyotangulia iliyofungwa bila think_end (stream ikirudiwa/ikikatika)
+        // inafungwa kabla ya mpya — usiache orphan partial:true (ushahidi [311]/[314])
+        if (cuThinkOpen) { patch<CuThinkItem>(cuThinkOpen, { partial: false }); cuThinkOpen = null; }
         cuThinkSeq += 1;
         cuThinkOpen = `cuThink_${cuThinkSeq}`;
         add({ kind: "cuThink", id: cuThinkOpen, step: Number(cu.step) || 0, text: "", partial: true });
@@ -1339,6 +1344,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       }
       case "pause": {
         // R31-G4 (replay): session ilipumzika (quota ya siku) — card ya pause + run "paused"
+        closeCuThink(); // R38-RC4: pause — think wazi inafungwa
         if (cuRunUi) patch<CuRunItem>(cuRunUi, { status: "paused", finished: true });
         add({ kind: "cuPause", id: nid(), resumeAt: Number((cu as any).resumeAt) || Number((cu as any).resume_at) || 0, ms: Number(cu.ms) || 0, steps: Number(cu.steps) || 0 } as any);
         break;
@@ -1397,6 +1403,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         break;
       }
       case "run_end": {
+        closeCuThink(); // R38-RC4: think iliyo wazi haibaki partial:true mwishoni (hata bila run card)
         if (!cuRunUi) return;
         const run = runItem();
         if (String(cu.status) === "paused_quota") {
@@ -1416,6 +1423,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         break;
       }
       case "phase_done": {
+        closeCuThink(); // R38-RC4: pause/error ya awamu — think wazi inafungwa
         const st = String(cu.status || "") === "paused" ? "paused" : cu.ok ? "done" : "error";
         if (cuRunUi) patch<CuRunItem>(cuRunUi, { status: st, finished: true });
         break;

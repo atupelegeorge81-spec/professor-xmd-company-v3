@@ -757,3 +757,76 @@ class TestStickyLane(unittest.TestCase):
         lane = b.pick_lane({"gemini-1:gemini-3.8-flash"})       # imeshafeli kwa request hii
         self.assertEqual(lane.id, "gemini-2:gemini-3.8-flash")
         self.assertEqual(b.work_lane, "gemini-1:gemini-3.8-flash", "sticky inabaki kwa request ijayo")
+
+
+# ---------------------------------------------------------------- R38-RC1 · stream idle + deadline
+
+class TestStreamIdleDeadline(unittest.TestCase):
+    """R38-RC1: idle-check halisi (data halisi pekee inasasisha) + kikomo cha jumla cha stream.
+
+    Ushahidi: thinks 4 (i=877-905) bila usage record baada ya i=872 — stream iliyokwama
+    haikukamatwa kambe kwa sababu `last_data` ilesasishwa kabla ya check (dead code).
+    """
+
+    def _stream(self, script_lines, clock_advance_per_line=0):
+        """Anzesha open_stream na resp ya makundi yanayosukuma clock (bila mtandao)."""
+        b, tr, clock, path = make_brain(script=[])
+        lane = brain.build_order(b.cfg)[0]
+
+        def lines():
+            for ln in script_lines:
+                if clock_advance_per_line:
+                    clock.advance(clock_advance_per_line)
+                yield ln
+
+        tr.script.append(("ok", lines()))
+        return b, tr, clock, lane
+
+    def test_data_ikichelewa_zaidi_ya_dakika_3_inakamatwa(self):
+        # data ya kwanze inafika; ikafuata nyingine baada ya sekunde 200 (zaidi ya 180s) → busy
+        data_line = "data: " + json.dumps({"choices": [{"delta": {"content": "x"}}]})
+        b, tr, clock, lane = self._stream([data_line, data_line], clock_advance_per_line=200_000)
+        with self.assertRaises(brain.LaneError) as cm:
+            for _ev in b.open_stream(lane, {"stream": True, "messages": [{"role": "user", "content": "hi"}]}):
+                pass
+        self.assertEqual(cm.exception.kind, "busy", "idle >180s lazima ihisiwe (zamani ilikuwa dead code)")
+
+    def test_ping_haihesabiwi_kama_data(self):
+        # ping/keep-alive (mstari usioanza "data:") HAUSASISHI last_data — ukifika baada ya
+        # dakika 3 bila chunk ya data, stream ni ya kwenda kufa → busy
+        data_line = "data: " + json.dumps({"choices": [{"delta": {"content": "x"}}]})
+        lines = [data_line, ": ping", ": ping", data_line]
+
+        def paced():
+            yield data_line
+            clock.advance(200_000)  # sekunde 200 "zikipita" kati ya ping
+            yield ": ping"
+            yield ": ping"
+            yield data_line  # data hii haipaswi kufika — idle ilipaswa kuwaka tayari
+
+        b, tr, clock, lane = self._script(paced())
+        with self.assertRaises(brain.LaneError) as cm:
+            for _ev in b.open_stream(lane, {"stream": True, "messages": [{"role": "user", "content": "hi"}]}):
+                pass
+        self.assertEqual(cm.exception.kind, "busy", "ping si data — haipaswi ku-reset idle")
+
+    def _script(self, lines_iter):
+        b, tr, clock, path = make_brain(script=[])
+        lane = brain.build_order(b.cfg)[0]
+        tr.script.append(("ok", lines_iter))
+        return b, tr, clock, lane
+
+    def test_stream_ya_milele_inakatwa_dakika_15(self):
+        # data inafika KILA dakika (idle haiwaki kamwe) lakini stream haikomi → deadline
+        data_line = "data: " + json.dumps({"choices": [{"delta": {"content": "x"}}]})
+
+        def endless():
+            for _ in range(40):  # dakika 40 za data "hai" — zaidi ya kikomo cha 15
+                clock.advance(60_000)
+                yield data_line
+
+        b, tr, clock, lane = self._script(endless())
+        with self.assertRaises(brain.LaneError) as cm:
+            for _ev in b.open_stream(lane, {"stream": True, "messages": [{"role": "user", "content": "hi"}]}):
+                pass
+        self.assertEqual(cm.exception.kind, "busy", "generator usiokoma unakatwa kwa deadline, si kusubiri milele")

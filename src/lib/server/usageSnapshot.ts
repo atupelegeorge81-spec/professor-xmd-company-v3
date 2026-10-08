@@ -228,13 +228,19 @@ export function buildSnapshot(): UsageSnapshot {
 }
 
 export async function getUsageSnapshot(): Promise<UsageSnapshot> {
-  await Promise.all([
-    getXkiroUsage().catch(() => null),
-    ensureGroqLimits(3000),
-    orKeyProbe("or-1").catch(() => null),
-    orKeyProbe("or-2").catch(() => null),
-    unoLogsProbe("uno-1").catch(() => null),
-    unoLogsProbe("uno-2").catch(() => null),
+  // R38: probes zote zina timeout zao (8-10s) lakini endpoint iliweza kukaa bila jibu >90s kwenye
+  // live (Koyeb). Hili ni kizuizi cha JUMLA: lote lisiwe zaidi ya sekunde 15 — snapshoot ya
+  // ledger inarudi hata probe ikikwama; UI haihangii kamwe.
+  await Promise.race([
+    Promise.all([
+      getXkiroUsage().catch(() => null),
+      ensureGroqLimits(3000).catch(() => null),
+      orKeyProbe("or-1").catch(() => null),
+      orKeyProbe("or-2").catch(() => null),
+      unoLogsProbe("uno-1").catch(() => null),
+      unoLogsProbe("uno-2").catch(() => null),
+    ]),
+    new Promise<null[]>((r) => setTimeout(() => r([]), 15_000).unref?.()),
   ]);
   return buildSnapshot();
 }

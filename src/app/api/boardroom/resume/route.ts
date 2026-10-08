@@ -16,6 +16,13 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
+  if (runner === "pausing") {
+    // R38-RC5: snapshot ya XMD Computer bado inapangwa (sekunde chache) — si kosa, ni subiri
+    return Response.json(
+      { error: "XMD Computer bado inahifadhi hali yake (workspace → snapshot). Subiri sekunde chache, kisha Resume tena." },
+      { status: 409 },
+    );
+  }
   if (!runner) {
     return Response.json(
       { error: "Haiwezekani kuendelea — mjadala haupo tena kwenye kumbukumbu ya server, au tayari umekamilika." },

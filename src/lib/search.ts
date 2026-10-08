@@ -404,7 +404,7 @@ function parseHtml(html: string): SearchResult[] {
     if (!content) content = $(el).find(".content").first().text().replace(/\s+/g, " ").trim();
     results.push({ title: title || url, url, content });
   });
-  // R37 (C): ukurasa wa 1 wa SearXNG una matokeo mazuri ~10-12 — kikomo cha zamani (8) kilikuwa cha akiba ya tokens;
-  // sasa tuna uwanja mkubwa wa tokens, agents wanatafuta mpaka wapate.
-  return results.slice(0, 12);
+  // R37 (C) → R38-RC2: kikomo kinarudi 10 (kilikuwa 12 tangu R37-C) — Board ilipunguza matumizi
+  // ya tokens (dirisha la evidence 16→12 pia); ukurasa wa 1 wa SearXNG una matokeo mazuri ~10.
+  return results.slice(0, 10);
 }

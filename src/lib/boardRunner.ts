@@ -45,7 +45,7 @@ import { BOARD_PLAN_MODE } from "./env";
 import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, type MiniReportDoc } from "./server/miniReports";
 import { saveProjectPlan } from "./server/plans";
 // R31 · XMD COMPUTER (computer-use): engine ya phase ya mwisho — baada ya memory ya Board
-import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, type CuRunState, type CuHooks } from "./cu/engine";
+import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, type CuRunState, type CuHooks } from "./cu/engine";
 import {
   PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
   extractPlanSections, parsePlanSteps, assemblePlanDocument, officialDataMarkdown, constraintsMarkdown, constraintFallbackLines, PLAN_STEP_TEMPLATE,
@@ -146,6 +146,13 @@ export function pauseRun(id: string): Runner | null {
   r.pauseAbort?.abort();
   stateBus.update(r.id, { status: "paused" });
   chip(r, "⏸️ Mjadala umesimamishwa — hakuna agent anayeendelea. Bonyeza Resume kuendelea pale pale ulipoishia.");
+  // R38-RC5: CU haichiwi nje ya pause (ushahidi [243]: pause ilifuatiwa na matukio ~600 ya bridge).
+  // Sandbox inahifadhi hali (snapshot → bucket) na bridge inasimamishwa; Resume inarejesha.
+  // (cuHooks zinawekwa AU mara startComputerPhase inapoanza — mjadala wa discussion hauagusiwi.)
+  const cu = r.cu;
+  if (r.cuHooks && cu && !cu.done && !cu.pausedNow && !cu.pausing) {
+    void pauseComputerFromServer(r, r.cuHooks, "Detach — mjadala umesimamishwa na mwandamizi", 0).catch(() => {});
+  }
   // mijadala iliyosimamishwa isiwe mingi kwenye memory: ya zamani zaidi inaachwa (inabaki resumable kutoka Appwrite)
   const extra = pausedRunners().slice(MAX_PAUSED);
   for (const old of extra) stopRunner(old);
@@ -250,12 +257,15 @@ export function startRun(project: string, opts: { force?: boolean } = {}): Runne
 //   3) Server ilianza upya: runner anajengwa upya kutoka Appwrite kwa id ileile — kama (2).
 // `id` inaweza kuwa runner id AU session id. HAKUNA runner wa pili sambamba kwa mjadala mmoja (hiyo ndiyo iliyochanganya
 // agenda zamani: Resume ya session id iliunda runner mpya wakati wa zamani bado unaendelea).
-export type ResumeResult = Runner | "busy" | null;
+export type ResumeResult = Runner | "busy" | "pausing" | null;
 
 export async function resumeRun(id: string): Promise<ResumeResult> {
   const live = findRunner(id);
 
   if (live) {
+    // R38-RC5: pause ya CU bado inapanga snapshot (tar → bucket) — Resume subiri isimalize,
+    // vingine sandbox ingeuawa/kuunganishwa mara mbili.
+    if ((live.cu as any)?.pausing) return "pausing";
     if (live.status === "running") return live;
     if (live.status === "paused") return unpauseRun(live) ? live : "busy";
     if (live.status === "completed") return null;
@@ -1675,9 +1685,10 @@ ${runner.project}`;
           // R10: mjadala WOTE wa agenda hii (code imebanwa), si jumbe 3 zilizokatwa herufi 500
           const recentTalk = compactTranscript(subTalk, 9000);
 
-          // R37 (C): dirisha la evidence 16 za mwisho — sources za searches za mwanzo wa mjadala hazipotei tena
+          // R37 (C) → R38-RC2: dirisha la evidence 12 za mwisho (ilikuwa 16 — matumizi ya tokens
+          // ya Board yalizidi +74% bila faida ya maamuzi; 12 za mwisho zinatosha kwa muktadha)
           const evidenceContext = itemSources
-            .slice(-16)
+            .slice(-12)
             .map((s) => `- ${s.title}\n  ${s.url}\n  ${s.content.slice(0, 450)}`)
             .join("\n");
 

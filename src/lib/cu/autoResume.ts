@@ -33,7 +33,7 @@ export async function autoResumeSession(sessionId: string): Promise<boolean> {
   try {
     const { resumeRun, streamRunner } = await import("@/lib/boardRunner");
     const runner = await resumeRun(sessionId);
-    if (!runner || runner === "busy") return false;
+    if (!runner || runner === "busy" || runner === "pausing") return false; // R38-RC5: "pausing" = snapshot bado inapangwa — tick ijayo itajaribu
     // stream isifungwe bila msomaji — tuna-drain kama "client" wa kimya (kazi inaendelea server-side)
     const res = streamRunner(runner) as unknown as Response;
     if (res?.body) {
