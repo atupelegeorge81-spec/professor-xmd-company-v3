@@ -80,7 +80,10 @@ export const databases = {
     let limit = 25; // default ya Appwrite
     let offset = 0;
     let cursor: string | null = null;
-    for (const qq of queries || []) {
+    for (const qqRaw of queries || []) {
+      // node-appwrite Query helpers zinarudisha JSON STRING (si object) — tunaparse kwanza (R42.1 fix muhimu:
+      // bila hii, kila filter/order/limit ilikuwa inapuuzwa kimya!)
+      const qq: any = typeof qqRaw === "string" ? JSON.parse(qqRaw) : qqRaw;
       const attr = qq.attribute ? colOf(cfg, qq.attribute) : "";
       const vals = (qq.values || []) as any[];
       switch (qq.method) {
@@ -200,7 +203,8 @@ export const storage = {
 
   async listFiles(bucketId: string, queries: any[] = []): Promise<any> {
     let limit = 100, offset = 0;
-    for (const q of queries || []) {
+    for (const qRaw of queries || []) {
+      const q: any = typeof qRaw === "string" ? JSON.parse(qRaw) : qRaw; // R42.1: Query strings
       if (q.method === "limit") limit = Number((q.values || [100])[0]);
       if (q.method === "offset") offset = Number((q.values || [0])[0]);
     }
