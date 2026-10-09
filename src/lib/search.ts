@@ -121,7 +121,7 @@ export async function getEmbedding(text: string): Promise<Embedded> {
   const errors: string[] = [];
   for (const model of GEMINI_EMBED_MODELS) {
     for (const { acct, key } of accts) {
-      const tag = `${shortEmbed(model)}${multi ? `·${acct === "gemini-1" ? "k1" : "k2"}` : ""}`;
+      const tag = `${shortEmbed(model)}${multi ? `·k${acct.split("-")[1]}` : ""}`; // R41: k1..k4
       const now = Date.now();
       const st = gemState(acct).embed[model];
       if (st?.exhaustedUntil && st.exhaustedUntil > now) { errors.push(`${tag} imekwisha leo`); continue; }
@@ -290,7 +290,7 @@ async function getCachedResultsSemantic(query: string, onEvent?: (e: AgentEvent)
   try {
     emitLog(onEvent, "search", `🧠 ${agentName} anatuma swali kwenye Embedding Engine (Gemini)...`);
     emb = await getEmbedding(query);
-    emitLog(onEvent, "info", `🧠 ${agentName} → Embedding: ${emb.account === "gemini-2" ? "Gemini 2" : "Gemini"} · ${shortEmbed(emb.model)} · ${emb.vector.length} dims · ${emb.ms}ms`);
+    emitLog(onEvent, "info", `🧠 ${agentName} → Embedding: ${emb.account ? `Gemini ${emb.account.split("-")[1]}` : "Gemini"} · ${shortEmbed(emb.model)} · ${emb.vector.length} dims · ${emb.ms}ms`);
   } catch (error) {
     // hakuna embedding = hakuna ulinganisho wa cache → SearXNG moja kwa moja (si kosa la mtumiaji)
     emitLog(onEvent, "warning", `⚠️ ${agentName}: Embedding Engine haipatikani sasa (${String((error as Error)?.message || error).slice(0, 120)}) — cache inarukwa, SearXNG moja kwa moja.`);
