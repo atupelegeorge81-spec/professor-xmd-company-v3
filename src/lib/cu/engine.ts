@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { Sandbox } from "@e2b/code-interpreter";
 import { InputFile } from "node-appwrite/file";
 import { appwriteConfigured, databases, DB, storage, SCREENSHOTS_BUCKET } from "@/lib/server/appwrite";
+import { publicFileUrl } from "@/lib/server/supabase"; // R42.1
 import { getPlanBySession, PROJECT_PLANS_COL, type ProjectPlanDoc } from "@/lib/server/plans";
 import { unpack } from "@/lib/server/packed";
 import {
@@ -466,7 +467,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
     const resumeNote = resume ? buildResumeNote(runner) : "";
     // R31-G4: resume kutoka pause (quota) — snapshot ya workspace ya jana inarejesha kwanza
     const restoreUrl = resume && cu.snapshot?.fileId && !cu.done
-      ? `${process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1"}/storage/buckets/${cu.snapshot.bucketId || CU_BUCKET}/files/${cu.snapshot.fileId}/view?project=${process.env.APPWRITE_PROJECT_ID || ""}`
+      ? publicFileUrl(cu.snapshot.bucketId || CU_BUCKET, cu.snapshot.fileId) // R42.1: Supabase public URL
       : undefined;
     const cmd = bridgeCommand({
       title: plan.title, session: runner.sessionId || runner.id, token: cu.token,

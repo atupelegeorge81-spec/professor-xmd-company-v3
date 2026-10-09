@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@e2b/code-interpreter": "^2.8.0",
+    "@supabase/supabase-js": "^2.109.0",
+    "@types/ws": "^8.18.2",
     "cheerio": "^1.2.0",
     "geist": "^1.7.2",
     "gpt-tokenizer": "^3.0.1",
@@ -28,7 +30,8 @@
     "openai": "^7.8.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "unpdf": "^1.7.0"
+    "unpdf": "^1.7.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.17",

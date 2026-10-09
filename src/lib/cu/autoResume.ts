@@ -5,25 +5,17 @@
 //   (3) /api/boardroom/active: kila ombi linalofika (app ikiwahi kufunguliwa/traffic yoyote)
 //          → checkPausedDue() ina throttle yake (60s) — haitoi mzigo.
 
-import { Client, Databases, Query } from "node-appwrite";
+import { Query } from "node-appwrite"; // helpers tu — R42.1: client ya Appwrite imeondolewa
 import { readCuChip, CU_BUCKET } from "./engine";
+import { databases, DB, appwriteConfigured } from "@/lib/server/appwrite"; // Supabase façade
+import { publicFileUrl } from "@/lib/server/supabase";
 
 const inflight = new Set<string>();
 let lastCheck = 0;
 
-function appwrite() {
-  const endpoint = process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
-  const projectId = process.env.APPWRITE_PROJECT_ID || "";
-  const apiKey = process.env.APPWRITE_API_KEY || "";
-  if (!projectId || !apiKey) return null;
-  return { client: new Client().setEndpoint(endpoint).setProject(projectId).setKey(apiKey), db: null as any };
-}
-
+// R42.1: Supabase façade — hakuna client ya Appwrite tena (logic ileile ya R40)
 function dbOf() {
-  const a = appwrite();
-  if (!a) return null;
-  if (!a.db) a.db = new Databases(a.client);
-  return { db: a.db, databaseId: process.env.APPWRITE_DATABASE_ID || "" };
+  return appwriteConfigured ? { db: databases, databaseId: DB } : null;
 }
 
 /** Endeleza session (runner hai → unpause; Koyeb ililala → rehydrate kutoka Appwrite). */
@@ -89,6 +81,5 @@ export async function checkPausedDue(force = false): Promise<number> {
 
 /** URL ya kupakua snapshot ya workspace (bucket public read) — kwa bridge --restore-url. */
 export function snapshotUrlOf(fileId: string, bucketId?: string): string {
-  const endpoint = (process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1").replace(/\/+$/, "");
-  return `${endpoint}/storage/buckets/${bucketId || CU_BUCKET}/files/${fileId}/view?project=${process.env.APPWRITE_PROJECT_ID || ""}`;
+  return publicFileUrl(bucketId || CU_BUCKET, fileId); // R42.1: Supabase public URL
 }

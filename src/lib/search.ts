@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
-import { Client, Databases, ID, Query } from "node-appwrite";
+import { ID, Query } from "node-appwrite"; // helpers tu — R42.1: client ya Appwrite imeondolewa
+import { databases, DB } from "./server/appwrite"; // Supabase façade (signature ileile)
 import type { AgentEvent } from "./types";
 import { MAX_SEARCH_RETRIES_DEFAULT } from "./brain/searchPolicy";
 import { cleanQuery, dropOffTopic, uniqueByUrl } from "./searchHygiene";
@@ -10,12 +11,7 @@ import { gemState, noteGemError, noteGemResult } from "./server/usageLedger";
 
 export interface SearchResult { title: string; url: string; content: string; }
 
-const client = new Client();
-if (process.env.APPWRITE_ENDPOINT && process.env.APPWRITE_PROJECT_ID && process.env.APPWRITE_API_KEY) {
-  client.setEndpoint(process.env.APPWRITE_ENDPOINT).setProject(process.env.APPWRITE_PROJECT_ID).setKey(process.env.APPWRITE_API_KEY);
-}
-const databases = new Databases(client);
-const CACHE_COLLECTION = process.env.APPWRITE_COLLECTION_ID || "";
+const CACHE_COLLECTION = process.env.SEARCH_CACHE_COLLECTION || "search_cache"; // R42.1: Supabase table
 // R18: cache ya siku 7 (ilikuwa dakika 15 → docs zote zilikuwa zimekwisha muda = 0% hits)
 const CACHE_TTL_SECONDS = Math.round((Number(process.env.SEARCH_CACHE_TTL_DAYS) || 7) * 86_400);
 // R18 · Embeddings = Gemini TU (HuggingFace na UnoRouter zimeondolewa). Vector ya SWALI inalinganishwa na vector ya SWALI
@@ -297,7 +293,7 @@ async function getCachedResultsSemantic(query: string, onEvent?: (e: AgentEvent)
     return { hit: null, emb: null };
   }
   try {
-    const db = process.env.APPWRITE_DATABASE_ID!;
+    const db = DB; // R42.1: Supabase
     const since = new Date(Date.now() - CACHE_TTL_SECONDS * 1000).toISOString();
     // R18 (bug ya 0%): zamani → docs 100 za ZAMANI kabisa (bila mpangilio) + TTL 15 min = zote zinarukwa.
     // Sasa: space ileile tu · bado hai (siku 7) · mpya kwanza · vector tu (results zinasomwa kwa hit pekee).
@@ -356,7 +352,7 @@ async function saveToCacheSemantic(query: string, results: SearchResult[], emb: 
       emitLog(onEvent, "warning", `⚠️ ${agentName}: Embedding Engine haipatikani sasa — matokeo hayakuhifadhiwa kwenye cache (${String((embErr as Error)?.message || embErr).slice(0, 90)})`);
       return;
     }
-    const db = process.env.APPWRITE_DATABASE_ID!;
+    const db = DB; // R42.1: Supabase
     const now = new Date().toISOString();
     const q = query.slice(0, 255);
     const data = {
@@ -382,7 +378,7 @@ async function saveToCacheSemantic(query: string, results: SearchResult[], emb: 
 async function incrementCacheHits(docId: string, currentHits: number): Promise<void> {
   if (!CACHE_COLLECTION) return;
   try {
-    await databases.updateDocument(process.env.APPWRITE_DATABASE_ID!, CACHE_COLLECTION, docId, { hits: currentHits + 1, updated_at: new Date().toISOString() });
+    await databases.updateDocument(DB, CACHE_COLLECTION, docId, { hits: currentHits + 1, updated_at: new Date().toISOString() });
   } catch (error) { console.error("❌ Cache Increment Error:", error); }
 }
 
