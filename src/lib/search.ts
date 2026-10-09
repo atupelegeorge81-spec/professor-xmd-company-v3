@@ -1,6 +1,5 @@
 import * as cheerio from "cheerio";
-import { ID, Query } from "node-appwrite"; // helpers tu (R42: client ya Appwrite imeondolewa)
-import { databases } from "./server/appwrite";
+import { Client, Databases, ID, Query } from "node-appwrite";
 import type { AgentEvent } from "./types";
 import { MAX_SEARCH_RETRIES_DEFAULT } from "./brain/searchPolicy";
 import { cleanQuery, dropOffTopic, uniqueByUrl } from "./searchHygiene";
@@ -11,6 +10,11 @@ import { gemState, noteGemError, noteGemResult } from "./server/usageLedger";
 
 export interface SearchResult { title: string; url: string; content: string; }
 
+const client = new Client();
+if (process.env.APPWRITE_ENDPOINT && process.env.APPWRITE_PROJECT_ID && process.env.APPWRITE_API_KEY) {
+  client.setEndpoint(process.env.APPWRITE_ENDPOINT).setProject(process.env.APPWRITE_PROJECT_ID).setKey(process.env.APPWRITE_API_KEY);
+}
+const databases = new Databases(client);
 const CACHE_COLLECTION = process.env.APPWRITE_COLLECTION_ID || "";
 // R18: cache ya siku 7 (ilikuwa dakika 15 → docs zote zilikuwa zimekwisha muda = 0% hits)
 const CACHE_TTL_SECONDS = Math.round((Number(process.env.SEARCH_CACHE_TTL_DAYS) || 7) * 86_400);
@@ -117,7 +121,7 @@ export async function getEmbedding(text: string): Promise<Embedded> {
   const errors: string[] = [];
   for (const model of GEMINI_EMBED_MODELS) {
     for (const { acct, key } of accts) {
-      const tag = `${shortEmbed(model)}${multi ? `·k${acct.split("-")[1]}` : ""}`; // R41: k1..k4
+      const tag = `${shortEmbed(model)}${multi ? `·${acct === "gemini-1" ? "k1" : "k2"}` : ""}`;
       const now = Date.now();
       const st = gemState(acct).embed[model];
       if (st?.exhaustedUntil && st.exhaustedUntil > now) { errors.push(`${tag} imekwisha leo`); continue; }
@@ -286,7 +290,7 @@ async function getCachedResultsSemantic(query: string, onEvent?: (e: AgentEvent)
   try {
     emitLog(onEvent, "search", `🧠 ${agentName} anatuma swali kwenye Embedding Engine (Gemini)...`);
     emb = await getEmbedding(query);
-    emitLog(onEvent, "info", `🧠 ${agentName} → Embedding: ${emb.account ? `Gemini ${emb.account.split("-")[1]}` : "Gemini"} · ${shortEmbed(emb.model)} · ${emb.vector.length} dims · ${emb.ms}ms`);
+    emitLog(onEvent, "info", `🧠 ${agentName} → Embedding: ${emb.account === "gemini-2" ? "Gemini 2" : "Gemini"} · ${shortEmbed(emb.model)} · ${emb.vector.length} dims · ${emb.ms}ms`);
   } catch (error) {
     // hakuna embedding = hakuna ulinganisho wa cache → SearXNG moja kwa moja (si kosa la mtumiaji)
     emitLog(onEvent, "warning", `⚠️ ${agentName}: Embedding Engine haipatikani sasa (${String((error as Error)?.message || error).slice(0, 120)}) — cache inarukwa, SearXNG moja kwa moja.`);

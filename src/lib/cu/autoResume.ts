@@ -5,18 +5,25 @@
 //   (3) /api/boardroom/active: kila ombi linalofika (app ikiwahi kufunguliwa/traffic yoyote)
 //          → checkPausedDue() ina throttle yake (60s) — haitoi mzigo.
 
-// R42: Appwrite client ya moja kwa moja imeondolewa — Supabase (shim ya appwrite.ts + cu_state table).
-
-import { Query } from "node-appwrite";
+import { Client, Databases, Query } from "node-appwrite";
 import { readCuChip, CU_BUCKET } from "./engine";
-import { publicFileUrl } from "@/lib/server/supabase";
 
 const inflight = new Set<string>();
 let lastCheck = 0;
 
-async function dbOf() {
-  const m = await import("@/lib/server/appwrite");
-  return m.appwriteConfigured ? { db: m.databases, databaseId: m.DB } : null;
+function appwrite() {
+  const endpoint = process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
+  const projectId = process.env.APPWRITE_PROJECT_ID || "";
+  const apiKey = process.env.APPWRITE_API_KEY || "";
+  if (!projectId || !apiKey) return null;
+  return { client: new Client().setEndpoint(endpoint).setProject(projectId).setKey(apiKey), db: null as any };
+}
+
+function dbOf() {
+  const a = appwrite();
+  if (!a) return null;
+  if (!a.db) a.db = new Databases(a.client);
+  return { db: a.db, databaseId: process.env.APPWRITE_DATABASE_ID || "" };
 }
 
 /** Endeleza session (runner hai → unpause; Koyeb ililala → rehydrate kutoka Appwrite). */
@@ -57,21 +64,14 @@ export async function checkPausedDue(force = false): Promise<number> {
   const now = Date.now();
   if (!force && now - lastCheck < 60_000) return 0;
   lastCheck = now;
-  const a = await dbOf();
+  const a = dbOf();
   if (!a) return 0;
   try {
     const docs = await a.db.listDocuments(a.databaseId, "boardroom_sessions", [Query.equal("status", "paused"), Query.limit(10)]);
-    const { supabase } = await import("@/lib/server/supabase");
-    const { unpack } = await import("@/lib/server/packed");
     let resumed = 0;
     for (const d of docs.documents || []) {
-      // R42: chip ya CU — cu_state table (mpya) kwanza, kisha legacy packed items (sessions za zamani)
-      let chip: any = null;
-      const { data: st } = await supabase.from("cu_state").select("chip").eq("session_id", d.$id).maybeSingle();
-      chip = (st as any)?.chip;
-      if (!chip && (d as any).items) {
-        try { chip = readCuChip(JSON.parse(unpack(String((d as any).items)) || "[]")); } catch { chip = null; }
-      }
+      const items = Array.isArray((d as any).items) ? (d as any).items : [];
+      const chip = readCuChip(items);
       if (!chip || chip.done) continue;
       const resumeAt = Number(chip.resumeAt) || 0;
       if (!resumeAt) continue; // pause ya mwandamizi (manual) — haigusiwi
@@ -89,5 +89,6 @@ export async function checkPausedDue(force = false): Promise<number> {
 
 /** URL ya kupakua snapshot ya workspace (bucket public read) — kwa bridge --restore-url. */
 export function snapshotUrlOf(fileId: string, bucketId?: string): string {
-  return publicFileUrl(bucketId || CU_BUCKET, fileId); // R42: Supabase public URL
+  const endpoint = (process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1").replace(/\/+$/, "");
+  return `${endpoint}/storage/buckets/${bucketId || CU_BUCKET}/files/${fileId}/view?project=${process.env.APPWRITE_PROJECT_ID || ""}`;
 }

@@ -3,7 +3,7 @@
 //   XKiro/Groq : XTROUTER_API_KEY_<PERSONA>_1|2 · GROQ_API_KEY_<PERSONA>_1|2 (keys 5 = account moja kwa kila slot)
 //   OpenRouter : OPENROUTER_API_KEY_1|2 (key moja kwa account — agents wote)
 //   UnoRouter  : UNOROUTER_API_KEY_1|2  (key moja kwa account — agents wote)
-//   Gemini     : GEMINI_API_KEY_1 · GEMINI_API_KEY_2 · GEMINI_API_KEY_3 · GEMINI_API_KEY_4 (R41 — chat lanes + embeddings; quota ni ya PROJECT nzima,
+//   Gemini     : GEMINI_API_KEY_1 · GEMINI_API_KEY_2 (R18 — chat lanes + embeddings; quota ni ya PROJECT nzima,
 //                kwa hiyo kila key lazima iwe ya project tofauti ili iwe akaunti ya pili halisi)
 import { createHash } from "node:crypto";
 import { ACCOUNTS, type AccountId, type ProviderId } from "@/lib/usage/accounts";
@@ -24,8 +24,6 @@ const SLOT_ENV: Record<AccountId, (persona?: string) => string[]> = {
   "uno-2": () => ["UNOROUTER_API_KEY_2"],
   "gemini-1": () => ["GEMINI_API_KEY_1", "GEMINI_API_KEY"],
   "gemini-2": () => ["GEMINI_API_KEY_2"],
-  "gemini-3": () => ["GEMINI_API_KEY_3"], // R41: key 3 (project mpya)
-  "gemini-4": () => ["GEMINI_API_KEY_4"], // R41: key 4 (project mpya)
 };
 const PER_AGENT = (a: AccountId) => a.startsWith("xkiro") || a.startsWith("groq");
 

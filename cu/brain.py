@@ -188,11 +188,9 @@ def build_order(cfg: dict) -> list[Lane]:
     # R38: (akaunti × model) zilizo 404 "no longer available to new users" — hazizalishwi kabisa
     # (mf. gemini-2:gemini-2.5-flash — live probe 08-10; gemini-1 inabaki nayo)
     skip = gem.get("modelSkip") or {}
-    # R41: akaunti zote za keys (gemini-1..N) — mpangilio wa dict unahifadhi utaratibu wa engine
-    gem_accounts = [a for a in keys if a.startswith("gemini-")]
     rank = 0
     for model in flash:
-        for acct in gem_accounts:
+        for acct in ("gemini-1", "gemini-2"):
             if model in (skip.get(acct) or []):
                 continue
             k = keys.get(acct)
@@ -201,7 +199,7 @@ def build_order(cfg: dict) -> list[Lane]:
         rank += 1
     rank = 100
     for model in lite:
-        for acct in gem_accounts:
+        for acct in ("gemini-1", "gemini-2"):
             if model in (skip.get(acct) or []):
                 continue
             k = keys.get(acct)
@@ -762,7 +760,7 @@ class Brain:
         gem = (self.cfg.get("gemini") or {}).get("quota") or {}
         flash_rpd = int((self.cfg.get("gemini") or {}).get("flashRpd") or 20)
         lite_rpd = int((self.cfg.get("gemini") or {}).get("liteRpd") or 500)
-        for acct in [a for a in ((self.cfg.get("gemini") or {}).get("keys") or {}) if a.startswith("gemini-")] or list(gem): # R41: akaunti zote
+        for acct in ("gemini-1", "gemini-2"):
             g = gem.get(acct) or {}
             for model, st in (g.get("chat") or {}).items():
                 lane_id = f"{acct}:{model}"

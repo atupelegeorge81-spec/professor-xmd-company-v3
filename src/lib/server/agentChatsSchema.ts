@@ -9,9 +9,9 @@ import { appwriteConfigured, databases, DB } from "./appwrite";
 type Column = { key: string; type: string; size?: number; min?: number; max?: number; elements?: string[]; required: boolean };
 type Index = { key: string; attributes: string[]; orders: string[] };
 
-/** R42: Supabase — table ni "agent_conversations" (jina, si ID ya Appwrite ya zamani). */
+/** ID ya collection: imewekwa moja kwa moja. Env inaweza kuibadilisha — ila "agent_conversations" ni JINA, si ID, hivyo linapuuzwa. */
 const ENV_COL = (process.env.AGENT_CHATS_COLLECTION_ID || "").trim();
-export const AGENT_CHATS_COL: string = ENV_COL && ENV_COL !== SCHEMA.name ? ENV_COL : "agent_conversations";
+export const AGENT_CHATS_COL: string = ENV_COL && ENV_COL !== SCHEMA.name ? ENV_COL : SCHEMA.collectionId;
 export const AGENT_CHATS_NAME: string = SCHEMA.name;
 
 const log = (msg: string) => console.log(`[agent-chats] ${msg}`);

@@ -15,7 +15,6 @@ import { join } from "node:path";
 import { Sandbox } from "@e2b/code-interpreter";
 import { InputFile } from "node-appwrite/file";
 import { appwriteConfigured, databases, DB, storage, SCREENSHOTS_BUCKET } from "@/lib/server/appwrite";
-import { publicFileUrl } from "@/lib/server/supabase";
 import { getPlanBySession, PROJECT_PLANS_COL, type ProjectPlanDoc } from "@/lib/server/plans";
 import { unpack } from "@/lib/server/packed";
 import {
@@ -24,7 +23,6 @@ import {
 } from "@/lib/server/usageLedger";
 import { slotKeys } from "@/lib/server/usageKeys";
 import { GEMINI_MODEL_SKIP } from "@/lib/env";
-import { GEM_ACCOUNTS, type GemAccountId } from "@/lib/usage/accounts";
 import type { ProviderUsage, UsageMap } from "@/lib/usageChip";
 import type { Runner } from "@/lib/boardRunner";
 import type { BoardEvent, LogEntry } from "@/lib/types";
@@ -105,7 +103,7 @@ export interface CuRunState {
 }
 
 /** Chip ya kudumu (session items) — resume haipotezi chochote. */
-export const CU_PREFIX = "__PROFESSOR_XMD_CU_STATE__:";
+const CU_PREFIX = "__PROFESSOR_XMD_CU_STATE__:";
 export const CU_CHIP_ID = "__professor_xmd_cu_state__";
 export interface CuChip {
   v: 1;
@@ -185,20 +183,9 @@ function keysOf(account: string): Record<string, string> {
 
 /** Config kamili inayopakiwa sandbox: keys + models + QUOTA SNAPSHOT (ili tusichome 429 ovyo). */
 export function buildCuConfig(): Record<string, unknown> {
+  const gem = ledger().gem || ({ day: "", chat: {} } as any);
+  const gem2 = ledger().gem2 || ({ day: "", chat: {} } as any);
   const L = ledger();
-  // R41: akaunti 4 za Gemini — keys na quota snapshot zinajengwa KWA NJIA MOJA (hazijawir hardcode)
-  const GEM_SLOTS = { "gemini-1": "gem", "gemini-2": "gem2", "gemini-3": "gem3", "gemini-4": "gem4" } as const;
-  const gemKeys: Record<string, string> = {};
-  for (const ga of GEM_ACCOUNTS) {
-    const envName = ga === "gemini-1" ? "GEMINI_API_KEY_1" : `GEMINI_API_KEY_${ga.split("-")[1]}`;
-    const v = ga === "gemini-1" ? (process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY) : process.env[envName];
-    if (v) gemKeys[ga] = v;
-  }
-  const gemQuota: Record<string, { day: string; chat: Record<string, unknown> }> = {};
-  for (const [ga, slot] of Object.entries(GEM_SLOTS)) {
-    const st = (L as any)[slot];
-    if (st?.chat) gemQuota[ga] = { day: st.day, chat: st.chat };
-  }
   const flash = (process.env.GEMINI_FLASH_MODELS || "gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,gemini-2.5-flash").split(",").map(s => s.trim()).filter(Boolean);
   const lite = (process.env.GEMINI_LITE_MODELS || "gemini-3.5-flash-lite,gemini-3.1-flash-lite").split(",").map(s => s.trim()).filter(Boolean);
   const emergency: Record<string, unknown>[] = [];
@@ -260,7 +247,7 @@ export function buildCuConfig(): Record<string, unknown> {
       textChars: Number(process.env.CU_CTX_TEXT_CHARS) || 600,
     },
     gemini: {
-      keys: gemKeys, // R41: gemini-1..4 (zilizopo pekee)
+      keys: { ...(process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY ? { "gemini-1": process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY } : {}), ...(process.env.GEMINI_API_KEY_2 ? { "gemini-2": process.env.GEMINI_API_KEY_2 } : {}) },
       flashModels: flash, liteModels: lite,
       modelSkip: GEMINI_MODEL_SKIP, // R38: (akaunti × model) zilizo 404 — mf. gemini-2:gemini-2.5-flash (brain.py hazizalishi)
       flashRpd: Number(process.env.GEMINI_FLASH_RPD) || 20,
@@ -269,7 +256,7 @@ export function buildCuConfig(): Record<string, unknown> {
       liteRpm: Number(process.env.GEMINI_LITE_RPM) || 15,
       tpmLimit: Number(process.env.GEMINI_TPM_LIMIT) || 200_000, // R40-A: tokens/dakika kwa kila lane — kabla ya 429
       baseUrl: process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai",
-      quota: gemQuota, // R41: snapshot ya kila akaunti (gem/gem2/gem3/gem4)
+      quota: { "gemini-1": { day: gem.day, chat: gem.chat || {} }, "gemini-2": { day: gem2.day, chat: gem2.chat || {} } },
     },
     emergency,
   };
@@ -479,7 +466,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
     const resumeNote = resume ? buildResumeNote(runner) : "";
     // R31-G4: resume kutoka pause (quota) — snapshot ya workspace ya jana inarejesha kwanza
     const restoreUrl = resume && cu.snapshot?.fileId && !cu.done
-      ? publicFileUrl(cu.snapshot.bucketId || CU_BUCKET, cu.snapshot.fileId) // R42: Supabase public URL
+      ? `${process.env.APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1"}/storage/buckets/${cu.snapshot.bucketId || CU_BUCKET}/files/${cu.snapshot.fileId}/view?project=${process.env.APPWRITE_PROJECT_ID || ""}`
       : undefined;
     const cmd = bridgeCommand({
       title: plan.title, session: runner.sessionId || runner.id, token: cu.token,
@@ -874,7 +861,7 @@ export function noteProviderUsage(ev: CuEvent, ok: boolean): void {
   const account = String(ev.account || "");
   const model = String(ev.model || "");
   try {
-    if (provider === "gemini" && GEM_ACCOUNTS.includes(account as GemAccountId)) {
+    if (provider === "gemini" && (account === "gemini-1" || account === "gemini-2")) {
       noteGemResult("chat", model, ok, total, account as GemAcct);
     } else if (provider === "xkiro" && ok && (account === "xkiro-1" || account === "xkiro-2")) {
       noteXkiroTokens(account, total);

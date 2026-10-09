@@ -146,11 +146,7 @@ export async function listSessionMeta(limit = 100): Promise<SessionMeta[]> {
   if (!appwriteConfigured) return [];
   try {
     const res = await databases.listDocuments(DB, SESSIONS_COL, [Query.limit(limit), Query.orderDesc("$createdAt")]);
-    // R42: sessions mpya hazina packed items — zinakusanywa kutoka board_items/cu_events/cu_state
-    const { loadSessionItems } = await import("../reports");
-    const metas = await Promise.all(res.documents.map(async (d: any) =>
-      metaFromItems({ ...d, id: d.$id }, d.items ? parseItems(d.items) : await loadSessionItems(d.$id))));
-    return metas;
+    return res.documents.map((d: any) => metaFromItems({ ...d, id: d.$id }, parseItems(d.items)));
   } catch (e) {
     console.error("❌ sessionIndex:", e);
     return [];
