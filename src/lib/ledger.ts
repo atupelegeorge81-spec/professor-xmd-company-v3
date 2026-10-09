@@ -1,4 +1,5 @@
-import { Client, Databases, Query } from "node-appwrite";
+import { Query } from "node-appwrite"; // helpers tu (R42: client ya Appwrite imeondolewa)
+import { databases } from "./server/appwrite";
 
 export interface LedgerObjection {
   agent: string;
@@ -31,14 +32,6 @@ export interface LedgerEntry {
   code_status?: string;
 }
 
-const client = new Client();
-if (process.env.APPWRITE_ENDPOINT && process.env.APPWRITE_PROJECT_ID && process.env.APPWRITE_API_KEY) {
-  client
-    .setEndpoint(process.env.APPWRITE_ENDPOINT)
-    .setProject(process.env.APPWRITE_PROJECT_ID)
-    .setKey(process.env.APPWRITE_API_KEY);
-}
-const databases = new Databases(client);
 const DB = process.env.APPWRITE_DATABASE_ID || "";
 const COL = "board_ledger";
 

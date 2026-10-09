@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
-import { Client, Databases, ID, Query } from "node-appwrite";
+import { ID, Query } from "node-appwrite"; // helpers tu (R42: client ya Appwrite imeondolewa)
+import { databases } from "./server/appwrite";
 import type { AgentEvent } from "./types";
 import { MAX_SEARCH_RETRIES_DEFAULT } from "./brain/searchPolicy";
 import { cleanQuery, dropOffTopic, uniqueByUrl } from "./searchHygiene";
@@ -10,11 +11,6 @@ import { gemState, noteGemError, noteGemResult } from "./server/usageLedger";
 
 export interface SearchResult { title: string; url: string; content: string; }
 
-const client = new Client();
-if (process.env.APPWRITE_ENDPOINT && process.env.APPWRITE_PROJECT_ID && process.env.APPWRITE_API_KEY) {
-  client.setEndpoint(process.env.APPWRITE_ENDPOINT).setProject(process.env.APPWRITE_PROJECT_ID).setKey(process.env.APPWRITE_API_KEY);
-}
-const databases = new Databases(client);
 const CACHE_COLLECTION = process.env.APPWRITE_COLLECTION_ID || "";
 // R18: cache ya siku 7 (ilikuwa dakika 15 → docs zote zilikuwa zimekwisha muda = 0% hits)
 const CACHE_TTL_SECONDS = Math.round((Number(process.env.SEARCH_CACHE_TTL_DAYS) || 7) * 86_400);
