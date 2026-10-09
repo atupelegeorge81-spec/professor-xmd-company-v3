@@ -155,3 +155,38 @@ class TestWaitingBeats(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestR41KeysNne(unittest.TestCase):
+    """R41: Gemini keys 4 — brain.py inazalisha lanes za gemini-3/4 na ku-restores quota yao."""
+
+    @staticmethod
+    def _cfg4():
+        cfg = make_cfg()
+        cfg["gemini"]["keys"] = {
+            "gemini-1": "k1", "gemini-2": "k2", "gemini-3": "k3", "gemini-4": "k4",
+        }
+        return cfg
+
+    def test_lanes_za_gemini3_na_4_zinazalishwa(self):
+        b, tr, clock, path = make_brain(cfg=self._cfg4())
+        ids = [l.id for l in b.order if l.provider == "gemini"]
+        for lane_id in ("gemini-3:gemini-3.8-flash", "gemini-3:gemini-3.5-flash-lite",
+                        "gemini-4:gemini-3.8-flash", "gemini-4:gemini-3.5-flash-lite"):
+            self.assertIn(lane_id, ids)
+
+    def test_snapshot_ya_gemini3_inarejesha_hali(self):
+        cfg = self._cfg4()
+        cfg["gemini"]["quota"] = {
+            "gemini-3": {"day": "x", "chat": {"gemini-3.5-flash-lite": {"requests": 7, "rpdLimit": 500, "retryAt": 123}}}
+        }
+        b, tr, clock, path = make_brain(cfg=cfg)
+        s = b.state["gemini-3:gemini-3.5-flash-lite"]
+        self.assertEqual(s.requests_today, 7)
+        self.assertEqual(s.retry_at, 123)
+
+    def test_keys_mbili_bado_zinafanya_kazi_backcompat(self):
+        b, tr, clock, path = make_brain()  # make_cfg ya default (keys 2)
+        gem = [l.id for l in b.order if l.provider == "gemini"]
+        self.assertTrue(gem)
+        self.assertFalse(any(i.startswith("gemini-3:") for i in gem))  # hazipo bila key

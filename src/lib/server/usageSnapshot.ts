@@ -190,7 +190,7 @@ export function embedView(): EmbedView {
       const out = !!(m?.exhaustedUntil && m.exhaustedUntil > now);
       const retry = Math.max(m?.retryAt ?? 0, m?.busyUntil ?? 0);
       return {
-        model: multi ? `${model} · ${acct === "gemini-1" ? "key 1" : "key 2"}` : model, account: acct,
+        model: multi ? `${model} · key ${acct.split("-")[1]}` : model, account: acct,
         requests: out ? limit : m?.requests ?? 0, limit,
         status: out ? "exhausted" as const : retry > now ? "cooling" as const : "ok" as const,
         readyAt: out ? m!.exhaustedUntil! : retry > now ? retry : null,
@@ -201,7 +201,7 @@ export function embedView(): EmbedView {
   const requestLimit = models.reduce((a, m) => a + m.limit, 0);
   const pct = requestLimit ? clampPct((requests / requestLimit) * 100) : 0;
   const configured = accts.length > 0;
-  const all = accts.flatMap((acct) => Object.entries(gemState(acct).embed).map(([k, m]) => ({ k: multi ? `${k} (${acct === "gemini-1" ? "key 1" : "key 2"})` : k, m })));
+  const all = accts.flatMap((acct) => Object.entries(gemState(acct).embed).map(([k, m]) => ({ k: multi ? `${k} (key ${acct.split("-")[1]})` : k, m })));
   const lastAt = Math.max(0, ...all.map(({ m }) => m.lastAt ?? 0));
   const errs = all.filter(({ m }) => m.lastError).map(({ k, m }) => `${k.replace(/^gemini-/, "")} ${m.lastError}`);
   return {
@@ -214,11 +214,11 @@ export function embedView(): EmbedView {
 }
 
 export function accountView(id: AccountId): AccountView {
-  if (id === "gemini-1" || id === "gemini-2") return geminiView(id);
+  if (GEM_ACCOUNTS.includes(id as GemAccountId)) return geminiView(id as GemAccountId); // R41: akaunti 4
   if (id === "xkiro-1" || id === "xkiro-2") return xkiroView(id);
   if (id === "groq-1" || id === "groq-2") return groqView(id);
   if (id === "or-1" || id === "or-2") return orView(id);
-  return unoView(id);
+  return unoView(id as "uno-1" | "uno-2"); // TS hainarrow via .includes — gemini zimerudishwa juu (R41)
 }
 
 export function buildSnapshot(): UsageSnapshot {

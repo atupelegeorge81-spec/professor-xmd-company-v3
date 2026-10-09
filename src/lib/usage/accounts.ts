@@ -1,4 +1,4 @@
-// src/lib/usage/accounts.ts — AKAUNTI 10 ZA API (client + server; HAKUNA key hapa).
+// src/lib/usage/accounts.ts — AKAUNTI 12 ZA API (client + server; HAKUNA key hapa).
 // R18: + Gemini 1 & 2 (Google AI Studio free tier — requests kwa siku kwa KILA model, siku ya Pacific = 10:00 Dar).
 //      Kikomo cha Google ni kwa PROJECT (si kwa key) — imepimwa: keys 2 za project moja zinashiriki ndoo; Gemini 2 ni
 //      project TOFAUTI (ndoo yake yenyewe), kwa hiyo ni akaunti ya pili halisi.
@@ -9,9 +9,10 @@
 // Zote zinareset KILA SIKU (TokenHarbor iliondolewa R16 kwa sababu inareset kwa wiki).
 
 export type ProviderId = "xkiro" | "groq" | "openrouter" | "unorouter" | "gemini";
-export type AccountId = "xkiro-1" | "xkiro-2" | "groq-1" | "groq-2" | "or-1" | "or-2" | "uno-1" | "uno-2" | "gemini-1" | "gemini-2";
-export type GemAccountId = "gemini-1" | "gemini-2";
-export const GEM_ACCOUNTS: GemAccountId[] = ["gemini-1", "gemini-2"];
+export type AccountId = "xkiro-1" | "xkiro-2" | "groq-1" | "groq-2" | "or-1" | "or-2" | "uno-1" | "uno-2" | "gemini-1" | "gemini-2" | "gemini-3" | "gemini-4";
+export type GemAccountId = "gemini-1" | "gemini-2" | "gemini-3" | "gemini-4";
+// R41: keys 4 za Gemini (akaunti 4 za project tofauti — kila moja ndoo yake ya quota)
+export const GEM_ACCOUNTS: GemAccountId[] = ["gemini-1", "gemini-2", "gemini-3", "gemini-4"];
 
 export interface AccountMeta {
   id: AccountId;
@@ -35,6 +36,8 @@ export const ACCOUNTS: AccountMeta[] = [
   { id: "uno-2", provider: "unorouter", label: "UnoRouter 2", short: "Uno 2", color: "#ec4899", rgb: "236 72 153", unit: "slots" },
   { id: "gemini-1", provider: "gemini", label: "Gemini 1", short: "Gemini 1", color: "#84cc16", rgb: "132 204 22", unit: "requests" },
   { id: "gemini-2", provider: "gemini", label: "Gemini 2", short: "Gemini 2", color: "#2dd4bf", rgb: "45 212 191", unit: "requests" },
+  { id: "gemini-3", provider: "gemini", label: "Gemini 3", short: "Gemini 3", color: "#e879f9", rgb: "232 121 249", unit: "requests" },
+  { id: "gemini-4", provider: "gemini", label: "Gemini 4", short: "Gemini 4", color: "#fbbf24", rgb: "251 191 36", unit: "requests" },
 ];
 
 /** Pete ya Embeddings (search cache) — rangi yake yenyewe, haipo kwenye ACCOUNTS (si lane ya chat). */

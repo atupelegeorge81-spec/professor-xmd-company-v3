@@ -31,7 +31,7 @@ export const GEMINI_LITE_MODELS: string[] = list(process.env.GEMINI_LITE_MODELS,
 /** R38: models zilizo 404 kwa akaunti MAALUM tu — live probe 08-10: gemini-2.5-flash
  *  gemini-1 ✅ 200 OK · gemini-2 ❌ 404 "no longer available to new users".
  *  Lane ya kombinations hizi haizalishwi kabisa (broker ya Board + config ya CU / brain.py); gemini-1 inabaki nayo. */
-export const GEMINI_MODEL_SKIP: Record<string, string[]> = { "gemini-2": ["gemini-2.5-flash"] };
+export const GEMINI_MODEL_SKIP: Record<string, string[]> = { "gemini-2": ["gemini-2.5-flash"], "gemini-3": [], "gemini-4": [] }; // R41: keys 4 — skip inaongezwa ikigundulika 404
 /** Embeddings za search cache: ya kwanza = msingi, ya pili = akiba (space yake — vectors hazichanganywi) */
 export const GEMINI_EMBED_MODELS: string[] = list(process.env.GEMINI_EMBED_MODELS, "gemini-embedding-001,gemini-embedding-2");
 export const GEMINI_FLASH_RPD = Number(process.env.GEMINI_FLASH_RPD) || 20;

@@ -117,6 +117,8 @@ export interface LedgerState {
   uno: Record<"uno-1" | "uno-2", UnoState>;
   gem?: GemState; // gemini-1 (jina la zamani — data ya R18 inabaki)
   gem2?: GemState; // gemini-2
+  gem3?: GemState; // gemini-3 (R41)
+  gem4?: GemState; // gemini-4 (R41)
   groqLimits?: { at: number; src: string; models: Record<string, { rpm: number | null; rpd: number | null; tpm: number | null; tpd: number | null }> };
   routes: Record<string, RouteState>; // engine id → call ya mwisho halisi
 }
@@ -132,6 +134,8 @@ const fresh = (): LedgerState => ({
   uno: { "uno-1": { day: utcDay(), requests: 0, tokens: 0, models: {} }, "uno-2": { day: utcDay(), requests: 0, tokens: 0, models: {} } },
   gem: { day: pacificDay(), chat: {}, embed: {} },
   gem2: { day: pacificDay(), chat: {}, embed: {} },
+  gem3: { day: pacificDay(), chat: {}, embed: {} },
+  gem4: { day: pacificDay(), chat: {}, embed: {} },
   routes: {},
 });
 
@@ -140,7 +144,7 @@ export function ledger(): LedgerState {
   let s = fresh();
   try {
     const j = JSON.parse(readFileSync(FILE, "utf8"));
-    if (j?.v === 1) s = { ...s, ...j, xkiro: { ...s.xkiro, ...(j.xkiro || {}) }, groq: { ...s.groq, ...(j.groq || {}) }, or: { ...s.or, ...(j.or || {}) }, uno: { ...s.uno, ...(j.uno || {}) }, gem: j.gem?.chat ? j.gem : s.gem, gem2: j.gem2?.chat ? j.gem2 : s.gem2, routes: j.routes || {} };
+    if (j?.v === 1) s = { ...s, ...j, xkiro: { ...s.xkiro, ...(j.xkiro || {}) }, groq: { ...s.groq, ...(j.groq || {}) }, or: { ...s.or, ...(j.or || {}) }, uno: { ...s.uno, ...(j.uno || {}) }, gem: j.gem?.chat ? j.gem : s.gem, gem2: j.gem2?.chat ? j.gem2 : s.gem2, gem3: j.gem3?.chat ? j.gem3 : s.gem3, gem4: j.gem4?.chat ? j.gem4 : s.gem4, routes: j.routes || {} };
     delete (s as unknown as { th?: unknown }).th; // R16: TokenHarbor imeondolewa
   } catch { /* hakuna faili bado */ }
   g.__xmdLedger = s;
@@ -402,8 +406,8 @@ export function noteUnoError(id: "uno-1" | "uno-2", model: string, status: numbe
 /* ------------------------------------------------------------------ Gemini (R18) */
 
 export type GemKind = "chat" | "embed";
-export type GemAcct = "gemini-1" | "gemini-2";
-const GEM_SLOT: Record<GemAcct, "gem" | "gem2"> = { "gemini-1": "gem", "gemini-2": "gem2" };
+export type GemAcct = "gemini-1" | "gemini-2" | "gemini-3" | "gemini-4";
+const GEM_SLOT: Record<GemAcct, "gem" | "gem2" | "gem3" | "gem4"> = { "gemini-1": "gem", "gemini-2": "gem2", "gemini-3": "gem3", "gemini-4": "gem4" }; // R41
 
 /** Hali ya Gemini ya leo kwa akaunti (project) moja — siku mpya ya Pacific = reset halisi ya Google → hesabu zinaanza upya. */
 export function gemState(acct: GemAcct = "gemini-1"): GemState {
