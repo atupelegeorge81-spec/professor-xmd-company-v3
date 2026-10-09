@@ -47,4 +47,11 @@ export const TABLES: Record<string, TableCfg> = {
 };
 
 export const tableOf = (collectionId: string): TableCfg =>
-  TABLES[collectionId] || { table: collectionId, cols: ["session_id", "created_at"], jsonb: "data" };
+  TABLES[collectionId] || TABLES[LEGACY_ALIASES[collectionId] || ""] || { table: collectionId, cols: ["session_id", "created_at"], jsonb: "data" };
+
+/** IDs za collections za Appwrite za zamani → tables za Supabase (callers wana-hardcode za history). */
+export const LEGACY_ALIASES: Record<string, string> = {
+  "6ab6d7990026978d4ba9": "agent_conversations", // agent_conversations (Appwrite ID ya zamani)
+  "6ab4f030002f1cf234b8": "agent_memory",        // agent_memory
+  "6ab74616000856116332": "memory_events",       // memory_events
+};
