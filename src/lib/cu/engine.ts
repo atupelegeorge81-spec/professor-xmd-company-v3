@@ -95,6 +95,10 @@ export interface CuRunState {
   watchdogTimer?: ReturnType<typeof setInterval>;
   thinkAcc: Map<number, string>;
   persistTimer?: ReturnType<typeof setTimeout>;
+  /** R40: heartbeat polepole ya sandbox wakati wa pause ya watchdog (auto-resume) — sandbox isife */
+  slowHeartbeat?: ReturnType<typeof setInterval>;
+  /** R40-B: throttle ya blog za "waiting" (countdown) — si kila beat */
+  lastWaitBlog?: number;
   lastPersistAt?: number;
 }
 
@@ -235,6 +239,13 @@ export function buildCuConfig(): Record<string, unknown> {
 
   return {
     port: 4010,
+    // R40-F · "kopa kidogo": dirisha la context (system+plan+karibuni vinaendelea kamili;
+    // ya zamani yanabanwa — picha za zamani zinaondolewa). Brain (compact_messages) anatumia.
+    ctx: {
+      window: Number(process.env.CU_CTX_WINDOW) || 10,
+      toolChars: Number(process.env.CU_CTX_TOOL_CHARS) || 200,
+      textChars: Number(process.env.CU_CTX_TEXT_CHARS) || 600,
+    },
     gemini: {
       keys: { ...(process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY ? { "gemini-1": process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY } : {}), ...(process.env.GEMINI_API_KEY_2 ? { "gemini-2": process.env.GEMINI_API_KEY_2 } : {}) },
       flashModels: flash, liteModels: lite,
@@ -243,6 +254,7 @@ export function buildCuConfig(): Record<string, unknown> {
       liteRpd: Number(process.env.GEMINI_LITE_RPD) || 500,
       flashRpm: Number(process.env.GEMINI_FLASH_RPM) || 5,
       liteRpm: Number(process.env.GEMINI_LITE_RPM) || 15,
+      tpmLimit: Number(process.env.GEMINI_TPM_LIMIT) || 200_000, // R40-A: tokens/dakika kwa kila lane — kabla ya 429
       baseUrl: process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai",
       quota: { "gemini-1": { day: gem.day, chat: gem.chat || {} }, "gemini-2": { day: gem2.day, chat: gem2.chat || {} } },
     },
@@ -477,6 +489,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
     });
 
     // heartbeat: sandbox isife wakati run inaendelea
+    if (cu.slowHeartbeat) { clearInterval(cu.slowHeartbeat); cu.slowHeartbeat = undefined; } // R40: kasi inachukua
     cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
     startWatchdog(runner, hooks, cu); // R38-RC1: bridge hai lakini ikinyamaza → onyo/pause
 
@@ -519,7 +532,21 @@ export function cuError(runner: Runner, hooks: CuHooks, message: string): void {
 
 function stopHeartbeat(cu: CuRunState) {
   if (cu.heartbeat) { clearInterval(cu.heartbeat); cu.heartbeat = undefined; }
+  if (cu.slowHeartbeat) { clearInterval(cu.slowHeartbeat); cu.slowHeartbeat = undefined; }
   stopWatchdog(cu);
+}
+
+/** R40: heartbeat polepole (5dk → timeout 60dk) — sandbox YA RUN isife wakati wa pause ya
+ *  watchdog (auto-resume ina-connect kwenye sandbox ILIYO HAI — hakuna create ya E2B tena;
+ *  kosa la 6ac803e2: pause ya dakika 15 ilimuua sandbox, resume 01:50 ikahitaji create,
+ *  E2B ikatimeout usiku → run ikafa). Pause ya MWANDAMIZI (resumeAt=0) na quota ya siku
+ *  bado zinaua sandbox (snapshot IPO bucket — by design, si mabadiliko). */
+function startSlowHeartbeat(cu: CuRunState, sbx: any): void {
+  if (cu.slowHeartbeat) clearInterval(cu.slowHeartbeat);
+  const beat = () => sbx.setTimeout(60 * 60 * 1000).catch(() => {});
+  beat();
+  cu.slowHeartbeat = setInterval(beat, 5 * 60_000);
+  (cu.slowHeartbeat as any)?.unref?.();
 }
 
 function stopWatchdog(cu: CuRunState) {
@@ -711,6 +738,18 @@ export async function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: C
       break;
     }
     case "usage": {
+      // R40-B: beat ya "waiting" (heartbeat ya brain wakati request ndefu / TPM cooling) —
+      // si call halisi: haihesabiwi kwenye usage/meters; inalisha watchdog (dakika 15 isilipe
+      // kwa uongo) + countdown inayoonekana kwenye log (throttled 45s).
+      if ((ev as any).waiting) {
+        const cuw = runner.cu!;
+        const now = Date.now();
+        if (hooks && now - (cuw.lastWaitBlog || 0) > 45_000) {
+          cuw.lastWaitBlog = now;
+          hooks.blog("info", `⏳ XMD Computer: ${String((ev as any).note || "LLM inaendelea — inasubiri jibu")} (heartbeat — haihesabiwi)`);
+        }
+        break;
+      }
       // tokens za computer-use → KILA MAHALI (usage chip "computer" + meters za accounts)
       const total = Number(ev.total) || 0;
       runner.items.push({ kind: "cu", id: `cu_usage_${ev.i}`, i: ev.i, cu: "usage", lane: ev.lane, provider: ev.provider, account: ev.account, model: ev.model, total, ok: !!ev.ok } as any);
@@ -950,9 +989,17 @@ export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | n
         new Promise((r2) => setTimeout(r2, 25_000).unref?.()),
       ]);
     } catch { /* bridge haikuuliwa — sandbox-kill hapa chini inaugua */ }
-    if (cu.snapshot) setTimeout(() => sbx2.kill?.().catch(() => {}), 15_000).unref?.();
+    if (resumeAt) {
+      // R40: pause ya watchdog (auto-resume inakuja) — sandbox INABAKI hai (heartbeat polepole).
+      // Snapshot bado imehifadhiwa (backup); bridge ameuliwa ili aisogee mwenyewe.
+      startSlowHeartbeat(cu, sbx2);
+      hooks?.blog?.("info", `🫀 Sandbox ${String(cu.sandboxId || "").slice(0, 8)}… inabaki hai kwa auto-resume (heartbeat 5dk).`);
+    } else if (cu.snapshot) {
+      setTimeout(() => sbx2.kill?.().catch(() => {}), 15_000).unref?.();
+    }
   }
-  cu.sandbox = undefined; // cache hai — getSandbox ita-connect (hai → workspace ipo; imetoweka → mpya+snapshot)
+  // R40: watchdog-pause → cache ya sandbox inabaki (hai); manual/quota → undefined (connect-itakufa → mpya+snapshot)
+  cu.sandbox = resumeAt ? (cu.sandbox ?? sbx2) : undefined;
 
   // (4) PAUSE INAKAMILIKA: awamu inarudishwa, session "paused", chip ya CU state inasasishwa.
   cu.pausing = false;

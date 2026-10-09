@@ -148,7 +148,7 @@ class LaneState:
     """Hali ya lane moja ndani ya run hii (quota snapshot + matukio ya brain)."""
 
     __slots__ = ("exhausted_until", "retry_at", "busy_until", "requests_today", "rpd_limit",
-                 "rpm_calls", "xkiro_remaining", "disabled", "empty_fails", "tokens", "day")
+                 "rpm_calls", "tpm_calls", "xkiro_remaining", "disabled", "empty_fails", "tokens", "day")
 
     def __init__(self):
         self.exhausted_until = 0
@@ -157,6 +157,7 @@ class LaneState:
         self.requests_today = 0
         self.rpd_limit = 0
         self.rpm_calls: list[float] = []
+        self.tpm_calls: list[tuple[float, int]] = []  # R40-A: (ms, tokens) — TPM (tokens/dakika) halisi
         self.xkiro_remaining = None
         self.disabled = False
         self.empty_fails = 0
@@ -357,8 +358,86 @@ def _tool_result_parts(content) -> list[dict]:
     return parts
 
 
+def _trim_str(s: str, n: int, tail: bool = False) -> str:
+    """Fupisha maandishi — kichwa (au mkia) + alama ya kubanwa."""
+    s = str(s or "")
+    if len(s) <= n:
+        return s
+    return ("…" + s[-n:]) if tail else (s[:n] + " …[XMD:banwa — kagua STATUS.md / ws]")
+
+
+def compact_messages(msgs: list, ctx: dict | None = None):
+    """R40-F · "KOPA KIDOGO" (mfumo wa xmd3 v1, sisi tunautekeleza kwenye proxy):
+    - system + ujumbe wa KWANZA wa user (MPANGO KAZI — sheria) vinaendelea KAMILI kila wakati;
+    - dirisha la karibu (window) vinaendelea kamili — picha zikiwemo;
+    - ya ZAMANI (nje ya dirisha): tool results zinafupishwa, assistant text inabaki mkia tu,
+      picha za base64 zinaondolewa (zinachukua tokens mamia kwa kila moja).
+    Muundo wa messages HAUBADILIKI (hakuna kufutwa) — tool_calls na signatures zinaendelea kuwa sawa.
+    STATUS.md + workspace ndiyo memory ya zamani (agent anazisoma anapohitaji)."""
+    c = ctx or {}
+    window = max(2, int(c.get("window") or 10))
+    tool_chars = max(60, int(c.get("toolChars") or 200))
+    text_chars = max(120, int(c.get("textChars") or 600))
+    n = len(msgs)
+    keep_from = n - window
+    out = []
+    plan_kept = False
+    for i, m in enumerate(msgs):
+        role = m.get("role")
+        # system + USER WA KWANZA (mpango kazi — sheria) vinaendelea KAMILI kila wakati
+        if role == "system" or (role == "user" and not plan_kept):
+            if role == "user":
+                plan_kept = True
+            out.append(m)
+            continue
+        if i >= keep_from:
+            out.append(m)
+            continue
+        content = m.get("content")
+        if role == "tool":
+            if isinstance(content, list):
+                newc = []
+                for p in content:
+                    if isinstance(p, dict) and p.get("type") == "text":
+                        newc.append({"type": "text", "text": _trim_str(p.get("text") or "", tool_chars)})
+                    elif isinstance(p, dict) and p.get("type") == "image_url":
+                        newc.append({"type": "text", "text": "[picha ya zamani imeondolewa — kagua /home/user/ws]"})
+                    else:
+                        newc.append(p)
+                out.append({**m, "content": newc})
+            else:
+                out.append({**m, "content": _trim_str(content, tool_chars)})
+        elif role == "assistant":
+            if isinstance(content, str):
+                out.append({**m, "content": _trim_str(content, text_chars, tail=True)})
+            elif isinstance(content, list):
+                newc = []
+                for p in content:
+                    if isinstance(p, dict) and p.get("type") == "text":
+                        newc.append({"type": "text", "text": _trim_str(p.get("text") or "", text_chars, tail=True)})
+                    else:  # tool_calls (zinabaki KAMILI — signatures!)
+                        newc.append(p)
+                out.append({**m, "content": newc})
+            else:
+                out.append(m)  # tool_calls pekee — inabaki
+        else:  # user (non-plan) — maandishi yanabanwa, picha za zamani zinaondolewa
+            if isinstance(content, list):
+                newc = []
+                for p in content:
+                    if isinstance(p, dict) and p.get("type") == "text":
+                        newc.append({"type": "text", "text": _trim_str(p.get("text") or "", text_chars)})
+                    elif isinstance(p, dict) and p.get("type") == "image_url":
+                        newc.append({"type": "text", "text": "[picha ya zamani imeondolewa]"})
+                    else:
+                        newc.append(p)
+                out.append({**m, "content": newc})
+            else:
+                out.append({**m, "content": _trim_str(content, text_chars)})
+    return out
+
+
 def translate_request(body: dict, strip_images: bool = False, signatures: dict | None = None,
-                      dropped: set[str] | None = None) -> dict:
+                      dropped: set[str] | None = None, ctx: dict | None = None) -> dict:
     """Ombi la Anthropic /v1/messages → OpenAI chat/completions payload."""
     msgs: list[dict] = []
     system = body.get("system")
@@ -452,6 +531,9 @@ def translate_request(body: dict, strip_images: bool = False, signatures: dict |
             payload["tool_choice"] = "auto"
     if body.get("stop_sequences"):
         payload["stop"] = body["stop_sequences"]
+    # R40-F: "kopa kidogo" — compaction kabla ya kutuma (system+plan+dirisha la karibu tu)
+    if payload.get("messages"):
+        payload["messages"] = compact_messages(payload["messages"], ctx)
     return payload
 
 
@@ -656,6 +738,10 @@ class Brain:
         self.state: dict[str, LaneState] = {}
         self.emergency = False
         self.calls = 0
+        # R40-A: kikomo cha tokens/dakika kwa kila lane (Google TPM) — env GEMINI_TPM_LIMIT
+        self.tpm_limit = int((self.cfg.get("gemini") or {}).get("tpmLimit") or 200_000)
+        # R40-B: shughuli ya mwisho (write ya event/usage) — heartbeat ya "waiting" inatumia hii
+        self._last_activity = 0.0
         # R34-A STICKY LANE (agizo la CEO 06-10): lane iliyofanikiwa mwisho inashikiliwa —
         # requests zinazo fuata zinaenda MOJA KWA MOJA kwake, si kutembeza orodha kila mara
         # (kosa la zamani: 3.8/3.7 zilipokea requests 28 huku zikifa kila mara, kila request
@@ -750,6 +836,14 @@ class Brain:
                 s.rpm_calls = recent
                 if len(recent) >= lane.rpm:
                     return False, recent[0] + 61_000
+            # R40-A: TPM (tokens/dakika) — kila lane inafuatiliwa KABLA ya 429, si baada.
+            # Payload kubwa (~30-100k tokens/call) inajaza TPM ya dakika kwa calls 2-3 tu;
+            # zamani brain iligundua hili KWA KUPATA 429 tu (kila jaribio = tokens zote tena).
+            s.tpm_calls = [(t, n) for (t, n) in s.tpm_calls if t > now - 60_000]
+            tpm_sum = sum(n for _, n in s.tpm_calls)
+            if self.tpm_limit and tpm_sum >= self.tpm_limit:
+                wake = (s.tpm_calls[0][0] + 61_000) if s.tpm_calls else now + 61_000
+                return False, wake
         if lane.provider == "xkiro" and s.xkiro_remaining is not None and s.xkiro_remaining < XKIRO_MIN_REMAINING:
             return False, 0  # "kama kuna nafasi" — hakuna nafasi, kimya
         return True, 0
@@ -813,7 +907,7 @@ class Brain:
                 elif wake and 0 < wake - now <= STICKY_MAX_WAIT_MS:
                     blog("info", f"⏳ Sticky lane {wl.label()} ina dakika-cooling fupi — nisubiri "
                                  f"{int((wake - now) / 1000)}s (silent) badala ya kubadilisha.")
-                    self._sleep((wake - now) / 1000 + 0.05)
+                    self._sleep_beat((wake - now) / 1000 + 0.05, f"⏳ {wl.label()} cooling (sticky)")
                     tried.discard(wl.id)
                     return self.pick_lane(tried, depth + 1)
                 else:
@@ -840,7 +934,7 @@ class Brain:
                 if wakes and min(wakes) - now <= GATE_MAX_WAIT:
                     wait = min(wakes) - now
                     blog("warning", f"\u23f3 Gemini zote zina dakika-cooling — nisubiri {int(wait / 1000)}s (silent).")
-                    self._sleep(wait / 1000 + 0.05)
+                    self._sleep_beat(wait / 1000 + 0.05, "⏳ Gemini zote zina dakika-cooling (TPM/RPM)")
                     tried.difference_update(l.id for l in gem_all)  # zinajaribiwa tena baada ya kupumzika
                     return self.pick_lane(tried, depth + 1)
                 blog("warning", "\U0001F5A5\uFE0F cuBrain: Gemini hazipatikani (zote zimejaa kwa muda mrefu) — EMERGENCY inaanza (silent, UI haiona).")
@@ -863,7 +957,7 @@ class Brain:
         if wakes and min(wakes) - now <= EMERGENCY_MAX_WAIT:
             wait = min(wakes) - now
             blog("warning", f"\u23f3 Lanes za dharura zina cooling — nisubiri {int(wait / 1000)}s (silent).")
-            self._sleep(wait / 1000 + 0.05)
+            self._sleep_beat(wait / 1000 + 0.05, "⏳ Lanes za dharura zina cooling")
             tried.difference_update(l.id for l in emerg_all)
             return self.pick_lane(tried, depth + 1)
         return None
@@ -887,12 +981,39 @@ class Brain:
             if lane.provider == "gemini":
                 s.requests_today += 1
                 s.rpm_calls.append(self._clock())
+                s.tpm_calls.append((self._clock(), prompt + completion))  # R40-A: TPM halisi
             elif lane.provider == "xkiro" and s.xkiro_remaining is not None:
                 s.xkiro_remaining -= (prompt + completion)
             # R34-A: mafanikio ya kweli = hii ndiyo work lane sasa (sticky)
             if self.work_lane != lane.id:
                 self.work_lane = lane.id
             self.calls += 1
+
+    # ---------- R40-B: beats za "waiting" (heartbeat ya brain hadi UI)
+    def _beat(self, lane, note: str):
+        """Mstari wa usage_out wenye waiting=true — UsageTail unaupitisha; engine hauna hesabu,
+        inatumika kama heartbeat (watchdog ya dakika 15 isilipe kwa uongo) + countdown inayoonekana."""
+        rec = {"t": int(self._clock()), "lane": lane.id if lane else "", "provider": lane.provider if lane else "",
+               "account": lane.account if lane else "", "model": lane.model if lane else "",
+               "prompt": 0, "completion": 0, "total": 0, "ok": True,
+               "waiting": True, "note": str(note)[:140]}
+        with USAGE_LOCK:
+            try:
+                with open(self.usage_path, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            except OSError:
+                pass
+
+    def _sleep_beat(self, seconds: float, note: str):
+        """Kusubiri cooling kwa beats zinazoonekana (countdown) badala ya kimya kikuu.
+        Guard ya beats 320: sleeper ya majaribio haipitishi muda — isizunguke milele."""
+        end = self._clock() + seconds * 1000
+        for _ in range(320):
+            remain = (end - self._clock()) / 1000
+            if remain <= 0:
+                return
+            self._beat(None, f"{note} — inarudi kwa {int(remain + 0.999)}s")
+            self._sleep(min(20.0, max(0.05, remain)))
 
     # ---------- usafiri (HTTP halisi; tests zinabadilisha)
     def _http_transport(self, lane: Lane, payload: dict, stream: bool):
@@ -1108,6 +1229,28 @@ class Brain:
         strip_images = False
         no_stream_options = False
         attempts = 0
+        # R40-B: heartbeat ya brain — request ndefu/TPM-cooling isiache bridge kimya dakika 15
+        # (watchdog ya engine isilipe kwa uongo; UI inaona "⏳ inaendelea"). Beat inatumwa
+        # TU ikiwa hakuna shughuli halisi kwa sekunde 20 (events za stream hazi-duplicate).
+        self._last_activity = self._clock()
+        hb_stop = threading.Event()
+        cur_lane: list = [None]
+        t_handle0 = self._clock()
+
+        def _hb_loop():
+            while not hb_stop.wait(20.0):
+                if self._clock() - self._last_activity > 20_000:
+                    ln = cur_lane[0]
+                    el = int((self._clock() - t_handle0) / 1000)
+                    self._beat(ln, f"{(ln.label() + ' — ') if ln else ''}request inaendelea ({el}s)" if ln
+                               else f"request inaendelea ({el}s)")
+
+        hb_thread = threading.Thread(target=_hb_loop, daemon=True)
+        hb_thread.start()
+
+        def wwrite(ev):
+            self._last_activity = self._clock()
+            write(ev)
 
         def after_lane_error(lane: Lane, le: LaneError, p: dict, t0: float):
             """Hakuna kitu kinafika UI: note + record; fatal inapewa nafasi moja ya mbadala (picha/stream_options)."""
@@ -1127,7 +1270,8 @@ class Brain:
                 return
             raise BrainFatal(le.message)
 
-        while attempts < MAX_ATTEMPTS:
+        try:
+          while attempts < MAX_ATTEMPTS:
             lane = self.pick_lane(tried)
             if lane is None:
                 # R31-G4: quota ya siku imeisha KABISA (Gemini + dharura zote) → PAUSE, si kifo.
@@ -1139,8 +1283,12 @@ class Brain:
                 raise BrainFatal("lanes zote za LLM zimekufa/kwisha kwa sasa (Gemini + dharura zote)")
             tried.add(lane.id)
             attempts += 1
+            cur_lane[0] = lane
+            self._last_activity = self._clock()
             # payload inajengwa UPYA kila attempt (picha zinaweza kutolewa baada ya 400)
-            p = translate_request(body, strip_images=strip_images, signatures=self.signatures, dropped=self.dropped)
+            # R40-F: ctx window — "kopa kidogo" (matokeo ya zamani yanabanwa, picha za zamani zinaondolewa)
+            p = translate_request(body, strip_images=strip_images, signatures=self.signatures, dropped=self.dropped,
+                                  ctx=(self.cfg.get("ctx") or {}))
             p["max_tokens"] = min(int(body.get("max_tokens") or 8192), lane.max_out)
             p = with_gemini_thinking(p, lane.provider)
             t0 = self._clock()
@@ -1149,7 +1297,7 @@ class Brain:
                 wrote = False
                 try:
                     for ev in gen:
-                        write(ev)
+                        wwrite(ev)
                         wrote = True
                     tr = getattr(gen, "xmd_translator", None)
                     if tr is not None:
@@ -1173,7 +1321,7 @@ class Brain:
                     continue
             try:
                 result = self.complete(lane, p, with_so=not no_stream_options)
-                write(result)
+                wwrite(result)
                 self._save_signatures()
                 return True
             except LaneError as le:
@@ -1188,7 +1336,9 @@ class Brain:
                         continue
                 after_lane_error(lane, le, p, t0)
                 continue
-        raise BrainFatal(f"jaribio {MAX_ATTEMPTS} limeishia bila jibu")
+          raise BrainFatal(f"jaribio {MAX_ATTEMPTS} limeishia bila jibu")
+        finally:
+          hb_stop.set()
 
 class BrainAbort(Exception):
     """Stream ilikatika baada ya kutuma — soketi inafungwa; CLI inajirudia yenyewe."""

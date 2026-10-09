@@ -104,12 +104,19 @@ describe("R38-RC5 · pauseComputerFromServer — pause ya manual/watchdog", () =
   it("resumeAt>0 (watchdog): auto-resume inapangwa — si pause ya mwandamizi pekee", async () => {
     const runner = fakeRunner();
     const { hooks } = fakeHooks(runner);
-    const cu = armedCu(runner, fakeSandbox());
+    const sbx = fakeSandbox();
+    const cu = armedCu(runner, sbx);
     const at = Date.now() + 10 * 60_000;
     await pauseComputerFromServer(runner, hooks, "hakuna tukio la bridge kwa 15 dk", at);
-    await vi.runAllTimersAsync();
+    // R40: sandbox ya watchdog-pause INABAKI hai (heartbeat polepole) — hakuna kill ya E2B
+    expect(cu.slowHeartbeat).toBeTruthy();
+    expect(sbx.killed).toEqual([]);
+    expect(sbx.setTimeout).toHaveBeenCalled(); // heartbeat ya kwanza imeshapiga
+    // timers ni bounded (si runAllTimers — heartbeat wa dakika 5 unaishi kwa makusudi hadi resume)
+    await vi.advanceTimersByTimeAsync(11 * 60_000);
     expect(cu.resumeAt).toBe(at);
     expect((runner.items.find((it: any) => it.cu === "pause") as any).resumeAt).toBe(at);
+    if (cu.slowHeartbeat) { clearInterval(cu.slowHeartbeat); cu.slowHeartbeat = undefined; }
   });
 
   it("bila sandbox: pause inaendelea (kazi ya Openwrite tu) — si kufa", async () => {

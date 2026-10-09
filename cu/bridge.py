@@ -387,6 +387,10 @@ Ukitenda kazi hapa, fuata sheria hizi (zinatokana na mafunzo halisi ya Anthropic
 6. **`STATUS.md` ndiyo memory ya run:** sasisha kila hatua inapokamilika (hatua ✓/…, makosa
    yaliyofungwa, hali ya server, hypotheses zako). Compaction ikitokea, STATUS.md inakurudisha
    kwenye track.
+6b. **Context yako inabanwa automatic** (mfumo wa "kopa kidogo"): matokeo ya tools ya zamani
+   yanafupishwa na picha za zamani zinaondolewa kutoka context — MPANGO (ujumbe wa kwanza),
+   dirisha la karibu, `STATUS.md` na workspace `/home/user/ws` ndiyo source of truth. Ukahitaji
+   jambo la zamani, LI-SOME tena (Read file / glob) badala ya kutegemea kumbukumbu ya context.
 7. Hakuna kukadiriwa: kosa usilolitambua → liandike wazi kama "sijalitambua" badala ya ku-probe
    bila mpango.
 """
@@ -1010,7 +1014,8 @@ class UsageTail(threading.Thread):
                         self.em.emit("usage", lane=rec.get("lane", ""), provider=rec.get("provider", ""),
                                      account=rec.get("account", ""), model=rec.get("model", ""),
                                      prompt=int(rec.get("prompt") or 0), completion=int(rec.get("completion") or 0),
-                                     total=int(rec.get("total") or 0), ok=bool(rec.get("ok")))
+                                     total=int(rec.get("total") or 0), ok=bool(rec.get("ok")),
+                                     waiting=bool(rec.get("waiting")), note=str(rec.get("note") or "")[:140])
                     except ValueError:
                         pass
                 else:
