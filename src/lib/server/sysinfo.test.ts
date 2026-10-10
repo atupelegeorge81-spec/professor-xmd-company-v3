@@ -1,6 +1,6 @@
 // sysinfo.test.ts — R43: parsers za cgroup (pure) + historia ya sparkline.
 import { describe, expect, it, beforeEach } from "vitest";
-import { parseMemoryFile, parseCpuStat, parseCpuMax, cpuPctOf, pushHist, histCopy } from "./sysinfo";
+import { parseMemoryFile, parseCpuStat, parseCpuMax, parseCpuV1Quota, cpuPctOf, pushHist, histCopy } from "./sysinfo";
 
 describe("parseMemoryFile", () => {
   it("hubadilisha bytes za cgroup", () => {
@@ -33,6 +33,17 @@ describe("parseCpuMax", () => {
   });
   it("'max 100000' → null (hazibadilishwa)", () => {
     expect(parseCpuMax("max 100000")).toBeNull();
+  });
+});
+
+describe("parseCpuV1Quota (Koyeb = cgroup v1)", () => {
+  it("cfs_quota/cfs_period → vCPU", () => {
+    expect(parseCpuV1Quota("10000", "100000")).toBeCloseTo(0.1);
+    expect(parseCpuV1Quota("50000  ", "  100000")).toBeCloseTo(0.5);
+  });
+  it("quota '-1' (hazibadilishwa) → null", () => {
+    expect(parseCpuV1Quota("-1", "100000")).toBeNull();
+    expect(parseCpuV1Quota("", "100000")).toBeNull();
   });
 });
 

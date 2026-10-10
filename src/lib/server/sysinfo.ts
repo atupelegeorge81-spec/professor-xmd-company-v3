@@ -1,6 +1,9 @@
 // src/lib/server/sysinfo.ts — R43: namba HALISI za mfumo kwa card ya "System" (CPU · RAM · Disk · Storage).
-// Kanuni (kutoka research): cgroup v2 ndiyo ukweli wa container (Koyeb: 512MB RAM / 0.1 vCPU / 2GB SSD) —
-// si os.totalmem()/os.freemem() (zinasoma VM nzima ya host). Fallback za usalama kwa local dev.
+// Kanuni (kutoka research): cgroup ndiyo ukweli wa container (Koyeb: 512MB RAM / 0.1 vCPU) — si
+// os.totalmem()/os.freemem() (zinasoma VM ya host). cgroup v2 (Render) NA v1 (Koyeb) zinasomwa.
+// MUHIMU: hali yote iko kwenye globalThis — Next inaweza kuwa na module-instance mbili (bundle ya
+// instrumentation vs ya route) zisizoshiriki hali (ushahidi: usageTap inafanya kazi kwa sababu
+// ina-patch globalThis.fetch). Hivyo historia/cache zinaendelea popote ilipo.
 import { promises as fsp } from "node:fs";
 import os from "node:os";
 
@@ -14,27 +17,43 @@ export type SysSample = {
   history: { ram: number[]; cpu: number[] };
 };
 
+/* ---------- global state (shared kwenye module zote) ---------- */
+
+const G: any = ((globalThis as any).__r43sys ??= {
+  hist: { ram: [] as number[], cpu: [] as number[] },
+  lastPush: 0,
+  cpuPrev: null as { usage: number; ms: number } | null,
+  storageCache: null as { at: number; data: SysSample["storage"] } | null,
+});
+
 /* ---------- pure parsers (zinatestiwa) ---------- */
 
-/** "536870912" → 536870912 · "max" / jumba → null */
+/** "536870912" → 536870912 · "max"/jumba/≤0 → null */
 export function parseMemoryFile(text: string): number | null {
   const n = Number(String(text).trim());
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** "usage_usec 123456\n..." → 123456 (µs) · haipatikani → null */
+/** cgroup v2 cpu.stat: "usage_usec 123456\n..." → 123456 (µs) · haipatikani → null */
 export function parseCpuStat(text: string): number | null {
   const m = /usage_usec (\d+)/.exec(String(text));
   return m ? Number(m[1]) : null;
 }
 
-/** cpu.max: "10000 100000" → 0.1 (vCPU) · "max 100000" → null (hazibadilishwa) */
+/** cgroup v2 cpu.max: "10000 100000" → 0.1 (vCPU) · "max 100000" → null */
 export function parseCpuMax(text: string): number | null {
   const m = /^(\d+) (\d+)$/m.exec(String(text).trim());
   return m ? Number(m[1]) / Number(m[2]) : null;
 }
 
-/** asilimia ya matumizi ya CPU kutoka delta — pure kwa ajili ya testi */
+/** cgroup v1 quota: cfs_quota_us=10000, cfs_period_us=100000 → 0.1 · quota "-1" (max) → null */
+export function parseCpuV1Quota(quotaText: string, periodText: string): number | null {
+  const q = Number(String(quotaText).trim());
+  const p = Number(String(periodText).trim());
+  return Number.isFinite(q) && Number.isFinite(p) && q > 0 && p > 0 ? q / p : null;
+}
+
+/** asilimia ya CPU kutoka delta — pure kwa ajili ya testi */
 export function cpuPctOf(dUsageUsec: number, dMs: number, cpus: number): number {
   if (dMs <= 0 || cpus <= 0) return 0;
   return Math.max(0, Math.min(100, (dUsageUsec / 1000 / (dMs * cpus)) * 100));
@@ -62,24 +81,42 @@ export async function readRam(): Promise<SysSample["ram"]> {
   return { usedBytes: mu.rss, maxBytes: os.totalmem(), pct: (mu.rss / os.totalmem()) * 100, source: "process-rss" };
 }
 
-let cpuPrev: { usage: number; ms: number } | null = null;
-
-/** CPU ya container: delta ya cgroup cpu.stat dhidi ya kikomo (cpu.max). Wito wa kwanza → null (bado kipimo). */
+/**
+ * CPU ya container: delta ya matumizi dhidi ya kikomo.
+ * v2 (Render): cpu.stat usage_usec + cpu.max · v1 (Koyeb): cpuacct.usage (ns) + cfs_quota/period.
+ * Wito wa kwanza → pct null (bado kipimo); pili → asilimia halisi.
+ */
 export async function readCpu(): Promise<SysSample["cpu"]> {
-  const usage = parseCpuStat((await readText("/sys/fs/cgroup/cpu.stat")) ?? "");
-  const quotaCpus = parseCpuMax((await readText("/sys/fs/cgroup/cpu.max")) ?? "");
+  let usageUsec: number | null = null;
+  let quotaCpus: number | null = null;
+
+  const statV2 = await readText("/sys/fs/cgroup/cpu.stat");
+  if (statV2 != null && parseCpuStat(statV2) != null) {
+    usageUsec = parseCpuStat(statV2);
+    quotaCpus = parseCpuMax((await readText("/sys/fs/cgroup/cpu.max")) ?? "");
+  } else {
+    // v1: cpuacct.usage ni NANOseconds → µs
+    const ns = parseMemoryFile((await readText("/sys/fs/cgroup/cpu/cpuacct.usage")) ?? "");
+    if (ns != null) usageUsec = ns / 1000;
+    quotaCpus = parseCpuV1Quota(
+      (await readText("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")) ?? "",
+      (await readText("/sys/fs/cgroup/cpu/cpu.cfs_period_us")) ?? "",
+    );
+  }
+
   const now = Date.now();
   let pct: number | null = null;
-  if (usage != null) {
-    if (cpuPrev && now > cpuPrev.ms && usage >= cpuPrev.usage) {
-      pct = cpuPctOf(usage - cpuPrev.usage, now - cpuPrev.ms, quotaCpus ?? os.cpus().length);
+  if (usageUsec != null) {
+    const prev = G.cpuPrev as { usage: number; ms: number } | null;
+    if (prev && now > prev.ms && usageUsec >= prev.usage) {
+      pct = cpuPctOf(usageUsec - prev.usage, now - prev.ms, quotaCpus ?? os.cpus().length);
     }
-    cpuPrev = { usage, ms: now };
+    G.cpuPrev = { usage: usageUsec, ms: now };
   }
   return { pct, quotaCpus };
 }
 
-/** Disk ya container (Koyeb SSD 2GB): statfs ya root fs. */
+/** Disk ya container: statfs ya root fs (Koyeb inaonyesha overlay ya host — ukweli wa fs yenyewe). */
 export async function readDisk(): Promise<SysSample["disk"]> {
   try {
     const st: any = await fsp.statfs("/");
@@ -92,53 +129,47 @@ export async function readDisk(): Promise<SysSample["disk"]> {
   }
 }
 
-/* ---------- Supabase: files + DB (cached 60s) ---------- */
+/* ---------- Supabase: files + DB (cached 60s, via rpc za SECURITY DEFINER) ---------- */
 
 const FILES_LIMIT = 1024 * 1024 * 1024; // Supabase free: 1GB storage
 const DB_LIMIT = 500 * 1024 * 1024;    // Supabase free: 500MB database
 
-let storageCache: { at: number; data: SysSample["storage"] } | null = null;
-
 export async function readStorage(): Promise<SysSample["storage"]> {
-  if (storageCache && Date.now() - storageCache.at < 60_000) return storageCache.data;
+  const cached = G.storageCache as { at: number; data: SysSample["storage"] } | null;
+  if (cached && Date.now() - cached.at < 60_000) return cached.data;
   const out: SysSample["storage"] = { filesBytes: 0, filesLimit: FILES_LIMIT, filesCount: 0, dbBytes: 0, dbLimit: DB_LIMIT, buckets: 0 };
   try {
     const { supabase } = await import("./supabase");
-    const { data: objs } = await supabase.from("storage.objects").select("bucket_id,metadata->>size");
-    if (Array.isArray(objs)) {
-      const buckets = new Set<string>();
-      for (const o of objs as any[]) {
-        out.filesBytes += Number(o?.size) || 0;
-        out.filesCount += 1;
-        if (o?.bucket_id) buckets.add(String(o.bucket_id));
-      }
-      out.buckets = buckets.size;
+    // storage schema haielezewi kwenye REST — rpc ya SECURITY DEFINER ndiyo njia (kama db_size)
+    const { data: st } = await supabase.rpc("storage_stats");
+    if (st) {
+      out.filesBytes = Number(st.bytes) || 0;
+      out.filesCount = Number(st.count) || 0;
+      out.buckets = Number(st.buckets) || 0;
     }
     const { data: db } = await supabase.rpc("db_size");
     if (db != null) out.dbBytes = Number(db) || 0;
   } catch { /* kimya — card ionyeshe kilichopo */ }
-  storageCache = { at: Date.now(), data: out };
+  G.storageCache = { at: Date.now(), data: out };
   return out;
 }
 
 /* ---------- historia (sparkline ya card) ---------- */
 
 const HIST_MAX = 40;
-const hist = { ram: [] as number[], cpu: [] as number[] };
-let lastPush = 0;
 
 export function pushHist(ramPct: number, cpuPct: number | null): void {
   const now = Date.now();
-  if (now - lastPush < 2_000) return; // flood-guard (clients wengi wakipoll)
-  lastPush = now;
-  hist.ram.push(Number.isFinite(ramPct) ? Math.round(ramPct * 10) / 10 : 0);
-  hist.cpu.push(cpuPct != null && Number.isFinite(cpuPct) ? Math.round(cpuPct * 10) / 10 : 0);
-  if (hist.ram.length > HIST_MAX) hist.ram.splice(0, hist.ram.length - HIST_MAX);
-  if (hist.cpu.length > HIST_MAX) hist.cpu.splice(0, hist.cpu.length - HIST_MAX);
+  if (now - G.lastPush < 2_000) return; // flood-guard (clients wengi wakipoll)
+  G.lastPush = now;
+  G.hist.ram.push(Number.isFinite(ramPct) ? Math.round(ramPct * 10) / 10 : 0);
+  G.hist.cpu.push(cpuPct != null && Number.isFinite(cpuPct) ? Math.round(cpuPct * 10) / 10 : 0);
+  if (G.hist.ram.length > HIST_MAX) G.hist.ram.splice(0, G.hist.ram.length - HIST_MAX);
+  if (G.hist.cpu.length > HIST_MAX) G.hist.cpu.splice(0, G.hist.cpu.length - HIST_MAX);
 }
 
 export function histCopy(): { ram: number[]; cpu: number[] } {
-  return { ram: [...hist.ram], cpu: [...hist.cpu] };
+  return { ram: [...G.hist.ram], cpu: [...G.hist.cpu] };
 }
 
 /* ---------- sampuli kamili (endpoint + watchdog) ---------- */

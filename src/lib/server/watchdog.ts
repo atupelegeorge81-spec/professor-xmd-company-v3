@@ -1,11 +1,13 @@
 // src/lib/server/watchdog.ts — R43 Tabaka 1+2 (agizo la Mkuu, matabaka matano yameidhinishwa):
-//   TABAKA 1 🌡️ RAM WATCHDOG: kila sekunde 30 soma cgroup memory.current/max (ukweli wa Koyeb 512MB).
+//   TABAKA 1 🌡️ RAM WATCHDOG: kila sekunde 30 soma cgroup memory (ukweli wa Koyeb 512MB).
 //     ≥ 65% → diet (GC + log) · ≥ 78% → COOLDOWN: runner apumzishwe kwa neema + auto-resume baada ya 3dk.
 //     (78% si 90% kwa sababu: OOM kill haineemekwi — SIGKILL papo hapo; tunacha nafasi ya spikes za GC.)
 //   TABAKA 2 📜 SIGTERM HANDLER: Koyeb ina neema ya sekunde 30 kabla ya SIGKILL — tunatumia kuhifadhi
 //     runner kwa "paused" + resumeAt, boot mpya ina-auto-resume (njia ya R31-G4/R38 iliyothibitishwa LIVE).
 // Tabaka 3 (diet ya items), 4 (E2B lifecycle), 5 (keep-alive — IPO) zinafuata baada ya hizi kuthibitika.
 // Zinatumia njia ZILIZOPO tu: pauseComputerFromServer (snapshot+persist+scheduleAutoResume) na pauseRun/unpauseRun.
+// MUHIMU: hali yote iko kwenye globalThis — bundle ya instrumentation na za routes ni module-instances
+// tofauti (ushahidi live: on=False ilipokuwa module-local; usageTap inafanya kazi kwa patch ya globalThis.fetch).
 // R43_WATCHDOG=off inazima zote mbili (escape hatch).
 
 import { readRam } from "./sysinfo";
@@ -18,28 +20,39 @@ const COOLDOWN_RESUME_MS = 3 * 60_000;   // mjadala unaendelea baada ya dakika 3
 const SIGTERM_RESUME_MS = 60_000;        // restart: sekunde 60 kisha auto-resume (boot + scan)
 const MIN_BETWEEN_COOLDOWNS = 5 * 60_000; // usirudia cooldown kila tick (hysteresis)
 
-const events: WatchEvent[] = [];
-let startedAt = 0;
-let cooldowns = 0;
-let lastCooldownAt = 0;
-let busy = false;
-let logTicks = 0;
+type WatchState = {
+  startedAt: number;
+  cooldowns: number;
+  lastCooldownAt: number;
+  busy: boolean;
+  logTicks: number;
+  events: WatchEvent[];
+};
+
+const G: WatchState = ((globalThis as any).__r43watch ??= {
+  startedAt: 0,
+  cooldowns: 0,
+  lastCooldownAt: 0,
+  busy: false,
+  logTicks: 0,
+  events: [] as WatchEvent[],
+} as WatchState);
 
 export function watchdogState() {
   return {
-    on: startedAt > 0,
-    startedAt,
-    cooldowns,
-    busy,
+    on: G.startedAt > 0,
+    startedAt: G.startedAt,
+    cooldowns: G.cooldowns,
+    busy: G.busy,
     thresholds: { cooldownAt: COOLDOWN_AT, dietAt: DIET_AT },
-    lastEvent: events.length ? events[events.length - 1] : null,
-    events: events.slice(-8),
+    lastEvent: G.events.length ? G.events[G.events.length - 1] : null,
+    events: G.events.slice(-8),
   };
 }
 
 function ev(kind: WatchEvent["kind"], ramPct: number, note: string) {
-  events.push({ at: Date.now(), kind, ramPct: Number(ramPct.toFixed(1)), note: String(note).slice(0, 200) });
-  if (events.length > 40) events.splice(0, events.length - 40);
+  G.events.push({ at: Date.now(), kind, ramPct: Number(ramPct.toFixed(1)), note: String(note).slice(0, 200) });
+  if (G.events.length > 40) G.events.splice(0, G.events.length - 40);
   console.log(`[watchdog] ${kind} · RAM ${ramPct.toFixed(1)}% · ${note}`);
 }
 
@@ -50,9 +63,9 @@ function ev(kind: WatchEvent["kind"], ramPct: number, note: string) {
  * - Awamu ya discussion: pauseRun() (in-memory pause; gate ya LLM inasimama) + timer ya ndani inarudisha.
  */
 async function cooldown(reason: string, resumeMs: number, force = false): Promise<void> {
-  if (busy) return;
-  if (!force && Date.now() - lastCooldownAt < MIN_BETWEEN_COOLDOWNS) return;
-  busy = true;
+  if (G.busy) return;
+  if (!force && Date.now() - G.lastCooldownAt < MIN_BETWEEN_COOLDOWNS) return;
+  G.busy = true;
   try {
     const br = await import("@/lib/boardRunner");
     const r = br.activeRunner();
@@ -74,8 +87,8 @@ async function cooldown(reason: string, resumeMs: number, force = false): Promis
         }, resumeMs);
         t.unref?.();
       }
-      cooldowns += 1;
-      lastCooldownAt = Date.now();
+      G.cooldowns += 1;
+      G.lastCooldownAt = Date.now();
       ev("cooldown", (await readRam()).pct, `${reason} — runner amepumzishwa; auto-resume baada ya ${Math.round(resumeMs / 60_000)}dk`);
     } else {
       ev("cooldown", (await readRam()).pct, `${reason} — hakuna runner hai; ilikuwa diet tu`);
@@ -83,14 +96,14 @@ async function cooldown(reason: string, resumeMs: number, force = false): Promis
   } catch (e) {
     ev("cooldown", -1, `cooldown ilikufa: ${String(e).slice(0, 120)}`);
   } finally {
-    busy = false;
+    G.busy = false;
   }
 }
 
 /** TABAKA 1: anzisha mpigo wa RAM (inaitwa mara moja kutoka instrumentation.ts). */
 export function startWatchdog(): void {
-  if (startedAt || process.env.R43_WATCHDOG === "off") return;
-  startedAt = Date.now();
+  if (G.startedAt || process.env.R43_WATCHDOG === "off") return;
+  G.startedAt = Date.now();
   const t = setInterval(async () => {
     try {
       const ram = await readRam();
@@ -99,7 +112,7 @@ export function startWatchdog(): void {
       } else if (ram.pct >= DIET_AT) {
         (globalThis as any).gc?.(); // inafanya kazi tu ikiwa --expose-gc; la: kimya
         ev("diet", ram.pct, "RAM juu — diet (GC)");
-      } else if (++logTicks % 10 === 0) {
+      } else if (++G.logTicks % 10 === 0) {
         ev("log", ram.pct, `mpigo wa kawaida (${ram.source})`);
       }
     } catch { /* kimya */ }
