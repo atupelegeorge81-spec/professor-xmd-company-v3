@@ -222,6 +222,46 @@ class TestR46FinishGuard(unittest.TestCase):
         self.assertEqual(v, {}, "file_path: HAILELI kama ni path ya kawaida kwenye sentensi")
 
 
+class TestR46BIntentProse(unittest.TestCase):
+    """R46-B (SafariSmart run1): flash-LITE ilitoa 'Let's start by...' bila tool → done ya uongo."""
+
+    def test_azimu_prosa_fupi_inablockwa(self):
+        st = HookState()
+        v = st.note_answer("Let's start by initializing the project workspace and inspecting the "
+                           "repository structure, then we'll execute the steps in order as specified "
+                           "in the work plan.\n\nLet's run a bash command to check the files.", plan_run=True)
+        self.assertIn("block_reason", v)
+        self.assertIn("AZIMU", v["block_reason"])
+
+    def test_exec_0_inapata_block_hata_bila_azimu(self):
+        st = HookState()
+        v = st.note_answer("Nimekagua kila kitu na maamuzi yote ni sawa kabisa, kazi inaendelea "
+                           "kama ilivyo pangwa katika mpango wa mradi huu wa SafariSmart na "
+                           "hatua zote ziko tayari kutekelezwa sasa hivi bila mabadiliko.", plan_run=True)
+        self.assertIn("block_reason", v, "exec=0 na plan ipo → si mwisho halali")
+        self.assertIn("HATA TOOL", v["block_reason"])
+
+    def test_riposi_halisi_ndefu_inapita(self):
+        st = HookState()
+        st.note_tool_progress(); st.note_tool_progress()
+        ripoti = ("# Ripoti ya Mradi\n\n## 1. Muhtasari\n" + "SafariSmart imejengwa kikamilifu. " * 40)
+        v = st.note_answer(ripoti, plan_run=True)
+        self.assertEqual(v, {}, "ripoti halisi ndefu baada ya exec → mwisho halali")
+
+    def test_bila_plan_run_azimu_haiblockwi(self):
+        st = HookState()
+        v = st.note_answer("Let's start by initializing the project workspace.", plan_run=False)
+        self.assertEqual(v, {}, "query-mode (hakuna plan.md) — tabia ya zamani")
+
+    def test_kikomo_4_kisha_brake(self):
+        st = HookState()
+        junk = "Let's start by running the command now."
+        for k in range(4):
+            v = st.note_answer(junk, plan_run=True)
+            self.assertIn("block_reason", v)
+        self.assertEqual(st.note_answer(junk, plan_run=True), {"brake": True})
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -46,6 +46,12 @@ THOUGHT_RX = _re.compile(r"<(?:thought|thinking)>([\s\S]*?)</(?:thought|thinking
 # (run nzima ikifa sekunde 113, bila faili moja ya src/). Viashiria vya aina hii:
 TOOL_AS_TEXT_RX = _re.compile(
     r"<default_api[:.]|<function_calls>|</invoke>|<\|tool\||file_path\s*[:=]\s*/home/user", _re.I)
+
+# R46-B (kosa la SafariSmart run1, 21:20): flash-LITE ilipoteza agentic-mode ikatoa maneno ya
+# AZIMU tu ("Let's start by... Let's run a bash command...") bila kuita tool hata moja → CLI
+# ikachukua kama ujumbe wa mwisho → run_end "done" (steps:1, exec:0, ripoti herufi 49).
+INTENT_PROSE_RX = _re.compile(
+    r"\b(?:let'?s|let us|i will|i'?ll|i'?m going to|we will|we'?ll|now i|first,? i|let me)\b", _re.I)
 # R32.2b: tag ILIYOFUNGULIWA isiyofungwa (hakuna </thought>) — kama ThinkTagSplitter, kila kitu
 # kutoka tag hapo hadi mwisho ni thought (session 6ac4a63b na 6ac4af5e zote zilikufa hivi).
 UNCLOSED_THOUGHT_RX = _re.compile(r"<(?:thought|thinking)>[\s\S]*$", _re.I)
@@ -530,6 +536,9 @@ class HookState:
         # R46-A: tool-call kama maandishi (mf. <default_api:Write ...>) — SI mwisho halali.
         # Kikomo 4: model isijirekebishe → brake (si loop ya milele).
         self.tool_text_stops = 0
+        # R46-B: exec zilizofanikiwa (zana halisi zilizotekelezwa) + intent-prose stops
+        self.execs = 0
+        self.intent_stops = 0
         # R33: screenshot MOJA kwa kila page/view ("picha ipo tayari" — agizo la CEO 06-10 usiku)
         self.page_url: str = ""
         self.viewport: tuple = (1280, 800)
@@ -609,8 +618,9 @@ class HookState:
         """Tool ilifanikiwa = kuna maendeleo — empty-stops mfululizo zianza upya (R32.2)."""
         self.empty_stops = 0
         self.tool_text_stops = 0   # R46-A: function-calling imeanza kufanya kazi tena
+        self.execs += 1            # R46-B: zana halisi ilitekelezwa
 
-    def note_answer(self, answer: str) -> dict:
+    def note_answer(self, answer: str, plan_run: bool = False) -> dict:
         """Semantiki za query-mode: Stop hook ikirudisha {} run INAISHA — kwa hiyo "jibu lileile
         ×3" linawezekana tu kama hook yenyewe inalazimisha continuation kwanza.
 
@@ -633,6 +643,28 @@ class HookState:
                 "Itekeleze kwa FUNCTION CALLING halisi (Write/Edit/Bash), kisha endelea na "
                 "hatua inayofuata ya mpango. Ripoti ya Kiswahili inakuja MWISHONI tu baada ya "
                 "kazi yote.")}
+        # R46-B (kosa la SafariSmart run1): mwisho wa azimu-prosa bila utekelezaji —
+        # "Let's start by..." si ripoti wala jibu; na run ya mpango yenye exec 0 si mwisho.
+        # plan_run: kipimo kinapitishwa na on_stop (plan.md ipo kwenye workspace).
+        if plan_run:
+            visible0 = self._visible_text(answer)
+            if len(visible0) < 400 and INTENT_PROSE_RX.search(visible0):
+                self.intent_stops += 1
+                if self.intent_stops > 4:
+                    return {"brake": True}
+                return {"block_reason": (
+                    "XMD NIDHAMU: ujumbe wako wa mwisho ni AZIMU tu — "
+                    "hujatekeleza chochote bado. Mpango una hatua zisizokamilika: itekeleze "
+                    "SASA kwa FUNCTION CALLING halisi (Bash/Write/Edit) moja baada ya nyingine. "
+                    "Ripoti ya Kiswahili inakuja MWISHONI tu, baada ya kazi yote halisi.")}
+            if self.execs == 0:
+                self.intent_stops += 1
+                if self.intent_stops > 4:
+                    return {"brake": True}
+                return {"block_reason": (
+                    "XMD NIDHAMU: unajaribu kumaliza run ya MPANGO bila kutekeleza HATA TOOL "
+                    "MOJA. Hakuna kazi iliyothibitishwa. Anza sasa: soma STATUS.md/plan, kisha "
+                    "itekeleze hatua kwa Bash/Write/Edit. Ripoti inakuja baada ya kazi halisi.")}
         # R32.2: jibu lenye <thought> pekee / text isiyofikia herufi 40 SI mwisho halali —
         # model (hasa lane za dharura) inaishisha "kimya" wakati kazi bado. Lazimisha aendelee.
         visible = self._visible_text(answer)
@@ -850,7 +882,8 @@ def build_xmd_hooks(state: HookState, em, workspace: str):
 
     async def on_stop(hook_input, tool_input, ctx):
         try:
-            verdict = state.note_answer(str(hook_input.get("last_assistant_message") or ""))
+            plan_run = os.path.exists(os.path.join(workspace, "plan.md"))   # R46-B
+            verdict = state.note_answer(str(hook_input.get("last_assistant_message") or ""), plan_run=plan_run)
             if verdict.get("brake"):
                 # Ripoti ya "NIMEKWAMA" inaandikwa na hook yenyewe (model haisikii stopReason)
                 try:
