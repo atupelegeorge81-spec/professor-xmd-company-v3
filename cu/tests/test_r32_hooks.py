@@ -174,6 +174,54 @@ class TestClaudeMd(unittest.TestCase):
         self.assertIn("Error", R32_CLAUDE_MD)
 
 
+# ---------------------------------------------------------------- R46-A · FINISH-GUARD
+# Kosa la FishiSmart run2 (10-10 usiku): Gemini ilitoa tool call kama TEXT
+# (<default_api:Write content={...} file_path:...>) → CLI ikadhani ni ujumbe wa mwisho
+# → run_end "done" ya uongo (sekunde 113, bila faili ya src/). Sasa: BLOCK.
+
+class TestR46FinishGuard(unittest.TestCase):
+    def test_tool_call_kama_text_inablockwa(self):
+        st = HookState()
+        v = st.note_answer("<thought>Writing knexfile.ts</thought>"
+                           "<default_api:Write content={import { Knex } from 'knex';} "
+                           "file_path:/home/user/ws/src/infrastructure/db/knexfile.ts>")
+        self.assertIn("block_reason", v, "SI mwisho halali — inablockwa")
+        self.assertIn("FUNCTION CALLING", v["block_reason"])
+
+    def test_ripoti_halali_ya_kiswahili_inapita(self):
+        st = HookState()
+        v = st.note_answer("Nimemaliza kazi yote: 🌐 Live Website Link: https://example.com, "
+                           "🐙 GitHub: repo ipo, 📱 Majaribio yote yamefaulu. Muhtasari kamili "
+                           "wa mradi wa FishiSmart na muundo wa faili umeandikwa.")
+        self.assertEqual(v, {}, "ripoti halali — mwisho wa kawaida")
+
+    def test_kikomo_4_kisha_brake(self):
+        st = HookState()
+        junk = "<default_api:Write content={x} file_path:/home/user/ws/a.ts>"
+        for k in range(4):
+            v = st.note_answer(junk)
+            self.assertIn("block_reason", v)
+        v = st.note_answer(junk)
+        self.assertEqual(v, {"brake": True}, "haikujirekebisha mara 4 → brake")
+
+    def test_tool_halisi_inareset_counter(self):
+        st = HookState()
+        junk = "<default_api:Bash command={npm test} file_path:/home/user/ws/>"
+        for k in range(3):
+            st.note_answer(junk)
+        st.note_tool_progress()          # function-calling imerudi
+        v = st.note_answer(junk)
+        self.assertIn("block_reason", v, "counter imereset — inaanza 1 tena, si brake")
+        self.assertNotEqual(v, {"brake": True})
+
+    def test_file_path_ya_kawaida_kwenye_ripoti_haiblockwi(self):
+        st = HookState()
+        v = st.note_answer("Ripoti: muundo wa faili — src/infrastructure/db/knexfile.ts "
+                           "ina configuration ya database. Kazi zote 13 za mpango zimekamilika "
+                           "na majaribio yote yamepita.")
+        self.assertEqual(v, {}, "file_path: HAILELI kama ni path ya kawaida kwenye sentensi")
+
+
 if __name__ == "__main__":
     unittest.main()
 

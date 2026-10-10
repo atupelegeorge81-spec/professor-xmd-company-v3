@@ -39,6 +39,13 @@ GITHUB_URL_RX = _re.compile(r"(https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-
 PAUSE_RX = _re.compile(r"XMD-PAUSE:(\d{9,15})")
 # R32.2: thoughts za Gemini (zinavuja kwenye jibu la mwisho) — kuwa na maudhui halisi
 THOUGHT_RX = _re.compile(r"<(?:thought|thinking)>([\s\S]*?)</(?:thought|thinking)>", _re.I)
+
+# R46-A (uchunguzi wa FishiSmart run2 — 10-10 usiku): tool call iliyoandikwa kama TEXT.
+# Gemini ilipoteza function-caling akatoa <default_api:Write content={...} file_path=...>
+# kama maandishi → CLI ikachukua kama ujumbe wa MWISHO → run_end "done" ya uongo
+# (run nzima ikifa sekunde 113, bila faili moja ya src/). Viashiria vya aina hii:
+TOOL_AS_TEXT_RX = _re.compile(
+    r"<default_api[:.]|<function_calls>|</invoke>|<\|tool\||file_path\s*[:=]\s*/home/user", _re.I)
 # R32.2b: tag ILIYOFUNGULIWA isiyofungwa (hakuna </thought>) — kama ThinkTagSplitter, kila kitu
 # kutoka tag hapo hadi mwisho ni thought (session 6ac4a63b na 6ac4af5e zote zilikufa hivi).
 UNCLOSED_THOUGHT_RX = _re.compile(r"<(?:thought|thinking)>[\s\S]*$", _re.I)
@@ -520,6 +527,9 @@ class HookState:
         # (Kosa la 6ac4a63b: call ya mwisho ilitoka lane ya dharura ikiwa thought tu — run
         #  ikaisha "done" baada ya tool 1. Sasa: thought-pekee SI mwisho halali.)
         self.empty_stops = 0
+        # R46-A: tool-call kama maandishi (mf. <default_api:Write ...>) — SI mwisho halali.
+        # Kikomo 4: model isijirekebishe → brake (si loop ya milele).
+        self.tool_text_stops = 0
         # R33: screenshot MOJA kwa kila page/view ("picha ipo tayari" — agizo la CEO 06-10 usiku)
         self.page_url: str = ""
         self.viewport: tuple = (1280, 800)
@@ -598,6 +608,7 @@ class HookState:
     def note_tool_progress(self) -> None:
         """Tool ilifanikiwa = kuna maendeleo — empty-stops mfululizo zianza upya (R32.2)."""
         self.empty_stops = 0
+        self.tool_text_stops = 0   # R46-A: function-calling imeanza kufanya kazi tena
 
     def note_answer(self, answer: str) -> dict:
         """Semantiki za query-mode: Stop hook ikirudisha {} run INAISHA — kwa hiyo "jibu lileile
@@ -609,6 +620,19 @@ class HookState:
                                      jibu ni thought-pekee) → {"decision": "block", "reason": …}
           {}                        → mwisho wa kawaida (jibu halisi) — run inaisha vizuri
         """
+        # R46-A (kosa la FishiSmart run2): tool call iliyoandikwa kama TEXT si mwisho —
+        # model ilikusudia KUITEKELEZA (Write/Bash), si kuripoti. Block: itekeleze sahihi.
+        # (Kabla ya visible-check: viashiria viko ndani ya <thought> pia vina hesabu.)
+        if TOOL_AS_TEXT_RX.search(answer or ""):
+            self.tool_text_stops += 1
+            if self.tool_text_stops > 4:
+                return {"brake": True}
+            return {"block_reason": (
+                "XMD NIDHAMU: ujumbe wako wa mwisho una TOOL CALL iliyoandikwa kama maandishi "
+                "(mf. <default_api:Write ...> au file_path:...) — huo si ujumbe wala ripoti. "
+                "Itekeleze kwa FUNCTION CALLING halisi (Write/Edit/Bash), kisha endelea na "
+                "hatua inayofuata ya mpango. Ripoti ya Kiswahili inakuja MWISHONI tu baada ya "
+                "kazi yote.")}
         # R32.2: jibu lenye <thought> pekee / text isiyofikia herufi 40 SI mwisho halali —
         # model (hasa lane za dharura) inaishisha "kimya" wakati kazi bado. Lazimisha aendelee.
         visible = self._visible_text(answer)
