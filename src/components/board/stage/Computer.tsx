@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ChevronRight, ExternalLink, File, FileCode2, FileJson, FileText, Folder, FolderOpen, GitBranch, Image as ImageIcon, Monitor, PauseCircle, Rocket, X, XCircle } from "lucide-react";
 import type { CuFileEntry, CuPauseItem, CuReportItem, CuRunItem } from "@/lib/stage/types";
 import { compact } from "@/lib/utils";
+import { quotaPauseCopy } from "@/lib/cu/pauseCopy"; // R44-E
 import { ReportBody } from "../../reports/ReportBody";
 import { Lane, Spinner, TONE, Tag } from "./kit";
 
@@ -202,11 +203,10 @@ export function CuRunCard({ it }: { it: CuRunItem }) {
   );
 }
 
-/* ── R31-G4: quota ya siku imeisha — pause + auto-resume (si kifo). ── */
+/* ── R31-G4+R44-E: pause + auto-resume (si kifo). Maandishi ya KWELI — dakika vs siku vs sandbox. ── */
 export function CuPauseView({ it }: { it: CuPauseItem }) {
-  const t = it.resumeAt
-    ? new Date(it.resumeAt).toLocaleTimeString("en-GB", { timeZone: "Africa/Dar_es_Salaam", hour12: false })
-    : "baadaye";
+  const copy = quotaPauseCopy(it.resumeAt, Date.now(), (it as any).reason);
+  const t = copy.t ?? "baadaye";
   const mm = it.ms ? Math.round(it.ms / 1000) : 0;
   return (
     <Lane>
@@ -214,10 +214,8 @@ export function CuPauseView({ it }: { it: CuPauseItem }) {
         <div className="flex items-center gap-3 px-4 py-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgb(251_191_36/0.14)] text-[#fbbf24]"><PauseCircle size={16} /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-[14.5px] font-semibold tracking-[-0.01em]">Tokens za siku zimeisha (quota)</p>
-            <p className="text-[11.5px] text-[var(--color-muted)]">
-              Session imepumzika kwa usalama — workspace imehifadhiwa. Itaendelea YENYEWE saa {t} (limit ikirudi).
-            </p>
+            <p className="text-[14.5px] font-semibold tracking-[-0.01em]">{copy.title}</p>
+            <p className="text-[11.5px] text-[var(--color-muted)]">{copy.sub}</p>
           </div>
           <span className="shrink-0 font-mono text-[9.5px] text-[var(--color-faint)]">{it.steps} hatua{mm ? ` · ${mm}s` : ""}</span>
         </div>

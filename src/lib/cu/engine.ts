@@ -16,6 +16,7 @@ import { Sandbox } from "@e2b/code-interpreter";
 import { InputFile } from "node-appwrite/file";
 import { appwriteConfigured, databases, DB, storage, SCREENSHOTS_BUCKET } from "@/lib/server/appwrite";
 import { publicFileUrl } from "@/lib/server/supabase"; // R42.1
+import { mirrorEvent, mirrorMapOf, restoreFromMirror, sandboxAlive } from "./mirror"; // R44: kiovu + liveness
 import { getPlanBySession, PROJECT_PLANS_COL, type ProjectPlanDoc } from "@/lib/server/plans";
 import { unpack } from "@/lib/server/packed";
 import {
@@ -86,6 +87,8 @@ export interface CuRunState {
   pausedOnce?: boolean;
   resumeAt?: number;
   snapshot?: { fileId: string; bucketId: string };
+  /** R44-B: kifo cha sandbox — resume inarestore kutoka kiovu (cu_files) + ujumbe wa deps. */
+  rebuild?: boolean;
   /** R38-RC5: pause ya sasa (manual/watchdog) — tofauti na pausedOnce (historia).
    *  pausedNow=true → events za bridge (isipokuwa run_end) zinakataliwa; inafutwa startComputerPhase ikianza. */
   pausedNow?: boolean;
@@ -120,6 +123,8 @@ export interface CuChip {
   pausedOnce?: boolean;
   resumeAt?: number;
   snapshot?: { fileId: string; bucketId: string };
+  /** R44-B: kifo cha sandbox — resume inarestore kutoka kiovu (cu_files) + ujumbe wa deps. */
+  rebuild?: boolean;
 }
 export const isHiddenCuChip = (it: any) => it?.kind === "chip" && typeof it?.text === "string" && it.text.startsWith(CU_PREFIX);
 export function cuChipItem(s: CuChip) {
@@ -166,6 +171,7 @@ export function ensureCuState(runner: Runner, token?: string): CuRunState {
       pausedOnce: !!chip?.pausedOnce,
       resumeAt: chip?.resumeAt,
       snapshot: chip?.snapshot,
+      rebuild: !!chip?.rebuild, // R44-B: kifo cha sandbox — restore kutoka kiovu
     };
     for (const it of runner.items as any[]) {
       if (it?.kind === "cu" && typeof it.i === "number") runner.cu.seen.add(`${it.cu}:${it.i}`);
@@ -308,7 +314,13 @@ async function readCuFile(name: string): Promise<string> {
 }
 
 async function getSandbox(cu: CuRunState): Promise<any> {
-  if (cu.sandbox) return cu.sandbox;
+  // R44-C (kosa la KilimoSmart): sandbox ya mkononi PING kwanza — maiti isirudishwe
+  // (resume ilirudisha cu.sandbox iliyo kufa → "not found" kila mara, create haikufika).
+  if (cu.sandbox) {
+    if (await sandboxAlive(cu.sandbox)) return cu.sandbox;
+    cu.sandbox = undefined;
+    cu.sandboxId = undefined;
+  }
   const apiKey = process.env.E2B_API_KEY!;
   if (cu.sandboxId) {
     // R31-G4: sandbox ya zamani (pause/error) — connect kwenye iliyouawa inaweza HANGA
@@ -318,18 +330,31 @@ async function getSandbox(cu: CuRunState): Promise<any> {
         Sandbox.connect(cu.sandboxId, { apiKey }),
         new Promise<never>((_, rej) => setTimeout(() => rej(new Error("E2B connect timeout (25s)")), 25_000).unref?.()),
       ]);
+      await sbx.setTimeout(55 * 60_000).catch(() => {}); // R44: resume inarejesha clock — panua dirisha
       cu.sandbox = sbx;
       return sbx;
     } catch { /* imikufa / imehangia → mpya */ }
   }
-  // create pia inapewa timebox (90s) — E2B ikikwama run isife kimya
-  const sbx = await Promise.race([
-    Sandbox.create(CU_TEMPLATE, { apiKey }),
-    new Promise<never>((_, rej) => setTimeout(() => rej(new Error("E2B create timeout (90s)")), 90_000).unref?.()),
-  ]);
-  cu.sandbox = sbx;
-  cu.sandboxId = sbx.sandboxId;
-  return sbx;
+  // R44-B: create na timeoutMs 55dk (chini ya ukuta wa saa 1 ya Hobby) + onTimeout:"pause"
+  // (beta — kifo kinakuwa pumziko). SDK ikiikataa → plain create (death protocol inabaki).
+  try {
+    const sbx = await Promise.race([
+      Sandbox.create(CU_TEMPLATE, { apiKey, timeoutMs: 55 * 60_000, lifecycle: { onTimeout: "pause" } } as any),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("E2B create timeout (90s)")), 90_000).unref?.()),
+    ]);
+    cu.sandbox = sbx;
+    cu.sandboxId = sbx.sandboxId;
+    return sbx;
+  } catch (e: any) {
+    if (!/lifecycle|onTimeout/i.test(String(e?.message || e))) throw e;
+    const sbx = await Promise.race([
+      Sandbox.create(CU_TEMPLATE, { apiKey, timeoutMs: 55 * 60_000 }),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("E2B create timeout (90s)")), 90_000).unref?.()),
+    ]);
+    cu.sandbox = sbx;
+    cu.sandboxId = sbx.sandboxId;
+    return sbx;
+  }
 }
 
 function bridgeCommand(o: {
@@ -460,6 +485,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
         hooks.blog("success", "🖥️ Bridge bado inaendelea ndani ya sandbox — tume-attach tu ( hakuna run mpya).");
         cu.startedAt = Date.now();
         cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
+        startLiveness(runner, hooks, cu, sbx); // R44-B: kifo cha sandbox kinagundulika dakika 3-6
         startWatchdog(runner, hooks, cu); // R38-RC1: bridge hai lakini ikinyamaza → onyo/pause
         await awaitPhase();
         return;
@@ -476,9 +502,19 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
     if (testPauseMs && !cu.pausedOnce) cuCfg.test_quota_pause_ms = testPauseMs; // traffic ya uongo (test ya auto-resume)
     await sbx.files.write("/home/user/cu-config.json", JSON.stringify(cuCfg));
 
-    const resumeNote = resume ? buildResumeNote(runner) : "";
-    // R31-G4: resume kutoka pause (quota) — snapshot ya workspace ya jana inarejesha kwanza
-    const restoreUrl = resume && cu.snapshot?.fileId && !cu.done
+    // R44-B: RESTORE — kiovu (cu_files) kwanza: freshest (kila write); tar ya snapshot ni fallback.
+    let mirrorCount = 0;
+    if (resume) {
+      mirrorCount = await restoreFromMirror(runner.sessionId || runner.id, sbx);
+      if (mirrorCount > 0) hooks.blog("success", `🪞 Kiovu: faili ${mirrorCount} za agent zimerudishwa kwenye sandbox — sandbox mpya imejaa kazi yako.`);
+    }
+    let resumeNote = resume ? buildResumeNote(runner) : "";
+    if (resume && cu.rebuild) {
+      resumeNote = `IMPORTANT: The previous sandbox DIED (E2B timeout). This is a NEW sandbox. All ${mirrorCount} of your files have been restored from the mirror (including STATUS.md). START BY reinstalling all dependencies (npm install etc. — package.json/STATUS.md have the details), THEN continue from where you stopped. Do NOT redo work that is already done.` + (resumeNote ? `\n\n${resumeNote}` : "");
+      cu.rebuild = false;
+    }
+    // R31-G4+R44: tar ya snapshot inarejesha pale KIOVU hakina kitu
+    const restoreUrl = resume && mirrorCount === 0 && cu.snapshot?.fileId && !cu.done
       ? publicFileUrl(cu.snapshot.bucketId || CU_BUCKET, cu.snapshot.fileId) // R42.1: Supabase public URL
       : undefined;
     const cmd = bridgeCommand({
@@ -504,6 +540,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
     // heartbeat: sandbox isife wakati run inaendelea
     if (cu.slowHeartbeat) { clearInterval(cu.slowHeartbeat); cu.slowHeartbeat = undefined; } // R40: kasi inachukua
     cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
+    startLiveness(runner, hooks, cu, sbx); // R44-B: mpigo wa maisha — kifo kinagundulika dakika 3-6
     startWatchdog(runner, hooks, cu); // R38-RC1: bridge hai lakini ikinyamaza → onyo/pause
 
     // watchdog: bridge ikifa bila run_end → fatal card moja (+ Endelea inabaki)
@@ -518,6 +555,12 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
     // bila connection, runner na events zote zikizama). Cap: dakika 30.
     await awaitPhase();
   } catch (e: any) {
+    // R44-B: sandbox haipo (imekufa/timeout) → si kosa la kudumu — jenga mpya (mara moja;
+    // jaribio la pili lifeli = kosa halisi lililo juu ya E2B, si maiti ya cache).
+    if (/not found|sandbox timeout|paused sandbox/i.test(String(e?.message || e)) && runner.cu && !runner.cu.done && !runner.cu.pausedNow && !runner.cu.rebuild) {
+      pauseForRebuild(runner, hooks, "Sandbox ya E2B haipatikani (imekufa/imepumzika)");
+      return;
+    }
     cuError(runner, hooks, `Sandbox ya E2B haikuwezekana: ${String(e?.message || e).slice(0, 200)}`);
   }
 }
@@ -543,9 +586,61 @@ export function cuError(runner: Runner, hooks: CuHooks, message: string): void {
   void hooks.persist("finale_incomplete", hooks.title);
 }
 
+/** R44-B: mpigo wa maisha ya sandbox — kila dakika 3 ping; makosa 2 mfululizo → pauseForRebuild
+ *  (kifo cha E2B kinagundulika dakika 3-6 badala ya kusubiri stall ya dakika 15). */
+function startLiveness(runner: Runner, hooks: CuHooks, cu: CuRunState, sbx: any): void {
+  stopLiveness(cu);
+  let strikes = 0;
+  const t = setInterval(async () => {
+    if (!runner.cu || cu.done || cu.pausedNow || cu.pausing) { stopLiveness(cu); return; }
+    if (await sandboxAlive(sbx)) { strikes = 0; return; }
+    strikes += 1;
+    hooks.blog("warning", `🧊 Sandbox haipiti ping (${strikes}/2)…`);
+    if (strikes >= 2) {
+      stopLiveness(cu);
+      pauseForRebuild(runner, hooks, "Sandbox ya E2B haipo tena (imekufa/imepumzika kwa timeout)");
+    }
+  }, 3 * 60_000);
+  (t as any).unref?.();
+  (cu as any).livenessTimer = t;
+}
+
+function stopLiveness(cu: CuRunState) {
+  const t = (cu as any).livenessTimer;
+  if (t) { clearInterval(t); (cu as any).livenessTimer = undefined; }
+}
+
+/** R44-B (agizo la Mkuu): kifo cha sandbox — hakuna snapshot ya kutafuta (maiti). Mfumo unajenga
+ *  sandbox MPYA kwa auto-resume ya dakika 2, unarestore kutoka KIOVU (cu_files — kila write ilihifadhiwa),
+ *  na agent anapewa ujumbe: "sandbox ilikufa — hii ni mpya; install deps kwanza, kisha endelea". */
+function pauseForRebuild(runner: Runner, hooks: CuHooks | null, reason: string): void {
+  const cu = runner.cu;
+  if (!cu || cu.done || cu.pausedNow || cu.pausing) return;
+  stopHeartbeat(cu);
+  stopWatchdog(cu);
+  cu.pausedOnce = true;
+  cu.pausedNow = true;
+  cu.rebuild = true;
+  cu.resumeAt = Date.now() + 2 * 60_000;
+  cu.sandbox = undefined;
+  cu.sandboxId = undefined;
+  runner.items.push({ kind: "cu", id: `cu_pause_${runner.items.length}`, i: cu.maxI, cu: "pause", resumeAt: cu.resumeAt, reason: String(reason).slice(0, 200), steps: cu.step } as any);
+  const t = new Date(cu.resumeAt).toLocaleTimeString("en-GB", { timeZone: "Africa/Dar_es_Salaam", hour12: false });
+  hooks?.blog("warning", `🧊 ${reason} — sandbox MPYA inajengwa na faili za agent zinarudishwa kutoka kiovu; inaendelea yenyewe ${t}.`);
+  hooks?.addChip(`🧊 ${reason} — sandbox mpya inajengwa + faili zako zote zinarudishwa moja kwa moja (kiovu). Unaendelea ${t}.`);
+  cu.phaseResolve?.();
+  writeCuChip(runner);
+  if (hooks) {
+    void hooks.persist("paused", hooks.title);
+    hooks.bcast({ type: "cu", cu: { type: "phase_done", ok: false, status: "paused" } });
+  }
+  scheduleAutoResume(runner.sessionId || runner.id, cu.resumeAt);
+}
+
 function stopHeartbeat(cu: CuRunState) {
   if (cu.heartbeat) { clearInterval(cu.heartbeat); cu.heartbeat = undefined; }
   if (cu.slowHeartbeat) { clearInterval(cu.slowHeartbeat); cu.slowHeartbeat = undefined; }
+  stopLiveness(cu); // R44-B
   stopWatchdog(cu);
 }
 
@@ -573,7 +668,7 @@ function stopWatchdog(cu: CuRunState) {
 export function checkCuStall(runner: Runner, hooks: CuHooks | null): "ok" | "warned" | "paused" {
   const cu = runner.cu;
   if (!cu || cu.done || cu.pausedNow || cu.pausing) return "ok";
-  const idleMs = Date.now() - (cu.lastEventAt || cu.startedAt);
+  const idleMs = Date.now() - ((cu as any).lastRealAt || cu.lastEventAt || cu.startedAt); // R44-E: kelele za quota hazihesabiwi
   if (idleMs > CU_STALL_PAUSE_MS) {
     hooks?.blog("error", `🖥️ XMD Computer: hakuna tukio kwa ${Math.round(idleMs / 60000)} dk (stream ya LLM imekwama) — inapumzishwa; itajaring tena baada ya dakika 10.`);
     void pauseComputerFromServer(runner, hooks, `hakuna tukio la bridge kwa ${Math.round(idleMs / 60000)} dk (LLM imekwama)`, Date.now() + 10 * 60_000).catch(() => {});
@@ -651,6 +746,10 @@ export async function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: C
   // inayokufa haizidi kugeuza hali — lakini events za MWISHO za kazi halisi (ripoti/links/snapshot/
   // run_end) zinapitishwa: kazi iliyokamilika halisi haipotei.
   cu.lastEventAt = Date.now();
+  // R44-E: tukio HALISI (usage ni kelele za quota) — stall-detector inapima hii
+  if (ev.type !== "usage") (cu as any).lastRealAt = Date.now();
+  // R44-A: KIOVU — kila write/edit ya agent inaingia cu_files MARA MOJA (kifo hakipotezi kazi)
+  if (ev.type === "exec_start") mirrorEvent(runner.sessionId || runner.id, mirrorMapOf(cu), ev);
   if (cu.pausedNow && !CU_PAUSE_PASSTHROUGH.has(ev.type)) return;
 
   // broadcast LIVE kila tukio (UI ina-animation ya live) — shot bila base64 (fileId inakuja baadaye)
@@ -1093,7 +1192,7 @@ export function cuChipItemOf(runner: Runner): ReturnType<typeof cuChipItem> {
   return cuChipItem({
     v: 1, sandboxId: cu.sandboxId, token: cu.token, maxI: cu.maxI,
     repo: cu.links.repo, live: cu.links.live, done: cu.done, files: cu.files, report: cu.report,
-    pausedOnce: cu.pausedOnce, resumeAt: cu.resumeAt, snapshot: cu.snapshot,
+    pausedOnce: cu.pausedOnce, resumeAt: cu.resumeAt, snapshot: cu.snapshot, rebuild: !!cu.rebuild,
   });
 }
 

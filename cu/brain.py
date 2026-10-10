@@ -881,9 +881,17 @@ class Brain:
         return True
 
     def _earliest_reset(self) -> int:
-        """Muda wa karibuni lane itakaporejea (quota ya siku) — 0 kama hakuna lolote linajorudi."""
+        """R44-E (kosa la KilimoSmart): muda wa karibuni lane YOYOTE itakaporejea — sio siku pekee.
+        exhausted_until (siku) + retry_at/busy_until (DAKIKA — TPM/RPM za sekunde 61) zote zinasomwa.
+        Iliyopuuzwa hapo awali: lanes zote zikijaa kwa dakika → 0 → FATAL ya uongo badala ya
+        kupumzika sekunde 61 na kuendelea."""
         now = int(self._clock())
-        times = [int(l.exhausted_until) for l in self.order if int(getattr(l, "exhausted_until", 0) or 0) > now]
+        times = []
+        for l in self.order:
+            for attr in ("exhausted_until", "retry_at", "busy_until"):
+                v = int(getattr(l, attr, 0) or 0)
+                if v > now:
+                    times.append(v)
         return min(times) if times else 0
 
     def pick_lane(self, tried: set, depth: int = 0) -> Lane | None:
