@@ -36,7 +36,12 @@ UPSTREAM_CONNECT_TIMEOUT = 20
 UPSTREAM_READ_TIMEOUT = 240
 GATE_MAX_WAIT = 90_000        # ms — kusubiri lane za Gemini zilizopo dakika-cooling kabla ya dharura
 EMERGENCY_MAX_WAIT = 120_000  # ms — kusubiri lanes za dharura zilizo cooling
-STICKY_MAX_WAIT_MS = 25_000   # ms — R34-A: kosa la dakika la sticky lane: subiri kimya chini ya hii, vingine shuka
+# R45-A (agizo la Mkuu 10-10 usiku): user-turn bandia ya kutafsiri prefill ya Anthropic
+# (ombi linaloishia assistant-turn) kwa Gemini — "Requests ending with a model turn are
+# not supported" (kosa lililomua FishiSmart run1, 18:14).
+R45_CONTINUE_TURN = ("(Continue your previous assistant message exactly where it stopped. "
+                     "Do not repeat or re-output anything you already wrote — continue seamlessly "
+                     "with the next content only.)")
 MAX_ATTEMPTS = 24             # jaribio kwa ombi moja kabla ya fatal
 IDLE_ABORT_MS = 180_000       # hakuna data kutoka upstream → lane inahisiwa imekufa
 # R38-RC1: kikomo cha JUMLA cha stream moja (data inafika lakini stream haikomi kamwe —
@@ -262,6 +267,10 @@ def classify_error(provider: str, status: int | None, body: str, headers: dict |
     if provider == "gemini":
         if status == 400 and re.search(r"API_KEY_INVALID|API key not valid|API key expired|PERMISSION_DENIED", body, re.I):
             return LaneError("auth", msg)
+        if status == 400 and re.search(r"ending with a model turn", body, re.I):
+            # R45-B: prefill ya Anthropic haitambaliki kwa Gemini — kosa la UMBO la ombi,
+            # si la lane wala server (R45-A inaliondoa kabisa; hii ni safety-net ya uwazi).
+            return LaneError("shape", msg)
         if status == 429:
             kind, wait = parse_gem_error(429, body)
             if kind == "daily":
@@ -536,6 +545,12 @@ def translate_request(body: dict, strip_images: bool = False, signatures: dict |
     # R40-F: "kopa kidogo" — compaction kabla ya kutuma (system+plan+dirisha la karibu tu)
     if payload.get("messages"):
         payload["messages"] = compact_messages(payload["messages"], ctx)
+    # R45-A (agizo la Mkuu 10-10 usiku): Anthropic prefill — ombi linaloishia assistant-turn
+    # ("endelea ulipoishia") — inakataliwa na Gemini kwa 400. Tafsili sahihi: ongeza user-turn
+    # bandia inayomwomba model kuendelea HAPO alipoishia, bila kurudia yaliyoandikwa.
+    msgs = payload.get("messages") or []
+    if msgs and msgs[-1].get("role") == "assistant":
+        msgs.append({"role": "user", "content": R45_CONTINUE_TURN})
     return payload
 
 
@@ -712,6 +727,19 @@ class BrainFatal(Exception):
     pass
 
 
+class BrainShapeError(BrainFatal):
+    """R45-B: kosa la UMBO la ombi (mf. prefill ya Anthropic isiyo tambaliki kwa Gemini).
+    Linarudishwa kama 400 invalid_request_error — si 529 "server down" ya uongo
+    (CLI ilikuwa inajirudia mara 3 kisha inafa na card nyekundu)."""
+
+
+def fatal_response(e: Exception) -> tuple[int, dict]:
+    """R45-B: jibu la kosa la mwisho la HTTP — shape=400 ya kweli; lingine=529 (overloaded)."""
+    if isinstance(e, BrainShapeError):
+        return 400, {"type": "error", "error": {"type": "invalid_request_error", "message": f"cuBrain: {e}"}}
+    return 529, {"type": "error", "error": {"type": "overloaded_error", "message": f"cuBrain: {e}"}}
+
+
 def with_gemini_thinking(p: dict, provider: str) -> dict:
     """R31-G4: Gemini 3.x — omba thoughts. Jibu linakuwa na <thought>...</thought> ndani ya
     content (+ extra_content.google.thought_signature); bridge ina parsing ya tags hizo (xmd3).
@@ -744,11 +772,11 @@ class Brain:
         self.tpm_limit = int((self.cfg.get("gemini") or {}).get("tpmLimit") or 200_000)
         # R40-B: shughuli ya mwisho (write ya event/usage) — heartbeat ya "waiting" inatumia hii
         self._last_activity = 0.0
-        # R34-A STICKY LANE (agizo la CEO 06-10): lane iliyofanikiwa mwisho inashikiliwa —
-        # requests zinazo fuata zinaenda MOJA KWA MOJA kwake, si kutembeza orodha kila mara
-        # (kosa la zamani: 3.8/3.7 zilipokea requests 28 huku zikifa kila mara, kila request
-        # ikianza kutafuta upya). Inabadilika TU ikifa kweli (quota ya siku/disabled) au
-        # ikipumzika muda mrefu; kosa fupi la dakika = subiri kimya, bado yake.
+        # R45-C CONVEYER/CIRCLE (agizo la Mkuu 10-10 usiku — linabadilisha R34-A): lane
+        # inayotumika inabaki nayo hadi kikombe chake cha dakika kijaa, KISHA inashuka moja
+        # kwa moja kwenye inayofuata (hakuna kusubiri wakati kuna tayari). Mwisho ukifika
+        # inarudi kwanza (TPM imeshare-set); zikijaa ZOTE ndipo inasubiri wake ya haraka
+        # kisha inaanza na ya kwanza. work_lane = cursor ya mzunguko.
         self.work_lane: str | None = None
         self.usage_path = usage_path or os.environ.get("CU_USAGE_OUT", "/home/user/brain-usage.jsonl")
         self._clock = clock or (lambda: time.time() * 1000)
@@ -895,15 +923,19 @@ class Brain:
         return min(times) if times else 0
 
     def pick_lane(self, tried: set, depth: int = 0) -> Lane | None:
-        """Chagua lane iliyopo — kwa mpangilio; subiri cooling fupi (silent) kabla ya kushuka dharura.
+        """Chagua lane iliyopo — CONVEYER/CIRCLE (R45-C, design ya Mkuu 10-10 usiku).
 
-        R34-A: kuna work lane (sticky) → inatumika MOJA KWA MOJA; orodha inatembezwa TU
-        ikifa kweli (siku/disabled) au ikipopumzika zaidi ya STICKY_MAX_WAIT_MS."""
+        Lane inayotumika inabaki nayo HADI kikombe chake cha dakika (TPM/RPM) kijaa —
+        kisha inashuka MOJA KWA MOJA kwenye lane INAYOFUATA (hakuna kusubiri wakati kuna
+        lane tayari). Mwisho wa orodha ukifika inarudi KWA MWANZO — ya kwanza kwa wakati
+        huu TPM yake imeshare-set. ZIKIJAA ZOTE ndipo inasubiri wake ya haraka (~20-60s),
+        KISHA inafungua upya NA LANE YA KWANZA. work_lane = cursor ya mzunguko (inasogea
+        mbele kwenye mafanikio; inafutwa tu kwa kifo cha siku au baada ya kusubiri)."""
         if depth > 6:
             return None
         self._rollover_check()
         now = self._clock()
-        # ---- R34-A: sticky lane — lane iliyofanikiwa mara ya mwisho inashikiliwa
+        # ---- lane ya sasa (cursor): tayari → tumia; kikombe kimajaa/imefa → shuka mara moja
         if self.work_lane:
             wl = next((l for l in self.order if l.id == self.work_lane), None)
             if wl is not None and wl.id not in tried:
@@ -912,30 +944,35 @@ class Brain:
                     return wl
                 s = self.st(wl)
                 if s.disabled or s.exhausted_until > now:
-                    blog("info", f"📌 Sticky lane {wl.label()} imeisha kwa siku — natafuta nyingine.")
-                    self.work_lane = None          # imefa kweli — tafutiwa mpya
-                elif wake and 0 < wake - now <= STICKY_MAX_WAIT_MS:
-                    blog("info", f"⏳ Sticky lane {wl.label()} ina dakika-cooling fupi — nisubiri "
-                                 f"{int((wake - now) / 1000)}s (silent) badala ya kubadilisha.")
-                    self._sleep_beat((wake - now) / 1000 + 0.05, f"⏳ {wl.label()} cooling (sticky)")
-                    tried.discard(wl.id)
-                    return self.pick_lane(tried, depth + 1)
-                else:
-                    blog("info", f"📌 Sticky lane {wl.label()} inapumzika muda mrefu — nashuka kwenye orodha.")
-                    self.work_lane = None          # cooling ndefu — tafutiwa nyingine sasa
+                    blog("info", f"📌 {wl.label()} imeisha kwa siku — conveyer inaendelea.")
+                    self.work_lane = None          # imefa kweli — mzunguko unaanza mwanzo
+                elif wake:
+                    # R45-C: kikombe cha dakika kimajaa — SHIFT MOJA KWA MOJA, hakuna kusubiri
+                    blog("info", f"⏭️ {wl.label()} kikombe cha dakika kimajaa — shift moja kwa moja "
+                                 f"kwenye inayofuata (hakuna kusubiri — R45-C).")
             elif wl is not None and wl.id in tried:
-                # imefeli KWA request hii (failover ya ndani) — orodha inaendelea; sticky inabaki
-                # (ikifa kweli, pick ijayo itaiondoa)
+                # imefeli KWA request hii (failover ya ndani) — conveyer inaendelea kutoka hapo
                 pass
         if not self.emergency:
             gem_all = [l for l in self.order if l.tier == "normal"]
-            gem_untried = [l for l in gem_all if l.id not in tried]
-            for l in gem_untried:
+            # R45-C: mzunguko wa POSITIONAL — utafutaji unaanza BAADA ya lane ya sasa,
+            # unazunguka hadi MWISHO, kisha unaanza MWANZO (ya kwanza). Hii ndiyo circle.
+            start = 0
+            if self.work_lane:
+                gids = [l.id for l in gem_all]
+                if self.work_lane in gids:
+                    start = gids.index(self.work_lane) + 1
+            ng = len(gem_all)
+            for k in range(ng):
+                l = gem_all[(start + k) % ng]
+                if l.id in tried:
+                    continue
                 r, _ = self._ready(l, now)
                 if r:
                     return l
             if gem_all and not self._all_gemini_dead(now):
-                # zimejaa dakika tu (si siku nzima) — subiri ndogo, KIMYA, kisha zirudie
+                # zimejaa dakika tu (si siku nzima) — mzunguko MZIMA umepita bila lane
+                # tayari: subiri wake ya HARAKA tu, kisha ANZA UPYA NA LANE YA KWANZA
                 wakes = []
                 for l in gem_all:
                     r, w = self._ready(l, now)
@@ -943,9 +980,11 @@ class Brain:
                         wakes.append(w)
                 if wakes and min(wakes) - now <= GATE_MAX_WAIT:
                     wait = min(wakes) - now
-                    blog("warning", f"\u23f3 Gemini zote zina dakika-cooling — nisubiri {int(wait / 1000)}s (silent).")
-                    self._sleep_beat(wait / 1000 + 0.05, "⏳ Gemini zote zina dakika-cooling (TPM/RPM)")
+                    blog("warning", f"\u23f3 Gemini ZOTE zimejaa dakika (mzunguko mzima umefanyika) — "
+                                    f"nisubiri {int(wait / 1000)}s, kisha naanza na lane ya kwanza.")
+                    self._sleep_beat(wait / 1000 + 0.05, "⏳ Gemini zote zimejaa dakika (TPM/RPM)")
                     tried.difference_update(l.id for l in gem_all)  # zinajaribiwa tena baada ya kupumzika
+                    self.work_lane = None          # R45-C: baada ya kusubiri — kuanza NA YA KWANZA
                     return self.pick_lane(tried, depth + 1)
                 blog("warning", "\U0001F5A5\uFE0F cuBrain: Gemini hazipatikani (zote zimejaa kwa muda mrefu) — EMERGENCY inaanza (silent, UI haiona).")
             else:
@@ -1266,6 +1305,9 @@ class Brain:
             """Hakuna kitu kinafika UI: note + record; fatal inapewa nafasi moja ya mbadala (picha/stream_options)."""
             self._note_failure(lane, le)
             self.record_usage(lane, False, 0, 0, int(self._clock() - t0), le.kind)
+            if le.kind == "shape":
+                # R45-B: umbo la ombi — si kosa la lane wala server; 400 ya kweli (CLI hairududi ovyo)
+                raise BrainShapeError(le.message)
             if le.kind != "fatal":
                 blog("warning", f"\U0001F501 cuBrain: {lane.label()} → {le.kind} — lane nyingine kimya (UI haiona).")
                 return
@@ -1431,8 +1473,8 @@ class BrainHandler(BaseHTTPRequestHandler):
             self.brain.handle(body, lambda ev: self._json(200, ev) if not isinstance(ev, dict) or ev.get("type") == "message" else None)
             # handle() inaita write MARA MOJA kwa non-stream (jibu kamili)
         except BrainFatal as e:
-            self._json(529, {"type": "error", "error": {"type": "overloaded_error",
-                                                        "message": f"cuBrain: {e}"}})
+            code, payload = fatal_response(e)   # R45-B: shape=400 ya kweli; lingine=529
+            self._json(code, payload)
         except (BrokenPipeError, ConnectionResetError):
             pass
         except Exception as e:  # kosa lisilotarajiwa — fatal moja (card ya kosa + Endeleza)

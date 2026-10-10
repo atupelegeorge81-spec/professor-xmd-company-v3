@@ -732,22 +732,24 @@ class TestStickyLane(unittest.TestCase):
         b.record_usage(lane, True, 7, 3)
         self.assertEqual(b.work_lane, "gemini-2:gemini-3.8-flash", "sticky mpya = mafanikio mapya")
 
-    def test_kosa_fupi_la_dakika_inasubiri_kimya_bado_yake(self):
+    def test_kosa_fupi_la_dakika_inashift_moja_kwa_moja(self):
+        """R45-C (agizo jipya): kikombe cha dakika kijaa → HAKUNA kusubiri — shift moja kwa moja."""
         sleeps = []
         b, clock = self._brain(sleeper=lambda s: (sleeps.append(s), clock.advance(int(s * 1000) + 5)))
         b.work_lane = "gemini-1:gemini-3.8-flash"
         b.st(b.order[0]).retry_at = clock() + 15_000            # 429 ya dakika (fupi)
         lane = b.pick_lane(set())
-        self.assertEqual(lane.id, "gemini-1:gemini-3.8-flash", "ilisubiri — bado yake")
-        self.assertTrue(sleeps and 14 <= sleeps[0] <= 16, f"sleep ~15s: {sleeps}")
+        self.assertEqual(lane.id, "gemini-2:gemini-3.8-flash", "R45-C: haikusubiri — ilishift moja kwa moja")
+        self.assertEqual(sleeps, [], "hakuna sleep kabisa wakati kuna lane nyingine tayari")
 
-    def test_cooling_ndefu_inashuka_orodha(self):
+    def test_cooling_ndefu_inashuka_orodha_cursor_inabaki(self):
         b, clock = self._brain(sleeper=lambda s: None)
         b.work_lane = "gemini-1:gemini-3.8-flash"
-        b.st(b.order[0]).retry_at = clock() + 120_000           # zaidi ya STICKY_MAX_WAIT_MS
+        b.st(b.order[0]).retry_at = clock() + 120_000           # cooling ndefu
         lane = b.pick_lane(set())
         self.assertEqual(lane.id, "gemini-2:gemini-3.8-flash", "haikungoja — ilishuka")
-        self.assertIsNone(b.work_lane)
+        self.assertEqual(b.work_lane, "gemini-1:gemini-3.8-flash",
+                         "R45-C: cursor ya conveyer inabaki — mzunguko unaendelea baada yake")
 
     def test_sticky_iliyofeli_katika_request_hii_haitengwi_kabisa(self):
         """Failover ya NDANI ya request (tried) haifuti sticky — request ijayo inajaribu yake
@@ -757,6 +759,112 @@ class TestStickyLane(unittest.TestCase):
         lane = b.pick_lane({"gemini-1:gemini-3.8-flash"})       # imeshafeli kwa request hii
         self.assertEqual(lane.id, "gemini-2:gemini-3.8-flash")
         self.assertEqual(b.work_lane, "gemini-1:gemini-3.8-flash", "sticky inabaki kwa request ijayo")
+
+
+# ---------------------------------------------------------------- R45 · CIRCLE + PREFILL + SHAPE
+# Agizo la Mkuu (10-10 usiku). R45-C: lane ikijaa dakika inashift MOJA KWA MOJA kwenye
+# inayofuata; mwisho ukifika inarudi KWANZA; zikijaa ZOTE ndipo inasubiri wake ya haraka
+# kisha inaanza na ya kwanza. R45-A: prefill ya Anthropic inatafsiriwa kwa Gemini.
+# R45-B: 400 ya "model turn" inarudishwa kama 400 ya kweli, si 529 ya "server down".
+
+class TestR45Circle(unittest.TestCase):
+    def _brain(self, sleeper=None):
+        b, tr, clock, path = make_brain(sleeper=sleeper)
+        self.addCleanup(os.unlink, path)
+        return b, clock
+
+    def _jaza_tpm(self, b, clock, lane, tokens=200_000):
+        b.st(lane).tpm_calls = [(clock(), tokens)]
+
+    def test_lane_ikijaa_dakika_inashift_moja_kwa_moja(self):
+        sleeps = []
+        b, clock = self._brain(sleeper=lambda s: (sleeps.append(s), clock.advance(int(s * 1000) + 5)))
+        b.work_lane = "gemini-1:gemini-3.8-flash"
+        self._jaza_tpm(b, clock, b.order[0])                    # kikombe cha k1 kimajaa
+        lane = b.pick_lane(set())
+        self.assertEqual(lane.id, "gemini-2:gemini-3.8-flash")
+        self.assertEqual(sleeps, [], "hakuna kusubiri wakati kuna lane tayari")
+
+    def test_mwisho_wa_orodha_inarudi_kwa_lane_ya_kwanza(self):
+        """Conveyer ikifika MWISHO na imejaa → inarudi KWANZA (TPM yake ni fresh tena)."""
+        b, clock = self._brain(sleeper=lambda s: None)
+        first = b.order[0]
+        gem = [l for l in b.order if l.tier == "normal"]
+        last = gem[-1]
+        b.work_lane = last.id
+        self._jaza_tpm(b, clock, last)
+        lane = b.pick_lane(set())
+        self.assertEqual(lane.id, first.id, "mzunguko: mwisho ukifika inarudi kwa ya kwanza")
+
+    def test_zote_zikijaa_dakika_inasubiri_wake_ya_haraka_kisha_inaanza_na_ya_kwanza(self):
+        sleeps = []
+        b, clock = self._brain(sleeper=lambda s: (sleeps.append(s), clock.advance(int(s * 1000) + 5)))
+        gem = [l for l in b.order if l.tier == "normal"]
+        # halisi: lane ya kwanza ndiyo iliyotumika KWANZA → wake yake ndiyo ya haraka
+        for k, l in enumerate(gem):
+            b.st(l).tpm_calls = [(clock() - (len(gem) - k) * 1_000, 200_000)]
+        b.work_lane = gem[0].id
+        lane = b.pick_lane(set())
+        self.assertTrue(sleeps, "ilisubiri wake ya haraka — zote zimejaa dakika")
+        self.assertEqual(lane.id, gem[0].id, "baada ya kusubiri inaanza NA LANE YA KWANZA")
+        self.assertLessEqual(sum(sleeps), 62, "subiri ni wake ya dakika tu, si 90s ya zamani")
+
+    def test_failover_za_request_moja_hazipoti_position(self):
+        """Lane za tried (zilizofeli KWA request hii) zinapuuzwa bila kuvuruga cursor."""
+        b, _ = self._brain(sleeper=lambda s: None)
+        b.work_lane = "gemini-1:gemini-3.8-flash"
+        lane = b.pick_lane({"gemini-1:gemini-3.8-flash", "gemini-2:gemini-3.8-flash"})
+        self.assertEqual(lane.id, "gemini-1:gemini-3.5-flash",
+                         "inayofuata kwenye mzungiko baada ya k1,k2 kufeli kwa request hii")
+
+
+class TestR45Prefill(unittest.TestCase):
+    def test_ombi_linaloishia_assistant_linaongeza_user_turn(self):
+        body = {"model": "x", "max_tokens": 64,
+                "messages": [{"role": "user", "content": "anza kazi"},
+                             {"role": "assistant", "content": "nimeanza kuandika"}]}
+        p = brain.translate_request(body)
+        msgs = p["messages"]
+        self.assertEqual(msgs[-1]["role"], "user", "R45-A: mwisho si assistant tena")
+        self.assertIn("Continue", msgs[-1]["content"])
+        self.assertEqual(msgs[-2]["role"], "assistant", "assistant ya prefill inabaki hapo ilipo")
+
+    def test_ombi_linaloishia_user_haibadilishwi(self):
+        body = {"model": "x", "max_tokens": 64,
+                "messages": [{"role": "user", "content": "anza"}]}
+        p = brain.translate_request(body)
+        self.assertEqual(len(p["messages"]), 1)
+        self.assertEqual(p["messages"][-1]["content"], "anza")
+
+    def test_prefill_ikitumwa_hubaki_message_moja_zaidi_tu(self):
+        body = {"model": "x", "max_tokens": 64,
+                "messages": [{"role": "user", "content": "anza"},
+                             {"role": "assistant", "content": "nimeanza"}]}
+        p1 = brain.translate_request(body)
+        body2 = {"model": "x", "max_tokens": 64,
+                 "messages": [{"role": "user", "content": "anza"}]}
+        p2 = brain.translate_request(body2)
+        self.assertEqual(len(p1["messages"]), 3, "user + assistant + user-continue = 3")
+        self.assertEqual(len(p2["messages"]), 1, "bila prefill — hakuna ongezeko")
+
+
+class TestR45ShapeError(unittest.TestCase):
+    def test_model_turn_400_ni_shape_si_fatal(self):
+        le = brain.classify_error(
+            "gemini", 400,
+            '{"error": {"code": 400, "message": "Requests ending with a model turn are not supported.", '
+            '"status": "INVALID_ARGUMENT"}}', {})
+        self.assertEqual(le.kind, "shape")
+
+    def test_fatal_response_shape_ni_400_si_529(self):
+        code, payload = brain.fatal_response(brain.BrainShapeError("ombi la umbo batili"))
+        self.assertEqual(code, 400)
+        self.assertEqual(payload["error"]["type"], "invalid_request_error")
+
+    def test_fatal_response_ya_kawaida_inabaki_529(self):
+        code, payload = brain.fatal_response(brain.BrainFatal("quota ya siku imeisha"))
+        self.assertEqual(code, 529)
+        self.assertEqual(payload["error"]["type"], "overloaded_error")
 
 
 # ---------------------------------------------------------------- R38-RC1 · stream idle + deadline
