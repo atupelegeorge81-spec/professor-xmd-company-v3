@@ -342,6 +342,7 @@ async function getSandbox(cu: CuRunState): Promise<any> {
       Sandbox.create(CU_TEMPLATE, { apiKey, timeoutMs: 55 * 60_000, lifecycle: { onTimeout: "pause" } } as any),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error("E2B create timeout (90s)")), 90_000).unref?.()),
     ]);
+    (sbx as any).__xmdFresh = true; // R44-B: iliyoundwa sasa — node_modules hazipo, deps za install
     cu.sandbox = sbx;
     cu.sandboxId = sbx.sandboxId;
     return sbx;
@@ -351,6 +352,7 @@ async function getSandbox(cu: CuRunState): Promise<any> {
       Sandbox.create(CU_TEMPLATE, { apiKey, timeoutMs: 55 * 60_000 }),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error("E2B create timeout (90s)")), 90_000).unref?.()),
     ]);
+    (sbx as any).__xmdFresh = true; // R44-B: fallback create — mpya vilevile
     cu.sandbox = sbx;
     cu.sandboxId = sbx.sandboxId;
     return sbx;
@@ -509,8 +511,10 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
       if (mirrorCount > 0) hooks.blog("success", `🪞 Kiovu: faili ${mirrorCount} za agent zimerudishwa kwenye sandbox — sandbox mpya imejaa kazi yako.`);
     }
     let resumeNote = resume ? buildResumeNote(runner) : "";
-    if (resume && cu.rebuild) {
-      resumeNote = `IMPORTANT: The previous sandbox DIED (E2B timeout). This is a NEW sandbox. All ${mirrorCount} of your files have been restored from the mirror (including STATUS.md). START BY reinstalling all dependencies (npm install etc. — package.json/STATUS.md have the details), THEN continue from where you stopped. Do NOT redo work that is already done.` + (resumeNote ? `\n\n${resumeNote}` : "");
+    // R44-B (panuliwa R45): note ya death-protocol — kila SANDBOX MPYA inayorudisha faili
+    // kutoka kiovu (liveness-kifo AU error-run_end iliyofuta sandbox) — si rebuild-flag tu.
+    if (resume && (cu.rebuild || (mirrorCount > 0 && (sbx as any).__xmdFresh))) {
+      resumeNote = `IMPORTANT: The previous sandbox is GONE (it died or timed out). This is a NEW sandbox. All ${mirrorCount} of your files have been restored from the mirror (including STATUS.md). START BY reinstalling all dependencies (npm install etc. — package.json/STATUS.md have the details), THEN continue from where you stopped. Do NOT redo work that is already done.` + (resumeNote ? `\n\n${resumeNote}` : "");
       cu.rebuild = false;
     }
     // R31-G4+R44: tar ya snapshot inarejesha pale KIOVU hakina kitu
