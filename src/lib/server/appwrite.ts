@@ -183,10 +183,22 @@ export const databases = {
 export const storage = {
   async createFile(bucketId: string, fileId: string, file: any): Promise<any> {
     const id = !fileId || fileId === "unique()" ? randomUUID() : fileId;
-    const body = (file && typeof file === "object" && "data" in file) ? file.data : file;
-    const { error } = await supabase.storage.from(bucketId || SUPABASE_BUCKET).upload(id, body, { upsert: true });
+    // R42.1-fix: muundo halisi wa node-appwrite InputFile = { source: { type: "buffer", data: Buffer }, filename }
+    // (kabla: tulikuwa tunasoma file.data → undefined → supabase ili-upload InputFile nzima kama "[object Object]" ya bytes 15!)
+    let body: any = file;
+    if (body && typeof body === "object" && body.source && body.source.data) body = body.source.data;
+    else if (body && typeof body === "object" && "data" in body) body = body.data;
+    // normalisha zote (Blob/File/Uint8Array/stream) kuwa Buffer
+    if (body && typeof body === "object" && !Buffer.isBuffer(body)) {
+      if (typeof body.arrayBuffer === "function") body = Buffer.from(await body.arrayBuffer());
+      else if (body instanceof Uint8Array || ArrayBuffer.isView(body)) body = Buffer.from(body as Uint8Array);
+      else if (typeof (body as any).pipe === "function") body = await new Promise<Buffer>((res, rej) => { const chunks: Buffer[] = []; (body as any).on("data", (c: Buffer) => chunks.push(c)); (body as any).on("end", () => res(Buffer.concat(chunks))); (body as any).on("error", rej); });
+    }
+    const name = String(file?.filename || file?.name || id);
+    const mime = String(file?.type || (name.endsWith(".png") ? "image/png" : name.endsWith(".gz") ? "application/gzip" : name.endsWith(".jpg") || name.endsWith(".jpeg") ? "image/jpeg" : "application/octet-stream"));
+    const { error } = await supabase.storage.from(bucketId || SUPABASE_BUCKET).upload(id, body, { upsert: true, contentType: mime });
     if (error) throw cleanErr(`upload ${bucketId}/${id}`, error);
-    return { $id: id, name: file?.name || id, bucketId };
+    return { $id: id, name, bucketId };
   },
 
   async getFileDownload(bucketId: string, fileId: string): Promise<Buffer> {
