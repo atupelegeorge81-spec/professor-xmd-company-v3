@@ -4,6 +4,11 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { installUsageTap } = await import("./lib/server/usageTap");
     installUsageTap();
+    // R43 Tabaka 1+2: watchdog ya RAM (cooldown@78% · diet@65%, mpigo 30s) + SIGTERM handler
+    // (neema ya sekunde 30 za Koyeb → runner ahifadhiwe "paused" + auto-resume). R43_WATCHDOG=off inazima.
+    const { startWatchdog, installSigtermHandler } = await import("./lib/server/watchdog");
+    startWatchdog();
+    installSigtermHandler();
     // R31-G4: auto-resume ya sessions zilizopumzika (quota) — server ukianza/kuamka:
     // scan mara moja (baada ya sekunde 20) + kila dakika 10 (instance ikiishi).
     setTimeout(() => { void import("@/lib/cu/autoResume").then((m) => m.checkPausedDue(true)).catch((e) => console.warn("[cu/autoResume] boot scan:", String(e).slice(0, 120))); }, 20_000);

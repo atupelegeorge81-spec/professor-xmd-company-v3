@@ -5,8 +5,11 @@ import { AGENTS } from "@/lib/team";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { useApp } from "@/components/shell/AppState";
 import { TokenAccounts } from "./TokenAccounts";
+import { SystemCard } from "./SystemCard";
 
 // R16: kadi mbili ndogo (Decisions · Sources) pembeni kwa pembeni; "Today's tokens" chini yake, upana wote.
+// R43 (agizo la Mkuu): card ya "System" (CPU · RAM · Disk · Storage live) inakaa KATIKATI —
+// kati ya Decisions·Sources na Today's tokens.
 const CARD =
   "relative isolate flex min-w-0 flex-col overflow-hidden rounded-[20px] border border-white/[0.07] bg-[linear-gradient(180deg,rgb(255_255_255/0.035),rgb(255_255_255/0.01))] p-3.5";
 
@@ -80,6 +83,11 @@ export function Pulse({ className = "" }: { className?: string }) {
               </span>
             ))}
           </div>
+        </article>
+
+        <article className={`${CARD} col-span-2 p-4`}>
+          <Glow rgb="45 212 191" />
+          <SystemCard />
         </article>
 
         <article className={`${CARD} col-span-2 p-4`}>
