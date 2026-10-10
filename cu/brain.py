@@ -462,7 +462,9 @@ def translate_request(body: dict, strip_images: bool = False, signatures: dict |
         content = m.get("content")
         if role == "user":
             if isinstance(content, str):
-                msgs.append({"role": "user", "content": content})
+                # R47 (kosa la SafariSmart run5): user TUPU ("" — ishara ya "endelea" ya CLI)
+                # inatupwa na Gemini → mwisho unaonekana assistant → 400 model-turn.
+                msgs.append({"role": "user", "content": content if content.strip() else R45_CONTINUE_TURN})
                 continue
             tool_msgs: list[dict] = []
             user_parts: list[dict] = []
@@ -492,7 +494,9 @@ def translate_request(body: dict, strip_images: bool = False, signatures: dict |
                 if user_parts:
                     msgs.append({"role": "user", "content": user_parts})
             else:
-                msgs.append({"role": "user", "content": user_parts or ""})
+                # R47: blocks zote zimetupuliwa (mf. tool_results zote ziko kwenye `dropped`) —
+                # usitume user TUPU; Gemini inamwaga → model-turn ya uongo.
+                msgs.append({"role": "user", "content": user_parts if user_parts else [{"type": "text", "text": R45_CONTINUE_TURN}]})
         elif role == "assistant":
             text_parts: list[str] = []
             calls: list[dict] = []
@@ -548,9 +552,18 @@ def translate_request(body: dict, strip_images: bool = False, signatures: dict |
     # R45-A (agizo la Mkuu 10-10 usiku): Anthropic prefill — ombi linaloishia assistant-turn
     # ("endelea ulipoishia") — inakataliwa na Gemini kwa 400. Tafsili sahihi: ongeza user-turn
     # bandia inayomwomba model kuendelea HAPO alipoishia, bila kurudia yaliyoandikwa.
+    # R47 backstop: user yenye maudhui TUPU/mtupu-wa-nafasi mwishoni inakataliwa na Gemini
+    # vilevile (inamwaga turn → mwisho = assistant). Inajazwa na continue-turn.
     msgs = payload.get("messages") or []
-    if msgs and msgs[-1].get("role") == "assistant":
-        msgs.append({"role": "user", "content": R45_CONTINUE_TURN})
+    if msgs:
+        last = msgs[-1]
+        if last.get("role") == "assistant":
+            msgs.append({"role": "user", "content": R45_CONTINUE_TURN})
+        elif last.get("role") == "user":
+            c = last.get("content")
+            empty = (c is None) or (isinstance(c, str) and not c.strip()) or (isinstance(c, list) and not [p for p in c if isinstance(p, dict) and str(p.get("text") or p.get("type") or "").strip()])
+            if empty:
+                last["content"] = R45_CONTINUE_TURN
     return payload
 
 

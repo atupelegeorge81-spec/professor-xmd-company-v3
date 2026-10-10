@@ -867,6 +867,55 @@ class TestR45ShapeError(unittest.TestCase):
         self.assertEqual(payload["error"]["type"], "overloaded_error")
 
 
+# ---------------------------------------------------------------- R47 · USER-TUPU (kosa la run5)
+# CLI hutuma user "" kama ishara ya "endelea" (tabia ya Anthropic). Gemini inamwaga turn
+# ya user mtupu → ombi linaonekana linaishia assistant → 400 "model turn". Tafsiri sasa
+# inajaza continue-turn; backstop ya mwisho inahakikisha user mwisho SI tupu kamwe.
+
+class TestR47EmptyUser(unittest.TestCase):
+    def _last(self, body):
+        p = brain.translate_request(body)
+        return p["messages"][-1]
+
+    def test_user_tupu_mwishoni_inajazwa(self):
+        m = self._last({"model": "x", "max_tokens": 8, "messages": [
+            {"role": "user", "content": "anza"},
+            {"role": "assistant", "content": "nimeanza"},
+            {"role": "user", "content": ""}]})
+        self.assertEqual(m["role"], "user")
+        self.assertTrue(str(m["content"]).strip(), "content si tupu tena")
+        self.assertIn("Continue", str(m["content"]))
+
+    def test_user_whitespace_inajazwa(self):
+        m = self._last({"model": "x", "max_tokens": 8, "messages": [
+            {"role": "user", "content": "anza"},
+            {"role": "user", "content": "   "}]})
+        self.assertTrue(str(m["content"]).strip())
+
+    def test_blocks_zote_zimetupuliwa_inajazwa(self):
+        m = self._last({"model": "x", "max_tokens": 8, "messages": [
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "x"}]}]})
+        # bila `dropped`: tool_msg inabaki (mwisho = tool — halali); na kwa dropped:
+        p = brain.translate_request({"model": "x", "max_tokens": 8, "messages": [
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "x"}]}]},
+            dropped={"t1"})
+        last = p["messages"][-1]
+        self.assertEqual(last["role"], "user")
+        self.assertTrue(str(last["content"]).strip(), "blocks zikitupuliwa → continue-turn, si tupu")
+
+    def test_user_wa_kawaida_haugusiwi(self):
+        m = self._last({"model": "x", "max_tokens": 8, "messages": [
+            {"role": "user", "content": "anza kazi yako"}]})
+        self.assertEqual(m["content"], "anza kazi yako")
+
+    def test_mwisho_wa_tool_unabaki_tool(self):
+        p = brain.translate_request({"model": "x", "max_tokens": 8, "messages": [
+            {"role": "user", "content": "angalia"},
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "bash", "input": {"command": "ls"}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "a.txt"}]}]})
+        self.assertEqual(p["messages"][-1]["role"], "tool", "mzunguko wa kawaida wa tools haubadilishwi")
+
+
 # ---------------------------------------------------------------- R38-RC1 · stream idle + deadline
 
 class TestStreamIdleDeadline(unittest.TestCase):
