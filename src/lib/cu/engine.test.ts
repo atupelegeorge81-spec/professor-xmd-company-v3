@@ -125,6 +125,45 @@ describe("R31 · handleCuEvent — shaping + dedupe + usage", () => {
     expect(miss).toContain("Utekelezaji wa XMD Computer");
   });
 
+  it("TASK-3: finish (ripoti) + run_end \"stuck\" → STUCK, ok=false, si completed (hata na ripoti)", () => {
+    const runner = fakeRunner();
+    const { hooks, calls } = fakeHooks(runner);
+    handleCuEvent(runner, hooks, { i: 2, type: "finish", report: "# Ripoti\n\nnimekwama", partial: true, status: "stuck" });
+    handleCuEvent(runner, hooks, { i: 3, type: "run_end", status: "stuck", steps: 40, ms: 60_000 });
+    expect(runner.cu?.done).toBe(false);
+    expect(runner.finale?.computer).toBeUndefined();
+    expect(runner.cu?.finalState).toBe("STUCK");
+    const chip = readCuChip(runner.items);
+    expect(chip?.finalState).toBe("STUCK");
+    expect(chip?.done).toBe(false);
+    const end = runner.items.find((it: any) => it.cu === "run_end") as any;
+    expect(end.finalState).toBe("STUCK");
+    const pd = calls.broadcasts.find((e: any) => e.type === "cu" && e.cu?.type === "phase_done") as any;
+    expect(pd.cu.ok).toBe(false);
+    expect(pd.cu.finalState).toBe("STUCK");
+    expect(calls.chips.some((c) => c.includes("STUCK"))).toBe(true);
+  });
+
+  it("TASK-3: done + ripoti → COMPLETED_UNVERIFIED; maneno yanasema 'NOT yet verified'", () => {
+    const runner = fakeRunner();
+    const { hooks, calls } = fakeHooks(runner);
+    handleCuEvent(runner, hooks, { i: 2, type: "finish", report: "# Ripoti", partial: false, status: "done" });
+    handleCuEvent(runner, hooks, { i: 3, type: "run_end", status: "done", steps: 5, ms: 1000 });
+    expect(runner.cu?.done).toBe(true);
+    expect(readCuChip(runner.items)?.finalState).toBe("COMPLETED_UNVERIFIED");
+    expect(calls.chips.some((c) => c.includes("NOT yet verified"))).toBe(true);
+  });
+
+  it("TASK-3: status isiyojulikana → ERROR (si ok kimya)", () => {
+    const runner = fakeRunner();
+    const { hooks } = fakeHooks(runner);
+    handleCuEvent(runner, hooks, { i: 2, type: "finish", report: "# Ripoti", partial: false, status: "zzz" });
+    handleCuEvent(runner, hooks, { i: 3, type: "run_end", status: "zzz", steps: 5, ms: 1000 });
+    expect(runner.cu?.done).toBe(false);
+    expect(runner.cu?.finalState).toBe("ERROR");
+    expect(runner.cu?.finalReason).toContain("zzz");
+  });
+
   it("shot broadcast haina base64 (bandwidth) — data inakwenda bucket pekee", () => {
     const runner = fakeRunner();
     const { hooks, calls } = fakeHooks(runner);

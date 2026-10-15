@@ -1431,8 +1431,13 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
           add({ kind: "cuPause", id: nid(), resumeAt: Number((cu as any).resume_at) || 0, ms: Number(cu.ms) || 0, steps: Number(cu.steps) || 0 } as any);
           break;
         }
+        // TASK-3: ok TU kwa COMPLETED_UNVERIFIED — stuck/blocked/unknown si "done" tena (hata na ripoti).
+        // Items mpya zina finalState (engine); live/legacy bila finalState: "done"/"ok"/"success" pekee ni done.
+        const fs = cu.finalState ? String(cu.finalState) : undefined;
+        const okEnd = fs ? fs === "COMPLETED_UNVERIFIED" : ["done", "ok", "success"].includes(String(cu.status || "done").toLowerCase());
         patch<CuRunItem>(cuRunUi, {
-          status: String(cu.status || "done") === "error" ? "error" : "done",
+          status: okEnd ? "done" : "error",
+          ...(fs ? { finalState: fs, finalReason: cu.finalReason ? String(cu.finalReason) : undefined } : {}),
           finished: true,
           ms: Number(cu.ms) || undefined,
           github: firstUrl(cu.github) || run?.github || "",
@@ -1445,7 +1450,10 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       case "phase_done": {
         closeCuThink(); // R38-RC4: pause/error ya awamu — think wazi inafungwa
         const st = String(cu.status || "") === "paused" ? "paused" : cu.ok ? "done" : "error";
-        if (cuRunUi) patch<CuRunItem>(cuRunUi, { status: st, finished: true });
+        if (cuRunUi) patch<CuRunItem>(cuRunUi, {
+          status: st, finished: true,
+          ...(cu.finalState ? { finalState: String(cu.finalState), finalReason: cu.finalReason ? String(cu.finalReason) : undefined } : {}), // TASK-3
+        });
         break;
       }
       default: break; // step_start, usage_total — live tu

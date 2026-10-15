@@ -303,6 +303,8 @@ export interface CuRunItem {
   github: string; deploy: string;
   screenshots: number;
   startedAt: number; finished: boolean; ms?: number;
+  /** TASK-3: hali ya mwisho (COMPLETED_UNVERIFIED/STUCK/BLOCKED/PARTIAL/ERROR) + sababu */
+  finalState?: string; finalReason?: string;
 }
 
 /** engine: finish event → RIPOTI KAMILI kama DOCUMENT (ReportBody) — si card ya stream. */

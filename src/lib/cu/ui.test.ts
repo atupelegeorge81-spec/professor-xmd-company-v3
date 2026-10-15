@@ -205,6 +205,35 @@ describe("R31 · adapter ya XMD Computer (timeline)", () => {
     expect(t.find<CuReportItem>("cuReport")?.doc).toBe("Ripoti kamili");
   });
 
+  it("TASK-3: replay ya run_end STUCK (ripoti ipo) → card ni 'error' + finalState — si 'done'", () => {
+    const t = run();
+    const events = savedToEvents(
+      [
+        { kind: "cu", id: "a", cu: "divider" },
+        { kind: "cu", id: "b", cu: "run_start", task: "Temeke" },
+        { kind: "cu", id: "h", cu: "report", text: "Ripoti ya sehemu", status: "stuck", partial: true },
+        { kind: "cu", id: "i", cu: "run_end", status: "stuck", finalState: "STUCK", finalReason: "stuck", tokens: 5, requests: 1 },
+      ] as any,
+      "Duka la Matunda la Temeke",
+    );
+    for (const ev of events) t.a.apply(ev);
+    const it = t.find<CuRunItem>("cuRun")!;
+    expect(it.status).toBe("error");
+    expect(it.finalState).toBe("STUCK");
+  });
+
+  it("TASK-3: live run_end 'stuck' (bila finalState) + phase_done ok=false → 'error'", () => {
+    const t = run();
+    t.cu({ type: "divider" });
+    t.cu({ type: "run_start", task: "Temeke" });
+    t.cu({ type: "run_end", status: "stuck", steps: 3, ms: 10 });
+    expect(t.find<CuRunItem>("cuRun")!.status).toBe("error");
+    t.cu({ type: "phase_done", ok: false, status: "stuck", finalState: "STUCK", finalReason: "stuck" });
+    const it = t.find<CuRunItem>("cuRun")!;
+    expect(it.status).toBe("error");
+    expect(it.finalState).toBe("STUCK");
+  });
+
   it("summary: tokens za 'computer' zina mstari wake (si Optimus)", () => {
     const t = run();
     t.a.apply({ type: "summary", usage: { pm: { requests: 2, tokens: 500 }, computer: { requests: 23, tokens: 590607 } } } as any);

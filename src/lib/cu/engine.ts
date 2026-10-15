@@ -17,6 +17,7 @@ import { InputFile } from "node-appwrite/file";
 import { appwriteConfigured, databases, DB, storage, SCREENSHOTS_BUCKET } from "@/lib/server/appwrite";
 import { publicFileUrl } from "@/lib/server/supabase"; // R42.1
 import { mirrorEvent, mirrorMapOf, restoreFromMirror, sandboxAlive } from "./mirror"; // R44: kiovu + liveness
+import { computeFinalOutcome, type CuFinalState } from "./finalState"; // TASK-3
 import { FEATURE_LIST_SANDBOX_PATH, featureListJson, featuresFromPlan } from "./features"; // R50-Awamu 1
 import { getPlanBySession, PROJECT_PLANS_COL, type ProjectPlanDoc } from "@/lib/server/plans";
 import { unpack } from "@/lib/server/packed";
@@ -92,6 +93,9 @@ export interface CuRunState {
   resumeAt?: number;
   /** TASK-1: asili ya pause — user(Detach) haiwakabiliwi na recovery ya system */
   pauseOrigin?: PauseOrigin;
+  /** TASK-3: hali ya mwisho ya run (COMPLETED_UNVERIFIED/STUCK/…); ikipo run imefikia run_end */
+  finalState?: CuFinalState;
+  finalReason?: string;
   snapshot?: { fileId: string; bucketId: string };
   /** R44-B: kifo cha sandbox — resume inarestore kutoka kiovu (cu_files) + ujumbe wa deps. */
   rebuild?: boolean;
@@ -130,6 +134,9 @@ export interface CuChip {
   resumeAt?: number;
   /** TASK-1: asili ya pause (user=Detach hai-acceptwi na system; system=inarecover) */
   pauseOrigin?: PauseOrigin;
+  /** TASK-3: hali ya mwisho (stuck haikubaliki tena kuwa "done") */
+  finalState?: CuFinalState;
+  finalReason?: string;
   snapshot?: { fileId: string; bucketId: string };
   /** R44-B: kifo cha sandbox — resume inarestore kutoka kiovu (cu_files) + ujumbe wa deps. */
   rebuild?: boolean;
@@ -180,6 +187,8 @@ export function ensureCuState(runner: Runner, token?: string): CuRunState {
       resumeAt: chip?.resumeAt,
       snapshot: chip?.snapshot,
       rebuild: !!chip?.rebuild, // R44-B: kifo cha sandbox — restore kutoka kiovu
+      finalState: chip?.finalState, // TASK-3
+      finalReason: chip?.finalReason,
     };
     for (const it of runner.items as any[]) {
       if (it?.kind === "cu" && typeof it.i === "number") runner.cu.seen.add(`${it.cu}:${it.i}`);
@@ -420,6 +429,8 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
   if (cu.done) return;
   // R38-RC5: awamu inaanza → pause ya ZAMANI inaisha (events mpya za bridge zinakubalika tena)
   cu.pausedNow = false;
+  // TASK-3: run mpya/inayoendelezwa → hali ya mwisho ya run iliyopita (mf. STUCK) si ya sasa tena
+  cu.finalState = undefined; cu.finalReason = undefined;
   // R31-G4: awamu MPYA = promise MPYA (ile ya run iliyopita imesharesolve — bila hii,
   // awaitPhase ingerudi MARA MOJA na run ingeisha huku bridge bado unaendelea)
   cu.phaseDone = new Promise<void>((res) => { cu.phaseResolve = res; });
@@ -1239,7 +1250,15 @@ function finishComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): voi
   stopHeartbeat(cu);
   if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; } // race: "running" isiandike juu ya status ya mwisho
   const status = String(ev.status || "done");
-  const ok = !!cu.report && status !== "error";
+  // TASK-3: heuristic ya hali ya mwisho — "stuck" + ripoti si success tena; unknown status si "ok" kimya.
+  const outcome = computeFinalOutcome({
+    status, hasReport: !!cu.report, paused: false,
+    error: ev.fatal ? String(ev.fatal).slice(0, 200) : undefined,
+  });
+  const finalState: CuFinalState = outcome.state;
+  const ok = outcome.ok; // ok === (finalState === "COMPLETED_UNVERIFIED") — hii pekee inahesabika (interim)
+  cu.finalState = finalState;
+  cu.finalReason = outcome.reason;
 
   // tree ya mwisho ya files (Files badge ya replay) — kwa Ujumla hii ndiyo kamili zaidi
   const treeFinal = cu.files || [];
@@ -1252,6 +1271,7 @@ function finishComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): voi
 
   runner.items.push({
     kind: "cu", id: `cu_end_${runner.items.length}`, i: ev.i, cu: "run_end", status,
+    finalState, finalReason: outcome.reason, // TASK-3
     steps: ev.steps, ms: ev.ms, github: cu.links.repo, live: cu.links.live,
     tokens: cu.usage.tokens, requests: cu.usage.requests,
   } as any);
@@ -1264,12 +1284,12 @@ function finishComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): voi
     cu.done = true;
     runner.finale = { ...(runner.finale || {}), computer: true };
     if (hooks) {
-      hooks.blog("success", `✅ XMD Computer imemaliza (${cu.usage.requests} LLM calls · ${cu.usage.tokens.toLocaleString("en-US")} tokens · GitHub ${cu.links.repo ? "✓" : "✗"} · Vercel ${cu.links.live ? "✓" : "✗"}).`);
-      hooks.addChip(`🖥️ XMD Computer amemaliza: ripoti + ${cu.usage.tokens.toLocaleString("en-US")} tokens.`);
+      hooks.blog("success", `✅ XMD Computer: completed, NOT yet verified — imekamilika, HAIJATHIBITISHWA bado (${cu.usage.requests} LLM calls · ${cu.usage.tokens.toLocaleString("en-US")} tokens · GitHub ${cu.links.repo ? "✓" : "✗"} · Vercel ${cu.links.live ? "✓" : "✗"}).`);
+      hooks.addChip(`🖥️ XMD Computer: completed, NOT yet verified — ripoti + ${cu.usage.tokens.toLocaleString("en-US")} tokens.`);
     }
   } else if (hooks) {
-    hooks.blog("error", `❌ XMD Computer haijakamilika (${status}${ev.fatal ? ` · ${ev.fatal}` : ""}) — Endeleza inarudisha.`);
-    hooks.addChip("❌ XMD Computer haijakamilika — bonyeza ▶ Endeleza kuiendeleza.");
+    hooks.blog("error", `❌ XMD Computer haijakamilika — ${finalState} (${outcome.reason || status}) — Endeleza inarudisha.`);
+    hooks.addChip(`❌ XMD Computer haijakamilika (${finalState}) — bonyeza ▶ Endeleza kuiendeleza.`);
   }
 
   // chip ya CU state (resume + Files badge) + persist ya mwisho — R31-G4: status ya MWISHO
@@ -1278,7 +1298,7 @@ function finishComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): voi
   writeCuChip(runner);
   if (hooks) {
     void hooks.persist(ok ? "completed" : "finale_incomplete", hooks.title);
-    hooks.bcast({ type: "cu", cu: { type: "phase_done", ok, status } });
+    hooks.bcast({ type: "cu", cu: { type: "phase_done", ok, status, finalState, finalReason: outcome.reason } });
   }
 }
 
@@ -1288,6 +1308,7 @@ export function cuChipItemOf(runner: Runner): ReturnType<typeof cuChipItem> {
     v: 1, sandboxId: cu.sandboxId, token: cu.token, maxI: cu.maxI,
     repo: cu.links.repo, live: cu.links.live, done: cu.done, files: cu.files, report: cu.report,
     pausedOnce: cu.pausedOnce, resumeAt: cu.resumeAt, pauseOrigin: cu.pauseOrigin, snapshot: cu.snapshot, rebuild: !!cu.rebuild,
+    finalState: cu.finalState, finalReason: cu.finalReason, // TASK-3
   });
 }
 

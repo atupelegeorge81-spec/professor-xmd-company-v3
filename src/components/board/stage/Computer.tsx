@@ -172,7 +172,7 @@ export function CuRunCard({ it }: { it: CuRunItem }) {
             <p className="truncate text-[11.5px] text-[var(--color-muted)]" title={it.task}>{it.task}</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            {running ? <Tag tone="violet">Inatekeleza…</Tag> : paused ? <Tag tone="warn">Imepumzika</Tag> : it.status === "error" ? <Tag tone="bad">Imesimama</Tag> : <Tag tone="ok">Imekamilika</Tag>}
+            {running ? <Tag tone="violet">Inatekeleza…</Tag> : paused ? <Tag tone="warn">Imepumzika</Tag> : it.status === "error" ? <Tag tone="bad">{it.finalState ? `Imesimama · ${it.finalState}` : "Imesimama"}</Tag> : <Tag tone="ok">Imekamilika · haijathibitishwa</Tag>}
             <span className="flex items-center gap-1 font-mono text-[9.5px] text-[var(--color-faint)]">
               {compact(it.tokens)} tk · {it.requests} calls{running ? ` · hatua ${it.step}` : ""}{!running && mm ? ` · ${mm}s` : ""}
             </span>
