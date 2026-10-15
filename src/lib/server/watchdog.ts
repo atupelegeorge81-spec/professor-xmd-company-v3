@@ -38,6 +38,11 @@ const G: WatchState = ((globalThis as any).__r43watch ??= {
   events: [] as WatchEvent[],
 } as WatchState);
 
+/** TASK-1 (hatua 7): KWA MAJARIBIO TU — pitisha system pause bila kusubiri RAM iwe 78%. */
+export async function runSystemPauseForTest(reason: string, resumeMs: number): Promise<void> {
+  return cooldown(reason, resumeMs, true);
+}
+
 export function watchdogState() {
   return {
     on: G.startedAt > 0,
@@ -71,21 +76,27 @@ async function cooldown(reason: string, resumeMs: number, force = false): Promis
     const r = br.activeRunner();
     if (r && r.status === "running") {
       const cu = r.cu;
-      if (r.cuHooks && cu && !cu.done && !cu.pausedNow && !cu.pausing) {
+      // TASK-1 (hatua 5): user-paused runner HAIWAKABILIWI na system — mrundikano (msingi mkubwa wa ram)
+      if (r.pauseOrigin === "user") {
+        ev("log", (await readRam()).pct, `${reason} — runner ka-pause DETACH (user) — haigusiwi kabisa`);
+      } else if (r.cuHooks && cu && !cu.done && !cu.pausedNow && !cu.pausing) {
         const { pauseComputerFromServer } = await import("@/lib/cu/engine");
         // kudumu: snapshot (workspace zetu ~110KB = sekunde chache) + persist + auto-resume timer
-        await pauseComputerFromServer(r, r.cuHooks, reason, Date.now() + resumeMs).catch(() => {});
+        await pauseComputerFromServer(r, r.cuHooks, reason, Date.now() + resumeMs, "system").catch(() => {});
       } else {
-        br.pauseRun(r.id); // discussion: pause ya neema (in-flight inakatwa kwenye gate)
+        br.pauseRun(r.id, "system"); // discussion: pause ya neema (in-flight inakatwa kwenye gate)
         const t = setTimeout(async () => {
           try {
             const rr = br.findRunner(r.id);
-            if (rr && rr.status === "paused") {
-              if (br.unpauseRun(rr)) ev("resume", (await readRam()).pct, "mjadala umeendelea pale pale (cooldown ilikamilika)");
-            }
+            if (!rr || rr.status !== "paused") return;
+            if (rr.pauseOrigin !== "system") return; // TASK-1 (hatua 5): maisha yamebadilika (user Detach) — timer haifanyi kazi
+            if (br.unpauseRun(rr, "system")) { delete (globalThis as any).__xmdWdtResumers?.[r.id]; ev("resume", (await readRam()).pct, "mjadala umeendelea pale pale (cooldown ilikamilika)"); }
           } catch { /* kimya */ }
         }, resumeMs);
         t.unref?.();
+        // TASK-1 (hatua 5): weka kwenye globalThis + runner (Detach ya user hufuta)
+        ((globalThis as any).__xmdWdtResumers ??= {})[r.id] = t;
+        r.systemResumeTimer = t;
       }
       G.cooldowns += 1;
       G.lastCooldownAt = Date.now();

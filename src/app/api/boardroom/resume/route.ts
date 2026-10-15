@@ -16,6 +16,10 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
+  if (runner === "user_paused") {
+    // TASK-1: CEO Resume ndiyo njia pekee — (haitatikhi kwa by=\"user\", ila mapenzi ya kinga)
+    return Response.json({ error: "Mjadala huu umefungwa na Detach — Ruhusa inayohitajika iko kwako tu (Resume)." }, { status: 409 });
+  }
   if (runner === "pausing") {
     // R38-RC5: snapshot ya XMD Computer bado inapangwa (sekunde chache) — si kosa, ni subiri
     return Response.json(

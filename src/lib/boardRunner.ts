@@ -45,7 +45,7 @@ import { BOARD_PLAN_MODE } from "./env";
 import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, type MiniReportDoc } from "./server/miniReports";
 import { saveProjectPlan } from "./server/plans";
 // R31 · XMD COMPUTER (computer-use): engine ya phase ya mwisho — baada ya memory ya Board
-import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, type CuRunState, type CuHooks } from "./cu/engine";
+import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
 import {
   PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
   extractPlanSections, parsePlanSteps, assemblePlanDocument, officialDataMarkdown, constraintsMarkdown, constraintFallbackLines, PLAN_STEP_TEMPLATE,
@@ -58,12 +58,17 @@ export interface Runner {
   mode?: "code" | "plan";
   /** R16.1: "paused" = Detach — engine imesimama KABISA, hali yote iko hai kwenye memory; Resume inaendelea pale pale */
   status: "running" | "paused" | "completed" | "error";
+  /** TASK-1 (maelezo1): asili ya pause — "user" (Detach, HAIWAI kutoanishwa na system) | "system"
+   * (watchdog/SIGTERM/quota — inaruhusiwa ku-resume yenyewe). sticky: user haiharibiwi na system. */
+  pauseOrigin?: PauseOrigin;
   items: SessionItem[];
   buffer: BoardEvent[];
   /** ukubwa wa buffer utakaosababisha ubanaji unaofuata (runnerBuffer.ts) */
   compactAt?: number;
   subs: Set<(e: BoardEvent) => void>;
   startedAt: number;
+  /** TASK-1: handle ya timer ya watchdog cooldown (system) — kubatilishwa user-pause inapo-upgrade. */
+  systemResumeTimer?: NodeJS.Timeout;
   agenda?: AgendaItem[];
   sessionId?: string | null;
   /** Usage + muda kutoka session iliyohifadhiwa (resume) — hesabu inaendelea. */
@@ -136,13 +141,38 @@ function chip(runner: Runner, text: string) {
 }
 
 /** Detach: simamisha KABISA. Wito unaoendelea unakatwa sasa hivi; run() inasimama kwenye gate inayofuata. */
-export function pauseRun(id: string): Runner | null {
+export type PauseOrigin = "user" | "system";
+
+export function pauseRun(id: string, origin: PauseOrigin = "user"): Runner | null {
   const r = findRunner(id);
   if (!r) return null;
-  if (r.status === "paused") return r;
+  if (r.status === "paused") {
+    // TASK-1 (maelezo1 §4.2): Detach WAKATI system-pause inasonga → upgrade kwa "user" STICKY:
+    // resumeAt=future ya system inabatishwa (resumeAt=0 kwa CU), timers zote za system zingonene.
+    if (origin === "user" && r.pauseOrigin !== "user") {
+      r.pauseOrigin = "user";
+      if (r.systemResumeTimer) { clearTimeout(r.systemResumeTimer); r.systemResumeTimer = undefined; }
+      const wdt = (globalThis as any).__xmdWdtResumers;
+      if (wdt?.[r.id]) { clearTimeout(wdt[r.id]); delete wdt[r.id]; }
+      void import("./cu/engine").then((m) => m.cancelAutoResume(r.sessionId || r.id)).catch(() => {});
+      const cux = r.cu;
+      if (cux) {
+        cux.resumeAt = 0;
+        cux.pauseOrigin = "user";
+        writeCuChip(r);
+        // CU-phase tu ndipo autoResume/chip-scan inayoweza ku-resume yenyewe — persistence
+        // ya haraka kupitia hooks halisi (getPersistItems ina chip updates). Discussion
+        // haina CU chip — scan ya quota/auto-resume haitaigusa kamwe (hakuna resumeAt).
+        void (r.cuHooks ? r.cuHooks.persist("paused", r.cuHooks.title) : Promise.resolve());
+      }
+      chip(r, "⏸️ Detach: system-pause imebadilishwa kuwa pause yako — HAItaendelea kabisa mpaka ukibonyeze Resume.");
+    }
+    return r;
+  }
   if (r.status !== "running") return null;
   r.status = "paused";
   r.pausedAt = Date.now();
+  r.pauseOrigin = origin;
   r.pauseAbort?.abort();
   stateBus.update(r.id, { status: "paused" });
   chip(r, "⏸️ Mjadala umesimamishwa — hakuna agent anayeendelea. Bonyeza Resume kuendelea pale pale ulipoishia.");
@@ -151,7 +181,14 @@ export function pauseRun(id: string): Runner | null {
   // (cuHooks zinawekwa AU mara startComputerPhase inapoanza — mjadala wa discussion hauagusiwi.)
   const cu = r.cu;
   if (r.cuHooks && cu && !cu.done && !cu.pausedNow && !cu.pausing) {
-    void pauseComputerFromServer(r, r.cuHooks, "Detach — mjadala umesimamishwa na mwandamizi", 0).catch(() => {});
+    void pauseComputerFromServer(r, r.cuHooks, "Detach — mjadala umesimamishwa na mwandamizi", 0, origin).catch(() => {});
+  } else if (origin === "user" && cu && (cu.pausedNow || cu.pausing) && !cu.done) {
+    // TASK-1: Detach wakati system CU-pause inasonga/kwishaanza → pause MPYA haianzwi tena,
+    // ila upgrade inatumika kwa thabiti: resumeAt=0 (timer ya system haitaifanya kazi) + chip.
+    cu.resumeAt = 0;
+    cu.pauseOrigin = "user";
+    writeCuChip(r);
+    void (r.cuHooks ? r.cuHooks.persist("paused", r.cuHooks.title) : Promise.resolve());
   }
   // mijadala iliyosimamishwa isiwe mingi kwenye memory: ya zamani zaidi inaachwa (inabaki resumable kutoka Appwrite)
   const extra = pausedRunners().slice(MAX_PAUSED);
@@ -159,13 +196,16 @@ export function pauseRun(id: string): Runner | null {
   return r;
 }
 
-/** Resume/Attach: endelea pale pale. false = kuna mjadala mwingine unaoendelea sasa hivi. */
-export function unpauseRun(r: Runner): boolean {
+/** Resume/Attach: endelea pale pale. false = kuna mjadala mwingine unaoendelea sasa hivi.
+ * TASK-1 (maelezo1 §4.5): `by="system"` (auto-resume/watchdog) HAIRUHUSIWI kufungua Detach ya CEO. */
+export function unpauseRun(r: Runner, by: PauseOrigin = "user"): boolean {
   if (r.status !== "paused") return r.status === "running";
+  if (by === "system" && r.pauseOrigin === "user") return false;
   const other = activeRunner();
   if (other && other.id !== r.id) return false;
   if (r.pausedAt) r.startedAt += Date.now() - r.pausedAt; // muda wa kusimama hauhesabiwi
   r.pausedAt = undefined;
+  r.pauseOrigin = undefined; // TASK-1: CEO Resume inafuta origin — system pauses za baadaye zinaendelea kawaida
   r.status = "running";
   r.pauseAbort = new AbortController();
   stateBus.update(r.id, { status: "running" });
@@ -257,9 +297,9 @@ export function startRun(project: string, opts: { force?: boolean } = {}): Runne
 //   3) Server ilianza upya: runner anajengwa upya kutoka Appwrite kwa id ileile — kama (2).
 // `id` inaweza kuwa runner id AU session id. HAKUNA runner wa pili sambamba kwa mjadala mmoja (hiyo ndiyo iliyochanganya
 // agenda zamani: Resume ya session id iliunda runner mpya wakati wa zamani bado unaendelea).
-export type ResumeResult = Runner | "busy" | "pausing" | null;
+export type ResumeResult = Runner | "busy" | "pausing" | "user_paused" | null;
 
-export async function resumeRun(id: string): Promise<ResumeResult> {
+export async function resumeRun(id: string, by: PauseOrigin = "user"): Promise<ResumeResult> {
   const live = findRunner(id);
 
   if (live) {
@@ -267,7 +307,11 @@ export async function resumeRun(id: string): Promise<ResumeResult> {
     // vingine sandbox ingeuawa/kuunganishwa mara mbili.
     if ((live.cu as any)?.pausing) return "pausing";
     if (live.status === "running") return live;
-    if (live.status === "paused") return unpauseRun(live) ? live : "busy";
+    if (live.status === "paused") {
+      // TASK-1 (truth table): system auto-ish hairuhusu kuiendeleza Detach ya CEO
+      if (by === "system" && live.pauseOrigin === "user") return "user_paused";
+      return unpauseRun(live, by) ? live : "busy";
+    }
     if (live.status === "completed") return null;
     if (!live.agenda || live.agenda.length === 0) return null;
     const other = activeRunner();
@@ -299,9 +343,13 @@ export async function resumeRun(id: string): Promise<ResumeResult> {
   }
   if (!state || !Array.isArray(state.agenda) || state.agenda.length === 0 || typeof state.runnerId !== "string") return null;
 
+  // TASK-1 (reboot-while-user-paused): chip yenye pauseOrigin "user" hairehydratiwi na system-
+  // resumes (autoResumeSession). CEO Resume (by="user") inaendelea hapa chini kawaida.
+  if (by === "system" && state.pauseOrigin === "user") return "user_paused";
+
   // runner wa id hii yupo tayari (mf. Resume ilitumwa kwa session id wakati runner yuko hai) → tumia huyo
   const existing = runners.get(state.runnerId);
-  if (existing) return resumeRun(existing.id);
+  if (existing) return resumeRun(existing.id, by);
 
   const other = activeRunner();
   if (other) return "busy";
@@ -507,6 +555,7 @@ async function run(runner: Runner) {
           ...(runner.mode ? { mode: runner.mode } : {}),
           ...(runner.computerPlanned ? { computer: true } : {}),
           ...(runner.finale ? { finale: runner.finale } : {}),
+          ...(runner.pauseOrigin ? { pauseOrigin: runner.pauseOrigin } : {}), // TASK-1
         })
     } as SessionItem);
 

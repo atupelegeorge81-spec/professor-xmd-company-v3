@@ -24,8 +24,8 @@ export async function autoResumeSession(sessionId: string): Promise<boolean> {
   inflight.add(sessionId);
   try {
     const { resumeRun, streamRunner } = await import("@/lib/boardRunner");
-    const runner = await resumeRun(sessionId);
-    if (!runner || runner === "busy" || runner === "pausing") return false; // R38-RC5: "pausing" = snapshot bado inapangwa — tick ijayo itajaribu
+    const runner = await resumeRun(sessionId, "system"); // TASK-1: auto-recovery = system
+    if (!runner || runner === "busy" || runner === "pausing" || runner === "user_paused") return false; // R38-RC5: "pausing" = snapshot bado inapangwa — tick ijayo itajaribu; TASK-1: "user_paused" = user-Detach, KIMYA usiguse
     // stream isifungwe bila msomaji — tuna-drain kama "client" wa kimya (kazi inaendelea server-side)
     const res = streamRunner(runner) as unknown as Response;
     if (res?.body) {
@@ -65,6 +65,8 @@ export async function checkPausedDue(force = false): Promise<number> {
       const items = Array.isArray((d as any).items) ? (d as any).items : [];
       const chip = readCuChip(items);
       if (!chip || chip.done) continue;
+      // TASK-1 (hatua 4): chip yenye origin "user" au bila resumeAt — haigusiwi kabisa
+      if ((chip as any).pauseOrigin === "user") continue;
       const resumeAt = Number(chip.resumeAt) || 0;
       if (!resumeAt) continue; // pause ya mwandamizi (manual) — haigusiwi
       if (resumeAt <= now) {
