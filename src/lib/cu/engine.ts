@@ -28,7 +28,7 @@ import { slotKeys } from "@/lib/server/usageKeys";
 import { GEMINI_MODEL_SKIP } from "@/lib/env";
 import { GEM_ACCOUNTS, type GemAccountId } from "@/lib/usage/accounts";
 import type { ProviderUsage, UsageMap } from "@/lib/usageChip";
-import type { Runner } from "@/lib/boardRunner";
+import type { Runner, PauseOrigin } from "@/lib/boardRunner";
 import type { BoardEvent, LogEntry } from "@/lib/types";
 
 /* ============================ env ============================ */
@@ -90,6 +90,8 @@ export interface CuRunState {
   /** R31-G4: quota ya siku imeisha → pause (si error). pausedOnce = usirudie test-hook; snapshot = faili ya tar.gz kwenye bucket. */
   pausedOnce?: boolean;
   resumeAt?: number;
+  /** TASK-1: asili ya pause — user(Detach) haiwakabiliwi na recovery ya system */
+  pauseOrigin?: PauseOrigin;
   snapshot?: { fileId: string; bucketId: string };
   /** R44-B: kifo cha sandbox — resume inarestore kutoka kiovu (cu_files) + ujumbe wa deps. */
   rebuild?: boolean;
@@ -126,6 +128,8 @@ export interface CuChip {
   report?: string;
   pausedOnce?: boolean;
   resumeAt?: number;
+  /** TASK-1: asili ya pause (user=Detach hai-acceptwi na system; system=inarecover) */
+  pauseOrigin?: PauseOrigin;
   snapshot?: { fileId: string; bucketId: string };
   /** R44-B: kifo cha sandbox — resume inarestore kutoka kiovu (cu_files) + ujumbe wa deps. */
   rebuild?: boolean;
@@ -684,6 +688,7 @@ function pauseForRebuild(runner: Runner, hooks: CuHooks | null, reason: string):
   cu.pausedNow = true;
   cu.rebuild = true;
   cu.resumeAt = Date.now() + 2 * 60_000;
+  cu.pauseOrigin = "system"; // TASK-1
   cu.sandbox = undefined;
   cu.sandboxId = undefined;
   runner.items.push({ kind: "cu", id: `cu_pause_${runner.items.length}`, i: cu.maxI, cu: "pause", resumeAt: cu.resumeAt, reason: String(reason).slice(0, 200), steps: cu.step } as any);
@@ -1063,6 +1068,7 @@ function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void
   cu.pausedNow = true;
   const resumeAt = Number((ev as any).resume_at) || 0;
   cu.resumeAt = resumeAt;
+  cu.pauseOrigin = "system"; // TASK-1: pause ya bridge (run_pause) = system
   runner.items.push({ kind: "cu", id: `cu_pause_${runner.items.length}`, i: ev.i, cu: "pause", resumeAt, ms: ev.ms, steps: ev.steps } as any);
   if (hooks) {
     const t = resumeAt ? new Date(resumeAt).toLocaleTimeString("en-GB", { timeZone: "Africa/Dar_es_Salaam", hour12: false }) : "baadaye";
@@ -1091,7 +1097,7 @@ function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void
  *  MWANDAMIZI (haina auto-resume — Resume ya user tu); resumeAt>0 = watchdog (retry 10dk).
  *  Mkondo uleule wa quota-pause (pauseComputer) — tofauti kubwa: snapshot inatengenezwa
  *  NA SERVER hapa (bridge haijashiriki), kwa tar+files.read kutoka sandbox hai. */
-export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | null, reason: string, resumeAt: number): Promise<boolean> {
+export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | null, reason: string, resumeAt: number, origin: PauseOrigin = "system"): Promise<boolean> {
   const cu = runner.cu;
   // pausedNow = pause ya SASA (si historia ya pausedOnce — hiyo inaruhusu resume-continue)
   if (!cu || cu.done || cu.pausedNow || cu.pausing) return false;
@@ -1100,6 +1106,7 @@ export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | n
   if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; }
   cu.pausedOnce = true;
   cu.resumeAt = resumeAt;
+  cu.pauseOrigin = origin; // TASK-1: chip inabeba asili ya pause (Detach="user")
   cu.stallWarned = false;
   runner.items.push({ kind: "cu", id: `cu_pause_${runner.items.length}`, i: cu.maxI, cu: "pause", resumeAt, reason: String(reason).slice(0, 200), steps: cu.step } as any);
   if (hooks) {
@@ -1193,15 +1200,37 @@ export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | n
 }
 
 /** Timer ya ndani (instance ikizima, instrumentation/active-check zinakamilisha). */
+/** TASK-1: timers za auto-resume — Map ya globalThis (id-metiri kwa restart/hot-reload + cancel). */
+const autoResumeTimers: Map<string, NodeJS.Timeout> =
+  ((globalThis as any).__xmdAutoResumeTimers as Map<string, NodeJS.Timeout>) ??
+  (((globalThis as any).__xmdAutoResumeTimers = new Map<string, NodeJS.Timeout>()));
+
 export function scheduleAutoResume(sessionId: string, resumeAt: number): void {
   if (!sessionId || !resumeAt) return;
+  cancelAutoResume(sessionId); // moja tu per session — schedule mpya inaifuta ya zamani (race za re-pause)
   // resumeAt iliyoisha kabla (mtego wa re-pause au resume ilipotea): 60s — si 5s (loop nzito)
   const ms = Math.max(resumeAt > Date.now() ? 5_000 : 60_000, Math.min(resumeAt - Date.now(), 2_000_000_000));
-  setTimeout(() => {
-    void import("@/lib/cu/autoResume")
-      .then((m) => m.autoResumeSession(sessionId))
+  const t = setTimeout(() => {
+    autoResumeTimers.delete(sessionId);
+    // TASK-1 (hatua 3): msisimko wa moto — kama user ana-pause origin=”user”, USI-resume; futa kando kimya
+    void import("@/lib/boardRunner")
+      .then(async (br) => {
+        const runner = br.findRunner(sessionId); // inakubali session id pia
+        if (runner?.pauseOrigin === "user") return;
+        const m = await import("@/lib/cu/autoResume");
+        await m.autoResumeSession(sessionId);
+      })
       .catch((err) => console.warn(`[cu/autoResume] timer ya ${sessionId.slice(0, 8)}… imeshindikana: ${String(err).slice(0, 140)}`));
   }, ms);
+  autoResumeTimers.set(sessionId, t);
+}
+
+/** TASK-1: futa timer ya auto-resume ya session (Detachment-Upgrade au resume). */
+export function cancelAutoResume(sessionId: string): void {
+  const t = autoResumeTimers.get(sessionId);
+  if (!t) return;
+  clearTimeout(t);
+  autoResumeTimers.delete(sessionId);
 }
 
 function finishComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void {
@@ -1258,7 +1287,7 @@ export function cuChipItemOf(runner: Runner): ReturnType<typeof cuChipItem> {
   return cuChipItem({
     v: 1, sandboxId: cu.sandboxId, token: cu.token, maxI: cu.maxI,
     repo: cu.links.repo, live: cu.links.live, done: cu.done, files: cu.files, report: cu.report,
-    pausedOnce: cu.pausedOnce, resumeAt: cu.resumeAt, snapshot: cu.snapshot, rebuild: !!cu.rebuild,
+    pausedOnce: cu.pausedOnce, resumeAt: cu.resumeAt, pauseOrigin: cu.pauseOrigin, snapshot: cu.snapshot, rebuild: !!cu.rebuild,
   });
 }
 
