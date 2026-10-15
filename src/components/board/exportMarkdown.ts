@@ -63,7 +63,7 @@ export function boardMarkdown(title: string, prompt: string, items: StageItem[],
         break;
       case "cuRun":
         L.push("---", "", `### 🖥️ XMD Computer — ${it.task}`, "",
-          `- Hali: ${it.status === "run" ? "inaendelea" : it.status === "error" ? "imesimama" : it.status === "paused" ? "imepumzika (quota)" : "imekamilika"} · hatua ${it.step} · ${it.requests} LLM calls · ${it.tokens.toLocaleString()} tokens · files ${it.filesCount} · screenshots ${it.screenshots}`,
+          `- Hali: ${it.status === "run" ? "inaendelea" : it.status === "error" ? `imesimama${it.finalState ? ` (${it.finalState}${it.finalReason ? ` — ${it.finalReason}` : ""})` : ""}` : it.status === "paused" ? "imepumzika (quota)" : "imekamilika, HAIJATHIBITISHWA bado (completed, NOT yet verified)"} · hatua ${it.step} · ${it.requests} LLM calls · ${it.tokens.toLocaleString()} tokens · files ${it.filesCount} · screenshots ${it.screenshots}`,
           it.github ? `- GitHub: ${it.github}` : "", it.deploy ? `- Live: ${it.deploy}` : "", "",
           ...(it.files.length ? ["**Files za mwisho za workspace:**", "", ...it.files.slice(0, 60).map((f) => `- \`${typeof f === "string" ? f : f.path}\`${typeof f === "object" && f.isDir ? "/" : typeof f === "object" ? ` (${f.size}B)` : ""}`), ""] : []));
         break;
