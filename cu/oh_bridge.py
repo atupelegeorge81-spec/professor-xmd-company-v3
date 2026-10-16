@@ -32,7 +32,7 @@ import lanes  # noqa: E402
 import oh_router  # noqa: E402
 import shotlaw  # noqa: E402
 from oh_util import (_extract_steps, action_command, build_objective, first_words,
-                     is_text_toolcall, reasoning_of, split_think,
+                     is_text_toolcall, oh_tool_kind, reasoning_of, split_think,
                      read_shot_b64, shots_pending)
 
 BASE_TS = B.BASE_TS
@@ -264,10 +264,18 @@ async def main_async() -> None:
                 tid = str(getattr(ev, "tool_call_id", "") or getattr(action, "id", "") or f"t{len(cur_tools)}")
                 name = getattr(ev, "tool_name", "") or type(action).__name__
                 cmd = action_command(action) if action is not None else ""
-                cat, icon = B.classify_tool(name, cmd)
+                cat, icon = oh_tool_kind(name, action) or B.classify_tool(name, cmd)
                 cur_tools[tid] = {"name": name, "t0": time.time()}
+                extra = {}
+                if (name or "").lower() == "file_editor":  # Task 3b: cards za faili zinataka path/preview
+                    pth = getattr(action, "path", None)
+                    body = getattr(action, "file_text", None) or getattr(action, "new_str", None)
+                    if isinstance(pth, str) and pth:
+                        extra["path"] = pth[:400]
+                    if isinstance(body, str) and body:
+                        extra["preview"] = body[:2000]
                 em.emit("exec_start", step=step, id=tid, tool=icon, category=cat,
-                        command=cmd[:400])
+                        command=cmd[:400], **extra)
             elif isinstance(ev, ObservationEvent):
                 txt = _obs_text(ev)
                 tid = str(getattr(ev, "tool_call_id", "") or "")
@@ -332,6 +340,14 @@ async def main_async() -> None:
         "kwa ushahidi halisi (exit 0/assertion + artifact), si tamko. MWISHO WA KAZI, HARNESS "
         "ITA-RE-RUN checks zote yenyewe (default-FAIL) — madai ya uongo yataanguka hapo; weka "
         "evidence (browser/file yenye artifact HALISI disk) kwa kila assertion check.\n"
+        # Task 3b/Q-002: muundo HALISI unaosomwa na features_verify._assertion_evidence —
+        # bila hii agent hakujua aandike nini (live 0dbdc8af: kazi OK, harness 0/2).
+        "  MUUNDO WA EVIDENCE (kwa kila feature yenye check `kind:\"assertion\"`): ongeza kwenye "
+        "array `evidence` ya feature hiyo object kama "
+        '`{\"kind\": \"file\", \"ref\": \"hello.txt\", \"artifact\": \"hello.txt\", \"note\": \"wc -c = 5\"}` '
+        "— `kind` = \"file\" au \"browser\" (screenshot chini ya .xmd/shots/), `artifact` = path "
+        "(relative kwa workspace) ya faili HALISI lisilo tupu linalothibitisha check. Hariri "
+        "feature_list.json kwa FILE EDITOR; usibadilishe id/title/checks.\n"
         if os.path.exists(fl_path) else ""
     )
     resume_part = ("\n\nRESUME CONTEXT (hali halisi ya run iliyokatizwa):\n" + a.resume_note) if a.resume_note else ""
@@ -353,7 +369,7 @@ async def main_async() -> None:
         + plan_md
     )
 
-    judge_objective = build_objective(a.title, plan_md)
+    judge_objective = build_objective(a.title, plan_md, features=os.path.exists(fl_path))
     # Iterations za judge zinafuatana na UKUBWA WA MPANGO (si 10 daima): mikakati mirefu
     # inahitaji nafasi zaidi ya kujirekebisha; env inaweza kuvulalia (override).
     try:
