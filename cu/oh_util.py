@@ -209,3 +209,89 @@ def action_command(action) -> str:
             return v.strip()[:400]
     s = str(action)
     return first_words(s, 400)
+
+
+# --------------------------------------------------------------------- thinking (Task 3b)
+# Probe-iliyothibitishwa (2026-10-16): models za roster hurudisha "akili" kwa namna 4:
+#   1) message.reasoning_content            (Uno nemotron-3-super, laguna)
+#   2) reasoning / reasoning_details        (OpenRouter-style — litellm → reasoning_content)
+#   3) <think>…</think> INLINE kwenye content (Uno minimax-m2.7 — hii ndiyo ilivuja kwenye card)
+#      + <thought>…</thought> (Gemini include_thoughts), <thinking>…</thinking>
+#   4) tool-call iliyoandikwa kama JSON ya TEXT (nemotron-3-super) — si jibu, ifichwe
+_THINK_OPEN = ("<think>", "<thinking>", "<thought>")
+_THINK_CLOSE = ("</think>", "</thinking>", "</thought>")
+_GAP_RX = re.compile(r"\n[ \t]*\n[ \t]*\n")  # minimax: </think> hupotea, hubaki pengo la mistari 3
+
+
+def split_think(text: str) -> tuple[str, str]:
+    """content → (thinking, visible). Inashughulikia: block kamili; `</think>` pekee mwanzoni
+    (template iliweka <think> kwenye prompt); na `<think>` ISIYOFUNGWA — minimax kwenye tool
+    mode (E2B probe 2026-10-16): `<think>mawazo\n\n\nJibu` → mawazo yanaishia kwenye pengo
+    la mistari 3; bila pengo → yote ni thinking."""
+    s = text or ""
+    if not s:
+        return "", ""
+    thinking: list[str] = []
+    visible: list[str] = []
+    low = s.lower()
+    first_open = min([p for p in (low.find(t) for t in _THINK_OPEN) if p >= 0] or [len(s)])
+    closes = [(p, t) for t in _THINK_CLOSE if (p := low.find(t)) >= 0]
+    if closes and min(closes)[0] < first_open:
+        p, t = min(closes)
+        thinking.append(s[:p])
+        s = s[p + len(t):]
+    while s:
+        low = s.lower()
+        opens = [(p, t) for t in _THINK_OPEN if (p := low.find(t)) >= 0]
+        if not opens:
+            visible.append(s)
+            break
+        p, t = min(opens)
+        visible.append(s[:p])
+        rest = s[p + len(t):]
+        close = "</" + t[1:]
+        q = rest.lower().find(close)
+        if q >= 0:
+            thinking.append(rest[:q])
+            s = rest[q + len(close):]
+            continue
+        g = _GAP_RX.search(rest)
+        if g:
+            thinking.append(rest[:g.start()])
+            s = rest[g.end():]
+            continue
+        thinking.append(rest)
+        break
+    vis = re.sub(r"</?(think|thinking|thought)>", "", "".join(visible), flags=re.I)
+    th = "\n\n".join(t.strip() for t in thinking if t and t.strip())
+    return th, re.sub(r"[ \t]{2,}", " ", vis).strip()
+
+
+def reasoning_of(obj) -> str:
+    """reasoning_content + thinking_blocks (Anthropic-style) ya ActionEvent/Message — defensive."""
+    parts: list[str] = []
+    rc = getattr(obj, "reasoning_content", None)
+    if isinstance(rc, str) and rc.strip():
+        parts.append(rc.strip())
+    for b in getattr(obj, "thinking_blocks", None) or []:
+        t = getattr(b, "thinking", None)
+        # Gemini native: thinking_block ni nakala ya reasoning_content — usirudie
+        if isinstance(t, str) and t.strip() and not any(t.strip() in x for x in parts):
+            parts.append(t.strip())
+    return "\n\n".join(parts)
+
+
+_TOOLISH_KEYS = ('"action"', '"command"', '"tool"', '"name"', '"arguments"', '"path"', '"is_background"')
+
+
+def is_text_toolcall(text: str) -> bool:
+    """Lane dhaifu huandika tool-call kama JSON ya TEXT (finish=stop, hakuna tool_calls).
+    Kweli ikiwa jibu lote ni object ya JSON (au ```json block) yenye keys za tool."""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z]*\s*", "", t)
+        t = re.sub(r"\s*```$", "", t).strip()
+    if not (t.startswith("{") or t.startswith("[{")):
+        return False
+    head = t[:300]
+    return any(k in head for k in _TOOLISH_KEYS)

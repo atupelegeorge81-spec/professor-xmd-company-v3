@@ -32,6 +32,7 @@ import lanes  # noqa: E402
 import oh_router  # noqa: E402
 import shotlaw  # noqa: E402
 from oh_util import (_extract_steps, action_command, build_objective, first_words,
+                     is_text_toolcall, reasoning_of, split_think,
                      read_shot_b64, shots_pending)
 
 BASE_TS = B.BASE_TS
@@ -71,9 +72,14 @@ def _sdk_llm_for(lane: "lanes.Lane", usage_id: str):
     """LLM native kwa lane moja — providers zote kupitia openai-compatible base
     (Uno/OpenRouter/Groq/Gemini-openai-compat) — verified live kwa kimi/laguna."""
     from openhands.sdk import LLM
+    # Task 3b (E2B probe 2026-10-16, SDK 1.46 + litellm 1.100): kupitia openai-compat Gemini
+    # inakataa KILA call (400 "Unknown name prompt_cache_key" — SDK huiongeza daima). Provider
+    # native "gemini/" ya litellm inaidondosha (drop_params) na inarudisha thoughts kwenye
+    # reasoning_content → think card. Providers wengine: openai-compatible kama awali.
+    gem = lane.provider == "gemini"
     return LLM(
-        model="openai/" + lane.model,
-        base_url=lane.base,
+        model=("gemini/" if gem else "openai/") + lane.model,
+        base_url=None if gem else lane.base,
         api_key=lane.key,
         usage_id=usage_id + ":" + lane.lid[-48:],
         timeout=lane.timeout,
@@ -237,10 +243,23 @@ async def main_async() -> None:
                 parts.append(v.strip())
         return "\n".join(parts) if parts else str(obs)[:2000]
 
+    def emit_think(text: str) -> None:
+        # Task 3b: akili ya model → think card (si text ya kawaida). Formats 4 — oh_util.split_think
+        t = (text or "").strip()
+        if not t:
+            return
+        em.emit("think_start", step=step)
+        em.emit("think_delta", step=step, text=t[:6000])
+        em.emit("think_end", step=step, ms=0)
+
     def on_event(ev) -> None:
         nonlocal step, last_assistant_text
         try:
             if isinstance(ev, ActionEvent):
+                # tool_calls zikiwepo SDK huweka content kwenye ev.thought (+ reasoning_content)
+                th_txt = " ".join(getattr(t, "text", "") or "" for t in (getattr(ev, "thought", None) or []))
+                inline, _vis = split_think(th_txt)
+                emit_think("\n\n".join(x for x in (reasoning_of(ev), inline) if x))
                 action = getattr(ev, "action", None)
                 tid = str(getattr(ev, "tool_call_id", "") or getattr(action, "id", "") or f"t{len(cur_tools)}")
                 name = getattr(ev, "tool_name", "") or type(action).__name__
@@ -277,11 +296,12 @@ async def main_async() -> None:
                         t = getattr(p, "text", None)
                         if isinstance(t, str):
                             txt += t
-                txt = txt.strip()
+                inline, txt = split_think(txt)
+                emit_think("\n\n".join(x for x in (reasoning_of(msg), inline) if x))
                 # R46-dhambi: lane dhaifu wakati mwingine huandika tool-call kama JSON ya TEXT
-                # (k.m. {"action":"command",...}). Hiyo SI jibu la user — usiiweke ripoti,
-                # na usiionyeshe kama "text" (haikuwa akili inayojibu; ilikuwa mzengwe).
-                if txt and not (txt.startswith('{\"') and '\"action\"' in txt[:80]):
+                # (k.m. {"action":"command",...} / {"command":"echo…"}). Hiyo SI jibu la user —
+                # usiiweke ripoti, na usiionyeshe kama "text" (Task 3b: is_text_toolcall).
+                if txt and not is_text_toolcall(txt):
                     last_assistant_text = txt
                     note_urls(txt)
                     em.emit("text_start", step=step)
@@ -340,7 +360,7 @@ async def main_async() -> None:
         _steps_n = len(_extract_steps(plan_md))
     except Exception:
         _steps_n = 0
-    max_iter = int(os.environ.get("XMD_GOAL_MAX_ITER") or min(25, max(6, _steps_n)))
+    max_iter = int(os.environ.get("XMD_GOAL_MAX_ITER") or max(40, _steps_n * 3))  # Task 3b: CEO — 40 (bila dari ya 25)
 
     try:
         conversation.send_message(first_message)
