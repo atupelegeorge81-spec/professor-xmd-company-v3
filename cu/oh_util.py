@@ -122,10 +122,13 @@ def _retry_after_of(exc: BaseException) -> float | None:
 
 def classify_fail(exc: BaseException) -> tuple[str, float | None]:
     """kind zinazoendana na lanes.note_fail: rate_limited | server_error | timeout |
-    pool_busy | empty. 401/403 → server_error (lane icheze pwa muda mrefu)."""
+    pool_busy | empty | daily. 401/403 → server_error (lane icheze pwa muda mrefu)."""
     ra = _retry_after_of(exc)
     st = _status_of(exc)
     if st == 429:
+        # Gemini: "Quota exceeded … PerDay" = quota ya SIKU (si dakika) → cooldown ndefu
+        if re.search(r"per ?day|daily", f"{exc}", re.I):
+            return "daily", ra
         return "rate_limited", ra
     if st is not None and 500 <= st < 600:
         return "server_error", ra
