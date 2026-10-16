@@ -47,6 +47,9 @@ OH_OR_JUDGE_FALLBACK = "nvidia/nemotron-3.5-lightning:free"
 
 UNO_RPM_PER_MODEL = 1            # kanuni rasmi ya UnoRouter free (429 + Retry-After)
 OR_RPD_PER_ACCOUNT = 50          # free tier ya OpenRouter kwa siku kwa account
+MODEL_WIDE_KINDS = ("server_error", "timeout", "empty", "pool_busy")
+MODEL_FAIL_WINDOW = 120.0       # s — kosa la model linaathiri accounts zote kwa muda huu
+MODEL_FAIL_PENALTY = 10.0       # > tofauti ya rank kati ya model za family moja (5..10, 20..23)
 OR_JUDGE_RESERVE = 10           # spec §2: execution isimalize quota — judge fallback ina nafasi
                                 # (executor husimama 40/account; judge hufika 50; hesabu ni moja)
 UNO_BASE_DEFAULT = "https://api.unorouter.com/v1"
@@ -135,6 +138,10 @@ class LanePool:
         seed = int(hashlib.sha256((run_id or tier).encode()).hexdigest()[:8], 16) if run_id else 0
         self._ptr = seed % max(1, len(self.lanes))
         self.usage_path = "/home/user/lane-usage.jsonl"
+        # Afya ya MODEL (provider×model) kwa accounts zote: 503 "high demand"/stall/jibu tupu ni
+        # hali ya model nzima (live run 11: gemini-3.8-flash 503 → timeout → timeout kwa accounts
+        # tofauti). 429/daily ni za account/project — hazihesabiwi hapa.
+        self.model_health: dict[tuple[str, str], dict] = {}
 
     # ---- hali ya muda ----
     def _day_of(self, lane: Lane, t: float) -> str:
@@ -183,7 +190,18 @@ class LanePool:
         reliability_penalty = failure_ratio * 24.0
         load_penalty = min(st.req_count * 0.8, 40.0)
         tier_penalty = 30.0 if lane.tier2 else 0.0
-        return lane.rank + tier_penalty + latency_penalty + reliability_penalty + load_penalty
+        return (lane.rank + tier_penalty + latency_penalty + reliability_penalty + load_penalty
+                + self.model_penalty(lane))
+
+    def model_penalty(self, lane: Lane, t: float | None = None) -> float:
+        """Adhabu ya model nzima: kosa la karibuni (<MODEL_FAIL_WINDOW s) + uwiano wa makosa."""
+        mh = self.model_health.get((lane.provider, lane.model))
+        if not mh:
+            return 0.0
+        t = self.now() if t is None else t
+        ratio = mh["fails"] / max(1, mh["fails"] + mh["oks"])
+        recent = MODEL_FAIL_PENALTY if t - mh["last_fail"] < MODEL_FAIL_WINDOW else 0.0
+        return recent + ratio * 4.0  # laini: baada ya dirisha model bora inarudi kujaribiwa
 
     def pick(self, t: float | None = None, provider: str | None = None,
              include_tier2: bool = False) -> Lane | None:
@@ -221,6 +239,9 @@ class LanePool:
         st = self._st(lane)
         st.fails = 0
         st.ok_count += 1
+        mh = self.model_health.setdefault((lane.provider, lane.model), {"fails": 0, "oks": 0, "last_fail": 0.0})
+        mh["oks"] += 1
+        mh["last_fail"] = 0.0  # model imejibu sasa hivi — adhabu ya "karibuni" inaondoka
         st.in_tok += in_tok
         st.out_tok += out_tok
         st.total_ms += ms
@@ -234,6 +255,10 @@ class LanePool:
         t = self.now() if t is None else t
         st = self._st(lane)
         st.fails += 1
+        if kind in MODEL_WIDE_KINDS:
+            mh = self.model_health.setdefault((lane.provider, lane.model), {"fails": 0, "oks": 0, "last_fail": 0.0})
+            mh["fails"] += 1
+            mh["last_fail"] = t
         if kind == "not_found":
             # Provider 404 ina maana kuwa model/endpoint hii haipatikani. Zima lane kwa
             # run iliyopo; run mpya itajenga state mpya baada ya config/access kuangaliwa.

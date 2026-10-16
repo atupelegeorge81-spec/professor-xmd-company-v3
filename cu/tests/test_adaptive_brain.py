@@ -241,3 +241,32 @@ def test_openrouter_executor_inaacha_akiba_ya_judge():
     for _ in range(lanes.OR_JUDGE_RESERVE):
         pools["judge"].note_start(j, c())
     assert not [l for l in pools["judge"].eligible_lanes(c()) if l.provider == "openrouter"]
+
+
+def test_model_nzima_ikifeli_router_inahamia_model_nyingine_ya_family():
+    """Live run 11: gemini-3.8-flash 503/timeout kwa accounts 3 mfululizo. Kosa la model (5xx/
+    timeout) linaathiri accounts zote → slot inayofuata ya Flash inachagua model nyingine."""
+    c = Clock()
+    base = cfg()
+    base["gemini"]["flashModels"] = ["gemini-3.8-flash", "gemini-3.6-flash"]
+    pools = lanes.build_pools(base, run_id="model-health", now=c)
+    core = LaneRouterCore(pools["main"], pools["dharura"], now=c, sleep=c.tick, wait_cap=60.0,
+                          dispatch_schedule=("gemini-flash",))
+    first = core.acquire()
+    assert first.model == "gemini-3.8-flash"
+    core.failure(first, RuntimeError("503 Service Unavailable: high demand"))
+    second = core.acquire()
+    assert second.model == "gemini-3.6-flash", second.lid  # si 3.8 kwenye account nyingine
+    # 429 ni ya project/account tu — haiadhibu model kwa accounts nyingine
+    pools2 = lanes.build_pools(base, run_id="model-health-429", now=c)
+    core2 = LaneRouterCore(pools2["main"], pools2["dharura"], now=c, sleep=c.tick, wait_cap=60.0,
+                           dispatch_schedule=("gemini-flash",))
+    a = core2.acquire()
+    e429 = RuntimeError("rate limit")
+    e429.status_code = 429
+    core2.failure(a, e429)
+    b = core2.acquire()
+    assert b.model == "gemini-3.8-flash" and b.account != a.account
+    # baada ya dirisha, model inarudi kushindana (rank yake bora)
+    c.tick(lanes.MODEL_FAIL_WINDOW + 1)
+    assert pools["main"].model_penalty(first) < lanes.MODEL_FAIL_PENALTY
