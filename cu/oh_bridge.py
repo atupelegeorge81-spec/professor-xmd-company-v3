@@ -32,7 +32,7 @@ import lanes  # noqa: E402
 import oh_router  # noqa: E402
 import shotlaw  # noqa: E402
 from oh_util import (_extract_steps, action_command, build_objective, first_words,
-                     is_text_toolcall, oh_tool_kind, reasoning_of, split_think,
+                     is_text_toolcall, obs_failed, oh_tool_kind, reasoning_of, split_think,
                      read_shot_b64, shots_pending)
 
 BASE_TS = B.BASE_TS
@@ -231,6 +231,7 @@ async def main_async() -> None:
 
     # ------------------------------------------------------------- event → UI
     cur_tools: dict[str, dict] = {}
+    think_tids: set[str] = set()  # Task 3b: tool_call za `think` (hazina exec card)
 
     def _obs_text(ev) -> str:
         obs = getattr(ev, "observation", None)
@@ -263,6 +264,12 @@ async def main_async() -> None:
                 action = getattr(ev, "action", None)
                 tid = str(getattr(ev, "tool_call_id", "") or getattr(action, "id", "") or f"t{len(cur_tools)}")
                 name = getattr(ev, "tool_name", "") or type(action).__name__
+                if (name or "").lower() == "think":
+                    # Task 3b: tool ya ndani `think` (ThinkAction.thought) ni akili, si amri —
+                    # ilionekana "Ran command thought=…" (live c2ab16bd). Observation yake inarukwa.
+                    emit_think(str(getattr(action, "thought", "") or ""))
+                    think_tids.add(tid)
+                    return
                 cmd = action_command(action) if action is not None else ""
                 cat, icon = oh_tool_kind(name, action) or B.classify_tool(name, cmd)
                 cur_tools[tid] = {"name": name, "t0": time.time()}
@@ -279,11 +286,12 @@ async def main_async() -> None:
             elif isinstance(ev, ObservationEvent):
                 txt = _obs_text(ev)
                 tid = str(getattr(ev, "tool_call_id", "") or "")
+                if tid and tid in think_tids:
+                    think_tids.discard(tid)
+                    return
                 info = cur_tools.pop(tid, None) or {}
                 ms = int((time.time() - info.get("t0", time.time())) * 1000)
-                head = txt.lower()[:300]
-                err = ("error" in head or "exit code 1" in head or head.startswith("cannot execute")
-                       or "not registered" in head or "traceback (most recent" in head)
+                err = obs_failed(getattr(ev, "observation", None), txt)
                 note_urls(txt)
                 em.emit("exec_end", step=step, id=tid, exit=1 if err else 0, ms=ms,
                         chars=len(txt), lines=len(txt.splitlines()),

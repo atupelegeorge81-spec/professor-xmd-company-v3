@@ -66,3 +66,13 @@ class TestActionCommand(unittest.TestCase):
         self.assertEqual(oh_tool_kind("file_editor", NS(command="str_replace")), ("edit", "edit_file"))
         self.assertEqual(oh_tool_kind("task_tracker", NS()), ("skill", "skill"))
         self.assertIsNone(oh_tool_kind("terminal", NS(command="ls")))
+
+    def test_obs_failed_exit_code_halisi(self):
+        from types import SimpleNamespace as NS
+        from oh_util import obs_failed
+        self.assertTrue(obs_failed(NS(exit_code=127, is_error=False), "bash: xxd: command not found"))
+        self.assertFalse(obs_failed(NS(exit_code=0, is_error=False), "error: hii ni log tu, exit 0"))
+        self.assertTrue(obs_failed(NS(exit_code=None, metadata=NS(exit_code=2), is_error=False), "x"))
+        self.assertTrue(obs_failed(NS(is_error=True), "ok"))
+        self.assertTrue(obs_failed(NS(exit_code=-1, is_error=False), "Traceback (most recent call last)"))
+        self.assertFalse(obs_failed(None, "imeandikwa"))
