@@ -31,7 +31,8 @@ def _extract_verifications(plan_md: str) -> list[str]:
     return [m.group(1).strip() for m in VERIFY_RX.finditer(plan_md or "")]
 
 
-def build_objective(title: str, plan_md: str, evidence_dir: str = ".xmd/shots") -> str:
+def build_objective(title: str, plan_md: str, evidence_dir: str = ".xmd/shots",
+                    features: bool = False) -> str:
     """Objective ya run_goal: judge lazima athibitishe USHAHIDI, si madai.
 
     Inajumuisha steps zote + Verification commands VIVYO HIVYO (verbatim) — ndiyo
@@ -61,6 +62,16 @@ def build_objective(title: str, plan_md: str, evidence_dir: str = ".xmd/shots") 
         '     (server ilisimama, ukurasa umefunguliwa, content halisi imeonekana).',
         f'  d) Screenshots za deliverable zipo chini ya {evidence_dir}/ (shotlaw registry).',
         '  e) Ripoti ya mwisho ya Kiswahili imeandikwa (live link/GitHub kama zimetakiwa).',
+    ]
+    if features:
+        # Task 3b/Q-002: judge na harness walikuwa na mikataba tofauti — judge alisema COMPLETE,
+        # harness (features_verify) ikakataa assertions bila evidence → STUCK. Sasa mkataba mmoja.
+        parts += [
+            '  f) feature_list.json: KILA feature yenye check ya `assertion` ina kwenye `evidence` '
+            'object yenye kind "file" au "browser" na `artifact` = faili HALISI lililopo (agent '
+            'ameliandika/kulionyesha kwenye transcript). Harness ita-re-run kila kitu — bila hii ni INCOMPLETE.',
+        ]
+    parts += [
         '',
         'Mark INCOMPLETE ikikosa hata kimoja — kwa sababu agent hana ruhusa ya kumaliza kwa madai.',
     ]
@@ -203,6 +214,12 @@ def first_words(text: str, limit: int = 180) -> str:
 
 def action_command(action) -> str:
     """Amri/path ya action kwa exec chip — kutoka fields za kawaida za OpenHands."""
+    # Task 3b: file_editor ina command=(view|create|str_replace|insert|undo_edit) + path —
+    # chip ilionyesha "create" pekee (live 0dbdc8af). Onyesha "create hello.txt".
+    cmd, path = getattr(action, "command", None), getattr(action, "path", None)
+    if (isinstance(cmd, str) and cmd in ("view", "create", "str_replace", "insert", "undo_edit")
+            and isinstance(path, str) and path.strip()):
+        return f"{cmd} {path.strip()}"[:400]
     for attr in ("command", "path", "file_path", "url", "query"):
         v = getattr(action, attr, None)
         if isinstance(v, str) and v.strip():
@@ -295,3 +312,20 @@ def is_text_toolcall(text: str) -> bool:
         return False
     head = t[:300]
     return any(k in head for k in _TOOLISH_KEYS)
+
+
+_OH_EDITOR_KIND = {"view": ("read", "read_file"), "create": ("write", "write_file"),
+                   "str_replace": ("edit", "edit_file"), "insert": ("edit", "edit_file"),
+                   "undo_edit": ("edit", "edit_file")}
+
+
+def oh_tool_kind(name: str, action) -> tuple[str, str] | None:
+    """Task 3b: tools za OpenHands (file_editor/task_tracker) → (category, icon) za UI.
+    bridge.classify_tool inajua majina ya Claude tu → zilionekana "Ran command create".
+    None = tumia classify_tool kama awali (terminal n.k.)."""
+    n = (name or "").lower()
+    if n == "file_editor":
+        return _OH_EDITOR_KIND.get(str(getattr(action, "command", "") or ""), ("edit", "edit_file"))
+    if n == "task_tracker":
+        return "skill", "skill"
+    return None
