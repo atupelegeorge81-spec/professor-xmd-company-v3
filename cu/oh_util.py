@@ -58,10 +58,14 @@ def build_objective(title: str, plan_md: str, evidence_dir: str = ".xmd/shots",
         'VIPIMA VYAKO (judge — mark COMPLETE tu vipimo hivi vikithibitishwa kwenye transcript):',
         '  a) Kila hatua hapo juu ina USHAHIDI halisi kwenye transcript: command output yenye '
         '     exit 0, faili lililoandikwa na kusomwa, au assertion iliyopita — SI tamko la agent.',
+        '     USHAHIDI HALALI NI UJUMBE WA `tool:` (observation) PEKEE. Ujumbe wa `assistant:` wenye '
+        '     ```bash``` na "Matokeo:"/output/"imepita" ni DAI hata likionekana kama output halisi. '
+        '     Kama hatua au verification haina `tool:` observation yake → INCOMPLETE.',
         '  b) Verification commands zimeendeshwa baada ya kazi husika, na zimepita.',
         '  c) Ikiwa mpango ulitaka deliverable (website/app), kuna ushahidi kuwa INAFANYA KAZI '
         '     (server ilisimama, ukurasa umefunguliwa, content halisi imeonekana).',
-        f'  d) Screenshots za deliverable zipo chini ya {evidence_dir}/ (shotlaw registry).',
+        f'  d) IKIWA mpango ulitaka deliverable ya UI: screenshots zipo chini ya {evidence_dir}/ (shotlaw '
+        '     registry). Kazi bila UI (faili/CLI tu) HAIHITAJI screenshots — usiikatae kwa hilo.',
         '  e) Ripoti ya mwisho ya Kiswahili imeandikwa (live link/GitHub kama zimetakiwa).',
     ]
     if features:

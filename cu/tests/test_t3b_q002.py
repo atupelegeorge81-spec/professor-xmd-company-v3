@@ -50,6 +50,22 @@ class TestQ002(unittest.TestCase):
         self.assertNotIn("feature_list.json", build_objective("t", PLAN))
 
 
+class TestJudgeMadaiYaMaandishi(unittest.TestCase):
+    def test_objective_inasema_ushahidi_ni_tool_observation_tu(self):
+        # live ebb85d13 i=66: laguna aliandika ```bash``` + "Matokeo: `5`" bila kuendesha amri;
+        # judge (ultra) akakubali → harness 0/5 → STUCK. Transcript ya judge = "assistant:"/"tool:".
+        o = build_objective("t", "## Step 1: a\nVerification: `wc -c < hello.txt`\n", features=True)
+        self.assertIn("`tool:`", o)
+        self.assertIn("`assistant:`", o)
+        self.assertIn("INCOMPLETE", o)
+        # ebb85d13 A/B: ultra alikataa kazi ya CLI tu kwa "screenshots" — d) ni ya masharti
+        self.assertIn("HAIHITAJI screenshots", o)
+
+    def test_sheria_ya_agent_inakataza_matokeo_ya_kubuni(self):
+        law = (Path(__file__).resolve().parents[1] / "xmd-law.md").read_text(encoding="utf-8")
+        self.assertIn("KILA amri iendeshwe kwa TOOL", law)
+
+
 class TestActionCommand(unittest.TestCase):
     def test_file_editor_inaonyesha_path(self):
         from types import SimpleNamespace as NS

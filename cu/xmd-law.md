@@ -19,6 +19,8 @@ Faili hili ni sheria ya workspace huu. Agent yeyote anayefanya kazi hapa LAZIMA 
 - Kabla ya kusema "step X imekamilika", endesha Verification ya hatua hiyo KWA HALI.
   Ikiwa exit code si 0 au assertion imefeli → hatua HAIJAKAMILIKA.
 - Kamwe usidai mafanikio bila kuona ushahidi katika output halisi ya amri.
+- KILA amri iendeshwe kwa TOOL (terminal/file). Usiandike kamwe ```bash``` + "Matokeo: ..." kwenye
+  ujumbe wa maandishi badala ya kuiendesha — huo ni udanganyifu; judge na harness wataukataa (STUCK).
 
 ## 4. Ripoti ya mwisho (Kiswahili)
 - Mwishoni andika RIPOTI KAMILI ya Kiswahili: live link, GitHub, majaribio yaliyopita,
