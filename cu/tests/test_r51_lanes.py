@@ -45,25 +45,29 @@ def test_roster_safi_space_bunny_na_qwen_coder_zimetoka():
     models = {l.model for l in p["main"].lanes} | {l.model for l in p["dharura"].lanes} | {l.model for l in p["judge"].lanes}
     assert "space-bunny-alpha" not in models and "space-bunny-alpha:free" not in models
     assert "qwen3-coder-plus:free" not in models
-    assert "kimi-k3:free" in models
-    # Uno roster × akaunti mbili zote
-    kimi = [l for l in p["main"].lanes if l.model == "kimi-k3:free"]
-    assert sorted(l.account for l in kimi) == ["uno-1", "uno-2"]
-    assert all(l.rpm == 1 for l in kimi)
+    removed = {"laguna-s-2.1:free", "north-mini-code:free", "kimi-k3:free",
+               "codestral-latest:free", "deepseek-v4-flash:free"}
+    assert not (models & removed)
+    assert not any(l.provider == "groq" for pool in p.values() for l in pool.lanes)
+    assert {"minimax-m2.7:free", "deepseek-v4.1-flash:free"}.issubset(models)
+    # Uno model zilizobaki zina lanes kwa accounts zote mbili
+    minimax = [l for l in p["main"].lanes if l.model == "minimax-m2.7:free"]
+    assert sorted(l.account for l in minimax) == ["uno-1", "uno-2"]
+    assert all(l.rpm == 1 for l in minimax)
 
 
 def test_uno_rpm_1_per_account_per_model():
     c = Clock()
     p = pools(c)["main"]
-    lane = next(l for l in p.lanes if l.model == "kimi-k3:free" and l.account == "uno-1")
+    lane = next(l for l in p.lanes if l.model == "minimax-m2.7:free" and l.account == "uno-1")
     p.note_start(lane, c())
     elig = {(l.account, l.model) for l in p.eligible_lanes()}
-    assert ("uno-1", "kimi-k3:free") not in elig          # akaunti hii + model hii imejaa
-    assert ("uno-2", "kimi-k3:free") in elig               # akaunti nyingine bure
-    assert ("uno-1", "deepseek-v4-flash:free") in elig     # model nyingine bure
+    assert ("uno-1", "minimax-m2.7:free") not in elig      # account hii + model hii imejaa
+    assert ("uno-2", "minimax-m2.7:free") in elig           # account nyingine bado iko wazi
+    assert ("uno-1", "deepseek-v4.1-flash:free") in elig     # model nyingine bado iko wazi
     c.tick(61)
     elig2 = {(l.account, l.model) for l in p.eligible_lanes()}
-    assert ("uno-1", "kimi-k3:free") in elig2              # baada ya dakika — jireset ✓
+    assert ("uno-1", "minimax-m2.7:free") in elig2          # baada ya dakika — jireset ✓
 
 
 def test_rotation_inachanganya_lanes():
@@ -159,12 +163,58 @@ def test_judge_mpangilio_ultra_kwanza():
     assert not any("nemotron-3-super" in l.model for pool in allp.values() for l in pool.lanes)
     # fallback ya mwisho ni openrouter lightning
     assert p.lanes[-1].provider == "openrouter"
+    assert not any(l.model == "north-mini-code:free" for l in p.lanes)
 
 
 def test_roster_override_kupitia_cfg():
     cfg = cfg_sample()
-    cfg["ohRoster"] = {"uno_main": [["kimi-k3:free", 10]], "judge": ["kimi-k3:free"],
+    cfg["ohRoster"] = {"uno_main": [["kimi-k3:free", 10], ["minimax-m2.7:free", 30]],
+                       "judge": ["north-mini-code:free", "nemotron-3-ultra-550b-a55b:free"],
                        "uno_tier2": [], "or_main": []}
     p = lanes.build_pools(cfg, "x", Clock())
     uno_models = {l.model for l in p["main"].lanes if l.provider == "unorouter"}
-    assert uno_models == {"kimi-k3:free"}  # hakuna hardcode — override inalinda sheria
+    assert uno_models == {"minimax-m2.7:free"}  # override haiwezi kufufua model iliyofutwa
+    judge_models = {l.model for l in p["judge"].lanes if l.provider == "unorouter"}
+    assert judge_models == {"nemotron-3-ultra-550b-a55b:free"}
+    # Overrides za zamani haziwezi kufufua models zisizokuwa kwenye CU allowlist.
+    cfg["ohRoster"]["or_main"] = ["unlisted-model:free", "nvidia/nemotron-3.5-lightning:free"]
+    p2 = lanes.build_pools(cfg, "x2", Clock())
+    assert {l.model for l in p2["dharura"].lanes} == {"nvidia/nemotron-3.5-lightning:free"}
+
+
+def test_404_inaizima_lane_kwa_run_na_router_inaendelea():
+    c = Clock()
+    pool = pools(c)["main"]
+    lane = next(l for l in pool.lanes if l.provider == "gemini")
+    single = lanes.LanePool("single", [lane], now=c)
+    class NotFound(Exception):
+        status_code = 404
+    from oh_util import classify_fail
+    kind, retry_after = classify_fail(NotFound("model not found"))
+    assert kind == "not_found" and retry_after is None
+    single.note_fail(lane, kind, retry_after, t=c())
+    assert single._st(lane).disabled
+    assert lane not in single.eligible_lanes(t=c() + 10_000)
+    assert single.wait_seconds(t=c()) > lanes.WAIT_HARD_CAP_S
+
+
+def test_lite_quota_per_model_inaheshimu_dashboard_iliyothibitishwa():
+    c = Clock()
+    cfg = cfg_sample()
+    cfg["gemini"]["keys"] = {"gem": "K-GEM"}
+    cfg["gemini"]["flashModels"] = []
+    cfg["gemini"]["liteModels"] = [
+        "gemini-3.1-flash-lite", "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite-preview", "gemini-flash-lite-latest",
+    ]
+    cfg["gemini"]["liteRpd"] = 500
+    cfg["gemini"]["liteRpdByModel"] = {
+        "gemini-3.1-flash-lite": 500, "gemini-3.5-flash-lite": 500,
+        "gemini-3.1-flash-lite-preview": 20, "gemini-flash-lite-latest": 20,
+    }
+    p = lanes.build_pools(cfg, now=c)["main"]
+    quotas = {lane.model: lane.rpd for lane in p.lanes if lane.provider == "gemini" and "lite" in lane.model}
+    assert quotas == {
+        "gemini-3.1-flash-lite": 500, "gemini-3.5-flash-lite": 500,
+        "gemini-3.1-flash-lite-preview": 20, "gemini-flash-lite-latest": 20,
+    }

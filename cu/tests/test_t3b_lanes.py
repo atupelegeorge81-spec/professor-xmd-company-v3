@@ -35,10 +35,19 @@ class TestT3bLanes(unittest.TestCase):
         # live: 3.8 "daily" ×4 wakati 3.6/3.5/3-preview hai — zamani CU ilitumia [0] pekee
         p = lanes.build_pools(cfg(), now=Clock())
         g = [(l.account, l.model) for l in p["main"].lanes if l.provider == "gemini"]
-        self.assertEqual(len(g), 6 * 4 - 3)  # 2.5-flash ni 404 kwenye gemini-2..4 (modelSkip)
-        self.assertEqual({m for _, m in g}, set(FLASH))
-        self.assertNotIn(("gemini-2", "gemini-2.5-flash"), g)
-        self.assertIn(("gemini-1", "gemini-2.5-flash"), g)
+        flash = [(a, m) for a, m in g if m in FLASH]
+        lite = [(a, m) for a, m in g if m not in FLASH]
+        self.assertEqual(len(flash), 6 * 4 - 3)  # 2.5-flash ni 404 kwenye gemini-2..4
+        self.assertEqual({m for _, m in flash}, set(FLASH))
+        self.assertEqual({m for _, m in lite}, {
+            "gemini-3.5-flash-lite", "gemini-3.1-flash-lite",
+            "gemini-3.1-flash-lite-preview", "gemini-flash-lite-latest",
+        })
+        self.assertEqual(len(lite), 4 * 4)
+        self.assertNotIn(("gemini-2", "gemini-2.5-flash"), flash)
+        self.assertNotIn(("gemini-3", "gemini-2.5-flash"), flash)
+        self.assertNotIn(("gemini-4", "gemini-2.5-flash"), flash)
+        self.assertIn(("gemini-1", "gemini-2.5-flash"), flash)
 
     def test_rpd_ya_gemini_ni_kwa_model_si_akaunti_nzima(self):
         clk = Clock()
@@ -61,14 +70,20 @@ class TestT3bLanes(unittest.TestCase):
         clk = Clock()
         pool = lanes.build_pools(cfg(), now=clk)["main"]
         ln = pool.lanes[0]
-        self.assertGreaterEqual(pool.note_fail(ln, "daily", None, clk.t), 3 * 3600)
+        cooldown = pool.note_fail(ln, "daily", None, clk.t)
+        self.assertGreaterEqual(cooldown, 1.0)
+        self.assertAlmostEqual(ln and pool._st(ln).cooldown_until, clk.t + cooldown)
+        # cooldown inaishia kwenye reset ya lane husika, badala ya kupiga probe kila baada ya saa 3.
+        self.assertNotEqual(pool._day_of(ln, clk.t + cooldown + 1), pool._day_of(ln, clk.t))
 
     def test_roster_ceo_laguna_na_north_hazipo_main(self):
         p = lanes.build_pools(cfg(), now=Clock())
         main = {l.model for l in p["main"].lanes}
-        self.assertNotIn("laguna-s-2.1:free", main)
-        self.assertNotIn("north-mini-code:free", main)
+        for removed in ("laguna-s-2.1:free", "north-mini-code:free", "kimi-k3:free",
+                        "codestral-latest:free", "deepseek-v4-flash:free"):
+            self.assertNotIn(removed, main)
         self.assertIn("minimax-m2.7:free", main)
+        self.assertIn("deepseek-v4.1-flash:free", main)
 
 
 if __name__ == "__main__":

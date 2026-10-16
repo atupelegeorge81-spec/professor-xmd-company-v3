@@ -22,7 +22,7 @@ import { FEATURE_LIST_SANDBOX_PATH, featureListJson, featuresFromPlan } from "./
 import { getPlanBySession, PROJECT_PLANS_COL, type ProjectPlanDoc } from "@/lib/server/plans";
 import { unpack } from "@/lib/server/packed";
 import {
-  noteGemResult, noteXkiroTokens, noteOrResult, noteGroqTokens, noteUnoResult,
+  noteGemResult, noteOrResult, noteUnoResult,
   ledger, type GemAcct,
 } from "@/lib/server/usageLedger";
 import { slotKeys } from "@/lib/server/usageKeys";
@@ -223,48 +223,31 @@ export function buildCuConfig(): Record<string, unknown> {
     if (st?.chat) gemQuota[ga] = { day: st.day, chat: st.chat };
   }
   const flash = (process.env.GEMINI_FLASH_MODELS || "gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,gemini-2.5-flash").split(",").map(s => s.trim()).filter(Boolean);
-  const lite = (process.env.GEMINI_LITE_MODELS || "gemini-3.5-flash-lite,gemini-3.1-flash-lite").split(",").map(s => s.trim()).filter(Boolean);
+  const lite = (process.env.GEMINI_LITE_MODELS || "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.1-flash-lite-preview,gemini-flash-lite-latest").split(",").map(s => s.trim()).filter(Boolean);
   const emergency: Record<string, unknown>[] = [];
 
-  const xkiro = { ...keysOf("xkiro-1"), ...keysOf("xkiro-2") };
-  if (Object.keys(xkiro).length) {
-    emergency.push({
-      provider: "xkiro", baseUrl: process.env.XTROUTER_BASE_URL || "https://api.xkiro.com/v1",
-      models: [process.env.XTROUTER_MODEL || "qwen/qwen3.8-max:free"], keys: xkiro, maxOut: 32_000, ctx: 256_000, reasoning: true,
-      quota: {
-        "xkiro-1": { remaining: L.xkiro?.["xkiro-1"]?.remaining, exhaustedAt: L.xkiro?.["xkiro-1"]?.exhaustedAt },
-        "xkiro-2": { remaining: L.xkiro?.["xkiro-2"]?.remaining, exhaustedAt: L.xkiro?.["xkiro-2"]?.exhaustedAt },
-      },
-    });
-  }
   const or = { ...keysOf("or-1"), ...keysOf("or-2") };
+  const orModels = (process.env.CU_OPENROUTER_MODELS || "nvidia/nemotron-3.5-lightning:free,nvidia/nemotron-3-ultra-550b-a55b:free")
+    .split(",").map(s => s.trim()).filter(Boolean);
   if (Object.keys(or).length) {
     emergency.push({
       provider: "openrouter", baseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
-      models: [process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free"], keys: or, maxOut: 65_000, ctx: 1_000_000, reasoning: true,
+      models: orModels, keys: or, maxOut: 65_000, ctx: 1_000_000, reasoning: true,
       quota: {
-        "or-1": { requests: L.or?.["or-1"]?.requests, exhaustedUntil: L.or?.["or-1"]?.exhaustedUntil, retryAt: L.or?.["or-1"]?.retryAt },
-        "or-2": { requests: L.or?.["or-2"]?.requests, exhaustedUntil: L.or?.["or-2"]?.exhaustedUntil, retryAt: L.or?.["or-2"]?.retryAt },
-      },
-    });
-  }
-  const groq = { ...keysOf("groq-1"), ...keysOf("groq-2") };
-  const groqModels = (process.env.GROQ_MODELS || "qwen/qwen3.8-27b,openai/gpt-oss-120b").split(",").map(s => s.trim()).filter(Boolean);
-  if (Object.keys(groq).length) {
-    emergency.push({
-      provider: "groq", baseUrl: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
-      models: groqModels, keys: groq, maxOut: 8_000, ctx: 131_000, reasoning: true,
-      quota: {
-        "groq-1": { models: L.groq?.["groq-1"]?.models || {} },
-        "groq-2": { models: L.groq?.["groq-2"]?.models || {} },
+        "or-1": { day: L.or?.["or-1"]?.day, requests: L.or?.["or-1"]?.requests, exhaustedUntil: L.or?.["or-1"]?.exhaustedUntil, retryAt: L.or?.["or-1"]?.retryAt },
+        "or-2": { day: L.or?.["or-2"]?.day, requests: L.or?.["or-2"]?.requests, exhaustedUntil: L.or?.["or-2"]?.exhaustedUntil, retryAt: L.or?.["or-2"]?.retryAt },
       },
     });
   }
   const uno = { ...keysOf("uno-1"), ...keysOf("uno-2") };
-  // R51: space-bunny-alpha IMEFUTWA (imekufa 2026-10-05); qwen3-coder-plus imeondolewa kwa agizo
-  // la CEO (429 concurrent); nemotron-3-super imeondolewa (CEO 2026-10-16). Default = roster iliyohakikiwa kwa tool-call live (MPANGO-R51 §0.5).
-  const UNO_DEFAULT = "kimi-k3:free,deepseek-v4-flash:free,deepseek-v4.1-flash:free,nemotron-3-ultra-550b-a55b:free,laguna-s-2.1:free,north-mini-code:free,minimax-m2.7:free,codestral-latest:free";
-  const unoModels = (process.env.UNOROUTER_MODELS || UNO_DEFAULT).split(",").map(s => s.trim()).filter(Boolean);
+  // CU allowlist: Laguna, North, Kimi, Codestral na DeepSeek V4 Flash haziwezi
+  // kurudishwa hata kwa UNOROUTER_MODELS ya zamani iliyobaki kwenye env.
+  const CU_ALLOWED_UNO_MODELS = new Set([
+    "minimax-m2.7:free", "deepseek-v4.1-flash:free", "nemotron-3-ultra-550b-a55b:free",
+  ]);
+  const UNO_DEFAULT = "minimax-m2.7:free,deepseek-v4.1-flash:free,nemotron-3-ultra-550b-a55b:free";
+  // CU has its own allowlisted roster: never inherit a broad Board-wide UNOROUTER_MODELS.
+  const unoModels = (process.env.CU_UNOROUTER_MODELS || UNO_DEFAULT).split(",").map(s => s.trim()).filter(m => m && CU_ALLOWED_UNO_MODELS.has(m));
   if (Object.keys(uno).length) {
     emergency.push({
       provider: "unorouter", baseUrl: process.env.UNOROUTER_BASE_URL || "https://api.unorouter.com/v1",
@@ -291,6 +274,16 @@ export function buildCuConfig(): Record<string, unknown> {
       modelSkip: GEMINI_MODEL_SKIP, // R38: (akaunti × model) zilizo 404 — mf. gemini-2:gemini-2.5-flash (brain.py hazizalishi)
       flashRpd: Number(process.env.GEMINI_FLASH_RPD) || 20,
       liteRpd: Number(process.env.GEMINI_LITE_RPD) || 500,
+      // 500 RPD imethibitishwa kwa base 3.1/3.5 Flash-Lite pekee. Preview/latest
+      // hutumia cap ya tahadhari 20 hadi owner athibitishe limit; env inaweza kubadilisha.
+      liteRpdByModel: {
+        "gemini-3.1-flash-lite": Number(process.env.GEMINI_LITE_RPD) || 500,
+        "gemini-3.5-flash-lite": Number(process.env.GEMINI_LITE_RPD) || 500,
+        "gemini-3.1-flash-lite-preview": Number(process.env.GEMINI_LITE_PREVIEW_RPD)
+          || (process.env.GEMINI_LITE_RPD ? Number(process.env.GEMINI_LITE_RPD) : 20),
+        "gemini-flash-lite-latest": Number(process.env.GEMINI_LITE_LATEST_RPD)
+          || (process.env.GEMINI_LITE_RPD ? Number(process.env.GEMINI_LITE_RPD) : 20),
+      },
       flashRpm: Number(process.env.GEMINI_FLASH_RPM) || 5,
       liteRpm: Number(process.env.GEMINI_LITE_RPM) || 15,
       tpmLimit: Number(process.env.GEMINI_TPM_LIMIT) || 200_000, // R40-A: tokens/dakika kwa kila lane — kabla ya 429
@@ -1055,12 +1048,8 @@ export function noteProviderUsage(ev: CuEvent, ok: boolean): void {
   try {
     if (provider === "gemini" && GEM_ACCOUNTS.includes(account as GemAccountId)) {
       noteGemResult("chat", model, ok, total, account as GemAcct);
-    } else if (provider === "xkiro" && ok && (account === "xkiro-1" || account === "xkiro-2")) {
-      noteXkiroTokens(account, total);
     } else if (provider === "openrouter" && (account === "or-1" || account === "or-2")) {
       noteOrResult(account, ok, total);
-    } else if (provider === "groq" && ok && (account === "groq-1" || account === "groq-2")) {
-      noteGroqTokens(account, model, total);
     } else if (provider === "unorouter" && (account === "uno-1" || account === "uno-2")) {
       noteUnoResult(account, model, ok, total);
     }

@@ -4,8 +4,9 @@ Proxy ndogo ya Anthropic Messages API inayoendesha NDANI ya sandbox ya E2B.
 Claude Agent SDK (CLI) inaunganisha ANTHROPIC_BASE_URL=http://localhost:4010 kwake;
 brain inaroute kwa providers zetu zote kwa lugha ya OpenAI chat/completions:
 
-  KAWAIDA  : Gemini tu — flash kubwa → ndogo, keys zote mbili (gemini-1/2), kisha flash-lite.
-  DHARURA  : lanes ZOTE za Gemini zikiisha (siku ya Pacific) → XKiro → OpenRouter → Groq → Uno
+  KAWAIDA  : Gemini Flash na Flash-Lite, kwa account/model eligibility.
+  DHARURA  : legacy path; CU hutengeneza lanes za OpenRouter na UnoRouter pekee.
+             Groq/XKiro hazijumuishwi kwenye Computer Use; ni sehemu nyingine za Board.
              (akili kubwa kwanza). Ikishalingana dharura inakaa hadi run inaisha.
   503/429/empty: kila jaribio lililoshindikana ni KIMYA — lane inayofuata inachukuliwa; UI
              haiona kitu (uamuzi #7 wa CEO). Fatal tu (lanes zote zimekufa) ndiyo kosa.
@@ -48,7 +49,6 @@ IDLE_ABORT_MS = 180_000       # hakuna data kutoka upstream → lane inahisiwa i
 # generator usio na mwisho). 15 dk = kutosha kwa jibu kubwa (65K tokens); baada yake lane
 # inahisiwa busy na inarudiwa kwenye nyingine.
 STREAM_MAX_MS = 900_000
-XKIRO_MIN_REMAINING = 15_000  # tokens — chini ya hii, XKiro inarukwa kimya ("kama kuna nafasi")
 
 
 def blog(level: str, msg: str) -> None:
@@ -125,6 +125,16 @@ def parse_duration(v: str | None) -> int | None:
 
 # ================================================================ lanes
 
+# Fail-closed CU allowlists; stale env/config must never revive removed providers/models.
+CU_ALLOWED_UNO_MODELS = {
+    "minimax-m2.7:free", "deepseek-v4.1-flash:free",
+    "nemotron-3-ultra-550b-a55b:free",
+}
+CU_ALLOWED_OPENROUTER_MODELS = {
+    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+}
+
 class Lane:
     """Njia moja halisi: (akaunti × model). `tier`="normal" (Gemini) | "emergency"."""
 
@@ -153,7 +163,7 @@ class LaneState:
     """Hali ya lane moja ndani ya run hii (quota snapshot + matukio ya brain)."""
 
     __slots__ = ("exhausted_until", "retry_at", "busy_until", "requests_today", "rpd_limit",
-                 "rpm_calls", "tpm_calls", "xkiro_remaining", "disabled", "empty_fails", "tokens", "day")
+                 "rpm_calls", "tpm_calls", "disabled", "empty_fails", "tokens", "day")
 
     def __init__(self):
         self.exhausted_until = 0
@@ -163,25 +173,18 @@ class LaneState:
         self.rpd_limit = 0
         self.rpm_calls: list[float] = []
         self.tpm_calls: list[tuple[float, int]] = []  # R40-A: (ms, tokens) — TPM (tokens/dakika) halisi
-        self.xkiro_remaining = None
         self.disabled = False
         self.empty_fails = 0
         self.tokens = 0
         self.day = ""
 
 
-def _model_size(m: str) -> float:
-    """Ukubwa wa "akili" kutoka jina la model (120b > 27b > 8b) — dharura: kubwa kwanza."""
-    best = 0.0
-    for mm in re.finditer(r"(\d+(?:\.\d+)?)\s*b\b", m.lower()):
-        best = max(best, float(mm.group(1)))
-    return best
-
 
 def build_order(cfg: dict) -> list[Lane]:
-    """Mpangilio wa uteuzi (uamuzi #5+#6 wa CEO):
-    Gemini flash kubwa→ndogo (akaunti 1 kisha 2 kwa kila model) → flash-lite →
-    dharura: XKiro → OpenRouter → Groq (kubwa→ndogo) → UnoRouter."""
+    """Jenga roster ya CU legacy bila kuruhusu config ya zamani kufufua providers/model zilizofutwa.
+
+    Main ina Gemini Flash + Flash-Lite; nje yake ni OpenRouter na UnoRouter pekee.
+    """
     lanes: list[Lane] = []
     gem = cfg.get("gemini") or {}
     keys: dict[str, str] = gem.get("keys") or {}
@@ -213,14 +216,18 @@ def build_order(cfg: dict) -> list[Lane]:
             if k:
                 lanes.append(Lane("gemini", acct, model, base, k, 65_536, 1_000_000, "normal", rank, False, lite_rpm))
         rank += 1
-    # dharura — kwa mpangilio wa "akili kubwa kwanza" ndani ya kila provider
+    # Fail closed: config ya zamani inaweza bado kuwa na providers/model zilizoondolewa.
     for prov in cfg.get("emergency") or []:
-        p = prov.get("provider") or ""
+        p = str(prov.get("provider") or "").lower()
+        if p not in {"openrouter", "unorouter"}:
+            continue
         base = (prov.get("baseUrl") or "").rstrip("/")
         keys = prov.get("keys") or {}
         models = list(prov.get("models") or [])
-        if p == "groq":
-            models.sort(key=_model_size, reverse=True)  # gpt-oss-120b kabla ya 27b
+        if p == "unorouter":
+            models = [m for m in models if m in CU_ALLOWED_UNO_MODELS]
+        else:
+            models = [m for m in models if m in CU_ALLOWED_OPENROUTER_MODELS]
         for model in models:
             for acct in sorted(keys):
                 lanes.append(Lane(p, acct, model, base, keys[acct],
@@ -289,15 +296,6 @@ def classify_error(provider: str, status: int | None, body: str, headers: dict |
         return LaneError("model", msg, until_ms=next_utc_midnight())
 
     if status == 429:
-        if provider == "groq":
-            m = re.search(r"try again in ([0-9hms.]+)", body, re.I)
-            if re.search(r"\(TPD\)|\(RPD\)|per day", body, re.I):
-                return LaneError("daily", msg, wait_ms=(parse_duration(m.group(1)) if m else None) or 30 * 60_000)
-            return LaneError("minute", msg, wait_ms=retry_after or ((parse_duration(m.group(1)) if m else None) or 20_000))
-        if provider == "xkiro":
-            if re.search(r"free-model token quota|token quota|daily|per day", body, re.I):
-                return LaneError("daily", msg, wait_ms=15 * 60_000)
-            return LaneError("minute", msg, wait_ms=retry_after or 20_000)
         if provider == "openrouter":
             if re.search(r"temporarily rate-limited upstream|provider_code|upstream", body, re.I):
                 return LaneError("busy", msg, wait_ms=retry_after or 60_000)
@@ -638,7 +636,7 @@ class AnthropicStreamTranslator:
         if fr:
             self.stop_reason = map_finish_reason(fr)
 
-        # reasoning (XKiro/DeepSeek/Groq gpt-oss/OpenRouter)
+        # reasoning-capable providers (UnoRouter/OpenRouter)
         reasoning = delta.get("reasoning_content") or delta.get("reasoning")
         if isinstance(reasoning, str) and reasoning:
             idx, is_new = self._reuse_or_open("thinking")
@@ -796,6 +794,7 @@ class Brain:
         self._sleep = sleeper or time.sleep
         self._transport = transport or self._http_transport
         self._snap_day = pacific_day(self._clock() / 1000)
+        self._or_account_requests: dict[tuple[str, str], int] = {}
         self._load_quota_snapshot()
 
     # ---------- hali ya kuanzia (kutoka Koyeb — ili tusichome 429 zisizo na haja)
@@ -818,24 +817,17 @@ class Brain:
             p = prov.get("provider") or ""
             q = prov.get("quota") or {}
             for acct, st in q.items():
-                if p == "xkiro":
-                    s = self.state.setdefault(f"{acct}:{prov.get('models', [''])[0] if prov.get('models') else ''}", LaneState())
-                    s.xkiro_remaining = st.get("remaining")
-                    s.exhausted_until = int(st.get("exhaustedAt") or 0)
-                elif p == "openrouter":
+                if p == "openrouter":
+                    day = str(st.get("day") or utc_day(self._clock() / 1000))
+                    if day == utc_day(self._clock() / 1000):
+                        self._or_account_requests[(acct, day)] = int(st.get("requests") or 0)
+                    if int(st.get("exhaustedUntil") or 0) > self._clock():
+                        self._or_account_requests[(acct, day)] = max(
+                            self._or_account_requests.get((acct, day), 0), 50)
                     for model in prov.get("models") or [""]:
                         s = self.state.setdefault(f"{acct}:{model}", LaneState())
                         s.exhausted_until = int(st.get("exhaustedUntil") or 0)
                         s.retry_at = int(st.get("retryAt") or 0)
-                elif p == "groq":
-                    for model in prov.get("models") or []:
-                        s = self.state.setdefault(f"{acct}:{model}", LaneState())
-                        s.retry_at = int((st.get("models") or {}).get(model, {}).get("retryAt") or 0)
-                elif p == "unorouter":
-                    for model in prov.get("models") or []:
-                        s = self.state.setdefault(f"{acct}:{model}", LaneState())
-                        s.retry_at = int((st.get("models") or {}).get(model, {}).get("slotUntil") or 0)
-                        s.exhausted_until = int(st.get("exhaustedUntil") or 0)
 
     def st(self, lane: Lane) -> LaneState:
         return self.state.setdefault(lane.id, LaneState())
@@ -887,8 +879,12 @@ class Brain:
             if self.tpm_limit and tpm_sum >= self.tpm_limit:
                 wake = (s.tpm_calls[0][0] + 61_000) if s.tpm_calls else now + 61_000
                 return False, wake
-        if lane.provider == "xkiro" and s.xkiro_remaining is not None and s.xkiro_remaining < XKIRO_MIN_REMAINING:
-            return False, 0  # "kama kuna nafasi" — hakuna nafasi, kimya
+        if lane.provider == "openrouter":
+            day = utc_day(now / 1000)
+            used = self._or_account_requests.get((lane.account, day), 0)
+            if used >= 50:
+                s.exhausted_until = next_utc_midnight(now / 1000)
+                return False, 0
         return True, 0
 
     def _note_failure(self, lane: Lane, err: LaneError):
@@ -917,8 +913,7 @@ class Brain:
             if s.disabled:
                 continue
             if s.exhausted_until <= now and (s.rpd_limit == 0 or s.requests_today < s.rpd_limit):
-                if not (l.provider == "xkiro" and s.xkiro_remaining is not None and s.xkiro_remaining < XKIRO_MIN_REMAINING):
-                    return False
+                return False
         return True
 
     def _earliest_reset(self) -> int:
@@ -1001,7 +996,7 @@ class Brain:
                     return self.pick_lane(tried, depth + 1)
                 blog("warning", "\U0001F5A5\uFE0F cuBrain: Gemini hazipatikani (zote zimejaa kwa muda mrefu) — EMERGENCY inaanza (silent, UI haiona).")
             else:
-                blog("warning", "\U0001F5A5\uFE0F cuBrain: Gemini zote zimeisha kwa siku — EMERGENCY (XKiro → OpenRouter → Groq → Uno) inaanza (silent, UI haiona).")
+                blog("warning", "\U0001F5A5\uFE0F cuBrain: Gemini zote zimeisha kwa siku — fallback ya OpenRouter/UnoRouter inaanza (silent, UI haiona).")
             self.emergency = True
         # ---- dharura (au tayari tuko dharura)
         emerg_all = [l for l in self.order if l.tier == "emergency"]
@@ -1037,19 +1032,23 @@ class Brain:
                     fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
             except OSError:
                 pass
-        if ok and lane:
+        if lane:
             s = self.st(lane)
-            s.tokens += prompt + completion
             if lane.provider == "gemini":
                 s.requests_today += 1
                 s.rpm_calls.append(self._clock())
-                s.tpm_calls.append((self._clock(), prompt + completion))  # R40-A: TPM halisi
-            elif lane.provider == "xkiro" and s.xkiro_remaining is not None:
-                s.xkiro_remaining -= (prompt + completion)
-            # R34-A: mafanikio ya kweli = hii ndiyo work lane sasa (sticky)
-            if self.work_lane != lane.id:
-                self.work_lane = lane.id
-            self.calls += 1
+                if ok:
+                    s.tpm_calls.append((self._clock(), prompt + completion))  # R40-A: TPM halisi
+            elif lane.provider == "openrouter":
+                day = utc_day(self._clock() / 1000)
+                key = (lane.account, day)
+                self._or_account_requests[key] = self._or_account_requests.get(key, 0) + 1
+            if ok:
+                s.tokens += prompt + completion
+                # R34-A: mafanikio ya kweli = hii ndiyo work lane sasa (sticky)
+                if self.work_lane != lane.id:
+                    self.work_lane = lane.id
+                self.calls += 1
 
     # ---------- R40-B: beats za "waiting" (heartbeat ya brain hadi UI)
     def _beat(self, lane, note: str):
@@ -1225,7 +1224,7 @@ class Brain:
         p["model"] = lane.model
         if stream:
             p["stream"] = True
-            if with_so and lane.provider in ("gemini", "groq", "openrouter", "xkiro"):
+            if with_so and lane.provider in ("gemini", "openrouter"):
                 p["stream_options"] = {"include_usage": True}
         else:
             p["stream"] = False

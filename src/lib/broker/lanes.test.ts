@@ -29,7 +29,8 @@ describe("R38 — GEMINI_MODEL_SKIP (gemini-2:gemini-2.5-flash = 404)", () => {
     expect(ids).toContain("gemini-3:gemini-3.5-flash-lite");
     expect(ids).toContain("gemini-4:gemini-3.8-flash");
     expect(ids).toContain("gemini-4:gemini-3.5-flash-lite");
-    expect(ids).not.toContain("gemini-3:gemini-2.5-flash".replace("gemini-3", "gemini-2")); // skip ya gemini-2 pekee
+    expect(ids).not.toContain("gemini-3:gemini-2.5-flash"); // 404 project 3
+    expect(ids).not.toContain("gemini-4:gemini-2.5-flash"); // 404 project 4
   });
 
   it("R41 · config ya CU: keys 4 zinaingia sandbox + quota ya kila akaunti", async () => {
@@ -54,12 +55,14 @@ describe("R38 — GEMINI_MODEL_SKIP (gemini-2:gemini-2.5-flash = 404)", () => {
   it("config ya CU (sandbox): brain.py inapata modelSkip ileile", async () => {
     const { buildCuConfig } = await import("@/lib/cu/engine");
     const cfg = buildCuConfig() as { gemini?: { modelSkip?: Record<string, string[]> } };
-    expect(cfg.gemini?.modelSkip).toEqual({ "gemini-2": ["gemini-2.5-flash"], "gemini-3": [], "gemini-4": [] }); // R41
+    expect(cfg.gemini?.modelSkip).toEqual({ "gemini-1": [], "gemini-2": ["gemini-2.5-flash"], "gemini-3": ["gemini-2.5-flash"], "gemini-4": ["gemini-2.5-flash"] }); // adaptive: 2.5-flash = project 1 pekee
   });
 
   it("env: GEMINI_MODEL_SKIP imefungwa kwa akaunti sahihi", async () => {
     const { GEMINI_MODEL_SKIP } = await import("@/lib/env");
     expect(GEMINI_MODEL_SKIP["gemini-2"]).toEqual(["gemini-2.5-flash"]);
-    expect(GEMINI_MODEL_SKIP["gemini-1"]).toBeUndefined();
+    expect(GEMINI_MODEL_SKIP["gemini-3"]).toEqual(["gemini-2.5-flash"]);
+    expect(GEMINI_MODEL_SKIP["gemini-4"]).toEqual(["gemini-2.5-flash"]);
+    expect(GEMINI_MODEL_SKIP["gemini-1"] ?? []).toEqual([]); // 2.5-flash inabaki project 1
   });
 });

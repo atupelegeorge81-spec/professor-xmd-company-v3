@@ -55,7 +55,7 @@ def test_acquire_inachagua_na_kupima_start():
     c = Clock()
     core, pools, _, usage, _ = make(c)
     lane = core.acquire()
-    assert lane.provider in ("gemini", "unorouter")
+    assert lane.provider in ("gemini", "unorouter", "openrouter")
     st = pools["main"].state[lane.lid]
     assert st.req_count == 1
     assert usage == []  # start haihesabii tokens
@@ -101,8 +101,8 @@ def test_lane_imekaa_zaidi_ya_cap_all_lanes_dead_mara_moja(tmp_path):
 def test_rpm_window_inafunguka_ndani_ya_cap_subiri_kisha_endelea():
     c = Clock()
     cfg = cfg_sample()
-    cfg["ohRoster"] = {"uno_main": [("kimi-k3:free", 10)], "uno_tier2": [],
-                       "judge": ["kimi-k3:free"], "or_main": []}
+    cfg["ohRoster"] = {"uno_main": [("minimax-m2.7:free", 10)], "uno_tier2": [],
+                       "judge": ["nemotron-3-ultra-550b-a55b:free"], "or_main": []}
     del cfg["emergency"][1]                  # bila openrouter
     cfg["gemini"]["keys"] = {}               # bila gemini — lane MOJA tu
     pools = lanes.build_pools(cfg, run_id="r2b", now=c)
@@ -151,3 +151,41 @@ def test_engine_cfg_ya_leo_inazalisha_lanes_kamili():
     assert pools["main"].lanes and pools["dharura"].lanes and pools["judge"].lanes
     lids = {l.lid for p in pools.values() for l in p.lanes}
     assert all(":" in lid for lid in lids)
+
+
+def test_weighted_dispatch_openrouter_si_emergency_ziko_wazi():
+    c = Clock()
+    core, pools, _, _, _ = make(c)
+    chosen = [core.acquire() for _ in range(11)]
+    providers = [l.provider for l in chosen]
+    assert providers.count("openrouter") >= 1
+    assert providers.count("unorouter") >= 1
+    assert any(l.provider == "gemini" and "lite" in l.model for l in chosen)
+
+
+def test_openrouter_quota_ni_shared_kati_ya_main_na_judge():
+    c = Clock()
+    cfg = cfg_sample()
+    day = lanes.utc_day(c())
+    cfg["emergency"][1]["keys"]["or-2"] = "K-OR2"
+    cfg["emergency"][1]["quota"] = {"or-1": {"day": day, "requests": 49}}
+    pools = lanes.build_pools(cfg, run_id="quota-cross-pool", now=c)
+    main_or = next(l for l in pools["dharura"].lanes if l.account == "or-1")
+    pools["dharura"].note_start(main_or, c())  # request 50: account quota is now exhausted
+    assert not any(l.account == "or-1" for l in pools["judge"].eligible_lanes())
+    assert any(l.account == "or-2" for l in pools["judge"].eligible_lanes())
+
+
+def test_judge_inapendelea_uno_ultra_na_openrouter_ni_fallback():
+    c = Clock()
+    cfg = cfg_sample()
+    cfg["emergency"][0]["keys"]["uno-2"] = "K-UNO2"
+    pools = lanes.build_pools(cfg, run_id="judge-priority", now=c)
+    sleeper = FakeSleeper(c)
+    core = LaneRouterCore(pools["judge"], now=c, sleep=sleeper, wait_cap=60.0,
+                          dispatch_schedule=("unorouter",))
+    first = core.acquire()
+    second = core.acquire()
+    third = core.acquire()
+    assert first.provider == "unorouter" and second.provider == "unorouter"
+    assert third.provider == "openrouter"  # Uno accounts zote ziko ndani ya RPM window
