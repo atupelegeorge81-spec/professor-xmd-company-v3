@@ -865,8 +865,10 @@ export async function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: C
       (cu as any).textBlock = ((cu as any).textBlock || 0) + 1;
       break;
     case "text_delta": {
-      const s = Number(ev.step) || 0;
-      cu.textAcc.set(s, (cu.textAcc.get(s) || "") + String(ev.text || ""));
+      // Task 3b: key LAZIMA ilingane na text_end (textBlock) — zamani delta ilitumia `step` na
+      // end ilisoma `textBlock` → zikitofautiana text ilitoka TUPU (live 49476add i=297).
+      const key = (cu as any).textBlock || 1;
+      cu.textAcc.set(key, (cu.textAcc.get(key) || "") + String(ev.text || ""));
       break;
     }
     case "text_end": {

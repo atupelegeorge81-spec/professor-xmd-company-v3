@@ -327,9 +327,11 @@ def classify_tool(name: str, cmd: str = "") -> tuple[str, str]:
         return "skill", "skill"
     if n in ("agent", "listagents"):
         return "skill", "skill"
-    if "vercel" in c:
+    # Task 3b: angalia MWANZO wa kila segment (&&, ;, |) — `printf '...Vercel...'` ilionekana deploy
+    segs = [x.strip() for x in _re.split(r"&&|\|\||;|\|", c)]
+    if any(x.startswith(("vercel", "npx vercel", "pnpm dlx vercel")) for x in segs):
         return "deploy", "vercel"
-    if "gh repo" in c or "git push" in c or "gh " in c:
+    if any(x.startswith(("gh ", "git push")) for x in segs):
         return "git", "github"
     if c.startswith("git ") or " git " in c:
         return "git", "git"

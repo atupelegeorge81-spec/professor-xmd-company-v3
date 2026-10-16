@@ -83,3 +83,12 @@ class TestActionCommand(unittest.TestCase):
         engine = root.joinpath("src", "lib", "cu", "engine.ts").read_text()
         self.assertIn('report = last_assistant_text or "(hakuna ripoti)"', bridge)
         self.assertIn('rtext.trim() === "(hakuna ripoti)"', engine)
+
+    def test_classify_tool_vercel_ni_amri_si_neno(self):
+        import bridge as B
+        self.assertEqual(B.classify_tool("terminal", "printf 'Hakuna deploy ya Vercel' > .xmd/evidence/qa.txt")[1], "bash")
+        self.assertEqual(B.classify_tool("terminal", "cd app && npx vercel --prod --yes")[1], "vercel")
+        self.assertEqual(B.classify_tool("terminal", "vercel deploy")[1], "vercel")
+        self.assertEqual(B.classify_tool("terminal", "git add . && git push origin main")[1], "github")
+        self.assertEqual(B.classify_tool("terminal", "gh repo create x --public")[1], "github")
+        self.assertNotEqual(B.classify_tool("terminal", "echo 'no git push needed'")[1], "github")

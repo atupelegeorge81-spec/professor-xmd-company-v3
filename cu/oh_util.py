@@ -369,13 +369,14 @@ def obs_failed(obs, text: str) -> bool:
 def clean_think(text: str) -> str:
     """Task 3b: thinking ya kuonyesha — tags zilizobaki zinaondolewa na vipande vinavyojirudia
     vinafutwa (live b10edd27: reasoning_content ya north ilijirudia ×N ikitenganishwa na <think>)."""
-    parts = re.split(r"</?(?:think|thinking|thought)>", text or "", flags=re.I)
+    parts = re.split(r"</?(?:think|thinking|thought)>|\n\s*\n", text or "", flags=re.I)
     seen: set[str] = set()
     out: list[str] = []
     for p in parts:
         p = re.sub(r"</?(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?|o(?:u(?:g(?:h(?:t)?)?)?)?)?)?)?$", "", p)  # tag ya think iliyokatika (cap)
         k = re.sub(r"\s+", " ", p).strip()
-        if not k or k in seen:
+        # nakala kamili, au kipande kilichokatwa (prefix ≥20) cha kilichoonekana (live i=245)
+        if not k or k in seen or (len(k) >= 20 and any(x.startswith(k) for x in seen)):
             continue
         seen.add(k)
         out.append(p.strip())
