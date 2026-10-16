@@ -38,8 +38,8 @@ OH_UNO_MAIN_DEFAULT = [
     ("kimi-k3:free", 10),
     ("deepseek-v4-flash:free", 20),
     ("deepseek-v4.1-flash:free", 30),
-    ("laguna-s-2.1:free", 50),
-    ("north-mini-code:free", 60),
+    # CEO 2026-10-16: laguna-s-2.1 + north-mini-code ZIMEONDOLEWA kwenye main — zilitunga matokeo
+    # ya amri bila kuziendesha / ziliandika nia bila kitendo (live ebb85d13, 92a6baeb, f9ecfca9).
     ("minimax-m2.7:free", 70),
     ("codestral-latest:free", 80),
 ]
@@ -64,6 +64,7 @@ OR_BASE_DEFAULT = "https://openrouter.ai/api/v1"
 COOLDOWN_429 = 65.0             # sekunde — mzunguko wa dakika ya Uno unaisha
 COOLDOWN_503 = 65.0             # msingi; huongezeka kwa fails mfululizo (cap 300)
 COOLDOWN_TIMEOUT = 30.0
+COOLDOWN_DAILY = 3 * 3600.0      # quota ya siku (Gemini PerDay) — jaribu tena baada ya masaa 3
 WAIT_HARD_CAP_S = 300.0         # zaidi ya hii hakuna cha kusubiri — caller huamua kilele
 
 PACIFIC = _dt.timezone(_dt.timedelta(hours=-8))  # mpangilio wa siku za Gemini (kama brain.py)
@@ -152,7 +153,11 @@ class LanePool:
                     continue
             if lane.rpd > 0:
                 d = self._day_of(lane, t)
-                if self.acc_day.get((lane.account, d), 0) >= lane.rpd:
+                # Gemini: quota ni ya kila MODEL kwa akaunti (live 2026-10-16) → hesabu ya lane;
+                # OpenRouter: rpd ni ya AKAUNTI nzima → acc_day.
+                used = ((st.day_count if st.day == d else 0) if lane.provider == "gemini"
+                        else self.acc_day.get((lane.account, d), 0))
+                if used >= lane.rpd:
                     continue
             out.append(lane)
         if not out and not include_tier2:
@@ -209,6 +214,8 @@ class LanePool:
             cd = min(COOLDOWN_503 * st.fails, 300.0)
         elif kind == "timeout":
             cd = COOLDOWN_TIMEOUT
+        elif kind == "daily":  # quota ya siku imeisha — usijaribu tena kila dk 5 (live: gemini-3.8 ×4)
+            cd = COOLDOWN_DAILY
         else:  # empty/unknown
             cd = COOLDOWN_429
         st.cooldown_until = max(st.cooldown_until, t + cd)
@@ -276,7 +283,10 @@ def build_pools(cfg: dict, run_id: str = "", now=time.time) -> dict[str, LanePoo
     gem = cfg.get("gemini") or {}
     gkeys = _keys_of(gem)
     gbase = gem.get("baseUrl") or "https://generativelanguage.googleapis.com/v1beta/openai"
-    flash_model = (gem.get("flashModels") or ["gemini-3.5-flash"])[0]
+    # Task 3b: model ZOTE za flash (si [0] pekee) — live 2026-10-16: gemini-3.8-flash ilikuwa
+    # "daily" kwenye akaunti zote 4 wakati 3.6/3.5/3-preview zilikuwa hai → CU ilikosa Gemini kabisa.
+    flash_models = list(gem.get("flashModels") or ["gemini-3.5-flash"])
+    gskip = gem.get("modelSkip") or {}  # R38: (akaunti × model) zilizo 404 — hazizalishwi
     flash_rpm = int(gem.get("flashRpm") or 5)
     flash_rpd = int(gem.get("flashRpd") or 20)
 
@@ -293,9 +303,16 @@ def build_pools(cfg: dict, run_id: str = "", now=time.time) -> dict[str, LanePoo
         return Lane(provider, account, model, base, key, rpm=rpm, rpd=rpd, rank=rank + tiers,
                     day_kind=day, reasoning=reasoning, tier2=tier2)
 
-    main: list[Lane] = []
-    for acct, key in sorted(gkeys.items()):
-        main.append(mk("gemini", acct, key, flash_model, gbase, flash_rpm, flash_rpd, 5, day="pacific"))
+    def gem_lanes() -> list[Lane]:
+        out = []
+        for i, model in enumerate(flash_models):
+            for acct, key in sorted(gkeys.items()):
+                if model in (gskip.get(acct) or []):
+                    continue
+                out.append(mk("gemini", acct, key, model, gbase, flash_rpm, flash_rpd, 5 + i, day="pacific"))
+        return out
+
+    main: list[Lane] = gem_lanes()
     for model, rank in uno_main:
         for acct, key in sorted(uno_keys.items()):
             main.append(mk("unorouter", acct, key, model, uno_base, UNO_RPM_PER_MODEL, 0, rank))
@@ -319,8 +336,7 @@ def build_pools(cfg: dict, run_id: str = "", now=time.time) -> dict[str, LanePoo
         judge.append(mk("openrouter", acct, key, OH_OR_JUDGE_FALLBACK, or_base, 0, OR_RPD_PER_ACCOUNT, 900, reasoning=True))
 
     aux: list[Lane] = []
-    for acct, key in sorted(gkeys.items()):
-        aux.append(mk("gemini", acct, key, flash_model, gbase, flash_rpm, flash_rpd, 5, day="pacific"))
+    aux.extend(gem_lanes())
 
     return {
         "main": LanePool("main", main, run_id, now),
