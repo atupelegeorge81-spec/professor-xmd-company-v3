@@ -31,7 +31,7 @@ import features_verify  # noqa: E402  (R51-Awamu2: harness ndiye mamlaka ya feat
 import lanes  # noqa: E402
 import oh_router  # noqa: E402
 import shotlaw  # noqa: E402
-from oh_util import (_extract_steps, action_command, build_objective, first_words,
+from oh_util import (_extract_steps, action_command, build_objective, clean_think, first_words,
                      is_text_toolcall, obs_failed, oh_tool_kind, reasoning_of, split_think,
                      read_shot_b64, shots_pending)
 
@@ -231,7 +231,7 @@ async def main_async() -> None:
 
     # ------------------------------------------------------------- event → UI
     cur_tools: dict[str, dict] = {}
-    think_tids: set[str] = set()  # Task 3b: tool_call za `think` (hazina exec card)
+    think_tids: set[str] = set()  # Task 3b: tool_call za `think`/`finish` (hazina exec card)
 
     def _obs_text(ev) -> str:
         obs = getattr(ev, "observation", None)
@@ -246,7 +246,7 @@ async def main_async() -> None:
 
     def emit_think(text: str) -> None:
         # Task 3b: akili ya model → think card (si text ya kawaida). Formats 4 — oh_util.split_think
-        t = (text or "").strip()
+        t = clean_think(text)
         if not t:
             return
         em.emit("think_start", step=step)
@@ -268,6 +268,21 @@ async def main_async() -> None:
                     # Task 3b: tool ya ndani `think` (ThinkAction.thought) ni akili, si amri —
                     # ilionekana "Ran command thought=…" (live c2ab16bd). Observation yake inarukwa.
                     emit_think(str(getattr(action, "thought", "") or ""))
+                    think_tids.add(tid)
+                    return
+                if (name or "").lower() == "finish":
+                    # Task 3b: FinishAction.message NDIYO ripoti ya mwisho (live b10edd27: ripoti ya
+                    # Kiswahili ilikuwa hapa, ripoti iliyohifadhiwa ikawa sentensi ya katikati;
+                    # na chip ilisomeka "git message=…"). → text ya kawaida + report; hakuna exec card.
+                    inline, vis = split_think(str(getattr(action, "message", "") or ""))
+                    emit_think(inline)
+                    if vis and not is_text_toolcall(vis):
+                        step += 1
+                        last_assistant_text = vis
+                        note_urls(vis)
+                        em.emit("text_start", step=step)
+                        em.emit("text_delta", step=step, text=vis[:4000])
+                        em.emit("text_end", step=step, ms=0)
                     think_tids.add(tid)
                     return
                 cmd = action_command(action) if action is not None else ""
