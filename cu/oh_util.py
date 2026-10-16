@@ -298,6 +298,10 @@ def reasoning_of(obj) -> str:
     return "\n\n".join(parts)
 
 
+_XML_TC_RX = re.compile(r"<tool_call>|<function=|<invoke\s+name=|\[TOOL_CALLS\]|<\|tool_call", re.I)
+_XML_TC_BLOCK_RX = re.compile(
+    r"<tool_call>.*?(?:</tool_call>|$)|<function=.*?(?:</function>|$)|<invoke\s.*?(?:</invoke>|$)"
+    r"|\[TOOL_CALLS\].*$|<\|tool_call[^>]*\|>.*?(?:<\|/?tool_call[^>]*\|>|$)", re.S | re.I)
 _TOOLISH_KEYS = ('"action"', '"command"', '"tool"', '"name"', '"arguments"', '"path"', '"is_background"')
 
 
@@ -305,6 +309,13 @@ def is_text_toolcall(text: str) -> bool:
     """Lane dhaifu huandika tool-call kama JSON ya TEXT (finish=stop, hakuna tool_calls).
     Kweli ikiwa jibu lote ni object ya JSON (au ```json block) yenye keys za tool."""
     t = (text or "").strip()
+    # Task 3b: miundo ya XML/marker (laguna-s-2.1 live c2ab16bd:
+    # `<tool_call>read<arg_key>path</arg_key><arg_value>…</arg_value></tool_call>` ikawa RIPOTI)
+    if _XML_TC_RX.search(t):
+        rest = _XML_TC_BLOCK_RX.sub("", t)
+        rest = re.sub(r"</?(tool_call|function|invoke|parameter|arg_key|arg_value)[^>]*>", "", rest)
+        if len(rest.strip()) < 40:
+            return True
     if t.startswith("```"):
         t = re.sub(r"^```[a-zA-Z]*\s*", "", t)
         t = re.sub(r"\s*```$", "", t).strip()
@@ -329,3 +340,18 @@ def oh_tool_kind(name: str, action) -> tuple[str, str] | None:
     if n == "task_tracker":
         return "skill", "skill"
     return None
+
+
+def obs_failed(obs, text: str) -> bool:
+    """Task 3b: exit code HALISI ya observation ya OpenHands (TerminalObservation.exit_code /
+    metadata.exit_code; Observation.is_error) — zamani tulibahatisha kwa maneno tu, hivyo
+    `xxd: command not found` (exit 127) ilionekana exit=0 (live c2ab16bd). -1/None = haijulikani → maneno."""
+    if obs is not None:
+        if getattr(obs, "is_error", False) is True:
+            return True
+        for code in (getattr(obs, "exit_code", None), getattr(getattr(obs, "metadata", None), "exit_code", None)):
+            if isinstance(code, int) and not isinstance(code, bool) and code != -1:
+                return code != 0
+    head = (text or "").lower()[:300]
+    return ("error" in head or "exit code 1" in head or head.startswith("cannot execute")
+            or "not registered" in head or "traceback (most recent" in head)

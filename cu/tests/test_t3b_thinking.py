@@ -87,3 +87,16 @@ class TestT3bThinking(unittest.TestCase):
         rc = "**My Assessment of the Task**  Okay, so the user wants me to execute echo"
         ev = NS(reasoning_content=rc, thinking_blocks=[NS(thinking=rc)])
         self.assertEqual(reasoning_of(ev), rc)
+
+    def test_xml_toolcall_ya_laguna_inafichwa(self):
+        # jibu HALISI la laguna-s-2.1 lililokuwa ripoti (live c2ab16bd)
+        self.assertTrue(is_text_toolcall(
+            "<tool_call>read<arg_key>path</arg_key><arg_value>/home/user/ws/feature_list.json</arg_value></tool_call>"))
+        self.assertTrue(is_text_toolcall("<function=terminal>\n<parameter=command>ls</parameter>\n</function>"))
+        self.assertTrue(is_text_toolcall('[TOOL_CALLS][{"name": "terminal", "arguments": {"command": "ls"}}]'))
+        self.assertTrue(is_text_toolcall('<invoke name="terminal"><parameter name="command">ls</parameter></invoke>'))
+
+    def test_ripoti_inayotaja_tool_call_si_toolcall(self):
+        r = ("## Ripoti ya Mwisho\\nHatua zote 3 zimekamilika: hello.txt (bytes 5). Agent alitumia "
+             "<tool_call> mara moja kusoma feature_list.json, kisha akaandika evidence.")
+        self.assertFalse(is_text_toolcall(r))
