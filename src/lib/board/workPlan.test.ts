@@ -248,3 +248,17 @@ describe("workPlan · assemblePlanDocument (deterministic)", () => {
     expect(asm.markdown).not.toContain("_No constraints");
   });
 });
+
+describe("Task 3b: Verification inaendeshwa kutoka WORKSPACE ROOT (live 92a6baeb)", () => {
+  it("template inamwambia Optimus kuwa command inaendeshwa kutoka mzizi, na mfano wake ni command salama", async () => {
+    const { PLAN_STEP_TEMPLATE } = await import("./workPlan");
+    const { featuresFromPlan } = await import("../cu/features");
+    expect(PLAN_STEP_TEMPLATE).toContain("WORKSPACE ROOT");
+    expect(PLAN_STEP_TEMPLATE).toContain("`git -C my-repo log -1`");
+    // mfano wa template unakuwa check ya "command" (harness ina-RE-RUN) — si assertion
+    const fl = featuresFromPlan("## 6. Work Steps\n\n### Step 1 — Commit\n- **Goal:** x\n- **Verification:** `git -C my-repo log -1` shows a commit\n");
+    const chk = fl.features[0].checks[0];
+    expect(chk.kind).toBe("command");
+    expect(chk.command).toBe("git -C my-repo log -1");
+  });
+});

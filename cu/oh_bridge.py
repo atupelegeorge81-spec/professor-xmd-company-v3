@@ -32,7 +32,7 @@ import lanes  # noqa: E402
 import oh_router  # noqa: E402
 import shotlaw  # noqa: E402
 from oh_util import (_extract_steps, action_command, build_objective, clean_think, first_words,
-                     is_text_toolcall, obs_failed, oh_tool_kind, reasoning_of, split_think,
+                     is_text_toolcall, obs_failed, drop_echo, oh_tool_kind, reasoning_of, split_think,
                      read_shot_b64, shots_pending)
 
 BASE_TS = B.BASE_TS
@@ -328,7 +328,7 @@ async def main_async() -> None:
                         if isinstance(t, str):
                             txt += t
                 inline, txt = split_think(txt)
-                emit_think("\n\n".join(x for x in (reasoning_of(msg), inline) if x))
+                emit_think("\n\n".join(x for x in (drop_echo(reasoning_of(msg), txt), inline) if x))
                 # R46-dhambi: lane dhaifu wakati mwingine huandika tool-call kama JSON ya TEXT
                 # (k.m. {"action":"command",...} / {"command":"echo…"}). Hiyo SI jibu la user —
                 # usiiweke ripoti, na usiionyeshe kama "text" (Task 3b: is_text_toolcall).

@@ -370,6 +370,16 @@ def obs_failed(obs, text: str) -> bool:
             or "not registered" in head or "traceback (most recent" in head)
 
 
+def drop_echo(reasoning: str, visible: str) -> str:
+    """Task 3b: reasoning iliyo nakala ya text inayoonekana HAIONYESHWI mara mbili (live 92a6baeb
+    i=220/223: laguna — reasoning_of(msg) == content → Thought + text zilezile)."""
+    r = re.sub(r"\s+", " ", reasoning or "").strip()
+    v = re.sub(r"\s+", " ", visible or "").strip()
+    if r and v and (r == v or (len(r) >= 20 and r in v)):
+        return ""
+    return reasoning or ""
+
+
 def clean_think(text: str) -> str:
     """Task 3b: thinking ya kuonyesha — tags zilizobaki zinaondolewa na vipande vinavyojirudia
     vinafutwa (live b10edd27: reasoning_content ya north ilijirudia ×N ikitenganishwa na <think>)."""
@@ -379,9 +389,11 @@ def clean_think(text: str) -> str:
     for p in parts:
         p = re.sub(r"</?(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?|o(?:u(?:g(?:h(?:t)?)?)?)?)?)?)?$", "", p)  # tag ya think iliyokatika (cap)
         k = re.sub(r"\s+", " ", p).strip()
-        k = re.sub(r"[\W_]+$", "", k)  # alama/mabano ya mwisho hayatofautishi (live 6244329d i=92: "...carefully.]")
-        # nakala kamili, au kipande kilichokatwa (prefix ≥20) cha kilichoonekana (live i=245)
-        if not k or k in seen or (len(k) >= 20 and any(x.startswith(k) for x in seen)):
+        k = re.sub(r"[\W_]+$", "", k).lower()  # alama/herufi kubwa hazitofautishi (live 6244329d i=92)
+        # nakala kamili, kipande kilichokatwa (prefix ≥20, live i=245), au nakala yenye kiambishi
+        # tofauti mwanzoni tu ("Now let me X" / "Let me X" — live 92a6baeb i=101)
+        if not k or k in seen or (len(k) >= 20 and any(x.startswith(k) or x.endswith(k) or
+                                                        (len(x) >= 20 and k.endswith(x)) for x in seen)):
             continue
         seen.add(k)
         out.append(p.strip())
