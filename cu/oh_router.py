@@ -120,6 +120,9 @@ class LaneRouterCore:
         noted_wait = False
         while True:
             t = self.now()
+            qs = getattr(self, "quota_sync", None)
+            if qs is not None:
+                qs.maybe(t)
             lane = self.pick(t)
             if lane is not None:
                 self._owner[lane.lid].note_start(lane, t)
@@ -172,6 +175,34 @@ class LaneRouterCore:
 
 
 # ================================================================ glue ya SDK (sandbox tu)
+class QuotaSync:
+    """§6: soma ledger ya server (Board + CU) kila `every` sekunde wakati wa run na uiweke kwenye
+    pools (max — hesabu hazishuki). `fetch()` ni callback (HTTP kwenye bridge); kosa = kimya."""
+
+    def __init__(self, pools: dict, fetch, every: float = 60.0, now=time.time):
+        self.pools, self.fetch, self.every, self.now = pools, fetch, every, now
+        self.last = -1e18
+        self.applied = 0
+        self.fails = 0
+
+    def maybe(self, t: float | None = None) -> bool:
+        t = self.now() if t is None else t
+        if t - self.last < self.every:
+            return False
+        self.last = t
+        try:
+            snap = self.fetch()
+        except Exception:
+            self.fails += 1
+            return False
+        if not snap:
+            self.fails += 1
+            return False
+        lanes.apply_quota_snapshot(self.pools, snap, t)
+        self.applied += 1
+        return True
+
+
 class InvalidResponse(RuntimeError):
     """Jibu la lane halikidhi validator (mf. verdict ya judge tupu/si JSON) — kind 'empty'."""
 

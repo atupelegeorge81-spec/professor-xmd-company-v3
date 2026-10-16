@@ -216,6 +216,24 @@ async def main_async() -> None:
     # Nemotron Ultra (UnoRouter) ndiye judge wa kawaida; OpenRouter Lightning ni fallback tu.
     # Ikiwa hakuna Uno lane eligible, router hutafuta fallback iliyobaki.
     judge_core = oh_router.LaneRouterCore(judge_pool, dispatch_schedule=("unorouter",))
+    # §6: quota ya pamoja Board + CU — ledger ya server inasomwa kila 60s wakati wa run.
+    quota_url = (a.callback_url.rsplit("/cu-event", 1)[0] + "/cu-quota") if a.callback_url else ""
+
+    def _fetch_quota():
+        import urllib.request
+        req = urllib.request.Request(
+            quota_url, data=json.dumps({"session": a.session}).encode(), method="POST",
+            headers={"Content-Type": "application/json", "User-Agent": "xmd-cu/1.0",
+                     "Authorization": "Bearer " + (a.callback_token or "")})
+        with urllib.request.urlopen(req, timeout=6) as r:
+            d = json.loads(r.read().decode("utf-8", "replace"))
+        return d if d.get("ok") else None
+
+    if quota_url:
+        qsync = oh_router.QuotaSync(pools, _fetch_quota,
+                                    every=float(os.environ.get("XMD_QUOTA_SYNC_S") or 60))
+        core.quota_sync = qsync
+        judge_core.quota_sync = qsync
     judge_core.usage_cb = lambda lane, pt, ct: em.emit(
         "usage", lane="judge:" + lane.lid[-70:], provider=lane.provider, account=lane.account,
         model=lane.model, prompt=pt, completion=ct, total=pt + ct, ok=True,

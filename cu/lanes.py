@@ -46,6 +46,13 @@ OH_OR_ALLOWED = {
 OH_OR_JUDGE_FALLBACK = "nvidia/nemotron-3.5-lightning:free"
 
 UNO_RPM_PER_MODEL = 1            # kanuni rasmi ya UnoRouter free (429 + Retry-After)
+# Uno ilitaja limit kwenye 429 (live 2026-10-16): nemotron-3-ultra free = 5 req/dk kwa account;
+# minimax = 1. Ultra ya executor + judge zinashiriki dirisha hili moja (lid ileile).
+UNO_RPM_BY_MODEL = {"nemotron-3-ultra-550b-a55b:free": 5}
+
+
+def uno_rpm(model: str) -> int:
+    return UNO_RPM_BY_MODEL.get(model, UNO_RPM_PER_MODEL)
 OR_RPD_PER_ACCOUNT = 50          # free tier ya OpenRouter kwa siku kwa account
 MODEL_WIDE_KINDS = ("server_error", "timeout", "empty", "pool_busy")
 MODEL_FAIL_WINDOW = 120.0       # s — kosa la model linaathiri accounts zote kwa muda huu
@@ -337,6 +344,37 @@ def _epoch_seconds(value) -> float:
     return n / 1000.0 if n > 100_000_000_000 else n
 
 
+def _seed_or_quota(pools: dict, or_quota: dict, now: float) -> None:
+    """OpenRouter: hesabu ya account nzima (shared_acc_day) = max(local, server) + retryAt."""
+    day = utc_day(now)
+    any_pool = next(iter(pools.values()), None)
+    if any_pool is None:
+        return
+    acc_day = any_pool.acc_day  # dict moja kwa pools zote
+    for acct, rec in (or_quota or {}).items():
+        if not isinstance(rec, dict) or (rec.get("day") and rec.get("day") != day):
+            continue
+        used = int(rec.get("requests") or 0)
+        if _epoch_seconds(rec.get("exhaustedUntil")) > now:
+            used = max(used, OR_RPD_PER_ACCOUNT)
+        acc_day[(acct, day)] = max(acc_day.get((acct, day), 0), used)
+        retry_at = _epoch_seconds(rec.get("retryAt"))
+        if retry_at > now:
+            for pool in pools.values():
+                for lane in pool.lanes:
+                    if lane.provider == "openrouter" and lane.account == acct:
+                        pool.state[lane.lid].cooldown_until = max(pool.state[lane.lid].cooldown_until, retry_at)
+
+
+def apply_quota_snapshot(pools: dict, snap: dict, now: float | None = None) -> None:
+    """§6: tumia snapshot ya ledger ya server (GET wakati wa run) — hesabu hazishuki kamwe (max)."""
+    now = time.time() if now is None else now
+    gem = {"quota": (snap or {}).get("gemini") or {}}
+    for pool in pools.values():
+        _seed_gemini_quota(pool, gem, now)
+    _seed_or_quota(pools, (snap or {}).get("or") or {}, now)
+
+
 def _seed_gemini_quota(pool: LanePool, gem: dict, now: float) -> None:
     """Pakia snapshot ya Board/CU kabla ya dispatch ili run mpya isahau quota iliyotumika."""
     quota = gem.get("quota") or {}
@@ -350,8 +388,11 @@ def _seed_gemini_quota(pool: LanePool, gem: dict, now: float) -> None:
         if not rec:
             continue
         st = pool.state[lane.lid]
-        st.day = acct.get("day") or pacific_day(now)
-        st.day_count = int(rec.get("requests") or 0)
+        day = acct.get("day") or pacific_day(now)
+        server = int(rec.get("requests") or 0)
+        # max(local, server): ledger ya server ina matumizi ya Board + CU (events za CU hufika kwa kuchelewa)
+        st.day_count = max(st.day_count if st.day == day else 0, server)
+        st.day = day
         untils = [_epoch_seconds(rec.get(k)) for k in ("exhaustedUntil", "retryAt", "busyUntil")]
         st.cooldown_until = max([st.cooldown_until, *untils])
 
@@ -433,10 +474,10 @@ def build_pools(cfg: dict, run_id: str = "", now=time.time) -> dict[str, LanePoo
                            20 + i, day="pacific"))
     for model, rank in uno_main:
         for acct, key in sorted(uno_keys.items()):
-            main.append(mk("unorouter", acct, key, model, uno_base, UNO_RPM_PER_MODEL, 0, rank))
+            main.append(mk("unorouter", acct, key, model, uno_base, uno_rpm(model), 0, rank))
     for model, rank in uno_t2:
         for acct, key in sorted(uno_keys.items()):
-            main.append(mk("unorouter", acct, key, model, uno_base, UNO_RPM_PER_MODEL, 0,
+            main.append(mk("unorouter", acct, key, model, uno_base, uno_rpm(model), 0,
                            rank, tier2=True))
 
     dharura: list[Lane] = []
@@ -448,7 +489,7 @@ def build_pools(cfg: dict, run_id: str = "", now=time.time) -> dict[str, LanePoo
     judge: list[Lane] = []
     for i, model in enumerate(judge_models):
         for acct, key in sorted(uno_keys.items()):
-            judge.append(mk("unorouter", acct, key, model, uno_base, UNO_RPM_PER_MODEL, 0,
+            judge.append(mk("unorouter", acct, key, model, uno_base, uno_rpm(model), 0,
                             10 + i * 10, reasoning=True))
     if OH_OR_JUDGE_FALLBACK in or_configured:
         for acct, key in sorted(or_keys.items()):
@@ -474,20 +515,6 @@ def build_pools(cfg: dict, run_id: str = "", now=time.time) -> dict[str, LanePoo
                 st.calls_min = shared_min.setdefault(lane.lid, st.calls_min)
 
     # OpenRouter ledger snapshot is account-wide (all models/roles share the same 50/day).
-    or_quota = or_prov.get("quota") or {}
-    day = utc_day(now())
-    for acct, rec in or_quota.items():
-        if rec.get("day") and rec.get("day") != day:
-            continue
-        used = int(rec.get("requests") or 0)
-        if _epoch_seconds(rec.get("exhaustedUntil")) > now():
-            used = max(used, OR_RPD_PER_ACCOUNT)
-        shared_acc_day[(acct, day)] = max(shared_acc_day.get((acct, day), 0), used)
-        retry_at = _epoch_seconds(rec.get("retryAt"))
-        if retry_at > now():
-            for pool in pools.values():
-                for lane in pool.lanes:
-                    if lane.provider == "openrouter" and lane.account == acct:
-                        pool.state[lane.lid].cooldown_until = max(pool.state[lane.lid].cooldown_until, retry_at)
+    _seed_or_quota(pools, or_prov.get("quota") or {}, now())
 
     return pools

@@ -184,8 +184,7 @@ def test_judge_inapendelea_uno_ultra_na_openrouter_ni_fallback():
     sleeper = FakeSleeper(c)
     core = LaneRouterCore(pools["judge"], now=c, sleep=sleeper, wait_cap=60.0,
                           dispatch_schedule=("unorouter",))
-    first = core.acquire()
-    second = core.acquire()
-    third = core.acquire()
-    assert first.provider == "unorouter" and second.provider == "unorouter"
-    assert third.provider == "openrouter"  # Uno accounts zote ziko ndani ya RPM window
+    n_uno = 2 * lanes.uno_rpm("nemotron-3-ultra-550b-a55b:free")  # accounts 2 × 5/dk
+    got = [core.acquire() for _ in range(n_uno + 1)]
+    assert all(l.provider == "unorouter" for l in got[:n_uno])
+    assert got[n_uno].provider == "openrouter"  # Uno accounts zote ziko ndani ya RPM window

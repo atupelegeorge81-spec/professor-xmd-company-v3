@@ -38,6 +38,17 @@ export const GEMINI_MODEL_SKIP: Record<string, string[]> = {
   "gemini-3": ["gemini-2.5-flash"],
   "gemini-4": ["gemini-2.5-flash"],
 };
+/** CU Adaptive Brain: Flash-Lite 4 za CU (Board inabaki na GEMINI_LITE_MODELS = 2). Hii ndiyo chanzo
+ *  kimoja kwa engine.ts (config ya sandbox) na usageSnapshot.ts (UI ya Usage). Inasomwa wakati wa call. */
+export const cuLiteModels = (): string[] =>
+  list(process.env.GEMINI_LITE_MODELS, "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.1-flash-lite-preview,gemini-flash-lite-latest");
+/** RPD ya Lite kwa model: 3.1/3.5 = 500 (imethibitishwa); preview/latest = 20 (tahadhari) hadi env ibadilishe. */
+export function cuLiteRpd(model: string): number {
+  const all = Number(process.env.GEMINI_LITE_RPD) || 0;
+  if (model === "gemini-3.1-flash-lite-preview") return Number(process.env.GEMINI_LITE_PREVIEW_RPD) || all || 20;
+  if (model === "gemini-flash-lite-latest") return Number(process.env.GEMINI_LITE_LATEST_RPD) || all || 20;
+  return all || 500;
+}
 /** Embeddings za search cache: ya kwanza = msingi, ya pili = akiba (space yake — vectors hazichanganywi) */
 export const GEMINI_EMBED_MODELS: string[] = list(process.env.GEMINI_EMBED_MODELS, "gemini-embedding-001,gemini-embedding-2");
 export const GEMINI_FLASH_RPD = Number(process.env.GEMINI_FLASH_RPD) || 20;

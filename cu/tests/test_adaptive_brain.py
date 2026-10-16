@@ -188,7 +188,9 @@ def test_ultra_rpm_ni_moja_kati_ya_executor_na_judge():
     c = Clock()
     pools = lanes.build_pools(cfg(), run_id="rpm-shared", now=c)
     ex = next(l for l in pools["main"].lanes if l.tier2 and l.account == "uno-1")
-    pools["main"].note_start(ex, c())
+    assert ex.rpm == 5  # Ultra free = 5/dk kwa account (Uno 429 message)
+    for _ in range(ex.rpm):
+        pools["main"].note_start(ex, c())
     judge_ok = [l.lid for l in pools["judge"].eligible_lanes(c())]
     assert ex.lid not in judge_ok
     c.tick(61)
@@ -270,3 +272,41 @@ def test_model_nzima_ikifeli_router_inahamia_model_nyingine_ya_family():
     # baada ya dirisha, model inarudi kushindana (rank yake bora)
     c.tick(lanes.MODEL_FAIL_WINDOW + 1)
     assert pools["main"].model_penalty(first) < lanes.MODEL_FAIL_PENALTY
+
+
+def test_quota_sync_inaona_matumizi_ya_board_wakati_wa_run():
+    """§6: Board ikitumia Gemini/OR wakati CU inaendesha, sync (60s) inaingiza hesabu hizo (max)."""
+    c = Clock()
+    pools = lanes.build_pools(cfg(), run_id="qsync", now=c)
+    lane = next(l for l in pools["main"].lanes if l.model == "gemini-3.6-flash" and l.account == "gemini-1")
+    pools["main"].note_start(lane, c())  # CU yenyewe: 1
+    day_p, day_u = lanes.pacific_day(c()), lanes.utc_day(c())
+    snaps = [{"ok": True, "gemini": {"gemini-1": {"day": day_p, "chat": {"gemini-3.6-flash": {"requests": 20}}}},
+              "or": {"or-1": {"day": day_u, "requests": 50}}},
+             {"ok": True, "gemini": {"gemini-1": {"day": day_p, "chat": {"gemini-3.6-flash": {"requests": 3}}}}}]
+    calls = []
+    qs = oh_router.QuotaSync(pools, lambda: calls.append(1) or snaps.pop(0), every=60.0, now=c)
+    core = LaneRouterCore(pools["main"], pools["dharura"], now=c, sleep=c.tick, wait_cap=60.0)
+    core.quota_sync = qs
+    core.acquire()
+    assert qs.applied == 1
+    elig = {l.lid for l in pools["main"].eligible_lanes(c())}
+    assert lane.lid not in elig  # Board ilimaliza 20/20 → CU inaiona papo hapo
+    assert not [l for l in pools["dharura"].eligible_lanes(c()) if l.account == "or-1"]
+    core.acquire()
+    assert len(calls) == 1  # throttle: si kila acquire
+    c.tick(61)
+    qs.maybe()
+    assert pools["main"].state[lane.lid].day_count == 20  # max — snapshot ndogo haishushi hesabu
+
+
+def test_quota_sync_kosa_la_mtandao_ni_kimya():
+    c = Clock()
+    pools = lanes.build_pools(cfg(), run_id="qsync-err", now=c)
+
+    def boom():
+        raise OSError("connection refused")
+    qs = oh_router.QuotaSync(pools, boom, every=60.0, now=c)
+    core = LaneRouterCore(pools["main"], pools["dharura"], now=c, sleep=c.tick, wait_cap=60.0)
+    core.quota_sync = qs
+    assert core.acquire() is not None and qs.fails == 1
