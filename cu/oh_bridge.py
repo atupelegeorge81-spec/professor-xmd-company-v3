@@ -354,8 +354,10 @@ async def main_async() -> None:
         "array `evidence` ya feature hiyo object kama "
         '`{\"kind\": \"file\", \"ref\": \"hello.txt\", \"artifact\": \"hello.txt\", \"note\": \"wc -c = 5\"}` '
         "— `kind` = \"file\" au \"browser\" (screenshot chini ya .xmd/shots/), `artifact` = path "
-        "(relative kwa workspace) ya faili HALISI lisilo tupu linalothibitisha check. Hariri "
-        "feature_list.json kwa FILE EDITOR; usibadilishe id/title/checks.\n"
+        "(relative kwa workspace) ya faili HALISI lisilo tupu linalothibitisha check: deliverable "
+        "yenyewe AU output ya amri iliyohifadhiwa chini ya `.xmd/evidence/` (mf. "
+        "`wc -c < hello.txt > .xmd/evidence/step-01.txt`) — USIWEKE faili za ushahidi ndani ya "
+        "deliverable/repo. Hariri feature_list.json kwa FILE EDITOR; usibadilishe id/title/checks.\n"
         if os.path.exists(fl_path) else ""
     )
     resume_part = ("\n\nRESUME CONTEXT (hali halisi ya run iliyokatizwa):\n" + a.resume_note) if a.resume_note else ""
@@ -450,7 +452,9 @@ async def main_async() -> None:
     ct = core.completion_total + judge_core.completion_total
     em.emit("usage_total", prompt=pt, completion=ct, total=pt + ct)
 
-    report = last_assistant_text or "(hakuna ripoti — agent hakutuma ujumbe wa mwisho)"
+    # Task 3b: engine (handleCuEvent "finish") inatambua "(hakuna ripoti)" KAMILI kama "hakuna
+    # ripoti" → PARTIAL. String ndefu ya zamani ilihesabiwa ripoti → COMPLETED ya uongo.
+    report = last_assistant_text or "(hakuna ripoti)"
     if harness_note:
         report += harness_note
     partial = status != "done"

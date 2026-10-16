@@ -100,3 +100,7 @@ class TestT3bThinking(unittest.TestCase):
         r = ("## Ripoti ya Mwisho\\nHatua zote 3 zimekamilika: hello.txt (bytes 5). Agent alitumia "
              "<tool_call> mara moja kusoma feature_list.json, kisha akaandika evidence.")
         self.assertFalse(is_text_toolcall(r))
+
+    def test_json_halali_tupu_si_jibu(self):
+        self.assertTrue(is_text_toolcall('{\n "features": [\n  {"id": "f1", "title": "repo", "state": "passed"}\n ]\n}'))
+        self.assertFalse(is_text_toolcall("{haya ni maelezo} na JSON haijakamilika"))

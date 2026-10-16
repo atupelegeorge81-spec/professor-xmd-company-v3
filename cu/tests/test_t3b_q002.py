@@ -76,3 +76,10 @@ class TestActionCommand(unittest.TestCase):
         self.assertTrue(obs_failed(NS(is_error=True), "ok"))
         self.assertTrue(obs_failed(NS(exit_code=-1, is_error=False), "Traceback (most recent call last)"))
         self.assertFalse(obs_failed(None, "imeandikwa"))
+
+    def test_fallback_ya_ripoti_inalingana_na_engine(self):
+        root = Path(__file__).resolve().parents[2]
+        bridge = root.joinpath("cu", "oh_bridge.py").read_text()
+        engine = root.joinpath("src", "lib", "cu", "engine.ts").read_text()
+        self.assertIn('report = last_assistant_text or "(hakuna ripoti)"', bridge)
+        self.assertIn('rtext.trim() === "(hakuna ripoti)"', engine)

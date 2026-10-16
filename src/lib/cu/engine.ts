@@ -262,8 +262,8 @@ export function buildCuConfig(): Record<string, unknown> {
   }
   const uno = { ...keysOf("uno-1"), ...keysOf("uno-2") };
   // R51: space-bunny-alpha IMEFUTWA (imekufa 2026-10-05); qwen3-coder-plus imeondolewa kwa agizo
-  // la CEO (429 concurrent). Default = roster iliyohakikiwa kwa tool-call live (MPANGO-R51 §0.5).
-  const UNO_DEFAULT = "kimi-k3:free,deepseek-v4-flash:free,deepseek-v4.1-flash:free,nemotron-3-super-120b-a12b:free,nemotron-3-ultra-550b-a55b:free,laguna-s-2.1:free,north-mini-code:free,minimax-m2.7:free,codestral-latest:free";
+  // la CEO (429 concurrent); nemotron-3-super imeondolewa (CEO 2026-10-16). Default = roster iliyohakikiwa kwa tool-call live (MPANGO-R51 §0.5).
+  const UNO_DEFAULT = "kimi-k3:free,deepseek-v4-flash:free,deepseek-v4.1-flash:free,nemotron-3-ultra-550b-a55b:free,laguna-s-2.1:free,north-mini-code:free,minimax-m2.7:free,codestral-latest:free";
   const unoModels = (process.env.UNOROUTER_MODELS || UNO_DEFAULT).split(",").map(s => s.trim()).filter(Boolean);
   if (Object.keys(uno).length) {
     emergency.push({
