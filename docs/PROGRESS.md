@@ -44,3 +44,9 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Judge cap (Q-001) imetatuliwa: live `judge: complete score=1.0`.
 - Known issue: harness `features_verify` inakataa `assertion` bila evidence ya file/browser hata judge akisema complete → Q-002.
 - Haijathibitishwa: kimi-k3, deepseek-v4.1-flash, codestral (503 busy).
+
+## Task 4 — CU Adaptive Brain (2026-10-16)
+- Patch ya CEO + marekebisho 7 (judge fallback halali, harness continuation, shared Uno RPM, akiba ya judge OR, afya ya model, Board Lite haikuguswa). Evidence: docs/tests/task-4.md.
+- Baselines: pytest 283 · unittest 220 OK · tsc 0 · vitest 212/212 · eslint errors = baseline (34).
+- Live: run 11 + run 12 = COMPLETED_UNVERIFIED (harness ✓), judge Uno Ultra (run 12: kataa → kubali). Rollback: backup/pre-adaptive-brain (ac9c5a3).
+- Yaliyobaki: harness-continuation haijatokea live (tests tu); quota broker ya pamoja Board+CU (spec §6) inahitaji uamuzi.
