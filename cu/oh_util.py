@@ -364,3 +364,19 @@ def obs_failed(obs, text: str) -> bool:
     head = (text or "").lower()[:300]
     return ("error" in head or "exit code 1" in head or head.startswith("cannot execute")
             or "not registered" in head or "traceback (most recent" in head)
+
+
+def clean_think(text: str) -> str:
+    """Task 3b: thinking ya kuonyesha — tags zilizobaki zinaondolewa na vipande vinavyojirudia
+    vinafutwa (live b10edd27: reasoning_content ya north ilijirudia ×N ikitenganishwa na <think>)."""
+    parts = re.split(r"</?(?:think|thinking|thought)>", text or "", flags=re.I)
+    seen: set[str] = set()
+    out: list[str] = []
+    for p in parts:
+        p = re.sub(r"</?(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?|o(?:u(?:g(?:h(?:t)?)?)?)?)?)?)?$", "", p)  # tag ya think iliyokatika (cap)
+        k = re.sub(r"\s+", " ", p).strip()
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        out.append(p.strip())
+    return "\n\n".join(out)

@@ -104,3 +104,10 @@ class TestT3bThinking(unittest.TestCase):
     def test_json_halali_tupu_si_jibu(self):
         self.assertTrue(is_text_toolcall('{\n "features": [\n  {"id": "f1", "title": "repo", "state": "passed"}\n ]\n}'))
         self.assertFalse(is_text_toolcall("{haya ni maelezo} na JSON haijakamilika"))
+
+    def test_clean_think_marudio_na_tags(self):
+        from oh_util import clean_think
+        s = "Now I need to update qa-final.<think>Now I need to update qa-final.<think>Now I need to update qa-final.<t"
+        self.assertEqual(clean_think(s), "Now I need to update qa-final.")
+        self.assertEqual(clean_think("A\n\nB"), "A\n\nB")
+        self.assertEqual(clean_think(""), "")
