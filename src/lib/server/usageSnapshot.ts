@@ -10,7 +10,7 @@
 //   Embeddings  → R18: PEKE YAKE (si akaunti ya chat) · requests / (1000 × models 2 × akaunti za Gemini) · siku ya Pacific
 import { ACCOUNTS, GEM_ACCOUNTS, type AccountId, type GemAccountId, type AccountView, type EmbedView, type UsageSnapshot } from "@/lib/usage/accounts";
 import {
-  GEMINI_EMBED_MODELS, GEMINI_EMBED_RPD, GEMINI_FLASH_MODELS, GEMINI_FLASH_RPD, GEMINI_LITE_MODELS, GEMINI_LITE_RPD,
+  GEMINI_EMBED_MODELS, GEMINI_EMBED_RPD, GEMINI_FLASH_MODELS, GEMINI_FLASH_RPD, GEMINI_LITE_MODELS, GEMINI_LITE_RPD, cuLiteModels, cuLiteRpd,
   GROQ_MODELS, UNOROUTER_MODELS,
 } from "@/lib/env";
 import { gemState, groqBucketNow, ledger, nextPacificMidnight, nextUtcMidnight, orState, unoState } from "./usageLedger";
@@ -146,7 +146,10 @@ export function geminiView(id: GemAccountId = "gemini-1"): AccountView {
   const b = base(id);
   const g = gemState(id);
   const now = Date.now();
-  const rows = [...GEMINI_FLASH_MODELS.map((m) => [m, GEMINI_FLASH_RPD] as const), ...GEMINI_LITE_MODELS.map((m) => [m, GEMINI_LITE_RPD] as const)];
+  // Lite: za Board (GEMINI_LITE_RPD) + za CU pekee (preview/latest — cap yake ya tahadhari) ili matumizi yote yaonekane
+  const liteAll = [...new Set([...GEMINI_LITE_MODELS, ...cuLiteModels()])];
+  const liteRpdOf = (m: string) => (GEMINI_LITE_MODELS.includes(m) ? GEMINI_LITE_RPD : cuLiteRpd(m));
+  const rows = [...GEMINI_FLASH_MODELS.map((m) => [m, GEMINI_FLASH_RPD] as const), ...liteAll.map((m) => [m, liteRpdOf(m)] as const)];
   const models = rows.map(([model, def]) => {
     const m = g.chat[model];
     const lim = m?.rpdLimit ?? def;
@@ -159,7 +162,7 @@ export function geminiView(id: GemAccountId = "gemini-1"): AccountView {
   const tokens = models.reduce((a, m) => a + m.used, 0);
   const pct = requestLimit ? clampPct((requests / requestLimit) * 100) : null;
   const flash = models.filter((m) => GEMINI_FLASH_MODELS.includes(m.model));
-  const lite = models.filter((m) => GEMINI_LITE_MODELS.includes(m.model));
+  const lite = models.filter((m) => liteAll.includes(m.model));
   const sum = (xs: typeof models, k: "rpdUsed" | "rpdLimit") => xs.reduce((a, m) => a + (m[k] ?? 0), 0);
   const exhausted = models.length > 0 && models.every((m) => (m.rpdUsed ?? 0) >= (m.rpdLimit ?? 1));
   const lastAt = Math.max(0, ...Object.values(g.chat).map((m) => m.lastAt ?? 0));
@@ -168,7 +171,7 @@ export function geminiView(id: GemAccountId = "gemini-1"): AccountView {
     used: tokens, limit: null, remaining: null, pct, pctSource: "requests",
     requests, requestLimit,
     resetAt: nextPacificMidnight(now), resetKind: "pacific-midnight", lastResetAt: null,
-    window: `requests per day per model, Pacific day (resets 10:00 Dar es Salaam) · Flash ${sum(flash, "rpdUsed")}/${sum(flash, "rpdLimit")} (${flash.length} models × ${GEMINI_FLASH_RPD}, 5/min each) · Flash-Lite ${sum(lite, "rpdUsed")}/${sum(lite, "rpdLimit")} (${lite.length} × ${GEMINI_LITE_RPD}, 15/min each)`,
+    window: `requests per day per model, Pacific day (resets 10:00 Dar es Salaam) · Flash ${sum(flash, "rpdUsed")}/${sum(flash, "rpdLimit")} (${flash.length} models × ${GEMINI_FLASH_RPD}, 5/min each) · Flash-Lite ${sum(lite, "rpdUsed")}/${sum(lite, "rpdLimit")} (${lite.map((m) => m.rpdLimit).join("+")}, 15/min each)`,
     status: !b.configured ? "missing" : lastAt === 0 ? "idle" : statusOf(pct, exhausted, models.every((m) => m.retryAt)),
     models,
     note: `Flash ${sum(flash, "rpdUsed")}/${sum(flash, "rpdLimit")} · Lite ${sum(lite, "rpdUsed")}/${sum(lite, "rpdLimit")}`,

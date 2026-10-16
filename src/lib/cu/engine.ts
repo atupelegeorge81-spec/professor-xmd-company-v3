@@ -26,7 +26,7 @@ import {
   ledger, type GemAcct,
 } from "@/lib/server/usageLedger";
 import { slotKeys } from "@/lib/server/usageKeys";
-import { GEMINI_MODEL_SKIP } from "@/lib/env";
+import { GEMINI_MODEL_SKIP, cuLiteModels, cuLiteRpd } from "@/lib/env";
 import { GEM_ACCOUNTS, type GemAccountId } from "@/lib/usage/accounts";
 import type { ProviderUsage, UsageMap } from "@/lib/usageChip";
 import type { Runner, PauseOrigin } from "@/lib/boardRunner";
@@ -207,6 +207,25 @@ function keysOf(account: string): Record<string, string> {
 }
 
 /** Config kamili inayopakiwa sandbox: keys + models + QUOTA SNAPSHOT (ili tusichome 429 ovyo). */
+/** Adaptive Brain §6: snapshot ya quota ya ledger ya server (Board + CU) kwa muundo uleule wa
+ *  buildCuConfig — sandbox huisoma kila ~60s (POST /api/boardroom/cu-quota) ili CU ione matumizi
+ *  ya Board wakati wa run (si mwanzoni tu). Hakuna keys ndani yake. */
+export function cuQuotaSnapshot(): { gemini: Record<string, unknown>; or: Record<string, unknown>; at: number } {
+  const L = ledger();
+  const slots = { "gemini-1": "gem", "gemini-2": "gem2", "gemini-3": "gem3", "gemini-4": "gem4" } as const;
+  const gemini: Record<string, unknown> = {};
+  for (const [ga, slot] of Object.entries(slots)) {
+    const st = (L as any)[slot];
+    if (st?.chat) gemini[ga] = { day: st.day, chat: st.chat };
+  }
+  const or: Record<string, unknown> = {};
+  for (const a of ["or-1", "or-2"] as const) {
+    const r = L.or?.[a];
+    if (r) or[a] = { day: r.day, requests: r.requests, exhaustedUntil: r.exhaustedUntil, retryAt: r.retryAt };
+  }
+  return { gemini, or, at: Date.now() };
+}
+
 export function buildCuConfig(): Record<string, unknown> {
   const L = ledger();
   // R41: akaunti 4 za Gemini — keys na quota snapshot zinajengwa KWA NJIA MOJA (hazijawir hardcode)
@@ -223,7 +242,7 @@ export function buildCuConfig(): Record<string, unknown> {
     if (st?.chat) gemQuota[ga] = { day: st.day, chat: st.chat };
   }
   const flash = (process.env.GEMINI_FLASH_MODELS || "gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,gemini-2.5-flash").split(",").map(s => s.trim()).filter(Boolean);
-  const lite = (process.env.GEMINI_LITE_MODELS || "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.1-flash-lite-preview,gemini-flash-lite-latest").split(",").map(s => s.trim()).filter(Boolean);
+  const lite = cuLiteModels();
   const emergency: Record<string, unknown>[] = [];
 
   const or = { ...keysOf("or-1"), ...keysOf("or-2") };
@@ -276,14 +295,7 @@ export function buildCuConfig(): Record<string, unknown> {
       liteRpd: Number(process.env.GEMINI_LITE_RPD) || 500,
       // 500 RPD imethibitishwa kwa base 3.1/3.5 Flash-Lite pekee. Preview/latest
       // hutumia cap ya tahadhari 20 hadi owner athibitishe limit; env inaweza kubadilisha.
-      liteRpdByModel: {
-        "gemini-3.1-flash-lite": Number(process.env.GEMINI_LITE_RPD) || 500,
-        "gemini-3.5-flash-lite": Number(process.env.GEMINI_LITE_RPD) || 500,
-        "gemini-3.1-flash-lite-preview": Number(process.env.GEMINI_LITE_PREVIEW_RPD)
-          || (process.env.GEMINI_LITE_RPD ? Number(process.env.GEMINI_LITE_RPD) : 20),
-        "gemini-flash-lite-latest": Number(process.env.GEMINI_LITE_LATEST_RPD)
-          || (process.env.GEMINI_LITE_RPD ? Number(process.env.GEMINI_LITE_RPD) : 20),
-      },
+      liteRpdByModel: Object.fromEntries(lite.map((m) => [m, cuLiteRpd(m)])),
       flashRpm: Number(process.env.GEMINI_FLASH_RPM) || 5,
       liteRpm: Number(process.env.GEMINI_LITE_RPM) || 15,
       tpmLimit: Number(process.env.GEMINI_TPM_LIMIT) || 200_000, // R40-A: tokens/dakika kwa kila lane — kabla ya 429
