@@ -11,11 +11,12 @@ Sifa zake:
 
 Roster (imehakikiwa kwa tool-call LIVE 2026-10-11 — angalia MPANGO-KAZI-R51 §0.5):
   GIA1 main = gemini-flash (keys zetu, fast) + Uno free verified (kimi-k3, deepseek-v4-flash,
-  deepseek-v4.1-flash, nemotron-3-super-120b, laguna-s-2.1, north-mini-code, minimax-m2.7,
+  deepseek-v4.1-flash, laguna-s-2.1, north-mini-code, minimax-m2.7,
   codestral-latest) + nemotron-3-ultra (tier-2: text-mode tools).
   ❌ qwen3-coder-plus — IMEOFUTWA kwa agizo la CEO (429 concurrent). ❌ space-bunny — imekufa.
   Dharura = OpenRouter ×2 (rpd 50/account) → Groq kama ilivyo kwenye cfg.
-  GIA3 judge = nemotron-3-super-120b (Uno) → north-mini-code → OR lightning.
+  GIA3 judge = nemotron-3-ultra (Uno) → north-mini-code → OR lightning.
+  ❌ nemotron-3-super — IMEONDOLEWA kwa agizo la CEO 2026-10-16 (text bila tool_calls).
   GIA2 aux (condenser/title) = gemini-flash.
 
 Muda: rpm windows ni rolling-60s za requests zilizotumwa; rpd za OpenRouter/Groq = UTC day;
@@ -37,7 +38,6 @@ OH_UNO_MAIN_DEFAULT = [
     ("kimi-k3:free", 10),
     ("deepseek-v4-flash:free", 20),
     ("deepseek-v4.1-flash:free", 30),
-    ("nemotron-3-super-120b-a12b:free", 40),
     ("laguna-s-2.1:free", 50),
     ("north-mini-code:free", 60),
     ("minimax-m2.7:free", 70),
@@ -46,14 +46,13 @@ OH_UNO_MAIN_DEFAULT = [
 OH_UNO_TIER2_DEFAULT = [  # zinafanya kazi lakini kwa mapungufu (text-mode tools kwa ultra)
     ("nemotron-3-ultra-550b-a55b:free", 10),
 ]
-OH_JUDGE_DEFAULT = [  # kwa mpangilio — GIA3 (reasoning + imara + tofauti na main)
-    "nemotron-3-super-120b-a12b:free",
+OH_JUDGE_DEFAULT = [  # kwa mpangilio — GIA3. CEO 2026-10-16: ultra ndiye judge; super IMEONDOLEWA
+    "nemotron-3-ultra-550b-a55b:free",  # kabisa (inaandika nia kama text bila tool_calls — live 65b76aaa)
     "north-mini-code:free",
 ]
 OH_OR_MAIN_DEFAULT = [  # dharura — rpd 50 kwa account
     "nvidia/nemotron-3.5-lightning:free",
     "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
 ]
 OH_OR_JUDGE_FALLBACK = "nvidia/nemotron-3.5-lightning:free"
 

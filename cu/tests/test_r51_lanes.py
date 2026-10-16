@@ -150,10 +150,13 @@ def test_meters_na_snapshot(tmp_path):
     assert all("key" not in r for r in recs)  # kamwe hakuna key kwenye meters
 
 
-def test_judge_mpangilio_super_kwanza():
+def test_judge_mpangilio_ultra_kwanza():
     p = lanes.build_pools(cfg_sample(), run_id="", now=Clock())["judge"]
     first = p.pick()
-    assert first.model == "nemotron-3-super-120b-a12b:free" and first.provider == "unorouter"
+    assert first.model == "nemotron-3-ultra-550b-a55b:free" and first.provider == "unorouter"
+    # CEO 2026-10-16: nemotron-3-super haipo popote kwenye roster
+    allp = lanes.build_pools(cfg_sample(), run_id="", now=Clock())
+    assert not any("nemotron-3-super" in l.model for pool in allp.values() for l in pool.lanes)
     # fallback ya mwisho ni openrouter lightning
     assert p.lanes[-1].provider == "openrouter"
 

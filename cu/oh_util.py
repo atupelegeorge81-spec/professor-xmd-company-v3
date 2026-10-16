@@ -11,6 +11,7 @@ Yaliyomo:
 from __future__ import annotations
 
 import base64
+import json
 import re
 
 import shotlaw
@@ -322,7 +323,15 @@ def is_text_toolcall(text: str) -> bool:
     if not (t.startswith("{") or t.startswith("[{")):
         return False
     head = t[:300]
-    return any(k in head for k in _TOOLISH_KEYS)
+    if any(k in head for k in _TOOLISH_KEYS):
+        return True
+    # Task 3b: jibu lote likiwa JSON halali (live 65b76aaa: nemotron-super alimwaga maudhui ya
+    # feature_list.json kama "jibu") — si jibu wala ripoti kwa mtumiaji.
+    try:
+        json.loads(t)
+        return True
+    except ValueError:
+        return False
 
 
 _OH_EDITOR_KIND = {"view": ("read", "read_file"), "create": ("write", "write_file"),
