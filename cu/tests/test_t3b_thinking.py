@@ -124,3 +124,20 @@ class TestT3bThinking(unittest.TestCase):
         txt = "Let me inspect the real current state of the workspace carefully.\n\nLet me inspect the real current state of the workspace carefully.]"
         self.assertEqual(clean_think(txt), "Let me inspect the real current state of the workspace carefully.")
         self.assertEqual(clean_think("A.\n\nB"), "A.\n\nB")
+
+    def test_clean_think_kiambishi_tofauti_mwanzoni(self):
+        # live 92a6baeb i=101
+        from oh_util import clean_think
+        txt = ("Now let me check the feature_list.json to see if I need to add evidence for step 3.\n\n"
+               "Let me check the feature_list.json to see if I need to add evidence for step 3.")
+        self.assertEqual(clean_think(txt), "Now let me check the feature_list.json to see if I need to add evidence for step 3.")
+
+    def test_drop_echo_reasoning_sawa_na_text(self):
+        # live 92a6baeb i=220/223: laguna reasoning == content
+        from oh_util import drop_echo
+        body = "Sijapiga moyo — ninahitaji kusasisha hatua ya 04 na qa-final. Hebu fanya hivyo:"
+        self.assertEqual(drop_echo(body, body + "\n\n```json\n{}\n```"), "")
+        self.assertEqual(drop_echo("  " + body.replace(" ", "  "), body), "")
+        self.assertEqual(drop_echo("Nafikiria hatua inayofuata kwa makini sana.", body),
+                         "Nafikiria hatua inayofuata kwa makini sana.")
+        self.assertEqual(drop_echo("", body), "")

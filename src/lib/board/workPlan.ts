@@ -251,5 +251,5 @@ export const PLAN_STEP_TEMPLATE = `### Step <N> — <imperative title, e.g. "Cre
 - **Instructions:** <numbered, concrete, imperative instructions>
 - **Official Data (verbatim):** <ONLY the values this step needs, copied word for word from section 2 — or "none">
 - **Sample Code (reference only):** <short snippet from the debate, ≤ 40 lines — or omit>
-- **Verification:** <what must be TRUE for this step to count as done>
+- **Verification:** <what must be TRUE for this step to count as done; a command in backticks is RE-RUN by the harness EXACTLY as written from the WORKSPACE ROOT (never inside a subfolder) — so point at subfolders explicitly, e.g. \`git -C my-repo log -1\`, never rely on cd>
 - **Depends on:** <step numbers, or "none">`;
