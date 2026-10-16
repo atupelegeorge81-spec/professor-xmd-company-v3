@@ -6,8 +6,8 @@ Mwenzake wa cu/bridge.py (Claude) kwa CONTRACT SAWA SAWA ya events:
 
 Tofauti za ndani (MPANGO-KAZI-R51):
   • MECHANISM: OpenHands SDK v1.46 native (Agent/Conversation/RouterLLM + run_goal).
-  • POLICY:    cu/lanes.py — roster ya CEO (GIA1 main: gemini-flash + Uno verified ×9;
-               dharura: OpenRouter/Groq; GIA3 judge: super-120b → north-mini → OR).
+  • POLICY:    cu/lanes.py — CU Adaptive Brain (Gemini Flash/Lite + UnoRouter + OpenRouter;
+               weighted dispatch; Nemotron Ultra judge primary, OpenRouter judge fallback).
   • Judge:     run_goal(conversation, objective, judge_llm) — DESIGN YAO, tunaitumia.
   • Sheria ya screenshots: cu/xmd_shot.py (CLI deterministic) + shotlaw registry;
                bridge ina-poll registry na kutuma events `shot` — agent hajati events moja kwa moja.
@@ -31,7 +31,7 @@ import features_verify  # noqa: E402  (R51-Awamu2: harness ndiye mamlaka ya feat
 import lanes  # noqa: E402
 import oh_router  # noqa: E402
 import shotlaw  # noqa: E402
-from oh_util import (_extract_steps, action_command, build_objective, clean_think, first_words,
+from oh_util import (judge_verdict_valid, run_with_harness, _extract_steps, action_command, build_objective, clean_think, first_words,
                      is_text_toolcall, obs_failed, drop_echo, oh_tool_kind, reasoning_of, split_think,
                      read_shot_b64, shots_pending)
 
@@ -70,7 +70,7 @@ def _seed_agents_md(ws: str) -> None:
 # ----------------------------------------------------------------- LLM ya SDK kwa lane
 def _sdk_llm_for(lane: "lanes.Lane", usage_id: str):
     """LLM native kwa lane moja — providers zote kupitia openai-compatible base
-    (Uno/OpenRouter/Groq/Gemini-openai-compat) — verified live kwa kimi/laguna."""
+    (Uno/OpenRouter/Gemini native provider) — Gemini hutumia provider native ya LiteLLM."""
     from openhands.sdk import LLM
     # Task 3b (E2B probe 2026-10-16, SDK 1.46 + litellm 1.100): kupitia openai-compat Gemini
     # inakataa KILA call (400 "Unknown name prompt_cache_key" — SDK huiongeza daima). Provider
@@ -213,14 +213,22 @@ async def main_async() -> None:
                                       prompt=0, completion=0, total=0, ok=False,
                                       waiting=True, note=first_words(note, 140)),
     )
-    judge_core = oh_router.LaneRouterCore(judge_pool)
+    # Nemotron Ultra (UnoRouter) ndiye judge wa kawaida; OpenRouter Lightning ni fallback tu.
+    # Ikiwa hakuna Uno lane eligible, router hutafuta fallback iliyobaki.
+    judge_core = oh_router.LaneRouterCore(judge_pool, dispatch_schedule=("unorouter",))
     judge_core.usage_cb = lambda lane, pt, ct: em.emit(
         "usage", lane="judge:" + lane.lid[-70:], provider=lane.provider, account=lane.account,
         model=lane.model, prompt=pt, completion=ct, total=pt + ct, ok=True,
         waiting=False, note="judge")
 
     main_router = oh_router.make_router(core, _llms_dict(main_pool.lanes + dharura_pool.lanes))
-    judge_router = oh_router.make_router(judge_core, _llms_dict(judge_pool.lanes)) \
+    # Adaptive Brain: makosa ya judge yaonekane (si kimya) + verdict tupu/batili = failure
+    # ya lane → fallback (Lightning) — kamwe si "complete".
+    judge_core.event_cb = lambda note: em.emit(
+        "usage", lane="judge", provider="", account="", model="", prompt=0, completion=0,
+        total=0, ok=False, waiting=True, note=first_words("judge: " + note, 140))
+    judge_router = oh_router.make_router(judge_core, _llms_dict(judge_pool.lanes),
+                                         validate=judge_verdict_valid) \
         if judge_pool.lanes else None
 
     roster_names = ", ".join(sorted({l.model for l in main_pool.lanes}))[:400]
@@ -407,8 +415,20 @@ async def main_async() -> None:
     try:
         conversation.send_message(first_message)
         if judge_router is not None and os.environ.get("XMD_GOAL_OFF") != "1":
-            outcome = run_goal(conversation, judge_objective, judge_router,
-                               max_iterations=max_iter)
+            # Harness ni mamlaka ya MWISHO: ikikataa baada ya judge "complete", agent
+            # anarudishiwa ushahidi wa checks na kuendelea (si STUCK papo hapo).
+            harness_rounds = int(os.environ.get("XMD_HARNESS_ROUNDS") or 3)
+            has_fl = os.path.exists(features_verify.list_path(a.workspace))
+            outcome, _hv, _hr = run_with_harness(
+                lambda: run_goal(conversation, judge_objective, judge_router,
+                                 max_iterations=max_iter),
+                (lambda: features_verify.verify_all(a.workspace)) if has_fl else (lambda: None),
+                conversation.send_message,
+                rounds=harness_rounds,
+                note=lambda n: em.emit("usage", lane="harness", provider="", account="",
+                                       model="", prompt=0, completion=0, total=0, ok=False,
+                                       waiting=False, note=first_words(n, 140)),
+            )
             g_status = getattr(outcome, "status", "")
             verdict = getattr(outcome, "verdict", None)
             score = getattr(verdict, "score", None)

@@ -121,10 +121,11 @@ def _retry_after_of(exc: BaseException) -> float | None:
 
 
 def classify_fail(exc: BaseException) -> tuple[str, float | None]:
-    """kind zinazoendana na lanes.note_fail: rate_limited | server_error | timeout |
-    pool_busy | empty | daily. 401/403 → server_error (lane icheze pwa muda mrefu)."""
+    """Classify provider errors for the lane policy, including permanently unavailable models."""
     ra = _retry_after_of(exc)
     st = _status_of(exc)
+    if st == 404:
+        return "not_found", ra
     if st == 429:
         # Gemini: "Quota exceeded … PerDay" = quota ya SIKU (si dakika) → cooldown ndefu
         if re.search(r"per ?day|daily", f"{exc}", re.I):
@@ -401,3 +402,100 @@ def clean_think(text: str) -> str:
         seen.add(k)
         out.append(p.strip())
     return "\n\n".join(out)
+
+
+# --------------------------------------------------------------------- judge + harness (Adaptive Brain)
+def response_text(resp) -> str:
+    """Maandishi ya jibu la LLM (SDK LLMResponse au litellm ModelResponse) — bila reasoning."""
+    if resp is None:
+        return ""
+    msg = getattr(resp, "message", None)
+    content = getattr(msg, "content", None) if msg is not None else None
+    if content is None:
+        try:
+            content = resp.choices[0].message.content
+        except Exception:
+            content = None
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, (list, tuple)):
+        parts = []
+        for c in content:
+            t = getattr(c, "text", None)
+            if t is None and isinstance(c, dict):
+                t = c.get("text")
+            if isinstance(t, str):
+                parts.append(t)
+        return "\n".join(parts).strip()
+    return ""
+
+
+def judge_verdict_valid(resp) -> bool:
+    """Verdict ya judge ni halali TU ikiwa ina JSON object yenye `complete` au `score`.
+
+    Jibu tupu / timeout / maandishi bila JSON = batili → router hujaribu judge wa akiba
+    (haliwezi kuhesabiwa "complete"). Muundo unafuata openhands goal/judge._parse_verdict.
+    """
+    raw = response_text(resp)
+    if not raw:
+        return False
+    cands = [raw]
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if m:
+        cands.append(m.group(0))
+    for c in cands:
+        try:
+            d = json.loads(c)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(d, dict) and ("complete" in d or "score" in d):
+            return True
+    return False
+
+
+def goal_complete(outcome) -> bool:
+    st = str(getattr(outcome, "status", "") or "")
+    return st == "complete" or st.endswith("complete")
+
+
+def harness_feedback(verdict: dict, round_no: int, rounds: int) -> str:
+    """Ujumbe kwa agent: harness (mamlaka ya mwisho) imekataa — ushahidi halisi wa checks."""
+    fails = [str(f) for f in (verdict.get("failures") or [])][:10]
+    lines = "\n".join(f"  - {f[:300]}" for f in fails) or "  - (hakuna maelezo)"
+    return (
+        f"⚠️ HARNESS IMEKATAA (raundi ya marekebisho {round_no}/{rounds}). Judge alisema kazi "
+        f"imekamilika, lakini harness (mamlaka ya MWISHO — inaendesha checks za "
+        f"feature_list.json yenyewe, default-FAIL) imepata features "
+        f"{verdict.get('passed', 0)}/{verdict.get('total', 0)} tu.\n"
+        f"Checks zilizoshindwa (ushahidi halisi):\n{lines}\n\n"
+        "Kagua hali HALISI ya workspace (usitegemee kumbukumbu). Kwa kila check iliyoshindwa: "
+        "rekebisha chanzo, endesha amri ya check hiyo WEWE MWENYEWE hadi ipite (exit 0), na "
+        "sasisha `evidence` ya feature husika kwenye feature_list.json kwa artifact HALISI. "
+        "Usibadilishe id/title/checks. Maliza tu baada ya checks zote kupita."
+    )
+
+
+def run_with_harness(run_goal_once, verify, send_message, rounds: int = 3, note=None):
+    """Goal loop → harness. Harness ikikataa baada ya judge 'complete', agent anarudishiwa
+    ushahidi wa checks na kuendelea (hadi `rounds` raundi) — si STUCK papo hapo.
+
+    Inarudisha (outcome, harness_verdict | None, rounds_used). Pure: I/O yote ni callbacks.
+    """
+    used = 0
+    while True:
+        outcome = run_goal_once()
+        if not goal_complete(outcome):
+            return outcome, None, used
+        hv = verify()
+        if hv is None or hv.get("ok"):
+            return outcome, hv, used
+        if used >= rounds:
+            return outcome, hv, used
+        used += 1
+        if note:
+            try:
+                note(f"harness {hv.get('passed', 0)}/{hv.get('total', 0)} — agent anarudishiwa "
+                     f"ushahidi wa checks (raundi {used}/{rounds})")
+            except Exception:
+                pass
+        send_message(harness_feedback(hv, used, rounds))

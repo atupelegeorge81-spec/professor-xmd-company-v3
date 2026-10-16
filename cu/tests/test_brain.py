@@ -31,11 +31,11 @@ def make_cfg():
             {"provider": "xkiro", "baseUrl": "https://xk.example/v1", "models": ["qwen/qwen3.8-max:free"],
              "keys": {"xkiro-1": "X1", "xkiro-2": "X2"}, "maxOut": 32000, "ctx": 256000, "reasoning": True},
             {"provider": "openrouter", "baseUrl": "https://or.example/api/v1",
-             "models": ["nvidia/nemotron-3-ultra-550b-a55b:free"], "keys": {"or-1": "O1", "or-2": "O2"}},
+             "models": ["nvidia/nemotron-3.5-lightning:free", "nvidia/nemotron-3-ultra-550b-a55b:free"], "keys": {"or-1": "O1", "or-2": "O2"}},
             {"provider": "groq", "baseUrl": "https://groq.example/openai/v1",
              "models": ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"], "keys": {"groq-1": "G1", "groq-2": "G2"}},
             {"provider": "unorouter", "baseUrl": "https://uno.example/v1",
-             "models": ["space-bunny-alpha:free", "nemotron-3-ultra-550b-a55b:free"], "keys": {"uno-1": "U1", "uno-2": "U2"}},
+             "models": ["minimax-m2.7:free", "deepseek-v4.1-flash:free", "nemotron-3-ultra-550b-a55b:free", "kimi-k3:free", "codestral-latest:free", "deepseek-v4-flash:free"], "keys": {"uno-1": "U1", "uno-2": "U2"}},
         ],
     }
 
@@ -159,26 +159,19 @@ class TestLaneOrder(unittest.TestCase):
         ids2 = [l.id for l in brain.build_order(cfg2)]
         self.assertIn("gemini-2:gemini-2.5-flash", ids2)
 
-    def test_emergency_mpangilio_xkiro_or_groq_uno(self):
-        lanes = [l for l in brain.build_order(make_cfg()) if l.tier == "emergency"]
+    def test_cu_roster_haina_groq_xkiro_au_model_zilizofutwa(self):
+        lanes = brain.build_order(make_cfg())
         ids = [l.id for l in lanes]
-        self.assertEqual(ids, [
-            "xkiro-1:qwen/qwen3.8-max:free", "xkiro-2:qwen/qwen3.8-max:free",
-            "or-1:nvidia/nemotron-3-ultra-550b-a55b:free", "or-2:nvidia/nemotron-3-ultra-550b-a55b:free",
-            # Groq: akili kubwa kwanza → gpt-oss-120b kabla ya 27b
-            "groq-1:openai/gpt-oss-120b", "groq-2:openai/gpt-oss-120b",
-            "groq-1:qwen/qwen3.8-27b", "groq-2:qwen/qwen3.8-27b",
-            "uno-1:space-bunny-alpha:free", "uno-2:space-bunny-alpha:free",
-            "uno-1:nemotron-3-ultra-550b-a55b:free", "uno-2:nemotron-3-ultra-550b-a55b:free",
-        ])
+        emergency = [l for l in lanes if l.tier == "emergency"]
+        self.assertTrue(emergency)
+        self.assertTrue(all(l.provider in {"openrouter", "unorouter"} for l in emergency))
+        self.assertFalse(any(l.provider in {"groq", "xkiro"} for l in lanes))
+        banned = {"laguna-s-2.1:free", "north-mini-code:free", "kimi-k3:free",
+                  "codestral-latest:free", "deepseek-v4-flash:free", "space-bunny-alpha:free"}
+        self.assertFalse(any(l.model in banned for l in lanes))
+        self.assertTrue(any(l.model == "minimax-m2.7:free" for l in emergency))
+        self.assertTrue(any(l.model == "deepseek-v4.1-flash:free" for l in emergency))
 
-    def test_model_size(self):
-        self.assertGreater(brain._model_size("openai/gpt-oss-120b"), brain._model_size("qwen/qwen3.8-27b"))
-
-
-# ---------------------------------------------------------------- makosa (errors.ts mirror)
-
-class TestClassify(unittest.TestCase):
     def test_gemini_429_daily(self):
         body = '{"error":{"quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier","quotaValue":"2","retryDelay":"3600s"}}'
         le = brain.classify_error("gemini", 429, body, {})
@@ -195,11 +188,6 @@ class TestClassify(unittest.TestCase):
         le = brain.classify_error("gemini", 503, "The model is overloaded. Please try again later.", {})
         self.assertEqual(le.kind, "busy")
         self.assertEqual(le.wait_ms, 30000)
-
-    def test_groq_429_tpd_daily(self):
-        le = brain.classify_error("groq", 429, "Rate limit reached for token usage (TPD). Please try again in 1h30m.", {})
-        self.assertEqual(le.kind, "daily")
-        self.assertEqual(le.wait_ms, 90 * 60_000)
 
     def test_xkiro_429_quota_daily(self):
         le = brain.classify_error("xkiro", 429, "You exceeded your daily free-model token quota", {})
@@ -219,7 +207,7 @@ class TestClassify(unittest.TestCase):
 
     def test_auth_size_fatal(self):
         self.assertEqual(brain.classify_error("gemini", 401, "bad", {}).kind, "auth")
-        self.assertEqual(brain.classify_error("groq", 413, "Request too large", {}).kind, "size")
+        self.assertEqual(brain.classify_error("openrouter", 413, "Request too large", {}).kind, "size")
         self.assertEqual(brain.classify_error("gemini", 400, "invalid", {}).kind, "fatal")
         self.assertEqual(brain.classify_error("xkiro", 500, "oops", {}).kind, "transient")
         self.assertEqual(brain.classify_error("xkiro", 402, "payment required", {}).kind, "auth")
@@ -358,24 +346,23 @@ class TestBrainRouting(unittest.TestCase):
         self.assertEqual(texts, "Pili")
 
     def test_emergency_baada_ya_gemini_zote_daily(self):
-        # Gemini zote 6 → 429 PerDay; XKiro-1 inafanikiwa
+        # Gemini flash zote zimeisha; OpenRouter ndiyo fallback inayopatikana kwa CU.
         gem_daily = ("err", 429, '{"quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier","quotaValue":"2","retryDelay":"3600s"}', {})
-        b, tr, clock, path = make_brain(script=[gem_daily] * 6 + [("ok", text_chunks("XKiro jibu", usage={"prompt_tokens": 100, "completion_tokens": 50}))])
+        b, tr, clock, path = make_brain(script=[gem_daily] * 6 + [("ok", text_chunks("OpenRouter jibu", usage={"prompt_tokens": 100, "completion_tokens": 50}))])
         got = []
         self.assertTrue(b.handle({"stream": True, "messages": [{"role": "user", "content": "hi"}]}, got.append))
         self.assertTrue(b.emergency)
-        self.assertEqual(tr.calls[-1][0].id, "xkiro-1:qwen/qwen3.8-max:free")
+        self.assertEqual(tr.calls[-1][0].provider, "openrouter")
         recs = [json.loads(l) for l in open(path) if l.strip()]
         self.assertEqual(sum(1 for r in recs if not r["ok"]), 6)
-        self.assertEqual(recs[-1]["account"], "xkiro-1")
+        self.assertEqual(recs[-1]["provider"], "openrouter")
 
     def test_emergency_latch_hairejei_gemini(self):
         gem_daily = ("err", 429, '{"quotaId":"...PerDay...","retryDelay":"3600s"}', {})
-        b, tr, clock, path = make_brain(script=[gem_daily] * 6 + [("ok", text_chunks("XKiro")), ("ok", text_chunks("XKiro 2"))])
+        b, tr, clock, path = make_brain(script=[gem_daily] * 6 + [("ok", text_chunks("OpenRouter")), ("ok", text_chunks("OpenRouter 2"))])
         b.handle({"stream": True, "messages": [{"role": "user", "content": "hi"}]}, lambda e: None)
         b.handle({"stream": True, "messages": [{"role": "user", "content": "tena"}]}, lambda e: None)
-        # call ya 2 ilikwenda XKiro MOJA KWA MOJA (hakuna gemini tena)
-        self.assertEqual(tr.calls[7][0].id, "xkiro-1:qwen/qwen3.8-max:free")
+        self.assertEqual(tr.calls[6][0].provider, "openrouter")
 
     def test_minute_cooldown_inasubiri_haishuki_dharura(self):
         gem_minute = ("err", 429, '{"quotaId":"GenerateRequestsPerMinutePerProjectPerModel-FreeTier","quotaValue":"5","retryDelay":"10s"}', {})
@@ -418,15 +405,14 @@ class TestBrainRouting(unittest.TestCase):
         # gemini-1:3.8 imejaa → gemini-2:3.8 ndiyo iliyopigiwa
         self.assertEqual(tr.calls[0][0].id, "gemini-2:gemini-3.8-flash")
 
-    def test_xkiro_haina_nafasi_inarukwa(self):
-        snap = {"xkiro": {"xkiro-1": {"remaining": 100}, "xkiro-2": {"remaining": 100}}}
+    def test_removed_providers_na_models_haziwezi_kurudi_kupitia_config(self):
         gem_daily = ("err", 429, '{"quotaId":"...PerDay...","retryDelay":"3600s"}', {})
-        b, tr, clock, path = make_brain(script=[gem_daily] * 6 + [("ok", text_chunks("OR"))], snapshot=snap)
+        b, tr, clock, path = make_brain(script=[gem_daily] * 6 + [("ok", text_chunks("OR"))])
         b.handle({"stream": True, "messages": [{"role": "user", "content": "hi"}]}, lambda e: None)
-        picked = [c[0].id for c in tr.calls]
-        self.assertNotIn("xkiro-1:qwen/qwen3.8-max:free", picked)
-        self.assertNotIn("xkiro-2:qwen/qwen3.8-max:free", picked)
-        self.assertEqual(picked[-1], "or-1:nvidia/nemotron-3-ultra-550b-a55b:free")
+        picked = [c[0] for c in tr.calls]
+        self.assertFalse(any(l.provider in {"groq", "xkiro"} for l in picked))
+        self.assertFalse(any(l.model in {"kimi-k3:free", "codestral-latest:free", "deepseek-v4-flash:free", "north-mini-code:free", "laguna-s-2.1:free"} for l in picked))
+        self.assertEqual(picked[-1].provider, "openrouter")
 
     def test_pacific_reset(self):
         # leo: lane imejaa; kesho (Pacific) inafunguka tena
