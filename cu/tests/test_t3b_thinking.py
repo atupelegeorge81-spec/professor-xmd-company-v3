@@ -111,3 +111,9 @@ class TestT3bThinking(unittest.TestCase):
         self.assertEqual(clean_think(s), "Now I need to update qa-final.")
         self.assertEqual(clean_think("A\n\nB"), "A\n\nB")
         self.assertEqual(clean_think(""), "")
+
+    def test_clean_think_aya_iliyokatwa(self):
+        from oh_util import clean_think
+        # HALISI live 49476add i=245
+        self.assertEqual(clean_think("Now let me update step-03 and step-04.\n\nNow let me update step-03 and step-"),
+                         "Now let me update step-03 and step-04.")

@@ -23,3 +23,4 @@ Faili hili ni sheria ya workspace huu. Agent yeyote anayefanya kazi hapa LAZIMA 
 ## 4. Ripoti ya mwisho (Kiswahili)
 - Mwishoni andika RIPOTI KAMILI ya Kiswahili: live link, GitHub, majaribio yaliyopita,
   ukaguzi wa hatua (✓/✗ kwa kila hatua), screenshots zilizochukuliwa.
+  Link/screenshot ziwe HALISI tu; zisipohitajika andika "haikuhitajika" — USIBUNI link wala picha.

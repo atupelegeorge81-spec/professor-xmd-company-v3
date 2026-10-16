@@ -388,7 +388,8 @@ async def main_async() -> None:
         + "Screenshots: tumia `python3 /home/user/xmd_shot.py --ws " + a.workspace + " --url <url> "
         "--label <maelezo> [--viewport 1280x800|390x844]` PEKEE.\n"
         "Mwisho wa kila kitu, andika RIPOTI KAMILI YA KISWAHILI (live link + GitHub + majaribio "
-        "+ muundo + ukaguzi ✓/✗ wa kila hatua).\n"
+        "+ muundo + ukaguzi ✓/✗ wa kila hatua). Link/screenshot ziwe HALISI tu (zilizotokea kwenye "
+        "kazi hii); kama mpango haukutaka deploy/GitHub andika \"haikuhitajika\" — USIBUNI link.\n"
         + resume_part
         + "\n─────────────────────────────────────────────\n\n"
         + plan_md

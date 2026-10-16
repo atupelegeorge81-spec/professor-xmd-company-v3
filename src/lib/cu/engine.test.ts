@@ -206,6 +206,21 @@ describe("R31-G5 · think blocks + files objects + replay dedupe", () => {
     expect(JSON.stringify(f.files)).not.toContain("[object Object]");
   });
 
+  it("Task 3b: text_delta/text_end zinatumia key moja (step ≠ textBlock haipotezi maneno)", () => {
+    const runner = fakeRunner();
+    const { hooks } = fakeHooks(runner);
+    handleCuEvent(runner, hooks, { i: 1, type: "run_start", task: "x" });
+    handleCuEvent(runner, hooks, { i: 2, type: "text_start", step: 1 });
+    handleCuEvent(runner, hooks, { i: 3, type: "text_delta", step: 1, text: "kwanza" });
+    handleCuEvent(runner, hooks, { i: 4, type: "text_end", step: 1 });
+    // step imeruka (ujumbe uliofichwa) — block ni ya 2 lakini step = 3 (live 49476add i=297)
+    handleCuEvent(runner, hooks, { i: 5, type: "text_start", step: 3 });
+    handleCuEvent(runner, hooks, { i: 6, type: "text_delta", step: 3, text: "ripoti ya mwisho" });
+    handleCuEvent(runner, hooks, { i: 7, type: "text_end", step: 3 });
+    const texts = runner.items.filter((x: any) => x.kind === "cu" && x.cu === "text").map((x: any) => x.text);
+    expect(texts).toEqual(["kwanza", "ripoti ya mwisho"]);
+  });
+
   it("replay ya events.jsonl HAI-RUDII think/text/exec (item keys ni cu:{i}, si type:{i})", () => {
     const runner = fakeRunner();
     const { hooks } = fakeHooks(runner);
