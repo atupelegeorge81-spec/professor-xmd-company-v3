@@ -119,3 +119,15 @@ Kwa kulinganisha: runs 8–10 (kabla ya kazi hii) zote ziliishia **STUCK**.
 
 ## Usafi
 Sessions za majaribio (`xmdtest-*`) + plans/mini-reports zake zimefutwa baada ya kutoa ushahidi.
+
+## Task 4b — marekebisho ya issues 4 (2026-10-16, main `1dbf30a`, deploy d9f1769d HEALTHY)
+
+| # | Issue | Rekebisho | Ushahidi |
+|---|---|---|---|
+| 1 | Quota ni ya kila process (§6) | `POST /api/boardroom/cu-quota` (Bearer token ya run) hutoa snapshot ya ledger ya server (Board + CU). Sandbox (`QuotaSync` ndani ya `acquire`) huisoma kila 60s → `max(local, server)`; kosa la mtandao = kimya | tests 2 (Board 20/20 → CU inaiona papo hapo; throttle; hesabu haishuki; kosa kimya) · live: endpoint ipo, token mbaya → 401 |
+| 2 | uno-1 inatumiwa nje ya mradi | Haiwezi kurekebishwa kwa code — 21:07 UTC uno-1 Ultra 429 `remaining 0` bila run yetu; uno-2 200. Router inaheshimu Retry-After → uno-2 | probe live |
+| 3 | Ultra 5/dk | `UNO_RPM_BY_MODEL` = Ultra 5/dk kwa account (minimax/deepseek 1); executor + judge dirisha moja | tests (rpm 5, judge 10 Uno kabla ya OR) |
+| 4 | Usage UI haikuonyesha Lite preview/latest | `cuLiteModels()`/`cuLiteRpd()` (env.ts) chanzo kimoja kwa engine.ts + usageSnapshot.ts | vitest 4 · live `/api/usage/accounts`: Lite 4 (500, 500, 20, 20) |
+
+Baselines: pytest 285 · unittest OK · tsc 0 · vitest 216/216 · eslint (files zilizoguswa) 0.
+Bado: `QuotaSync` haijaonekana ndani ya run halisi ya CU (sandbox → Koyeb) — njia ileile ya token kama `cu-search`.
