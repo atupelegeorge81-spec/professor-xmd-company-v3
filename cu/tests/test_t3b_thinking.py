@@ -117,3 +117,10 @@ class TestT3bThinking(unittest.TestCase):
         # HALISI live 49476add i=245
         self.assertEqual(clean_think("Now let me update step-03 and step-04.\n\nNow let me update step-03 and step-"),
                          "Now let me update step-03 and step-04.")
+
+    def test_clean_think_alama_ya_mwisho_haitofautishi(self):
+        # live 6244329d i=92: kipande kilijirudia kikiwa na "]" mwishoni
+        from oh_util import clean_think
+        txt = "Let me inspect the real current state of the workspace carefully.\n\nLet me inspect the real current state of the workspace carefully.]"
+        self.assertEqual(clean_think(txt), "Let me inspect the real current state of the workspace carefully.")
+        self.assertEqual(clean_think("A.\n\nB"), "A.\n\nB")

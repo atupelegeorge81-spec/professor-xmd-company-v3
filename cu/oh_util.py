@@ -375,6 +375,7 @@ def clean_think(text: str) -> str:
     for p in parts:
         p = re.sub(r"</?(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?|o(?:u(?:g(?:h(?:t)?)?)?)?)?)?)?$", "", p)  # tag ya think iliyokatika (cap)
         k = re.sub(r"\s+", " ", p).strip()
+        k = re.sub(r"[\W_]+$", "", k)  # alama/mabano ya mwisho hayatofautishi (live 6244329d i=92: "...carefully.]")
         # nakala kamili, au kipande kilichokatwa (prefix ≥20) cha kilichoonekana (live i=245)
         if not k or k in seen or (len(k) >= 20 and any(x.startswith(k) for x in seen)):
             continue
