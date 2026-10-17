@@ -46,6 +46,9 @@ import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, typ
 import { saveProjectPlan, getPlanBySession } from "./server/plans";
 // R31 · XMD COMPUTER (computer-use): engine ya phase ya mwisho — baada ya memory ya Board
 import { serialQueue } from "./serialQueue"; // TASK-6
+import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES, default OFF)
+import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
+import { putRecord, msChip, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
 import {
@@ -95,6 +98,8 @@ export interface Runner {
   computerPlanned?: boolean;
   /** R31: hali ya run ya computer-use (in-memory; chip ya CU_STATE inadumu Appwrite) */
   cu?: CuRunState;
+  /** TASK-12: chips zilizofichwa za milestone store (map/state) — persist huchuja hidden chips, kwa hiyo zinarudishwa hapa. */
+  msChips?: SessionItem[];
   /** R31: hooks za ndani za run() — endpoint ya cu-event zinazitumia (route haina access ya closure) */
   cuHooks?: CuHooks;
 }
@@ -392,6 +397,7 @@ export async function resumeRun(id: string, by: PauseOrigin = "user"): Promise<R
     startedAt: Date.now(),
     agenda: state.agenda,
     sessionId: saved.id,
+    msChips: (saved.items || []).filter((it: any) => it?.kind === "chip" && String(it?.text || "").startsWith(MS_PREFIX)) as SessionItem[], // TASK-12
     priorUsage,
     priorByProvider: priorChip?.byProvider,
     priorElapsedMs: priorChip?.elapsedMs,
@@ -545,6 +551,7 @@ async function run(runner: Runner) {
     if (runner.facts) clean.push({ kind: "chip", id: "__professor_xmd_facts__", text: FACTS_PREFIX + JSON.stringify(runner.facts) } as SessionItem);
     // R31 · XMD Computer: hali ya run (sandboxId/token/maxI/files/links) — resume na Files badge zinaisoma
     if (runner.cu) clean.push(cuChipItemOf(runner) as SessionItem);
+    if (runner.msChips?.length) clean.push(...runner.msChips); // TASK-12 (tupu flag ikiwa OFF)
 
     if (!runner.agenda || runner.agenda.length === 0) {
       return clean;
@@ -1220,6 +1227,26 @@ async function run(runner: Runner) {
       }
       addChip(`📋 Agenda (${agenda.length} vipengele): ${agenda.map((a) => a.item).join(" · ")}`);
       await persist("agenda_created", conversationTitle);
+      // TASK-12 · XMD_MILESTONES=1 PEKEE: Optimus (Gemini Flash) anagawa agenda kuwa milestones → store.ts + event `milestoneMap`.
+      // Agenda haziongezwi katikati ya run (FLOW-MAP B.2) → hakuna re-plan. Kosa hapa halisimamishi Board.
+      if (milestonesEnabled() && runner.sessionId) {
+        try {
+          const sid = runner.sessionId;
+          const res = await pausable("Optimus · milestone-map", (signal) => generateMilestoneMap({
+            brief: runner.project, agendas: agenda, hasUI: detectHasUI(runner.project, agenda), sessionId: sid, signal, log: (lvl, t) => blog(lvl, t),
+          }));
+          const rec = await putRecord(sid, MAP_KEY, res.map, 0);
+          // persist ya Board huandika items zote kutoka memory (na huchuja hidden chips) → chip ileile inakaa kwenye
+          // runner.msChips na getPersistItems inairudisha, vinginevyo persist inayofuata ingeifuta kwenye DB
+          const chip = msChip(MAP_KEY, rec.version, rec.data) as SessionItem;
+          runner.msChips = [...(runner.msChips || []).filter((x) => x.id !== chip.id), chip];
+          bcast({ type: "milestoneMap", map: rec.data, usedFallback: res.usedFallback, attempts: res.attempts });
+          await persist("agenda_created", conversationTitle);
+        } catch (e: any) {
+          if (e?.name === "AbortError") throw e;
+          blog("warning", `⚠️ Milestone map haikuhifadhiwa: ${String(e?.message || e).slice(0, 160)} — Board inaendelea bila ramani.`);
+        }
+      }
     }
 
     // ===== R26 · AWAMU 1: FACT SHEET — data rasmi ya brief inafungwa KWA CODE (chanzo kimoja cha ukweli) =====

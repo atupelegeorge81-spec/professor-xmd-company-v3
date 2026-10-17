@@ -71,6 +71,8 @@ export type BoardEvent =
   | { type: "cu"; cu: { type: string; i?: number; [k: string]: unknown } }
   /** R31-G5: mode ya session (plan/code) — adapter hai-classify script/patch/review kwenye plan mode */
   | { type: "mode"; mode: "code" | "plan" }
+  /** TASK-12 (XMD_MILESTONES=1 pekee): ramani ya milestones — additive; adapter inaipuuza (default: break). */
+  | { type: "milestoneMap"; map: import("@/lib/milestone/types").MilestoneMap; usedFallback: boolean; attempts: number }
   | { type: "error"; message: string }
   | { type: "done" };
 

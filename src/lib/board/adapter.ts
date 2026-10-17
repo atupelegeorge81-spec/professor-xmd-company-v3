@@ -1489,7 +1489,7 @@ export interface SavedItem {
   live?: string; github?: string; tokens?: number; requests?: number; model?: string; task?: string; partial?: boolean;
 }
 
-const HIDDEN = /^__PROFESSOR_XMD_(RESUME_STATE|USAGE|BRIEF|FACTS|CU_STATE)__:/; // R26: brief + facts · R31: hali ya XMD Computer
+const HIDDEN = /^__PROFESSOR_XMD_(RESUME_STATE|USAGE|BRIEF|FACTS|CU_STATE|MILESTONE)__:/; // R26: brief + facts · R31: hali ya XMD Computer · TASK-12: milestone store
 
 /** Hugeuza items zilizohifadhiwa (Appwrite) kuwa mfululizo wa matukio kwa adapter. */
 export function savedToEvents(items: SavedItem[], project: string): AdapterEvent[] {

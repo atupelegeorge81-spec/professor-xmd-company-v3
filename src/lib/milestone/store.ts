@@ -17,6 +17,8 @@ import type { MilestoneMap, MilestoneState } from "./types";
 
 export const MS_PREFIX = "__PROFESSOR_XMD_MILESTONE__:";
 const chipIdOf = (key: string) => `__professor_xmd_ms__${key}`;
+/** Chip iliyofichwa ya rekodi (umbo moja na la putRecord) — runner hai huiweka kwenye runner.items ili persist isiifute. */
+export const msChip = (key: string, version: number, data: unknown) => ({ kind: "chip" as const, id: chipIdOf(key), text: MS_PREFIX + JSON.stringify({ key, version, data }) });
 export const stateKey = (milestoneId: string) => `state:${milestoneId}`;
 export const MAP_KEY = "map";
 
@@ -128,7 +130,7 @@ export async function putRecord<T>(sessionId: string, key: string, data: T, expe
     if (errs.length) throw new Error(`[milestone/store] invalid ${key}: ${errs.join("; ")}`);
 
     const version = expectedVersion + 1;
-    const chip = { kind: "chip", id: chipIdOf(key), text: MS_PREFIX + JSON.stringify({ key, version, data }) };
+    const chip = msChip(key, version, data);
     const idx = doc.items.findIndex((x) => x?.kind === "chip" && x?.id === chip.id);
     const items = [...doc.items];
     if (idx >= 0) items[idx] = chip; else items.push(chip);
