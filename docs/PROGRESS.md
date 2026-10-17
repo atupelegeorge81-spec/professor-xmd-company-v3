@@ -158,3 +158,13 @@ $ npm run cu:test        → Ran 186 tests — OK
 - T1 N=10/15/20 valid jaribio la 1 · T2 ramani 5 mbovu zimekataliwa · T3 fallback (hook) · T4 local flag ON: DB + event + UI ·
   T5 Koyeb flag OFF: signature sawa na baseline.
 - Baselines: tsc 0 · vitest 439 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-12.md.
+
+## Task 13 (maelezo13): Roster ya kila milestone (2026-10-18), branch task/13-roster
+- Mpya: `src/lib/milestone/roster.ts`; boardRunner (flag ON + ramani): owners/observers wanachujwa kwa roster, header
+  `Participants: …`, resume inasoma ramani (`readMsMap`). Test hook `XMD_TEST_MAP_FORCE` (XMD_TEST_HOOKS=1 tu). Tests 9.
+- Maamuzi yangu (CEO alilala): pm daima ni mwenyekiti; owners ∩ roster (tupu → wasio-pm 2 wa roster → pm); observers = wasio-owners
+  wa roster; Participants flag ON tu; forced map ≥2 entries.
+- T1 roster ndogo: Megatron/Cybertron zamu 0 kwenye agenda 1–2 · T2 wote 5 wanashiriki · T3 consensus, fallback 0 ·
+  T4 Koyeb flag OFF: signature sawa na baseline.
+- Baselines: tsc 0 · vitest 448 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-13.md.
+
