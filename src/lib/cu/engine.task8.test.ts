@@ -133,3 +133,18 @@ describe("TASK-8 · checkPausedDue graceMs (burst ya boot wakati wa rolling depl
     expect(resumeRun).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("TASK-8 · resumeRun: pauseOrigin baada ya Detach (status \"error\")", () => {
+  it("system haiendelezi Detach ya CEO; Resume ya CEO inafuta pauseOrigin", async () => {
+    const actual = await vi.importActual<typeof import("@/lib/boardRunner")>("@/lib/boardRunner");
+    const map: Map<string, any> = (globalThis as any).__boardRunners;
+    const r: any = { id: "r-po", sessionId: "sess-po", status: "error", pauseOrigin: "user", agenda: [], items: [], subs: new Set(), buffer: [] };
+    map.set(r.id, r);
+    try {
+      expect(await actual.resumeRun("sess-po", "system")).toBe("user_paused");
+      expect(r.pauseOrigin).toBe("user");
+      await actual.resumeRun("sess-po", "user"); // agenda tupu → null, lakini origin imefutwa
+      expect(r.pauseOrigin).toBeUndefined();
+    } finally { map.delete(r.id); }
+  });
+});

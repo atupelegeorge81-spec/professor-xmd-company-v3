@@ -315,6 +315,11 @@ export async function resumeRun(id: string, by: PauseOrigin = "user"): Promise<R
       if (by === "system" && live.pauseOrigin === "user") return "user_paused";
       return unpauseRun(live, by) ? live : "busy";
     }
+    // TASK-8: Detach ya CEO → awamu ya CU inaisha → status "error" (si "paused") → tawi hili. Zamani: system iliweza
+    // kuiendeleza Detach, na Resume ya CEO haikufuta pauseOrigin "user" → timer ya auto-resume ya quota pause
+    // iliyofuata iliruka KIMYA (real test Task 8: resumeAt 15:40:17, iliendelea 15:43:59 kwa scan tu).
+    if (by === "system" && live.pauseOrigin === "user") return "user_paused";
+    if (by === "user") live.pauseOrigin = undefined;
     if (live.status === "completed") return null;
     if (!live.agenda || live.agenda.length === 0) return null;
     const other = activeRunner();
