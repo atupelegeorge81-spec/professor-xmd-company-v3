@@ -91,3 +91,15 @@ $ npm run cu:test        → Ran 186 tests — OK
   Real Koyeb: Detach + Resume wakati wa CU → completed, na bado completed dk 3+ baadaye.
 - Baselines: tsc 0 · vitest 275 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-6.md.
 - Kumbuka: redeploy ya Koyeb huchukua ~dk 12.5 kubadili instance.
+
+## Task 6 (maelezo6) — Persist-first pause (2026-10-17) — main b722ca6 (deploy fdc1aed8)
+- Namba: maelezo6 inaiita "TASK 6" lakini Task 6 = maamuzi 3 ya CEO, kwa hiyo ushahidi uko `docs/tests/task-6-persist-first.md`.
+- Pause: chip + session `paused` (resumeAt/pauseOrigin) zinaandikwa KWANZA (persist#1), snapshot baadaye ndani ya bajeti.
+  Watchdog/SIGTERM: 20s / 8MB. Detach: 40MB kama zamani. Skip → sandbox inabaki hai. Snapshot ikifaulu → persist#2.
+  Hakuna Buffer copy. SIGTERM ikikuta cooldown busy → subiri ≤3s.
+- Real Koyeb: T1 persist#1 194ms (snapshot 38KB t+1.0s) · T2 SIGTERM halisi persist#1 231ms, resumeAt +60s, sandbox hai,
+  auto-resume · T2b 30MB → `snapshot skipped (30.0MB > kikomo 8MB)` t+1.2s, sandbox hai · T3 sandbox mpya ina faili
+  (md5 sawa) · T4 Detach 30MB → persist#1 537ms, snapshot 30.8MB t+18.3s, Resume → sandbox mpya ina junk (mtime ya awali).
+- Baselines: tsc 0 · vitest 282 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Data ya majaribio imefutwa (sessions, cu_files, bucket).
+- Ugunduzi: SIGTERM grace kwenye Koyeb ≈ 1s (`sh -c next start` inakufa, container inasimama). Pendekezo kwenye doc.
+  Tabia 5 za zamani zimeandikwa (hazijabadilishwa).
