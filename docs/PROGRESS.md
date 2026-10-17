@@ -123,3 +123,9 @@ $ npm run cu:test        → Ran 186 tests — OK
   · status running · restore tar + kiovu (sandbox 2 na 3) · R3 orphan report → COMPLETED_UNVERIFIED (matukio yaliingizwa).
 - Baselines: tsc 0 · vitest 293 + 2 skipped · pytest 308 · unittest OK · eslint 0. Data ya majaribio imefutwa.
   Ushahidi: docs/tests/task-8.md.
+
+## Task 9 (maelezo9) — Milestone types + validators (2026-10-17) — branch task/9-milestone-types
+- Mpya: `src/lib/milestone/types.ts`, `schemas.ts`, `__tests__/schemas.test.ts`. Pure, hakuna wiring. Validators za mkono (zod haipo).
+- Tests: 28/28 (ramani halali N=10/15/20/3; batili 9 + ziada; CO bila acceptance / free-text; receipt DONE bila files; BLOCKED bila sababu).
+- Baselines: tsc 0 · vitest 321 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-9.md.
+- Maamuzi madogo ya muundo (sehemu za Check, priority int, lanesUsed unknown[] hadi task 10) yameandikwa kwenye doc.
