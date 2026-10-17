@@ -14,6 +14,11 @@ export async function register() {
     // TASK-5: sweepOrphans kwanza (session "inaendelea" bila runner baada ya crash → system pause) kisha checkPausedDue.
     setTimeout(() => { void import("@/lib/cu/autoResume").then(async (m) => { await m.sweepOrphans(true); return m.checkPausedDue(true); }).catch((e) => console.warn("[cu/autoResume] boot scan:", String(e).slice(0, 120))); }, 20_000);
     setInterval(() => { void import("@/lib/cu/autoResume").then(async (m) => { await m.sweepOrphans(); return m.checkPausedDue(); }).catch((e) => console.warn("[cu/autoResume] tick:", String(e).slice(0, 120))); }, 10 * 60_000);
+    // TASK-8: ROLLING DEPLOY — instance hii mpya huwaka KABLA instance ya zamani haijapata SIGTERM; pause yake
+    // (resumeAt +60s) inaandikwa BAADA ya boot scan → zamani ilisubiri tick ya dk 10 (T2: dk 8). Sasa: dk 15 za
+    // kwanza checkPausedDue kila dakika (query 1 ndogo ya DB; resumeAt iliyopita ≥30s tu — mmiliki hai apate nafasi kwanza).
+    const burst = setInterval(() => { void import("@/lib/cu/autoResume").then((m) => m.checkPausedDue(true, 30_000)).catch((e) => console.warn("[cu/autoResume] burst:", String(e).slice(0, 120))); }, 60_000);
+    setTimeout(() => clearInterval(burst), 15 * 60_000).unref?.();
     // R38-RC3: KEEP-ALIVE ya instance. Ushahidi [179]→[181]: process ya Koyeb ilifa wakati wa
     // awamu ya CU (in-memory runner + timer za auto-resume zikazama pamoja). Koyeb free inalala
     // bila traffic; mdundo huu wa ndani (ping ya /api/live kupitia URL ya umma kila dakika 4)

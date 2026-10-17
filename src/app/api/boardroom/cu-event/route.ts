@@ -88,7 +88,7 @@ async function orphanPersist(ev: CuEvent): Promise<{ ok: boolean; orphan: boolea
 /** Tukio la bridge → item ya session (muundo uleule wa engine.handleCuEvent — kwa resume ya Koyeb). */
 function shapeItem(ev: CuEvent): Record<string, unknown> {
   const base: Record<string, unknown> = { cu: String(ev.type) };
-  for (const k of ["step", "execId", "tool", "kindX", "command", "path", "preview", "lines", "exit", "ms", "chars", "summary", "output", "text", "label", "url", "message", "status", "tokens", "requests", "model", "task", "partial", "lane", "provider", "account", "total", "ok", "tree", "filesCount", "resume_at", "steps", "fatal"]) {
+  for (const k of ["step", "execId", "tool", "kindX", "command", "path", "preview", "lines", "exit", "ms", "chars", "summary", "output", "text", "label", "url", "message", "status", "tokens", "requests", "model", "task", "partial", "lane", "provider", "account", "total", "ok", "tree", "filesCount", "resume_at", "steps", "fatal", "report"]) {
     if (ev[k] !== undefined) base[k] = ev[k];
   }
   return base;
