@@ -57,3 +57,15 @@ $ npm run cu:test        → Ran 186 tests — OK
   provider (latency iliyopimwa), deadline 300s, logs za majaribio (bila keys), condenser ya SDK.
 - Tests 303 passed (18 mpya, pamoja na SDK halisi + HTTP). Run 14 live: COMPLETED_UNVERIFIED, 613s,
   failovers 8 (gap 1–250ms). Ushahidi: docs/tests/task-4c.md. Rollback: backup/pre-4c (64fe3a3).
+
+## Task 4 (maelezo4) — Plan Guard Gate (2026-10-17) — main 57a2222 + 5d458ea (deploy c0bdcf40)
+- `src/lib/cu/planGate.ts` (MPYA): `isPlanExecutable`, `planStatusOf`, whitelist ya warnings (fail-safe: ujumbe usiojulikana = block).
+  Status: `guard_failed` (Data Guard, daima) > `structure_failed` (muundo) > `active`.
+- `startComputerPhase`: lango KABLA ya sandbox → `⛔ Plan blocked: <sababu>` + run_end BLOCKED + `finale_incomplete`.
+- Warnings (§3 Ledger fallback; hatua N<8 na N≥1): zinahifadhiwa kwenye plan, chip "⚠️ warnings" run ikianza, kiambatisho kwenye ripoti.
+- Tests: planGate.test.ts 21/21 (T1+T2 pipeline halisi) · planGate.real.test.ts 2/2 (plans 9 halisi hazizuiwi; zikivunjwa zinazuiwa;
+  warnings zinarudi). T3 live: run 15 sabotage → guard_failed → BLOCKED, sandbox haikuundwa (API + export + Endeleza);
+  run 16 kawaida → Computer imeanza + chip ya warnings → COMPLETED_UNVERIFIED. Ushahidi: docs/tests/task-4-plan-guard.md.
+- Baselines: tsc 0 · vitest 237 + 2 skipped · unittest 238 OK · eslint (files zilizoguswa) 0.
+- Bug iliyopatikana na T3 + kurekebishwa: `toDoc` haikusoma `warnings`.
+- Known gaps: Data Guard inahitaji Fact Sheet; >60 hatua inazuia (CEO athibitishe); OR Lightning judge 385s licha ya timeout 180s (4c).
