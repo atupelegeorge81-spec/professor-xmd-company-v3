@@ -82,3 +82,12 @@ $ npm run cu:test        → Ran 186 tests — OK
 - **DHANA YA INSTANCE MOJA:** instance mbili zikiwepo, moja ingeweza kuiba session ya nyingine. Runner hai + staleness
   vinapunguza hatari hii (smoke 1: deploy overlap → "fresh", haikuguswa) lakini HAVITOI kabisa.
 - Known issues: status inabaki "running" baada ya resume ya CU (race ya schedulePersist; sweeper inairuka); cu-event orphan haina auth.
+
+## Task 6 — Maamuzi 3 ya CEO (2026-10-17) — main 06637b4 (deploy 4be01254)
+- 6a: plan > hatua 60 → Kipande 2 cha zamani kinafutwa mahali palepale, Optimus anaandika upya (≤60), majaribio 2; bado > 60 → structure_failed.
+  Real: hatua 5 > kikomo 2 (hook) → upya → hatua 2, rekodi 1 tu kwenye project_plans.
+- 6b: OR Lightning = fallback tu (executor + judge) — `FALLBACK_ONLY_MODELS` + `pick()`. Real Koyeb runs 2: Lightning 0, OR slot → OR Ultra.
+- 6c: status haibaki "running" baada ya CU: schedulePersist inaheshimu finalState + writes za session kwa foleni (serialQueue).
+  Real Koyeb: Detach + Resume wakati wa CU → completed, na bado completed dk 3+ baadaye.
+- Baselines: tsc 0 · vitest 275 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-6.md.
+- Kumbuka: redeploy ya Koyeb huchukua ~dk 12.5 kubadili instance.
