@@ -126,3 +126,19 @@ describe("TASK-5 — paused ya SYSTEM bila resumeAt (pengo la SIGTERM, uamuzi wa
     expect(decideOrphan({ ...base, status: "paused", updatedAtMs: NOW - 60_000, items: [stateChip({ pauseOrigin: "system" })] })).toMatchObject({ reason: "fresh" });
   });
 });
+
+describe("TASK-5 — hali ya pamoja (Next.js inapakia module mara 2)", () => {
+  it("nakala mbili za module zinashiriki inflight/throttle/timers (globalThis)", async () => {
+    const { vi } = await import("vitest");
+    vi.resetModules();
+    const a = await import("./autoResume");
+    vi.resetModules();
+    const b = await import("./autoResume");
+    expect(a).not.toBe(b); // nakala mbili halisi
+    const g = (globalThis as any).__xmdAutoResumeState;
+    expect(g?.inflight).toBeInstanceOf(Set);
+    g.lastSweep = Date.now(); // nakala A "imesweep" sasa hivi
+    expect(await b.sweepOrphans()).toBe(0); // nakala B inaona throttle ileile → haisweep tena
+  });
+});
+
