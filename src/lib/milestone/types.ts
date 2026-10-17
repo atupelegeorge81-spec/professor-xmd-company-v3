@@ -62,7 +62,34 @@ export interface MilestoneState {
   currentStepId: string; // mf. "M1.R3.verify" ("" kabla ya hatua ya kwanza)
   startedAt: string; // ISO
   updatedAt: string; // ISO
-  lanesUsed: unknown[]; // muundo wa rekodi unafafanuliwa na task 10 (lane log)
+  lanesUsed: LaneUse[]; // TASK 10: lane log — append-only
+  /** TASK 10: hali ya kurudi baada ya PAUSED_QUOTA | PAUSED_INFRA | BLOCKED. */
+  resumeTo?: MilestoneStatus;
+  /** TASK 10: step ledger (resume point = hatua ya kwanza isiyo DONE). */
+  steps?: StepEntry[];
+}
+
+// ── TASK 10: step ledger + lane log ──────────────────────────────────────────
+export const STEP_STATUSES = ["PENDING", "RUNNING", "DONE", "FAILED"] as const;
+export type StepStatus = (typeof STEP_STATUSES)[number];
+
+export interface StepEntry {
+  stepId: string; // "M1.R3.verify"
+  status: StepStatus;
+  attempts: number; // mara ngapi imewekwa RUNNING (re-run baada ya crash huongeza)
+  updatedAt: string; // ISO
+}
+
+export interface LaneUse {
+  callId: string;
+  stepId: string;
+  lane: string;
+  model: string;
+  keyId: string; // imefichwa (masked) kabla ya kuhifadhiwa
+  visionCapable: boolean;
+  tokens: number;
+  ms: number;
+  fallback: boolean;
 }
 
 // ── Defect ───────────────────────────────────────────────────────────────────

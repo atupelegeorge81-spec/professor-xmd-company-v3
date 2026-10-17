@@ -12,6 +12,7 @@ import {
   MILESTONE_STATUSES,
   RECEIPT_STATUSES,
   REVIEW_MODES,
+  STEP_STATUSES,
   type ChangeOrder,
   type Check,
   type Defect,
@@ -265,6 +266,16 @@ export function validateDefect(d: unknown): ValidationResult<Defect> {
 }
 
 // ── MilestoneState ───────────────────────────────────────────────────────────
+const HOLD_STATUSES: readonly string[] = ["PAUSED_QUOTA", "PAUSED_INFRA", "BLOCKED"];
+
+function laneInto(e: Errs, l: unknown, p: string): void {
+  if (!isObj(l)) { e.push(`${p}: must be a lane record object (got ${show(l)})`); return; }
+  for (const k of ["callId", "stepId", "lane", "model", "keyId"]) str(e, l, k, p);
+  for (const k of ["visionCapable", "fallback"]) if (typeof l[k] !== "boolean") e.push(`${p}.${k}: must be a boolean (got ${show(l[k])})`);
+  int(e, l, "tokens", p, 0);
+  int(e, l, "ms", p, 0);
+}
+
 const STEP_ID = /^M\d+\.R\d+\.[a-z][a-z0-9_]*$/;
 const isIso = (v: unknown) => typeof v === "string" && v.trim() !== "" && !Number.isNaN(Date.parse(v));
 
@@ -283,5 +294,29 @@ export function validateMilestoneState(s: unknown): ValidationResult<MilestoneSt
   if (!isIso(s.startedAt)) e.push(`${P}.startedAt: must be an ISO date string (got ${show(s.startedAt)})`);
   if (!isIso(s.updatedAt)) e.push(`${P}.updatedAt: must be an ISO date string (got ${show(s.updatedAt)})`);
   if (!Array.isArray(s.lanesUsed)) e.push(`${P}.lanesUsed: must be an array (got ${show(s.lanesUsed)})`);
+  else s.lanesUsed.forEach((l: unknown, i: number) => laneInto(e, l, `${P}.lanesUsed[${i}]`));
+  // TASK 10: resumeTo + step ledger (hiari)
+  if (s.resumeTo !== undefined) {
+    oneOf(e, s, "resumeTo", P, MILESTONE_STATUSES);
+    if (HOLD_STATUSES.includes(s.resumeTo)) e.push(`${P}.resumeTo: must not be a pause/blocked status (got ${show(s.resumeTo)})`);
+  }
+  if (HOLD_STATUSES.includes(s.status) && s.resumeTo === undefined) e.push(`${P}.resumeTo: required when status is ${s.status}`);
+  if (s.steps !== undefined) {
+    if (!Array.isArray(s.steps)) e.push(`${P}.steps: must be an array (got ${show(s.steps)})`);
+    else {
+      const seen = new Set<string>();
+      s.steps.forEach((st: unknown, i: number) => {
+        const p = `${P}.steps[${i}]`;
+        if (!isObj(st)) { e.push(`${p}: must be an object {stepId,status,attempts,updatedAt}`); return; }
+        if (typeof st.stepId !== "string" || !STEP_ID.test(st.stepId)) e.push(`${p}.stepId: must look like "M1.R3.verify" (got ${show(st.stepId)})`);
+        else if (typeof s.id === "string" && !st.stepId.startsWith(`${s.id}.`)) e.push(`${p}.stepId: must belong to ${s.id} (got ${show(st.stepId)})`);
+        else if (seen.has(st.stepId)) e.push(`${p}.stepId: duplicate ${show(st.stepId)}`);
+        else seen.add(st.stepId);
+        oneOf(e, st, "status", p, STEP_STATUSES);
+        int(e, st, "attempts", p, 0);
+        if (!isIso(st.updatedAt)) e.push(`${p}.updatedAt: must be an ISO date string (got ${show(st.updatedAt)})`);
+      });
+    }
+  }
   return done<MilestoneState>(e, s);
 }
