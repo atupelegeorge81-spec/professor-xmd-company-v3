@@ -225,9 +225,27 @@ async def main_async() -> None:
             quota_url, data=json.dumps({"session": a.session}).encode(), method="POST",
             headers={"Content-Type": "application/json", "User-Agent": "xmd-cu/1.0",
                      "Authorization": "Bearer " + (a.callback_token or "")})
-        with urllib.request.urlopen(req, timeout=6) as r:
-            d = json.loads(r.read().decode("utf-8", "replace"))
-        return d if d.get("ok") else None
+        try:
+            with urllib.request.urlopen(req, timeout=6) as r:
+                d = json.loads(r.read().decode("utf-8", "replace"))
+        except Exception as e:
+            _qnote("quota sync: imeshindwa (" + type(e).__name__ + ") — naendelea na hesabu ya ndani")
+            raise
+        if d.get("ok"):
+            g, o = d.get("gemini") or {}, d.get("or") or {}
+            _qnote(f"quota sync: ledger ya server imesomwa (gemini {len(g)} · or {len(o)})")
+            return d
+        return None
+
+    _qnoted: set = set()
+
+    def _qnote(msg: str) -> None:  # mara moja kwa aina (si kila 60s) — ushahidi bila kelele
+        k = msg.split(":")[1][:12]
+        if k in _qnoted:
+            return
+        _qnoted.add(k)
+        em.emit("usage", lane="quota", provider="", account="", model="", prompt=0, completion=0,
+                total=0, ok=True, waiting=False, note=first_words(msg, 140))
 
     if quota_url:
         qsync = oh_router.QuotaSync(pools, _fetch_quota,

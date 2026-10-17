@@ -18,5 +18,7 @@ export async function POST(req: Request) {
   if (!runner?.cu || auth !== `Bearer ${runner.cu.token}`) {
     return Response.json({ ok: false, error: "token" }, { status: 401 });
   }
-  return Response.json({ ok: true, ...cuQuotaSnapshot() });
+  const snap = cuQuotaSnapshot();
+  console.log(`[cu-quota] ${String(body?.session || "").slice(0, 8)} · gemini ${Object.keys(snap.gemini).length} · or ${Object.keys(snap.or).length}`);
+  return Response.json({ ok: true, ...snap });
 }
