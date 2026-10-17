@@ -107,7 +107,7 @@ class TestFastFailoverPure(unittest.TestCase):
 
     def test_timeout_switches_after_one_bounded_attempt(self):
         clock = FakeClock()
-        a, b = _lane("a", provider="gemini", model="gemini-3.8-flash", timeout=35.0), _lane("b")
+        a, b = _lane("a", provider="gemini", model="gemini-3.8-flash", timeout=45.0), _lane("b")
         core, pool, logs = _core([a, b], clock)
         core.dispatch_schedule = ("gemini-flash", "unorouter")
         calls = []
@@ -123,8 +123,8 @@ class TestFastFailoverPure(unittest.TestCase):
         t0 = clock.t
         lane, _ = core.run(attempt)
         self.assertIs(lane, b)
-        self.assertEqual(calls, [(a.lid, 35.0), (b.lid, 45.0)])        # timeout ya lane, jaribio 1
-        self.assertAlmostEqual(clock.t - t0, 37.0, delta=0.01)         # 35 + 2 — si 3 × 35
+        self.assertEqual(calls, [(a.lid, 45.0), (b.lid, 45.0)])        # timeout ya lane, jaribio 1
+        self.assertAlmostEqual(clock.t - t0, 47.0, delta=0.01)         # 45 + 2 — si 3 × 45
         self.assertEqual(clock.sleeps, [])
         self.assertEqual(dict(logs[1][1])["kind"], "timeout")
         self.assertGreater(pool._st(a).cooldown_until, clock.t)
@@ -265,14 +265,15 @@ class TestFastFailoverPure(unittest.TestCase):
 class TestTimeoutPolicy(unittest.TestCase):
     def test_per_provider_timeouts_from_measured_latency(self):
         at = lanes.attempt_timeout
-        self.assertEqual(at("gemini", "gemini-3.8-flash"), 35.0)
+        self.assertEqual(at("gemini", "gemini-3.8-flash"), 45.0)
         self.assertEqual(at("gemini", "gemini-3.5-flash-lite"), 30.0)
         self.assertEqual(at("unorouter", "minimax-m2.7:free"), 45.0)
         self.assertEqual(at("unorouter", "nemotron-3-ultra-550b-a55b:free"), 75.0)
         self.assertEqual(at("openrouter", "nvidia/nemotron-3.5-lightning:free"), 180.0)
-        self.assertGreater(len({at("gemini", "gemini-3.8-flash"), at("gemini", "gemini-3.1-flash-lite"),
-                                at("unorouter", "minimax-m2.7:free"),
-                                at("openrouter", "nvidia/nemotron-3.5-lightning:free")}), 3)
+        distinct = {at("gemini", "gemini-3.8-flash"), at("gemini", "gemini-3.1-flash-lite"),
+                    at("unorouter", "minimax-m2.7:free"), at("unorouter", "nemotron-3-ultra-550b-a55b:free"),
+                    at("openrouter", "nvidia/nemotron-3.5-lightning:free")}
+        self.assertGreaterEqual(len(distinct), 4)       # si timeout moja kwa providers wote
         self.assertLess(max(lanes.ATTEMPT_TIMEOUT_S.values()), lanes.INFERENCE_DEADLINE_S)
 
     def test_build_pools_uses_policy_and_keeps_roster(self):

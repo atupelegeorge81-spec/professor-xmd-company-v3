@@ -68,12 +68,14 @@ COOLDOWN_TIMEOUT = 30.0
 WAIT_HARD_CAP_S = 300.0         # zaidi ya hii hakuna cha kusubiri — caller huamua kilele
 
 # Task 4c — timeout ya JARIBIO MOJA (sekunde) kwa family/model, kutokana na latency ya MAFANIKIO
-# iliyopimwa (probe live 2026-10-17, prompt 34–47k tokens, jaribio moja la HTTP; run 13 production):
-#   Gemini Flash 1.7–8.7s (production ≤17.5s) · Gemini Lite 3.1–6.4s · Uno minimax 0.8–3.5s ·
-#   Uno Ultra 17.8–26.2s · OR Lightning 93–164s (55s ya zamani ilikuwa chini ya latency yake halisi).
+# iliyopimwa (probe live 2026-10-17, prompt 34–47k tokens, jaribio moja la HTTP; run 14 production):
+#   Gemini Flash probe 1.7–8.7s · run 14 p50 5.2s max 30.4s → 45s
+#   Gemini Lite  probe 3.1–6.4s · run 14 p50 2.9s max 15.0s → 30s
+#   Uno minimax  probe 0.8–3.5s · run 14 max 27.8s → 45s · Uno Ultra probe 17.8–26.2s, judge 32.3s → 75s
+#   OR Lightning probe 93–164s · run 14 129.4s → 180s (55s ya zamani ilikuwa chini ya latency yake).
 # Model iliyokwama (run 11: gemini-3.8-flash 65s × 2) sasa inaachiwa mapema → lane nyingine.
 ATTEMPT_TIMEOUT_S = {
-    "gemini-flash": 35.0,
+    "gemini-flash": 45.0,
     "gemini-lite": 30.0,
     "unorouter": 45.0,
     "unorouter:nemotron-3-ultra-550b-a55b:free": 75.0,

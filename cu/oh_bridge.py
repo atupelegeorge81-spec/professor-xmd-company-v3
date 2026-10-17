@@ -106,9 +106,12 @@ def _llm_log_sink(path: str):
                 fh.write(json.dumps(rec, separators=(",", ":"), default=str) + "\n")
         except OSError:
             pass
+        # detail (ndefu) mwisho — namba (ms/retry_count/elapsed) zisikatwe na kikomo cha mstari
         parts = [f"{k}={v}" for k, v in fields.items()
-                 if k not in ("router",) and v not in (None, "")]
-        sys.stderr.write(f"[xmd-llm] {event} {fields.get('router', '')} " + " ".join(parts)[:260] + "\n")
+                 if k not in ("router", "detail") and v not in (None, "")]
+        if fields.get("detail"):
+            parts.append(f"detail={fields['detail']}")
+        sys.stderr.write(f"[xmd-llm] {event} {fields.get('router', '')} " + " ".join(parts)[:280] + "\n")
         sys.stderr.flush()
     return sink
 
