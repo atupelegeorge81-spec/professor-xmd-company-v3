@@ -67,6 +67,33 @@ COOLDOWN_503 = 65.0             # msingi; huongezeka kwa fails mfululizo (cap 30
 COOLDOWN_TIMEOUT = 30.0
 WAIT_HARD_CAP_S = 300.0         # zaidi ya hii hakuna cha kusubiri — caller huamua kilele
 
+# Task 4c — timeout ya JARIBIO MOJA (sekunde) kwa family/model, kutokana na latency ya MAFANIKIO
+# iliyopimwa (probe live 2026-10-17, prompt 34–47k tokens, jaribio moja la HTTP; run 13 production):
+#   Gemini Flash 1.7–8.7s (production ≤17.5s) · Gemini Lite 3.1–6.4s · Uno minimax 0.8–3.5s ·
+#   Uno Ultra 17.8–26.2s · OR Lightning 93–164s (55s ya zamani ilikuwa chini ya latency yake halisi).
+# Model iliyokwama (run 11: gemini-3.8-flash 65s × 2) sasa inaachiwa mapema → lane nyingine.
+ATTEMPT_TIMEOUT_S = {
+    "gemini-flash": 35.0,
+    "gemini-lite": 30.0,
+    "unorouter": 45.0,
+    "unorouter:nemotron-3-ultra-550b-a55b:free": 75.0,
+    "openrouter": 90.0,
+    "openrouter:nvidia/nemotron-3.5-lightning:free": 180.0,
+}
+INFERENCE_DEADLINE_S = 300.0    # inference MOJA (majaribio yote + kusubiri) — kisha AllLanesDead
+MAX_ATTEMPTS_PER_CALL = 16      # majaribio mfululizo yaliyoshindwa kwa ombi moja — kisha AllLanesDead
+MIN_ATTEMPT_S = 8.0             # chini ya hii ndani ya deadline: hakuna jaribio jipya
+
+
+def attempt_timeout(provider: str, model: str) -> float:
+    """Timeout ya jaribio moja: model maalum kwanza, kisha family (Gemini Flash/Lite, provider)."""
+    exact = ATTEMPT_TIMEOUT_S.get(f"{provider}:{model}")
+    if exact is not None:
+        return exact
+    if provider == "gemini":
+        return ATTEMPT_TIMEOUT_S["gemini-lite" if "lite" in model.lower() else "gemini-flash"]
+    return ATTEMPT_TIMEOUT_S.get(provider, 60.0)
+
 try:
     from zoneinfo import ZoneInfo
     PACIFIC = ZoneInfo("America/Los_Angeles")
@@ -124,6 +151,8 @@ class LaneState:
     in_tok: int = 0
     out_tok: int = 0
     total_ms: float = 0.0
+    fail_ms: float = 0.0         # Task 4c: muda uliopotea kwenye majaribio yaliyoshindwa
+    last_fail_kind: str = ""
 
 
 class AllLanesDead(RuntimeError):
@@ -257,11 +286,14 @@ class LanePool:
                      "ms": round(ms, 1), "in": in_tok, "out": out_tok, "req": 1, "ok": 1})
 
     def note_fail(self, lane: Lane, kind: str, retry_after: float | None = None,
-                  t: float | None = None) -> float:
-        """429/503/5xx/timeout/empty — UKIMYA: haina throw, huweka cooldown tu. Rudi cooldown."""
+                  t: float | None = None, ms: float = 0.0) -> float:
+        """429/503/5xx/timeout/empty — UKIMYA: haina throw, huweka cooldown tu. Rudi cooldown.
+        `ms` = muda wa jaribio lililoshindwa (Task 4c: kumbukumbu ya lane na elapsed)."""
         t = self.now() if t is None else t
         st = self._st(lane)
         st.fails += 1
+        st.fail_ms += max(0.0, ms)
+        st.last_fail_kind = kind
         if kind in MODEL_WIDE_KINDS:
             mh = self.model_health.setdefault((lane.provider, lane.model), {"fails": 0, "oks": 0, "last_fail": 0.0})
             mh["fails"] += 1
@@ -277,8 +309,12 @@ class LanePool:
             cd = COOLDOWN_429 * min(st.fails, 3)
         elif kind in ("server_error", "pool_busy"):
             cd = min(COOLDOWN_503 * st.fails, 300.0)
+            if retry_after:  # 503 + Retry-After: heshimu ikiwa ni ndefu kuliko msingi wetu
+                cd = max(cd, min(float(retry_after), 300.0))
         elif kind == "timeout":
             cd = COOLDOWN_TIMEOUT
+            if retry_after:
+                cd = max(cd, min(float(retry_after), 300.0))
         elif kind == "daily":  # subiri mpaka siku ya provider ijifungue tena
             cd = max(1.0, _next_day_start(t, lane.day_kind) - t)
         else:  # empty/unknown
@@ -286,7 +322,8 @@ class LanePool:
         st.cooldown_until = max(st.cooldown_until, t + cd)
         self._meter({"ts": round(t, 3), "tier": self.tier, "lane": lane.lid,
                      "provider": lane.provider, "account": lane.account, "model": lane.model,
-                     "ms": 0, "in": 0, "out": 0, "req": 1, "ok": 0, "kind": kind})
+                     "ms": round(max(0.0, ms), 1), "in": 0, "out": 0, "req": 1, "ok": 0, "kind": kind,
+                     "cooldown_s": round(cd, 1)})
         return cd
 
     def wait_seconds(self, t: float | None = None) -> float:
@@ -449,12 +486,8 @@ def build_pools(cfg: dict, run_id: str = "", now=time.time) -> dict[str, LanePoo
 
     tiers = 0
     def mk(provider, account, key, model, base, rpm, rpd, rank, day="utc", reasoning=False, tier2=False):
-        # Timeouts are per family: Lite probes took up to ~50s; no universal 180s wait.
-        timeout = 90.0 if provider == "gemini" and "lite" in model.lower() else 65.0
-        if provider == "openrouter":
-            timeout = 55.0 if "lightning" in model.lower() else 70.0
-        elif provider == "unorouter":
-            timeout = 70.0
+        # Task 4c: timeout ya jaribio moja kwa family/model (latency iliyopimwa) — si moja kwa wote.
+        timeout = attempt_timeout(provider, model)
         return Lane(provider, account, model, base, key, rpm=rpm, rpd=rpd, rank=rank + tiers,
                     timeout=timeout, day_kind=day, reasoning=reasoning, tier2=tier2)
 
