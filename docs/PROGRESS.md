@@ -69,3 +69,16 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Baselines: tsc 0 · vitest 237 + 2 skipped · unittest 238 OK · eslint (files zilizoguswa) 0.
 - Bug iliyopatikana na T3 + kurekebishwa: `toDoc` haikusoma `warnings`.
 - Known gaps: Data Guard inahitaji Fact Sheet; >60 hatua inazuia (CEO athibitishe); OR Lightning judge 385s licha ya timeout 180s (4c).
+
+## Task 5 (maelezo5) — Orphan sweeper (2026-10-17) — main abf222a + aa97ee7 (deploy 36bfb80e)
+- `sweepOrphans` (src/lib/cu/autoResume.ts): session "inaendelea" bila runner hai + stale ≥10 dk + resume state → system pause
+  (resumeAt +60s, chip "♻️ Recovered after crash") → checkPausedDue inaiendeleza. Callers: instrumentation (boot/tick) + /api/boardroom/active.
+- Uamuzi wa CEO: status zote za kazi inayoendelea (si "running" pekee) + paused/system bila resumeAt (SIGTERM).
+- Marekebisho yaliyohitajika: checkPausedDue isome items gz1: (haikuwahi kuona chip baada ya reboot); cu-event orphanPersist
+  ibakize chips (ilifuta resume state); hali ya autoResume kwenye globalThis (Next.js ilipakia module mara 2 → mara mbili).
+- Tests: orphan.test.ts 24/24 · T1–T5 + G1/G2 kwa server halisi (kill -9) · smoke 2 za Koyeb (redeploy wakati wa mjadala + wakati wa CU) zimerecover.
+  Ushahidi: docs/tests/task-5.md.
+- Baselines: tsc 0 · vitest 261 + 2 skipped · unittest 238 OK · eslint (files zilizoguswa) 0.
+- **DHANA YA INSTANCE MOJA:** instance mbili zikiwepo, moja ingeweza kuiba session ya nyingine. Runner hai + staleness
+  vinapunguza hatari hii (smoke 1: deploy overlap → "fresh", haikuguswa) lakini HAVITOI kabisa.
+- Known issues: status inabaki "running" baada ya resume ya CU (race ya schedulePersist; sweeper inairuka); cu-event orphan haina auth.
