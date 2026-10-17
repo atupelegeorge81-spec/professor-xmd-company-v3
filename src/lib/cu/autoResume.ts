@@ -12,8 +12,11 @@ import { publicFileUrl } from "@/lib/server/supabase";
 import { unpack } from "@/lib/server/packed";
 import { RESUME_PREFIX } from "@/lib/usageChip";
 
-const inflight = new Set<string>();
-let lastCheck = 0;
+// TASK-5: hali hii iko kwenye globalThis — Next.js inapakia module hii mara 2 (bundle ya instrumentation + ya route
+// /api/boardroom/active); kila nakala ilikuwa na throttle/timers/inflight zake → sweeps + auto-resume mara mbili (smoke ya Koyeb).
+const G: { inflight: Set<string>; lastCheck: number; lastSweep: number; sweeping?: boolean; resweepTimer: ReturnType<typeof setTimeout> | null; resumeTimer: ReturnType<typeof setTimeout> | null } =
+  ((globalThis as any).__xmdAutoResumeState ??= { inflight: new Set<string>(), lastCheck: 0, lastSweep: 0, resweepTimer: null, resumeTimer: null });
+const inflight = G.inflight;
 
 // R42.1: Supabase façade — hakuna client ya Appwrite tena (logic ileile ya R40)
 function dbOf() {
@@ -56,8 +59,8 @@ export async function autoResumeSession(sessionId: string): Promise<boolean> {
 /** Scan ya sessions zilizo "paused" — zile ambazo resumeAt imepita zinaendelea YENYEWE. */
 export async function checkPausedDue(force = false): Promise<number> {
   const now = Date.now();
-  if (!force && now - lastCheck < 60_000) return 0;
-  lastCheck = now;
+  if (!force && now - G.lastCheck < 60_000) return 0;
+  G.lastCheck = now;
   const a = dbOf();
   if (!a) return 0;
   try {
@@ -193,18 +196,17 @@ export function markRecovered(items: any[], now: number): any[] {
   return out;
 }
 
-let lastSweep = 0;
-let resweepTimer: ReturnType<typeof setTimeout> | null = null;
-let resumeTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Scan ya orphans (boot + tick + /api/boardroom/active; throttle 60s). Inarudisha idadi iliyorecoveriwa. */
 export async function sweepOrphans(force = false): Promise<number> {
   const now = Date.now();
-  if (!force && now - lastSweep < 60_000) return 0;
-  lastSweep = now;
+  if (!force && now - G.lastSweep < 60_000) return 0;
+  if (G.sweeping) return 0; // sweep nyingine inaendelea (boot/tick/route) — usiandike mara mbili
+  G.lastSweep = now;
   const a = dbOf();
   if (!a) return 0;
   const staleMs = orphanStaleMs();
+  G.sweeping = true;
   try {
     const q = [...TERMINAL.map((t) => Query.notEqual("status", t)), Query.orderDesc("$updatedAt"), Query.limit(10)];
     const docs = await a.db.listDocuments(a.databaseId, "boardroom_sessions", q);
@@ -229,19 +231,21 @@ export async function sweepOrphans(force = false): Promise<number> {
       if (ok) recovered += 1;
     }
     // resumeAt ikifika → njia iliyopo (checkPausedDue) inaendeleza; bila hii ingesubiri tick ya dk 10 / ombi la UI
-    if (recovered && !resumeTimer) {
-      resumeTimer = setTimeout(() => { resumeTimer = null; void checkPausedDue(true); }, ORPHAN_RESUME_DELAY_MS + 2_000);
-      resumeTimer.unref?.();
+    if (recovered && !G.resumeTimer) {
+      G.resumeTimer = setTimeout(() => { G.resumeTimer = null; void checkPausedDue(true); }, ORPHAN_RESUME_DELAY_MS + 2_000);
+      G.resumeTimer.unref?.();
     }
     // session bila runner ambayo bado ni "fresh" → angalia tena itakapopitwa na muda (si kusubiri tick ya dk 10)
-    if (Number.isFinite(nextStaleIn) && !resweepTimer) {
-      resweepTimer = setTimeout(() => { resweepTimer = null; void sweepOrphans(true); }, Math.min(nextStaleIn + 2_000, 10 * 60_000));
-      resweepTimer.unref?.();
+    if (Number.isFinite(nextStaleIn) && !G.resweepTimer) {
+      G.resweepTimer = setTimeout(() => { G.resweepTimer = null; void sweepOrphans(true); }, Math.min(nextStaleIn + 2_000, 10 * 60_000));
+      G.resweepTimer.unref?.();
     }
     return recovered;
   } catch (e) {
     console.warn(`[orphan] sweep imekufa: ${String(e).slice(0, 140)}`);
     return 0;
+  } finally {
+    G.sweeping = false;
   }
 }
 
