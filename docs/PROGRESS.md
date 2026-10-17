@@ -103,3 +103,12 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Baselines: tsc 0 · vitest 282 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Data ya majaribio imefutwa (sessions, cu_files, bucket).
 - Ugunduzi: SIGTERM grace kwenye Koyeb ≈ 1s (`sh -c next start` inakufa, container inasimama). Pendekezo kwenye doc.
   Tabia 5 za zamani zimeandikwa (hazijabadilishwa).
+
+## Task 7 (maelezo7) — `/api/live` liveness bila DB (2026-10-17) — main be96671 (deploy 571ed21e)
+- `src/app/api/live/route.ts`: force-dynamic, nodejs, `{ok:true,t}` 200 + `Cache-Control: no-store`, hakuna import yoyote.
+- `instrumentation.ts`: keep-alive → `/api/live`. Test-only `XMD_TEST_KEEPALIVE_MS` (chini ya `XMD_TEST_HOOKS=1` tu). `/api/health` haijaguswa.
+- Tests: T1 DB batili → live 200 (15–24ms), health 503 · T2 env sahihi → zote 200 · T3 hakuna import · T4 ping 32 zote
+  `/api/live` (0 health) · smoke Koyeb 5/5 200, no-store. Ushahidi: docs/tests/task-7.md.
+- Baselines: tsc 0 · vitest 282 + 2 skipped · pytest 308 · unittest 238 · eslint 0.
+- **CEO action: in Koyeb -> Service -> Health checks, set HTTP path `/api/live`, port = app port, grace period >= 60 s.**
+  (Port ya app = 3000. Sijabadilisha settings za Koyeb.)
