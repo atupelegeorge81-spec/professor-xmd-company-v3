@@ -48,7 +48,9 @@ import { saveProjectPlan, getPlanBySession } from "./server/plans";
 import { serialQueue } from "./serialQueue"; // TASK-6
 import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES, default OFF)
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
-import { putRecord, msChip, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12
+import { putRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13
+import { activeAgentsFor, rosterOwners, participantNames } from "./milestone/roster"; // TASK-13
+import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
 import {
@@ -100,6 +102,8 @@ export interface Runner {
   cu?: CuRunState;
   /** TASK-12: chips zilizofichwa za milestone store (map/state) — persist huchuja hidden chips, kwa hiyo zinarudishwa hapa. */
   msChips?: SessionItem[];
+  /** TASK-13: ramani ya milestones (flag ON) — roster ya kila agenda */
+  msMap?: MilestoneMap | null;
   /** R31: hooks za ndani za run() — endpoint ya cu-event zinazitumia (route haina access ya closure) */
   cuHooks?: CuHooks;
 }
@@ -398,6 +402,7 @@ export async function resumeRun(id: string, by: PauseOrigin = "user"): Promise<R
     agenda: state.agenda,
     sessionId: saved.id,
     msChips: (saved.items || []).filter((it: any) => it?.kind === "chip" && String(it?.text || "").startsWith(MS_PREFIX)) as SessionItem[], // TASK-12
+    msMap: readMsMap(saved.items), // TASK-13
     priorUsage,
     priorByProvider: priorChip?.byProvider,
     priorElapsedMs: priorChip?.elapsedMs,
@@ -1240,6 +1245,7 @@ async function run(runner: Runner) {
           // runner.msChips na getPersistItems inairudisha, vinginevyo persist inayofuata ingeifuta kwenye DB
           const chip = msChip(MAP_KEY, rec.version, rec.data) as SessionItem;
           runner.msChips = [...(runner.msChips || []).filter((x) => x.id !== chip.id), chip];
+          runner.msMap = rec.data; // TASK-13
           bcast({ type: "milestoneMap", map: rec.data, usedFallback: res.usedFallback, attempts: res.attempts });
           await persist("agenda_created", conversationTitle);
         } catch (e: any) {
@@ -1553,10 +1559,16 @@ async function run(runner: Runner) {
       await gate(`Agenda ${item.index}`);
 
       bcast({ type: "round", round: item.index, total: agenda.length });
-      const ownerAgents = item.owners.map((o) => getAgent(o)!).filter(Boolean);
+      // TASK-13: washiriki = roster ya milestone (flag ON + ramani); vinginevyo agents wote → owners/observers kama zamani
+      const activeIds = activeAgentsFor(runner, item.index);
+      const rosterOn = activeIds.length < AGENTS.length;
+      const ownerIds = rosterOwners(item.owners, activeIds);
+      const ownerAgents = ownerIds.map((o) => getAgent(o)!).filter(Boolean);
       const ownerNames = ownerAgents.map((a) => a.name).join(" + ");
-      addChip(` Agenda ${item.index}/${agenda.length}: ${item.item} — owners: ${ownerNames}`);
-      blog("system", `🎯 Agenda ${item.index}: ${item.item} | owners: ${ownerNames}`);
+      const partsLine = milestonesEnabled() && runner.msMap ? ` · Participants: ${participantNames(activeIds)}` : "";
+      addChip(` Agenda ${item.index}/${agenda.length}: ${item.item} — owners: ${ownerNames}${partsLine}`);
+      blog("system", `🎯 Agenda ${item.index}: ${item.item} | owners: ${ownerNames}${partsLine}`);
+      if (rosterOn && ownerIds.join() !== item.owners.join()) blog("info", `👥 Roster ya milestone: owners ${item.owners.map((o) => getAgent(o)?.name || o).join(" + ")} → ${ownerNames} (walio nje ya roster hawashiriki).`);
       authorityNote = ""; // R27: onyo la kikao kingine ni la agenda hii tu
       contrastNoteS = "";
       echoNote = "";
@@ -1577,7 +1589,7 @@ async function run(runner: Runner) {
       const participants: { id: string; role: string }[] = [];
       const joined = (id: string, role: string) => { if (!participants.some((x) => x.id === id)) participants.push({ id, role }); };
       let pendingClarify: ClarifyAsk | null = null;
-      const observerNames = AGENTS.filter((a) => !item.owners.includes(a.id)).map((a) => a.name);
+      const observerNames = AGENTS.filter((a) => !ownerIds.includes(a.id) && activeIds.includes(a.id)).map((a) => a.name); // TASK-13
       const agendaCtx = { index: item.index, total: agenda.length, item: item.item };
       brain.state({ status: "running", phase: "discussion", agendaTotal: agenda.length, agendaIndex: item.index, agendaItem: item.item, owners: ownerAgents.map((a) => a.name), observers: observerNames, agendaStartTokens: boardTokens(), delib: undefined });
 
@@ -2611,7 +2623,7 @@ Your FIRST line must be APPROVE or REJECT: … Keep the answer under 150 words.
       // ===== Observers objection — max 1 valid objection =====
       if (entryId && itemLocked) {
         const observers = AGENTS.filter(
-          (a) => !item.owners.includes(a.id)
+          (a) => !ownerIds.includes(a.id) && activeIds.includes(a.id) // TASK-13: nje ya roster = si observer
         );
 
         const objections: LedgerObjection[] = [];
