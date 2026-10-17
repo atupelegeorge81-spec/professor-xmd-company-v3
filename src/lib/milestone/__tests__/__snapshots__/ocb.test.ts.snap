@@ -1,0 +1,676 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > BUILD · backend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: BUILD (step 4: Computer builds) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: XMD Computer finishes building M2; the harness collects evidence; then the first review (round 0). YOUR OUTPUT IS READ BY: the team — context only — no decision is taken during the build.
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > BUILD · computer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: BUILD (step 4: Computer builds) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: the harness collects evidence (screenshots, DOM metrics, checks); then Ultron (UI/UX Designer) and Vextron (Frontend Engineer) review M2. YOUR OUTPUT IS READ BY: the harness and the reviewers Ultron (UI/UX Designer) + Vextron (Frontend Engineer) — your build report and the evidence decide which defects are opened.
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — Ultron (UI/UX Designer) — and a Frontend Engineer — Vextron (Frontend Engineer) — plus automatic checks run by the harness.
+RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).
+FINISH: you cannot finish without the Build Report and passing checks.
+REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.
+SELF-GRADING: do not grade yourself — the harness measures.
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > BUILD · designer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: BUILD (step 4: Computer builds) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: XMD Computer finishes building M2; the harness collects evidence; then the first review (round 0). YOUR OUTPUT IS READ BY: the team — context only — no decision is taken during the build.
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > BUILD · frontend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: BUILD (step 4: Computer builds) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: XMD Computer finishes building M2; the harness collects evidence; then the first review (round 0). YOUR OUTPUT IS READ BY: the team — context only — no decision is taken during the build.
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > BUILD · pm 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: BUILD (step 4: Computer builds) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: XMD Computer finishes building M2; the harness collects evidence; then the first review (round 0). YOUR OUTPUT IS READ BY: the team — context only — no decision is taken during the build.
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > DISCUSS · backend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: DISCUSS (step 2: agenda discussion) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3 | agenda 2: Colour palette and typography
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: the decision is locked into the ledger and summarised in a mini-report; after the last agenda of M1, Optimus writes the milestone plan. YOUR OUTPUT IS READ BY: the team and Optimus — locked decisions go into the ledger, which Optimus turns into the M1 plan for XMD Computer.
+STATE: locked decisions 1; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > DISCUSS · computer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: DISCUSS (step 2: agenda discussion) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3 | agenda 2: Colour palette and typography
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: the decision is locked into the ledger and summarised in a mini-report; after the last agenda of M1, Optimus writes the milestone plan. YOUR OUTPUT IS READ BY: the team and Optimus — locked decisions go into the ledger, which Optimus turns into the M1 plan for XMD Computer.
+STATE: locked decisions 1; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — Ultron (UI/UX Designer) — and a Frontend Engineer — Vextron (Frontend Engineer) — plus automatic checks run by the harness.
+RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).
+FINISH: you cannot finish without the Build Report and passing checks.
+REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.
+SELF-GRADING: do not grade yourself — the harness measures.
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > DISCUSS · designer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: DISCUSS (step 2: agenda discussion) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3 | agenda 2: Colour palette and typography
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: the decision is locked into the ledger and summarised in a mini-report; after the last agenda of M1, Optimus writes the milestone plan. YOUR OUTPUT IS READ BY: the team and Optimus — locked decisions go into the ledger, which Optimus turns into the M1 plan for XMD Computer.
+STATE: locked decisions 1; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > DISCUSS · frontend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: DISCUSS (step 2: agenda discussion) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3 | agenda 2: Colour palette and typography
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: the decision is locked into the ledger and summarised in a mini-report; after the last agenda of M1, Optimus writes the milestone plan. YOUR OUTPUT IS READ BY: the team and Optimus — locked decisions go into the ledger, which Optimus turns into the M1 plan for XMD Computer.
+STATE: locked decisions 1; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > DISCUSS · pm 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: DISCUSS (step 2: agenda discussion) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3 | agenda 2: Colour palette and typography
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: the decision is locked into the ledger and summarised in a mini-report; after the last agenda of M1, Optimus writes the milestone plan. YOUR OUTPUT IS READ BY: the team and Optimus — locked decisions go into the ledger, which Optimus turns into the M1 plan for XMD Computer.
+STATE: locked decisions 1; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FINAL_REPORT · backend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FINAL_REPORT (step 9: report for the CEO) | all 3 milestone(s) finished
+PARTICIPANTS IN THIS MILESTONE: whole team.
+NEXT: Optimus writes the final report for the CEO. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your summary is quoted in the CEO's final report.
+STATE: locked decisions 10; milestones done M1, M2, M3; open defects 0; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FINAL_REPORT · computer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FINAL_REPORT (step 9: report for the CEO) | all 3 milestone(s) finished
+PARTICIPANTS IN THIS MILESTONE: whole team.
+NEXT: Optimus writes the final report for the CEO. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your summary is quoted in the CEO's final report.
+STATE: locked decisions 10; milestones done M1, M2, M3; open defects 0; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — Ultron (UI/UX Designer) — and a Frontend Engineer — Vextron (Frontend Engineer) — plus automatic checks run by the harness.
+RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).
+FINISH: you cannot finish without the Build Report and passing checks.
+REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.
+SELF-GRADING: do not grade yourself — the harness measures.
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FINAL_REPORT · designer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FINAL_REPORT (step 9: report for the CEO) | all 3 milestone(s) finished
+PARTICIPANTS IN THIS MILESTONE: whole team.
+NEXT: Optimus writes the final report for the CEO. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your summary is quoted in the CEO's final report.
+STATE: locked decisions 10; milestones done M1, M2, M3; open defects 0; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FINAL_REPORT · frontend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FINAL_REPORT (step 9: report for the CEO) | all 3 milestone(s) finished
+PARTICIPANTS IN THIS MILESTONE: whole team.
+NEXT: Optimus writes the final report for the CEO. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your summary is quoted in the CEO's final report.
+STATE: locked decisions 10; milestones done M1, M2, M3; open defects 0; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FINAL_REPORT · pm 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FINAL_REPORT (step 9: report for the CEO) | all 3 milestone(s) finished
+PARTICIPANTS IN THIS MILESTONE: whole team.
+NEXT: the CEO reads the final report; the last milestone ended with push + deploy. YOUR OUTPUT IS READ BY: the CEO — the CEO decides from this report — state verified results, waivers and inherited defects plainly.
+STATE: locked decisions 10; milestones done M1, M2, M3; open defects 0; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FIX · backend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FIX (step 7: Computer fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: XMD Computer finishes the fixes for round 3/10; then you verify with fresh evidence. YOUR OUTPUT IS READ BY: the team — context only — verification starts when the evidence is ready.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FIX · computer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FIX (step 7: Computer fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: the harness re-collects evidence; Ultron (UI/UX Designer) and Vextron (Frontend Engineer) verify each defect (round 3/10). YOUR OUTPUT IS READ BY: the harness and the reviewers Ultron (UI/UX Designer) + Vextron (Frontend Engineer) — your Receipts are checked against fresh evidence.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — Ultron (UI/UX Designer) — and a Frontend Engineer — Vextron (Frontend Engineer) — plus automatic checks run by the harness.
+RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).
+FINISH: you cannot finish without the Build Report and passing checks.
+REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.
+SELF-GRADING: do not grade yourself — the harness measures.
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FIX · designer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FIX (step 7: Computer fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: XMD Computer finishes the fixes for round 3/10; then you verify with fresh evidence. YOUR OUTPUT IS READ BY: the team — context only — verification starts when the evidence is ready.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FIX · frontend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FIX (step 7: Computer fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: XMD Computer finishes the fixes for round 3/10; then you verify with fresh evidence. YOUR OUTPUT IS READ BY: the team — context only — verification starts when the evidence is ready.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > FIX · pm 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: FIX (step 7: Computer fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: XMD Computer finishes the fixes for round 3/10; then you verify with fresh evidence. YOUR OUTPUT IS READ BY: the team — context only — verification starts when the evidence is ready.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > MAP · backend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: MAP (step 1: agendas + milestone map) | milestone map is being created now (no milestone yet)
+PARTICIPANTS IN THIS MILESTONE: whole team (the map decides each milestone's roster).
+NEXT: Optimus finalises the milestone map; then the team discusses the agendas of milestone M1. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your input shapes how agendas are grouped into milestones.
+STATE: locked decisions 0; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > MAP · computer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: MAP (step 1: agendas + milestone map) | milestone map is being created now (no milestone yet)
+PARTICIPANTS IN THIS MILESTONE: whole team (the map decides each milestone's roster).
+NEXT: Optimus finalises the milestone map; then the team discusses the agendas of milestone M1. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your input shapes how agendas are grouped into milestones.
+STATE: locked decisions 0; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — Ultron (UI/UX Designer) — and a Frontend Engineer — Vextron (Frontend Engineer) — plus automatic checks run by the harness.
+RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).
+FINISH: you cannot finish without the Build Report and passing checks.
+REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.
+SELF-GRADING: do not grade yourself — the harness measures.
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > MAP · designer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: MAP (step 1: agendas + milestone map) | milestone map is being created now (no milestone yet)
+PARTICIPANTS IN THIS MILESTONE: whole team (the map decides each milestone's roster).
+NEXT: Optimus finalises the milestone map; then the team discusses the agendas of milestone M1. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your input shapes how agendas are grouped into milestones.
+STATE: locked decisions 0; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > MAP · frontend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: MAP (step 1: agendas + milestone map) | milestone map is being created now (no milestone yet)
+PARTICIPANTS IN THIS MILESTONE: whole team (the map decides each milestone's roster).
+NEXT: Optimus finalises the milestone map; then the team discusses the agendas of milestone M1. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your input shapes how agendas are grouped into milestones.
+STATE: locked decisions 0; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > MAP · pm 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: MAP (step 1: agendas + milestone map) | milestone map is being created now (no milestone yet)
+PARTICIPANTS IN THIS MILESTONE: whole team (the map decides each milestone's roster).
+NEXT: the code validator checks your milestone map; then the team discusses the agendas of milestone M1. YOUR OUTPUT IS READ BY: the harness validator, then the whole team — the map decides which agendas are discussed, built and reviewed together, and who takes part.
+STATE: locked decisions 0; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > PLAN · backend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: PLAN (step 3: milestone plan) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: Optimus finalises the M1 plan; XMD Computer builds it. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your input is folded into the plan XMD Computer will execute.
+STATE: locked decisions 3; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > PLAN · computer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: PLAN (step 3: milestone plan) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: Optimus finalises the M1 plan; XMD Computer builds it. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your input is folded into the plan XMD Computer will execute.
+STATE: locked decisions 3; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — Ultron (UI/UX Designer) — and a Frontend Engineer — Vextron (Frontend Engineer) — plus automatic checks run by the harness.
+RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).
+FINISH: you cannot finish without the Build Report and passing checks.
+REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.
+SELF-GRADING: do not grade yourself — the harness measures.
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > PLAN · designer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: PLAN (step 3: milestone plan) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: Optimus finalises the M1 plan; XMD Computer builds it. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your input is folded into the plan XMD Computer will execute.
+STATE: locked decisions 3; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > PLAN · frontend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: PLAN (step 3: milestone plan) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: Optimus finalises the M1 plan; XMD Computer builds it. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — your input is folded into the plan XMD Computer will execute.
+STATE: locked decisions 3; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > PLAN · pm 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: PLAN (step 3: milestone plan) | Milestone M1: Foundation and design (agendas 1–3), milestone 1 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: XMD Computer builds M1 from this plan and writes a build report; then the harness collects evidence. YOUR OUTPUT IS READ BY: XMD Computer — it executes the plan literally and cannot ask questions — every requirement must be explicit.
+STATE: locked decisions 3; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_ANALYSE · backend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_ANALYSE (step 6: reviewers analyse evidence) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 0 (first review, not counted)
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: the team discusses the findings; Optimus writes change orders for XMD Computer. YOUR OUTPUT IS READ BY: Optimus and the team — your findings become defects and change orders — each must cite evidence (screenshot id, measurement).
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_ANALYSE · computer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_ANALYSE (step 6: reviewers analyse evidence) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 0 (first review, not counted)
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: the team discusses the findings; Optimus writes change orders for XMD Computer. YOUR OUTPUT IS READ BY: Optimus and the team — your findings become defects and change orders — each must cite evidence (screenshot id, measurement).
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — Ultron (UI/UX Designer) — and a Frontend Engineer — Vextron (Frontend Engineer) — plus automatic checks run by the harness.
+RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).
+FINISH: you cannot finish without the Build Report and passing checks.
+REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.
+SELF-GRADING: do not grade yourself — the harness measures.
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_ANALYSE · designer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_ANALYSE (step 6: reviewers analyse evidence) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 0 (first review, not counted)
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: the team discusses the findings; Optimus writes change orders for XMD Computer. YOUR OUTPUT IS READ BY: Optimus and the team — your findings become defects and change orders — each must cite evidence (screenshot id, measurement).
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_ANALYSE · frontend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_ANALYSE (step 6: reviewers analyse evidence) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 0 (first review, not counted)
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: the team discusses the findings; Optimus writes change orders for XMD Computer. YOUR OUTPUT IS READ BY: Optimus and the team — your findings become defects and change orders — each must cite evidence (screenshot id, measurement).
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_ANALYSE · pm 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_ANALYSE (step 6: reviewers analyse evidence) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 0 (first review, not counted)
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: the team discusses the findings; Optimus writes change orders for XMD Computer. YOUR OUTPUT IS READ BY: Optimus and the team — your findings become defects and change orders — each must cite evidence (screenshot id, measurement).
+STATE: locked decisions 7; milestones done M1; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_DISCUSS · backend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_DISCUSS (step 6: team discusses findings) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: Optimus writes change orders from the agreed defects; XMD Computer fixes them. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — the agreed defects and fixes become change orders for XMD Computer.
+STATE: locked decisions 7; milestones done M1; open defects 4; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_DISCUSS · computer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_DISCUSS (step 6: team discusses findings) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: Optimus writes change orders from the agreed defects; XMD Computer fixes them. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — the agreed defects and fixes become change orders for XMD Computer.
+STATE: locked decisions 7; milestones done M1; open defects 4; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — Ultron (UI/UX Designer) — and a Frontend Engineer — Vextron (Frontend Engineer) — plus automatic checks run by the harness.
+RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).
+FINISH: you cannot finish without the Build Report and passing checks.
+REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.
+SELF-GRADING: do not grade yourself — the harness measures.
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_DISCUSS · designer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_DISCUSS (step 6: team discusses findings) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: Optimus writes change orders from the agreed defects; XMD Computer fixes them. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — the agreed defects and fixes become change orders for XMD Computer.
+STATE: locked decisions 7; milestones done M1; open defects 4; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_DISCUSS · frontend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_DISCUSS (step 6: team discusses findings) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: Optimus writes change orders from the agreed defects; XMD Computer fixes them. YOUR OUTPUT IS READ BY: Optimus (Project Manager) — the agreed defects and fixes become change orders for XMD Computer.
+STATE: locked decisions 7; milestones done M1; open defects 4; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_DISCUSS · pm 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_DISCUSS (step 6: team discusses findings) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: XMD Computer applies your change orders (round 1/10); then evidence again and two reviewers verify. YOUR OUTPUT IS READ BY: XMD Computer — each change order is executed literally and answered with a Receipt.
+STATE: locked decisions 7; milestones done M1; open defects 4; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_VERIFY · backend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_VERIFY (step 7: reviewers verify fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: if every defect is verified fixed: sign-off of M2, then next milestone M3: Quality and deploy; otherwise another fix round (4/10). YOUR OUTPUT IS READ BY: the harness and Optimus — your verdict per defect decides sign-off or another round.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_VERIFY · computer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_VERIFY (step 7: reviewers verify fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: if every defect is verified fixed: sign-off of M2, then next milestone M3: Quality and deploy; otherwise another fix round (4/10). YOUR OUTPUT IS READ BY: the harness and Optimus — your verdict per defect decides sign-off or another round.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — Ultron (UI/UX Designer) — and a Frontend Engineer — Vextron (Frontend Engineer) — plus automatic checks run by the harness.
+RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).
+FINISH: you cannot finish without the Build Report and passing checks.
+REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.
+SELF-GRADING: do not grade yourself — the harness measures.
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_VERIFY · designer 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_VERIFY (step 7: reviewers verify fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: if every defect is verified fixed: sign-off of M2, then next milestone M3: Quality and deploy; otherwise another fix round (4/10). YOUR OUTPUT IS READ BY: the harness and Optimus — your verdict per defect decides sign-off or another round.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_VERIFY · frontend 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_VERIFY (step 7: reviewers verify fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: if every defect is verified fixed: sign-off of M2, then next milestone M3: Quality and deploy; otherwise another fix round (4/10). YOUR OUTPUT IS READ BY: the harness and Optimus — your verdict per defect decides sign-off or another round.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;
+
+exports[`T1 · OCB kwa kila stage × role (snapshots) > REVIEW_VERIFY · pm 1`] = `
+"=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest SafariBook. CEO request in brief: Booking site for Tanzanian safari operators: search tours, book, pay with M-Pesa.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_VERIFY (step 7: reviewers verify fixes) | Milestone M2: Booking flow (agendas 4–7), milestone 2 of 3 | round 3/10
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer), Megatron (Backend & DB Engineer) · review mode: mixed.
+NEXT: if every defect is verified fixed: sign-off of M2, then next milestone M3: Quality and deploy; otherwise another fix round (4/10). YOUR OUTPUT IS READ BY: the harness and Optimus — your verdict per defect decides sign-off or another round.
+STATE: locked decisions 7; milestones done M1; open defects 2; waivers 1.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ==="
+`;

@@ -142,3 +142,10 @@ $ npm run cu:test        → Ran 186 tests — OK
   kuitwa sambamba). Inapendekezwa task ya kinga.
 - Kumbuka kwa wiring (task 14+): board persist inaandika items zote kutoka kumbukumbu, kwa hiyo chip za store lazima ziwe
   kwenye `runner.items` (au store iandike wakati runner hai haandiki), vinginevyo persist inayofuata itazifuta.
+
+## Task 11 (maelezo11) — OCB builder (2026-10-17) — branch task/11-ocb
+- Mpya: `src/lib/milestone/ocb.ts` (buildOCB, buildOCBForComputer, withOCB, consumerOf; length guard 1,200 tokens) + tests 51
+  (snapshots 45 = stages 9 × roles 5). Haijaunganishwa kwenye prompts.
+- T2: OCB kutoka state halisi ya DB (store ya Task 10). T3: Gemini Flash (gemini-3.8-flash) ilitaja milestone, hatua ijayo
+  na msomaji kwa stages 3/3.
+- Baselines: tsc 0 · vitest 420 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-11.md.
