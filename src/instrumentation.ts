@@ -11,8 +11,9 @@ export async function register() {
     installSigtermHandler();
     // R31-G4: auto-resume ya sessions zilizopumzika (quota) — server ukianza/kuamka:
     // scan mara moja (baada ya sekunde 20) + kila dakika 10 (instance ikiishi).
-    setTimeout(() => { void import("@/lib/cu/autoResume").then((m) => m.checkPausedDue(true)).catch((e) => console.warn("[cu/autoResume] boot scan:", String(e).slice(0, 120))); }, 20_000);
-    setInterval(() => { void import("@/lib/cu/autoResume").then((m) => m.checkPausedDue()).catch((e) => console.warn("[cu/autoResume] tick:", String(e).slice(0, 120))); }, 10 * 60_000);
+    // TASK-5: sweepOrphans kwanza (session "inaendelea" bila runner baada ya crash → system pause) kisha checkPausedDue.
+    setTimeout(() => { void import("@/lib/cu/autoResume").then(async (m) => { await m.sweepOrphans(true); return m.checkPausedDue(true); }).catch((e) => console.warn("[cu/autoResume] boot scan:", String(e).slice(0, 120))); }, 20_000);
+    setInterval(() => { void import("@/lib/cu/autoResume").then(async (m) => { await m.sweepOrphans(); return m.checkPausedDue(); }).catch((e) => console.warn("[cu/autoResume] tick:", String(e).slice(0, 120))); }, 10 * 60_000);
     // R38-RC3: KEEP-ALIVE ya instance. Ushahidi [179]→[181]: process ya Koyeb ilifa wakati wa
     // awamu ya CU (in-memory runner + timer za auto-resume zikazama pamoja). Koyeb free inalala
     // bila traffic; mdundo huu wa ndani (ping ya /api/health kupitia URL ya umma kila dakika 4)
