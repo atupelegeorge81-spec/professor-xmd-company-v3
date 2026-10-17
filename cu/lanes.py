@@ -30,7 +30,7 @@ OH_UNO_TIER2_DEFAULT = [  # execution fallback ya Uno; haitashinda ordinary Uno 
 OH_JUDGE_DEFAULT = [
     "nemotron-3-ultra-550b-a55b:free",  # judge wa kwanza; verdict lazima ithibitishwe na harness
 ]
-OH_OR_MAIN_DEFAULT = [  # fallback inayoweza kutumika mapema; quota 50/account hushirikiwa
+OH_OR_MAIN_DEFAULT = [  # quota 50/account hushirikiwa; Lightning = fallback tu (FALLBACK_ONLY_MODELS)
     "nvidia/nemotron-3.5-lightning:free",
     "nvidia/nemotron-3-ultra-550b-a55b:free",
 ]
@@ -44,6 +44,9 @@ OH_OR_ALLOWED = {
     "nvidia/nemotron-3-ultra-550b-a55b:free",
 }
 OH_OR_JUDGE_FALLBACK = "nvidia/nemotron-3.5-lightning:free"
+# Task 6 (CEO): Lightning ni FALLBACK TU — executor na judge. Router huichagua pale tu hakuna
+# lane nyingine yoyote eligible (si sehemu ya mzunguko wa kawaida wa band ya OpenRouter).
+FALLBACK_ONLY_MODELS = {"nvidia/nemotron-3.5-lightning:free"}
 
 UNO_RPM_PER_MODEL = 1            # kanuni rasmi ya UnoRouter free (429 + Retry-After)
 # Uno ilitaja limit kwenye 429 (live 2026-10-16): nemotron-3-ultra free = 5 req/dk kwa account;

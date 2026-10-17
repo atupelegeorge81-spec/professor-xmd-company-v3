@@ -91,7 +91,7 @@ class LaneRouterCore:
     def pick(self, t: float | None = None) -> "lanes.Lane | None":
         """Chagua family kwa weighted cycle, kisha lane bora kwa score ya health/load.
 
-        OpenRouter ni fallback hai (1/11 slots) badala ya kusubiri main pool nzima ife.
+        OpenRouter (bila Lightning) ina 1/11 slots; Lightning ni fallback tu (Task 6).
         Model/account zilizozuiwa na quota/cooldown hazipo kwenye candidates kabisa.
         """
         t = self.now() if t is None else t
@@ -103,6 +103,16 @@ class LaneRouterCore:
                 candidates.append((p, lane))
         if not candidates:
             return None
+        # Task 6 (CEO): Lightning = fallback TU (executor + judge) — inachaguliwa pale tu
+        # hakuna lane nyingine yoyote eligible kwa sasa.
+        primary = [(p, l) for p, l in candidates if l.model not in lanes.FALLBACK_ONLY_MODELS]
+        if primary:
+            candidates = primary
+        elif self.event_cb:
+            try:
+                self.event_cb(f"↪ fallback: {candidates[0][1].model[:40]} — hakuna lane nyingine inayopatikana")
+            except Exception:
+                pass
 
         schedule = self.dispatch_schedule
         n = len(schedule)
