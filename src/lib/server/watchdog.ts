@@ -67,8 +67,13 @@ function ev(kind: WatchEvent["kind"], ramPct: number, note: string) {
  *   "paused" + scheduleAutoResume + sandbox inabaki hai (heartbeat 5dk) — njia ya quota-pause (R40) yenyewe.
  * - Awamu ya discussion: pauseRun() (in-memory pause; gate ya LLM inasimama) + timer ya ndani inarudisha.
  */
-async function cooldown(reason: string, resumeMs: number, force = false): Promise<void> {
-  if (G.busy) return;
+async function cooldown(reason: string, resumeMs: number, force = false, waitBusyMs = 0): Promise<void> {
+  if (G.busy) {
+    // TASK-6 (maelezo6 §4): SIGTERM haiondoki mapema — subiri ≤ waitBusyMs kisha endelea hata kama bado busy
+    if (!waitBusyMs) return;
+    const until = Date.now() + waitBusyMs;
+    while (G.busy && Date.now() < until) await new Promise((r) => setTimeout(r, 100));
+  }
   if (!force && Date.now() - G.lastCooldownAt < MIN_BETWEEN_COOLDOWNS) return;
   G.busy = true;
   try {
@@ -80,9 +85,9 @@ async function cooldown(reason: string, resumeMs: number, force = false): Promis
       if (r.pauseOrigin === "user") {
         ev("log", (await readRam()).pct, `${reason} — runner ka-pause DETACH (user) — haigusiwi kabisa`);
       } else if (r.cuHooks && cu && !cu.done && !cu.pausedNow && !cu.pausing) {
-        const { pauseComputerFromServer } = await import("@/lib/cu/engine");
-        // kudumu: snapshot (workspace zetu ~110KB = sekunde chache) + persist + auto-resume timer
-        await pauseComputerFromServer(r, r.cuHooks, reason, Date.now() + resumeMs, "system").catch(() => {});
+        const { pauseComputerFromServer, PRESSURE_SNAPSHOT_LIMITS } = await import("@/lib/cu/engine");
+        // TASK-6: persist KWANZA, kisha snapshot yenye bajeti 20s + kikomo 8MB (RAM juu / SIGTERM) + auto-resume timer
+        await pauseComputerFromServer(r, r.cuHooks, reason, Date.now() + resumeMs, "system", PRESSURE_SNAPSHOT_LIMITS).catch(() => {});
       } else {
         br.pauseRun(r.id, "system"); // discussion: pause ya neema (in-flight inakatwa kwenye gate)
         const t = setTimeout(async () => {
@@ -144,7 +149,7 @@ export function installSigtermHandler(): void {
     // ukomo wa usalama: kila kitu kiishie ndani ya neema (kazi isiyokamilika → sandbox ya E2B inabaki hai)
     const hard = setTimeout(() => process.exit(0), 22_000);
     hard.unref?.();
-    void cooldown("📜 Server inarestart — mjadala utaendelea yenyewe", SIGTERM_RESUME_MS, true)
+    void cooldown("📜 Server inarestart — mjadala utaendelea yenyewe", SIGTERM_RESUME_MS, true, 3_000) // TASK-6: busy → subiri ≤3s
       .catch(() => {})
       .finally(() => {
         const soft = setTimeout(() => process.exit(0), 1_500);
