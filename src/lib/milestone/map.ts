@@ -115,6 +115,30 @@ export function maybeBreakMapOutput(text: string, env: Record<string, string | u
   return JSON.stringify({ milestones: [{ id: "M1", title: "xmdtest broken", agendas: { from: 2, to: 1 }, phase: "nope", reviewMode: "visual", roster: ["ghost"], rationale: "" }] });
 }
 
+/**
+ * Test hook (XMD_TEST_HOOKS=1 + XMD_TEST_MAP_FORCE PEKEE): ramani inalazimishwa bila LLM.
+ * Muundo: JSON [{"to": <namba>|"N", "roster": [...], "reviewMode"?: ...}, ...] — from = to ya iliyotangulia + 1.
+ */
+export function forcedMapFromEnv(env: Record<string, string | undefined>, N: number, hasUI: boolean, sessionId: string): MilestoneMap | null {
+  if (env.XMD_TEST_HOOKS !== "1" || !env.XMD_TEST_MAP_FORCE) return null;
+  let spec: { to: number | "N"; roster: string[]; reviewMode?: Milestone["reviewMode"]; title?: string }[];
+  try { spec = JSON.parse(env.XMD_TEST_MAP_FORCE); } catch { return null; }
+  if (!Array.isArray(spec) || !spec.length) return null;
+  const milestones: Milestone[] = [];
+  let from = 1;
+  for (const s of spec) {
+    if (from > N) break;
+    const to = s.to === "N" ? N : Math.min(N, Math.max(from, Number(s.to)));
+    milestones.push({ id: `M${milestones.length + 1}`, title: s.title || `xmdtest forced ${from}–${to}`, agendas: { from, to }, phase: "core", reviewMode: s.reviewMode || "mixed", roster: s.roster, rationale: "XMD_TEST_MAP_FORCE (test hook)" });
+    from = to + 1;
+  }
+  if (!milestones.length) return null;
+  if (from <= N) milestones[milestones.length - 1].agendas.to = N; // agenda zilizobaki → milestone ya mwisho
+  if (hasUI) milestones[0].phase = "foundation";
+  milestones[milestones.length - 1].phase = "quality_deploy";
+  return { version: 1, sessionId, totalAgendas: N, generatedBy: "xmdtest-forced", usedFallback: false, milestones };
+}
+
 const defaultComplete = (signal?: AbortSignal): MapComplete => async (messages) => {
   const r = await brokerComplete({ agentId: "pm", purpose: "milestone-map", cls: "heavy", priority: "live", allow: ["gemini"], maxOut: 4000, temperature: 0.2, messages, signal });
   return { text: r.text, lane: `${r.lane.label} (tier ${r.lane.tier ?? "?"})` };
@@ -132,6 +156,16 @@ export async function generateMilestoneMap(input: MapInput): Promise<MapResult> 
   ];
   const errors: string[][] = [];
   const lanes: string[] = [];
+
+  const forced = forcedMapFromEnv(env, N, hasUI, sessionId);
+  if (forced) {
+    const fv = validateMilestoneMap(forced, N, MAP_AGENT_IDS, { hasUI });
+    if (fv.ok) {
+      log("info", `🧪 Milestone map: test hook XMD_TEST_MAP_FORCE — ${forced.milestones.map((m) => `${m.id} ${m.agendas.from}–${m.agendas.to} [${m.roster.join(", ")}]`).join(" · ")}`);
+      return { map: fv.value, usedFallback: false, attempts: 0, retries: 0, errors, lanes };
+    }
+    log("warning", `🧪 XMD_TEST_MAP_FORCE si sahihi (${fv.errors.slice(0, 2).join(" | ")}) — LLM inatumika.`);
+  }
 
   for (let attempt = 1; attempt <= MAP_MAX_ATTEMPTS; attempt++) {
     let text = "";

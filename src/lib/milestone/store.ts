@@ -96,6 +96,11 @@ const nextTs = (prev: string | null): string => {
 };
 
 /** Soma rekodi moja (null kama haipo). */
+/** TASK-13: ramani kutoka items zilizohifadhiwa (resume) — bila kugusa DB; null ikiwa haipo/mbovu. */
+export function readMsMap(items: unknown): MilestoneMap | null {
+  try { return recordOf<MilestoneMap>(Array.isArray(items) ? items : [], MAP_KEY)?.data ?? null; } catch { return null; }
+}
+
 export async function getRecord<T>(sessionId: string, key: string): Promise<Versioned<T> | null> {
   assertEnabled();
   return recordOf<T>((await readDoc(sessionId)).items, key);
