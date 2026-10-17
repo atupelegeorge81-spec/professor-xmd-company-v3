@@ -149,3 +149,12 @@ $ npm run cu:test        → Ran 186 tests — OK
 - T2: OCB kutoka state halisi ya DB (store ya Task 10). T3: Gemini Flash (gemini-3.8-flash) ilitaja milestone, hatua ijayo
   na msomaji kwa stages 3/3.
 - Baselines: tsc 0 · vitest 420 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-11.md.
+
+## Task 12 (maelezo12): Milestone map (2026-10-17), branch task/12-milestone-map
+- Mpya: `src/lib/milestone/map.ts` (Optimus kupitia Gemini lane ya broker, cls heavy → Flash; validator + retry 3; fallback ya code
+  ceil(N/4)). Hook ya boardRunner iko nyuma ya flag pekee: store.ts + event `milestoneMap`. Tests 19.
+- Marekebisho yaliyofichuliwa na T4: chips za MS zilifutwa na persist ya Board (sasa ziko kwenye `runner.msChips`), na chip ya MS ilivuja kwenye UI
+  (adapter `HIDDEN` + MILESTONE).
+- T1 N=10/15/20 valid jaribio la 1 · T2 ramani 5 mbovu zimekataliwa · T3 fallback (hook) · T4 local flag ON: DB + event + UI ·
+  T5 Koyeb flag OFF: signature sawa na baseline.
+- Baselines: tsc 0 · vitest 439 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-12.md.
