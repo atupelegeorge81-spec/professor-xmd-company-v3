@@ -1145,7 +1145,14 @@ function pauseComputer(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void
  *  MWANDAMIZI (haina auto-resume — Resume ya user tu); resumeAt>0 = watchdog (retry 10dk).
  *  Mkondo uleule wa quota-pause (pauseComputer) — tofauti kubwa: snapshot inatengenezwa
  *  NA SERVER hapa (bridge haijashiriki), kwa tar+files.read kutoka sandbox hai. */
-export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | null, reason: string, resumeAt: number, origin: PauseOrigin = "system"): Promise<boolean> {
+/** TASK-6 (maelezo6): mipaka ya snapshot. Bila budgetMs = muda wa zamani (Detach ya user haibadiliki). */
+export type SnapshotLimits = { budgetMs?: number; maxBytes?: number };
+export const SNAPSHOT_MAX_BYTES = 40 * 1024 * 1024;
+/** Watchdog (RAM ≥ 78%) na SIGTERM: snapshot ndogo na ya haraka — vinginevyo inarukwa. */
+export const PRESSURE_SNAPSHOT_LIMITS: Required<SnapshotLimits> = { budgetMs: 20_000, maxBytes: 8 * 1024 * 1024 };
+const PERSIST_WAIT_MS = 4_000; // persist ya "paused" haizuii pause zaidi ya hapa (write inaendelea nyuma)
+
+export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | null, reason: string, resumeAt: number, origin: PauseOrigin = "system", limits: SnapshotLimits = {}): Promise<boolean> {
   const cu = runner.cu;
   // pausedNow = pause ya SASA (si historia ya pausedOnce — hiyo inaruhusu resume-continue)
   if (!cu || cu.done || cu.pausedNow || cu.pausing) return false;
@@ -1167,42 +1174,77 @@ export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | n
       : `⏸️ XMD Computer imepumzishwa (${reason}) — hali ya workspace imehifadhiwa; ▶ Resume inarejesha pale pale. (${used} tayari)`);
   }
 
+  // TASK-6 (maelezo6): HALI KWANZA — "paused" + chip (pausedOnce/resumeAt/pauseOrigin) zinaandikwa KABLA ya
+  // snapshot. SIGTERM inatoka baada ya 22s; snapshot ndefu ilikuwa ikizuia "paused" isiandikwe kabisa.
+  const sid8 = String(runner.sessionId || runner.id).slice(0, 8);
+  const tPause = Date.now();
+  const persistPaused = async (tag: string) => {
+    writeCuChip(runner);
+    if (!hooks) return;
+    const t = Date.now();
+    await Promise.race([hooks.persist("paused", hooks.title).catch(() => {}), new Promise((r) => setTimeout(r, PERSIST_WAIT_MS).unref?.())]);
+    console.log(`[cu/pause] ${sid8} ${tag} paused · ${Date.now() - t}ms (t+${Date.now() - tPause}ms tangu pause · origin ${origin} · at ${new Date().toISOString()})`);
+  };
+  await persistPaused("persist#1");
+
   // (1) SNAPSHOT: tar.gz ya workspace kutoka sandbox hai (bridge yenyewe hushiriki quota-path
   //     pekee — hapa ni server inayopanga). Imefungwa kwa muda (≤2dk) ili pause isighairi kuisha.
   // R51-fix (stale-snapshot): TUMIA YA FRESH KILA WAKATI. `!cu.snapshot` iliruka pause ya
   //     pili+ ikirejesha snapshot ya zamani — resume ikapata kazi ya zamani (data loss).
+  // TASK-6: bajeti (budgetMs) + kikomo (maxBytes). Kikizidi → snapshot inarukwa, sandbox inabaki hai, pause inakamilika.
+  const budgetMs = limits.budgetMs || 0;
+  const maxBytes = limits.maxBytes || SNAPSHOT_MAX_BYTES;
+  const tSnap = Date.now();
+  const left = (dflt: number) => (budgetMs ? Math.max(0, Math.min(dflt, tSnap + budgetMs - Date.now())) : dflt);
+  const within = <T,>(p: Promise<T>, dflt: number, what: string): Promise<T> => {
+    const ms = left(dflt);
+    if (ms <= 0) return Promise.reject(new Error(`budget ${budgetMs}ms imeisha kabla ya ${what}`));
+    return Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(budgetMs ? `budget ${budgetMs}ms (${what})` : `${what} timeout`)), ms).unref?.())]);
+  };
+  const skipped = (why: string) => {
+    hooks?.blog("warning", `🎒 snapshot skipped (${why}) — sandbox itabaki hai kuhifadhi kazi; haijaangamia.`);
+    console.log(`[cu/pause] ${sid8} 🎒 snapshot skipped (${why}) · t+${Date.now() - tPause}ms`);
+  };
+  let snapTaken = false; // snapshot MPYA ya pause hii (ya zamani si sababu ya kuua sandbox)
   const sbx = cu.sandbox;
   if (sbx) {
     try {
-      const r = await Promise.race([
+      const r: any = await within(
         sbx.commands.run(
           `cd /home/user/ws 2>/dev/null || cd /home/user; tar czf /tmp/cu-ws-pause.tar.gz --exclude node_modules --exclude .git --exclude .cache --exclude playwright-report -S . 2>/dev/null; stat -c%s /tmp/cu-ws-pause.tar.gz 2>/dev/null || echo 0`,
-          { timeoutMs: 120_000 },
+          { timeoutMs: left(120_000) || 1 },
         ),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("tar timeout")), 150_000).unref?.()),
-      ]);
+        150_000, "tar",
+      );
       const size = Number(String(r?.stdout || "").trim().split(/\s+/).pop()) || 0;
-      if (size > 0 && size <= 40 * 1024 * 1024) {
-        const bytes = await Promise.race([
-          sbx.files.read("/tmp/cu-ws-pause.tar.gz", { format: "bytes", requestTimeoutMs: 150_000 } as any),
-          new Promise<never>((_, rej) => setTimeout(() => rej(new Error("read timeout")), 180_000).unref?.()),
-        ]);
+      if (size > 0 && size <= maxBytes) {
+        const bytes = await within(
+          sbx.files.read("/tmp/cu-ws-pause.tar.gz", { format: "bytes", requestTimeoutMs: left(150_000) || 1 } as any),
+          180_000, "read",
+        ) as Uint8Array;
         if (bytes && bytes.length) {
           if (appwriteConfigured) {
-            const f: any = await Promise.race([
-              storage.createFile(CU_BUCKET, "unique()", InputFile.fromBuffer(Buffer.from(bytes), `cu-ws-${Date.now()}.tar.gz`)),
-              new Promise<never>((_, rej) => setTimeout(() => rej(new Error("upload timeout")), 150_000).unref?.()),
-            ]);
+            // TASK-6: hakuna nakala ya pili — InputFile.fromBuffer inapokea Uint8Array moja kwa moja (view, si copy)
+            const f: any = await within(
+              storage.createFile(CU_BUCKET, "unique()", InputFile.fromBuffer(bytes, `cu-ws-${Date.now()}.tar.gz`)),
+              150_000, "upload",
+            );
             cu.snapshot = { fileId: f.$id, bucketId: CU_BUCKET };
+            snapTaken = true;
           }
           hooks?.blog("info", `🎒 Snapshot ya workspace imehifadhiwa (${Math.round(bytes.length / 1024)}KB) — Resume itairejesha.`);
+          console.log(`[cu/pause] ${sid8} 🎒 snapshot ${Math.round(bytes.length / 1024)}KB · ${Date.now() - tSnap}ms · t+${Date.now() - tPause}ms`);
         }
-      } else if (size > 40 * 1024 * 1024) {
-        hooks?.blog("warning", `🎒 Workspace ni kubwa mno kwa snapshot (${Math.round(size / 1024 / 1024)}MB) — sandbox itabaki hai kuhifadhi kazi; haijaangamia.`);
+      } else if (size > maxBytes) {
+        skipped(`${(size / 1024 / 1024).toFixed(1)}MB > kikomo ${Math.round(maxBytes / 1024 / 1024)}MB`);
+      } else {
+        skipped("tar haikutoa faili");
       }
     } catch (err: any) {
-      hooks?.blog("warning", `🎒 Snapshot haikupatikana (${String(err?.message || err).slice(0, 120)}) — sandbox itabaki hai kuhifadhi kazi; haijaangamia.`);
+      skipped(String(err?.message || err).slice(0, 120));
     }
+    // persist ya pili: chip ina rejea ya snapshot (au hali ya bila snapshot)
+    await persistPaused("persist#2");
   }
 
   // (2) Ukweli wa nje umebadilika? Bridge ikaimaliza kazi yOTE wakati sisi tunapanga pause
@@ -1218,8 +1260,8 @@ export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | n
   if (sbx2) {
     try {
       await Promise.race([
-        sbx2.commands.run("pkill -9 -f '[c]u_bridge.py'; pkill -9 -f '[c]u_brain.py'; true", { timeoutMs: 20_000 }),
-        new Promise((r2) => setTimeout(r2, 25_000).unref?.()),
+        sbx2.commands.run("pkill -9 -f '[c]u_bridge.py'; pkill -9 -f '[c]u_brain.py'; true", { timeoutMs: budgetMs ? 3_000 : 20_000 }),
+        new Promise((r2) => setTimeout(r2, budgetMs ? 4_000 : 25_000).unref?.()), // TASK-6: SIGTERM — neema ni 22s
       ]);
     } catch { /* bridge haikuuliwa — sandbox-kill hapa chini inaugua */ }
     if (resumeAt) {
@@ -1227,7 +1269,7 @@ export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | n
       // Snapshot bado imehifadhiwa (backup); bridge ameuliwa ili aisogee mwenyewe.
       startSlowHeartbeat(cu, sbx2);
       hooks?.blog?.("info", `🫀 Sandbox ${String(cu.sandboxId || "").slice(0, 8)}… inabaki hai kwa auto-resume (heartbeat 5dk).`);
-    } else if (cu.snapshot) {
+    } else if (snapTaken) { // TASK-6: snapshot MPYA tu — iliyorukwa → sandbox inabaki hai
       setTimeout(() => sbx2.kill?.().catch(() => {}), 15_000).unref?.();
     }
   }
