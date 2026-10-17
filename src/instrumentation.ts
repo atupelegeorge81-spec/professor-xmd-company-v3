@@ -16,14 +16,17 @@ export async function register() {
     setInterval(() => { void import("@/lib/cu/autoResume").then(async (m) => { await m.sweepOrphans(); return m.checkPausedDue(); }).catch((e) => console.warn("[cu/autoResume] tick:", String(e).slice(0, 120))); }, 10 * 60_000);
     // R38-RC3: KEEP-ALIVE ya instance. Ushahidi [179]→[181]: process ya Koyeb ilifa wakati wa
     // awamu ya CU (in-memory runner + timer za auto-resume zikazama pamoja). Koyeb free inalala
-    // bila traffic; mdundo huu wa ndani (ping ya /api/health kupitia URL ya umma kila dakika 4)
+    // bila traffic; mdundo huu wa ndani (ping ya /api/live kupitia URL ya umma kila dakika 4)
     // unaifanya isilale MUDA run haiendelei. Instance ikifa hata hivyo (deploy/OOM), ombi la
     // kwanza la nje linaiamsha → register() inarudi → mdundo unaanza tena.
-    if (process.env.CU_KEEPALIVE !== "off" && process.env.NODE_ENV === "production") {
-      const url = (process.env.CU_PUBLIC_URL || process.env.KOYEB_PUBLIC_URL || "https://professor-xmd-professorcj-2c4d4efe.koyeb.app").replace(/\/$/, "") + "/api/health";
+    // TASK-7: ping /api/live (bila DB) badala ya /api/health. XMD_TEST_KEEPALIVE_MS = test-only (inafanya kazi
+    // TU chini ya XMD_TEST_HOOKS=1): mdundo mfupi + inaruhusu dev server — vinginevyo haina athari.
+    const testKaMs = process.env.XMD_TEST_HOOKS === "1" ? Number(process.env.XMD_TEST_KEEPALIVE_MS) || 0 : 0;
+    if (process.env.CU_KEEPALIVE !== "off" && (process.env.NODE_ENV === "production" || testKaMs > 0)) {
+      const url = (process.env.CU_PUBLIC_URL || process.env.KOYEB_PUBLIC_URL || "https://professor-xmd-professorcj-2c4d4efe.koyeb.app").replace(/\/$/, "") + "/api/live";
       const ping = () => fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000) }).catch(() => {});
-      setTimeout(() => { void ping(); }, 60_000).unref?.();
-      const t = setInterval(() => { void ping(); }, 4 * 60_000);
+      setTimeout(() => { void ping(); }, testKaMs || 60_000).unref?.();
+      const t = setInterval(() => { void ping(); }, testKaMs || 4 * 60_000);
       (t as any)?.unref?.();
     }
   }
