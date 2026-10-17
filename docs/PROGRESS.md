@@ -112,3 +112,14 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Baselines: tsc 0 · vitest 282 + 2 skipped · pytest 308 · unittest 238 · eslint 0.
 - **CEO action: in Koyeb -> Service -> Health checks, set HTTP path `/api/live`, port = app port, grace period >= 60 s.**
   (Port ya app = 3000. Sijabadilisha settings za Koyeb.)
+
+## Task 8 (CEO "fix matatizo yote ma3") (2026-10-17) — main 1a2900a + afe88f4 (deploy e0582465)
+- Koyeb health check → `/api/live` (port 3000, grace 60s). Start: `NEXT_MANUAL_SIG_HANDLE=true exec next start`.
+- Fixes za zamani: burst ya checkPausedDue baada ya boot (grace 30s) · status `running` kwa run iliyoresumiwa · pause inaua
+  oh_bridge · restore tar + kiovu · ripoti ya orphan inahifadhiwa · inflight ya autoResume haivuji.
+- Imegunduliwa kwenye real test: Resume baada ya Detach haikufuta `pauseOrigin="user"`, kwa hiyo timer ya quota auto-resume
+  iliruka kimya. Imerekebishwa kwenye `resumeRun` (boardRunner.ts, +5).
+- Real Koyeb: SIGTERM persist#1 254ms, snapshot t+1.1s, exit safi t+4s, bridges 0 · burst resume resumeAt + 85s (zamani dk 8)
+  · status running · restore tar + kiovu (sandbox 2 na 3) · R3 orphan report → COMPLETED_UNVERIFIED (matukio yaliingizwa).
+- Baselines: tsc 0 · vitest 293 + 2 skipped · pytest 308 · unittest OK · eslint 0. Data ya majaribio imefutwa.
+  Ushahidi: docs/tests/task-8.md.
