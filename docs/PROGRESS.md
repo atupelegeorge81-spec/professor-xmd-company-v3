@@ -50,3 +50,10 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Baselines: pytest 283 · unittest 220 OK · tsc 0 · vitest 212/212 · eslint errors = baseline (34).
 - Live: run 11 + run 12 = COMPLETED_UNVERIFIED (harness ✓), judge Uno Ultra (run 12: kataa → kubali). Rollback: backup/pre-adaptive-brain (ac9c5a3).
 - Yaliyobaki: harness-continuation haijatokea live (tests tu); quota broker ya pamoja Board+CU (spec §6) inahitaji uamuzi.
+
+## Task 4c — fast failover (2026-10-17) — main e1811ee + marekebisho ya timeouts
+- Chanzo: retries 2 za siri za litellm/openai client (max_retries default 2) kwa Uno/OR, si SDK.
+- Sasa: jaribio 1 kwa lane (SDK num_retries=1 + max_retries=0), lane nyingine papo hapo, timeouts kwa
+  provider (latency iliyopimwa), deadline 300s, logs za majaribio (bila keys), condenser ya SDK.
+- Tests 303 passed (18 mpya, pamoja na SDK halisi + HTTP). Run 14 live: COMPLETED_UNVERIFIED, 613s,
+  failovers 8 (gap 1–250ms). Ushahidi: docs/tests/task-4c.md. Rollback: backup/pre-4c (64fe3a3).
