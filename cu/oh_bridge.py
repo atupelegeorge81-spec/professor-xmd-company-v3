@@ -82,10 +82,48 @@ def _sdk_llm_for(lane: "lanes.Lane", usage_id: str):
         base_url=None if gem else lane.base,
         api_key=lane.key,
         usage_id=usage_id + ":" + lane.lid[-48:],
-        timeout=lane.timeout,
-        num_retries=0,   # retries ni SHERIA YA LANES (policy yetu), si ya ndani ya litellm
-        retry_min_wait=1, retry_max_wait=2,
+        timeout=int(round(lane.timeout)),   # jaribio moja; router hupunguza ndani ya deadline
+        **SDK_RETRY_POLICY,
     )
+
+
+# Task 4c — sera ya retry ya SDK iliyowekwa WAZI (si default 5 + backoff 8–64s).
+# v1.46 (imethibitishwa kwenye source): LLM._make_retry_decorator → tenacity
+# stop_after_attempt(num_retries) na reraise=True → num_retries=1 = JARIBIO MOJA (0 nayo ni moja,
+# tunatumia 1 kwa uwazi). Retry/fallback ni kazi ya LaneRouterCore (lane NYINGINE papo hapo).
+# Kumbuka: litellm/openai client ina retries zake (max_retries=2 default) — router hupitisha
+# max_retries=0 kwa kila call (oh_router.make_router.completion).
+SDK_RETRY_POLICY = dict(num_retries=1, retry_min_wait=0, retry_max_wait=0, retry_multiplier=0.0)
+
+
+def _llm_log_sink(path: str):
+    """Logs za majaribio (Task 4c §5): mstari mfupi stderr (→ log ya session) + JSONL kamili.
+    Fields ni lane id (provider:account:model), aina ya kosa, ms — HAKUNA keys/headers."""
+    def sink(event: str, fields: dict) -> None:
+        rec = {"ts": round(time.time(), 3), "event": event, **fields}
+        try:
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(rec, separators=(",", ":"), default=str) + "\n")
+        except OSError:
+            pass
+        parts = [f"{k}={v}" for k, v in fields.items()
+                 if k not in ("router",) and v not in (None, "")]
+        sys.stderr.write(f"[xmd-llm] {event} {fields.get('router', '')} " + " ".join(parts)[:260] + "\n")
+        sys.stderr.flush()
+    return sink
+
+
+def _lanes_dead_of(exc: BaseException) -> "lanes.AllLanesDead | None":
+    """SDK (Conversation.run) hufunga makosa ndani ya ConversationRunError — tafuta AllLanesDead
+    (pamoja na InferenceDeadline) ndani ya mnyororo ili run iwe PAUSED_QUOTA, si ERROR."""
+    seen = 0
+    cur: BaseException | None = exc
+    while cur is not None and seen < 8:
+        if isinstance(cur, lanes.AllLanesDead):
+            return cur
+        cur = (getattr(cur, "original_exception", None) or cur.__cause__ or cur.__context__)
+        seen += 1
+    return None
 
 
 def _llms_dict(pool_list) -> dict:
@@ -203,8 +241,10 @@ async def main_async() -> None:
             em.emit("shot", big_data=b64, id=step, path=rec["path"],
                     label=(rec.get("label") or rec.get("page") or "")[:120], size="")
 
+    llm_log = _llm_log_sink(os.environ.get("XMD_LLM_LOG") or "/home/user/llm-attempts.jsonl")
+    deadline_s = float(os.environ.get("XMD_INFER_DEADLINE_S") or lanes.INFERENCE_DEADLINE_S)
     core = oh_router.LaneRouterCore(
-        main_pool, dharura_pool,
+        main_pool, dharura_pool, log_cb=llm_log, deadline_s=deadline_s, label="main",
         usage_cb=lambda lane, pt, ct: em.emit(
             "usage", lane=lane.lid[-80:], provider=lane.provider, account=lane.account,
             model=lane.model, prompt=pt, completion=ct, total=pt + ct, ok=True,
@@ -215,7 +255,8 @@ async def main_async() -> None:
     )
     # Nemotron Ultra (UnoRouter) ndiye judge wa kawaida; OpenRouter Lightning ni fallback tu.
     # Ikiwa hakuna Uno lane eligible, router hutafuta fallback iliyobaki.
-    judge_core = oh_router.LaneRouterCore(judge_pool, dispatch_schedule=("unorouter",))
+    judge_core = oh_router.LaneRouterCore(judge_pool, dispatch_schedule=("unorouter",),
+                                          log_cb=llm_log, deadline_s=deadline_s, label="judge")
     # §6: quota ya pamoja Board + CU — ledger ya server inasomwa kila 60s wakati wa run.
     quota_url = (a.callback_url.rsplit("/cu-event", 1)[0] + "/cu-quota") if a.callback_url else ""
 
@@ -390,7 +431,19 @@ async def main_async() -> None:
             sys.stderr.write(f"[oh_bridge] on_event: {type(e).__name__}: {str(e)[:160]}\n")
 
     # ------------------------------------------------------------- agent + mkataba
-    agent = Agent(llm=main_router, tools=tool_specs)
+    # Task 4c §6 — compaction ya context (native ya SDK): history ikizidi XMD_CONDENSE_MAX events,
+    # events za zamani (thoughts + tool output zinazojirudia) zinafupishwa kuwa muhtasari mmoja;
+    # system prompt + ujumbe wa kazi (keep_first) havigusiwi. Summary hupita kwenye router yetu
+    # (failover/quota zilezile). XMD_CONDENSE_MAX=0 → imezimwa.
+    condense_max = int(os.environ.get("XMD_CONDENSE_MAX") or 60)
+    condenser = None
+    if condense_max > 0:
+        try:
+            from openhands.sdk.context.condenser import LLMSummarizingCondenser
+            condenser = LLMSummarizingCondenser(llm=main_router, max_size=condense_max, keep_first=2)
+        except Exception as e:  # condenser kamwe haizuii run
+            sys.stderr.write(f"[oh_bridge] condenser imezimwa: {type(e).__name__}: {str(e)[:160]}\n")
+    agent = Agent(llm=main_router, tools=tool_specs, condenser=condenser)
 
     convo_kwargs = dict(
         agent=agent,
@@ -490,10 +543,15 @@ async def main_async() -> None:
         status = "paused_quota"
         em.emit("error", message=f"lanes: {e}")
     except Exception as e:
-        import traceback
-        em.emit("error", message=f"{type(e).__name__}: {str(e)[:300]}")
-        sys.stderr.write(traceback.format_exc())
-        status = "error"
+        dead = _lanes_dead_of(e)  # Task 4c: SDK huifunga ndani ya ConversationRunError
+        if dead is not None:
+            status = "paused_quota"
+            em.emit("error", message=f"lanes: {dead}")
+        else:
+            import traceback
+            em.emit("error", message=f"{type(e).__name__}: {str(e)[:300]}")
+            sys.stderr.write(traceback.format_exc())
+            status = "error"
 
     # ------------------------------------------------------------- HARNESS GATE (Awamu 2)
     # Kabla ya "done" kutangazwa: harness ina-RE-RUN checks zote za feature_list yenyewe.

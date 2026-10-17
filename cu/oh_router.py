@@ -18,10 +18,27 @@ Architecture:
 """
 from __future__ import annotations
 
+import re
 import time
 
 import lanes
-from oh_util import classify_fail, extract_usage
+from oh_util import _status_of, classify_fail, extract_usage
+
+
+class InferenceDeadline(lanes.AllLanesDead):
+    """Ombi moja la inference limezidi deadline yake au idadi ya majaribio (Task 4c).
+    Ni AllLanesDead — bridge huliweka kama PAUSED_QUOTA (resume inawezekana), si ERROR."""
+
+
+_SECRET_RX = re.compile(
+    r"(?i)(bearer\s+|api[_-]?key[=:\s\"']+|key=|authorization[\"':\s]+)[^\s\"'&,}]+"
+    r"|\b(sk-[A-Za-z0-9_\-]{6,}|AIza[0-9A-Za-z_\-]{10,}|AQ\.[0-9A-Za-z_\-.]{10,})"
+    r"|\b[A-Za-z0-9_\-]{32,}\b")
+
+
+def redact(text: str, limit: int = 120) -> str:
+    """Ondoa API keys / Authorization / tokens ndefu kabla ya kuandika log (Task 4c §5)."""
+    return _SECRET_RX.sub("***", str(text or ""))[:limit]
 
 
 class LaneRouterCore:
@@ -40,7 +57,9 @@ class LaneRouterCore:
 
     def __init__(self, main_pool: "lanes.LanePool", dharura_pool: "lanes.LanePool | None" = None,
                  now=time.time, sleep=time.sleep, usage_cb=None, event_cb=None,
-                 wait_cap: float = lanes.WAIT_HARD_CAP_S, dispatch_schedule=None):
+                 wait_cap: float = lanes.WAIT_HARD_CAP_S, dispatch_schedule=None,
+                 log_cb=None, deadline_s: float = lanes.INFERENCE_DEADLINE_S,
+                 max_attempts: int = lanes.MAX_ATTEMPTS_PER_CALL, label: str = "main"):
         self.pools = [p for p in (main_pool, dharura_pool) if p is not None]
         self._owner = {l.lid: p for p in self.pools for l in p.lanes}
         self.now = now
@@ -56,6 +75,11 @@ class LaneRouterCore:
         self.prompt_total = 0
         self.completion_total = 0
         self.fail_total = 0
+        # Task 4c: logs zilizopangika (attempt_start/attempt_failed/fallback_selected/attempt_ok)
+        self.log_cb = log_cb          # (event: str, fields: dict) — HAKUNA keys/headers ndani
+        self.deadline_s = float(deadline_s)
+        self.max_attempts = max(1, int(max_attempts))
+        self.label = label
 
     # ---- uchaguzi ----
     @staticmethod
@@ -114,8 +138,9 @@ class LaneRouterCore:
         waits = [w for w in waits if w is not None]
         return min(waits) if waits else self.wait_cap + 1
 
-    def acquire(self) -> "lanes.Lane":
-        """Lane eligible — ikikosekana: subiri (chunks ≤30s) hadi cap; kisha AllLanesDead."""
+    def acquire(self, deadline: float | None = None) -> "lanes.Lane":
+        """Lane eligible — ikikosekana: subiri (chunks ≤30s) hadi cap; kisha AllLanesDead.
+        `deadline` (epoch, hiari): kusubiri hakupiti deadline ya inference — InferenceDeadline."""
         wait_so_far = 0.0
         noted_wait = False
         while True:
@@ -135,6 +160,10 @@ class LaneRouterCore:
                 raise lanes.AllLanesDead(
                     f"lanes zote zimeime zaidi ya cap ({self.wait_cap:.0f}s) — "
                     f"pools: {[p.tier for p in self.pools]}")
+            if deadline is not None and t + w + lanes.MIN_ATTEMPT_S > deadline:
+                raise InferenceDeadline(
+                    f"{self.label}: hakuna lane kabla ya deadline (lane ya kwanza ~{w:.0f}s, "
+                    f"zimebaki {max(0.0, deadline - t):.0f}s)")
             chunk = min(w, 30.0, self.wait_cap - wait_so_far)
             if not noted_wait and self.event_cb:
                 self.event_cb(f"⏳ lanes zote zimejaa — kusubiri ~{w:.0f}s (cap {self.wait_cap:.0f}s)")
@@ -155,9 +184,9 @@ class LaneRouterCore:
                 pass
         return pt, ct
 
-    def failure(self, lane: "lanes.Lane", exc: BaseException) -> tuple[str, float]:
+    def failure(self, lane: "lanes.Lane", exc: BaseException, ms: float = 0.0) -> tuple[str, float]:
         kind, ra = classify_fail(exc)
-        cd = self._owner[lane.lid].note_fail(lane, kind, ra, self.now())
+        cd = self._owner[lane.lid].note_fail(lane, kind, ra, self.now(), ms=ms)
         self.fail_total += 1
         if self.event_cb:
             try:
@@ -172,6 +201,86 @@ class LaneRouterCore:
 
     def usage_totals(self) -> tuple[int, int]:
         return self.prompt_total, self.completion_total
+
+    # ---- Task 4c: failover ya haraka (jaribio moja kwa lane; lane nyingine papo hapo) ----
+    def _log(self, event: str, **fields) -> None:
+        if not self.log_cb:
+            return
+        try:
+            self.log_cb(event, {"router": self.label, **fields})
+        except Exception:
+            pass  # logs kamwe hazizuii kazi
+
+    def run(self, attempt, validate=None, max_invalid: int | None = None):
+        """Tekeleza ombi MOJA la inference kwa failover.
+
+        `attempt(lane, timeout_s) -> resp` hufanya jaribio MOJA tu la HTTP (bila retries za ndani).
+        Kosa (429/503/connection/timeout/...) → lane inapata cooldown (Retry-After ikiwepo) kwa
+        uchaguzi ujao, na lane NYINGINE eligible inajaribiwa PAPO HAPO — hakuna kulala kwenye
+        cooldown ya lane iliyoshindwa. Mipaka: deadline ya inference + max_attempts.
+        Rudi (lane, resp). Validator (judge): jibu batili = failure 'empty'; baada ya
+        `max_invalid` majibu batili, jibu la mwisho linarudishwa (SDK: complete=False).
+        """
+        start = self.now()
+        deadline = start + self.deadline_s
+        retry = 0
+        invalid = 0
+        cap = max_invalid if max_invalid is not None else max(4, 2 * len(self._owner))
+        prev: "lanes.Lane | None" = None
+        prev_kind = ""
+        while True:
+            remaining = deadline - self.now()
+            if remaining < lanes.MIN_ATTEMPT_S:
+                self._log("deadline", retry_count=retry, elapsed_ms=round((self.now() - start) * 1000))
+                raise InferenceDeadline(
+                    f"{self.label}: deadline {self.deadline_s:.0f}s imepita baada ya majaribio {retry}")
+            lane = self.acquire(deadline=deadline)
+            t_sel = self.now()
+            if prev is not None:
+                self._log("fallback_selected", lane=lane.lid, from_lane=prev.lid, after=prev_kind,
+                          retry_count=retry, elapsed_ms=round((t_sel - start) * 1000))
+            timeout_s = max(1.0, min(float(lane.timeout), deadline - t_sel))
+            self._log("attempt_start", lane=lane.lid, retry_count=retry,
+                      timeout_s=round(timeout_s, 1), elapsed_ms=round((t_sel - start) * 1000))
+            t0 = self.now()
+            try:
+                resp = attempt(lane, timeout_s)
+            except Exception as e:
+                ms = (self.now() - t0) * 1000.0
+                kind, cd = self.failure(lane, e, ms)
+                retry += 1
+                self._log("attempt_failed", lane=lane.lid, kind=kind, status=_status_of(e),
+                          error=type(e).__name__, detail=redact(e), attempt_ms=round(ms),
+                          cooldown_s=round(cd, 1), retry_count=retry,
+                          elapsed_ms=round((self.now() - start) * 1000))
+                prev, prev_kind = lane, kind
+                if retry >= self.max_attempts:
+                    raise InferenceDeadline(
+                        f"{self.label}: majaribio {retry} yameshindwa mfululizo (mwisho: {kind})")
+                continue
+            ms = (self.now() - t0) * 1000.0
+            if validate is not None:
+                try:
+                    good = bool(validate(resp))
+                except Exception:
+                    good = False
+                if not good:
+                    invalid += 1
+                    retry += 1
+                    kind, cd = self.failure(lane, InvalidResponse(
+                        f"empty or invalid verdict from {lane.model[:40]}"), ms)
+                    self._log("attempt_failed", lane=lane.lid, kind=kind, status=None,
+                              error="InvalidResponse", detail="", attempt_ms=round(ms),
+                              cooldown_s=round(cd, 1), retry_count=retry,
+                              elapsed_ms=round((self.now() - start) * 1000))
+                    prev, prev_kind = lane, kind
+                    if invalid < cap and retry < self.max_attempts:
+                        continue
+                    return lane, resp  # SDK: haiparsiki → complete=False (haidanganyi)
+            self.success(lane, ms, resp)
+            self._log("attempt_ok", lane=lane.lid, attempt_ms=round(ms), retry_count=retry,
+                      elapsed_ms=round((self.now() - start) * 1000))
+            return lane, resp
 
 
 # ================================================================ glue ya SDK (sandbox tu)
@@ -235,39 +344,24 @@ def make_router(core: LaneRouterCore, llms_by_lid: dict, event_cb=None, validate
 
         def completion(self, messages, tools=None, add_security_risk_prediction=False,
                        on_token=None, call_context=None, **kwargs):
-            # Loop ya lanes: kosa kwa lane moja = retry kwenye nyingine (policy), si kosa
-            # kwa agent. Metering kamili (rpm/rpd/cooldowns kwa lanes.py).
-            invalid = 0
-            cap = max_invalid if max_invalid is not None else max(4, 2 * len(self.llms_for_routing))
-            while True:  # acquire() ina cap yake — loop si ya milele
-                lane = self.core.acquire()
+            # Task 4c: failover iko kwenye core.run (pure, testable). Kila jaribio ni MOJA:
+            #  • SDK: num_retries=1 → tenacity stop_after_attempt(1) (bridge._sdk_llm_for);
+            #  • litellm/openai client: max_retries=0 — bila hii client ya OpenAI hujaribu tena
+            #    mara 2 KIMYAKIMYA (inaheshimu Retry-After ≤60s) kabla kosa halijatufikia;
+            #  • timeout ya jaribio hili = timeout ya lane ∩ muda uliobaki wa deadline.
+            def attempt(lane, timeout_s):
                 llm = self.llms_for_routing[lane.lid]
-                t0 = time.monotonic()
-                try:
-                    resp = llm.completion(
-                        messages=messages, tools=tools,
-                        add_security_risk_prediction=add_security_risk_prediction,
-                        on_token=on_token, call_context=call_context, **kwargs)
-                except Exception as e:
-                    self.core.failure(lane, e)
-                    continue
-                if validate is not None:
-                    try:
-                        good = bool(validate(resp))
-                    except Exception:
-                        good = False
-                    if not good:
-                        invalid += 1
-                        self.core.failure(lane, InvalidResponse(
-                            f"empty or invalid verdict from {lane.model[:40]}"))
-                        if invalid < cap:
-                            continue
-                        self.active_llm = llm
-                        return resp  # SDK: haiparsiki → complete=False (haidanganyi)
-                ms = (time.monotonic() - t0) * 1000.0
-                self.core.success(lane, ms, resp)
-                self.active_llm = llm
-                return resp
+                kw = dict(kwargs)
+                kw["max_retries"] = 0
+                kw["timeout"] = float(timeout_s)
+                return llm.completion(
+                    messages=messages, tools=tools,
+                    add_security_risk_prediction=add_security_risk_prediction,
+                    on_token=on_token, call_context=call_context, **kw)
+
+            lane, resp = self.core.run(attempt, validate=validate, max_invalid=max_invalid)
+            self.active_llm = self.llms_for_routing[lane.lid]
+            return resp
 
     router = LaneRouter(llms_for_routing=llms_by_lid)
     router.core = core
