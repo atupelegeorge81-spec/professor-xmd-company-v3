@@ -129,3 +129,16 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Tests: 28/28 (ramani halali N=10/15/20/3; batili 9 + ziada; CO bila acceptance / free-text; receipt DONE bila files; BLOCKED bila sababu).
 - Baselines: tsc 0 · vitest 321 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-9.md.
 - Maamuzi madogo ya muundo (sehemu za Check, priority int, lanesUsed unknown[] hadi task 10) yameandikwa kwenye doc.
+
+## Task 10 (maelezo10) — Milestone state machine + persistence (2026-10-17) — main 56b897d (deploy 60b53039)
+- Mpya: `src/lib/milestone/state.ts` (transition GOTO/RESUME, step ledger, lane log), `store.ts` (hidden chips kwenye
+  `boardroom_sessions.items`, version kwa kila rekodi + CAS ya row kwa `updated_at`), `flag.ts`, `__tests__/state.test.ts`.
+  Imebadilishwa: types.ts, schemas.ts, usageChip.ts (+1: chip ya milestone ni hidden).
+- Maamuzi ya CEO: R0→FIXING = round 1; CAP_REACHED kutoka VERIFYING tu kwa round 10.
+- Tests: T1 48/48 (kingo halali 34, haramu 10, round) · T2 deep-equal · T3 process mpya → nextStep `M1.R1.verify` · T4 writers
+  2 × 20 → v41, conflicts 28 zilirudiwa, stale → VERSION_CONFLICT · T5 store inert, imports 0, run diff kabla/baada sawa.
+- Baselines: tsc 0 · vitest 369 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-10.md.
+- Ugunduzi (haujabadilishwa): bridge mbili kwa session moja baada ya quota auto-resume (`startComputerPhase` haina kinga ya
+  kuitwa sambamba). Inapendekezwa task ya kinga.
+- Kumbuka kwa wiring (task 14+): board persist inaandika items zote kutoka kumbukumbu, kwa hiyo chip za store lazima ziwe
+  kwenye `runner.items` (au store iandike wakati runner hai haandiki), vinginevyo persist inayofuata itazifuta.
