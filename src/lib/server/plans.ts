@@ -21,6 +21,8 @@ export interface ProjectPlanDoc {
   official_data: string;
   plan_content: string;
   total_steps: number;
+  /** TASK-4: onyo za muundo (whitelist ya planGate) — haziizuii Computer */
+  warnings?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -78,6 +80,8 @@ export interface PlanSave {
   officialData?: string;
   planContent: string;
   totalSteps: number;
+  /** TASK-4: onyo za muundo (planGate.planWarningsOf) */
+  warnings?: string[];
 }
 
 /** Upsert kwa session_id: resume/repair inasasisha doc ileile (si mpya kila mara). */
@@ -94,6 +98,7 @@ export async function saveProjectPlan(s: PlanSave, maxRetries = 3): Promise<stri
     official_data: pack(String(s.officialData || "").slice(0, 50_000), 12_000),
     plan_content: pack(String(s.planContent || "").slice(0, 900_000), 16_000),
     total_steps: Number(s.totalSteps) || 0,
+    warnings: (s.warnings || []).map((w) => String(w).slice(0, 300)).slice(0, 20), // TASK-4
     updated_at: new Date().toISOString(),
   };
   for (let attempt = 1; attempt <= maxRetries; attempt++) {

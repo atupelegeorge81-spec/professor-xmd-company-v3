@@ -43,8 +43,9 @@ import { reviewVerdict } from "./board/reviewVerdict";
 // R30 · PLAN MODE: mini-reports kwenye collection yake + Mpango Kazi wa Agent (computer-use)
 import { BOARD_PLAN_MODE } from "./env";
 import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, type MiniReportDoc } from "./server/miniReports";
-import { saveProjectPlan } from "./server/plans";
+import { saveProjectPlan, getPlanBySession } from "./server/plans";
 // R31 · XMD COMPUTER (computer-use): engine ya phase ya mwisho — baada ya memory ya Board
+import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf } from "./cu/planGate"; // TASK-4
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
 import {
   PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
@@ -3228,6 +3229,7 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
     // zenye muundo uniform. Sehemu 2 (Official Data) na 3 (Constraints) zinaandikwa na MFUMO kutoka Fact Sheet.
     // Kipande kimoja kwa wakati kinaonekana kwenye card ya "Mpango Kazi" (kama ripoti — shimmer, si chip).
     let planHits: GuardHit[] = [];
+    let planWarnings: string[] = []; // TASK-4: onyo za muundo (whitelist) — kwenye plan + ripoti
     let planStepsTotal = 0;
     let planSavedId: string | null = runner.finale?.planId || null;
     if (planModeRun && !planSavedId) {
@@ -3317,6 +3319,7 @@ RULES:
 
       // kuunganisha (deterministic): sehemu 2/3 za mfumo + hatua zinapewa namba mfululizo
       let asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts, constraintFallback });
+      asm = { ...asm, markdown: maybeSabotagePlan(asm.markdown, runner.project) }; // TASK-4: test hook (inert bila XMD_TEST_HOOKS=1 + alama)
       planStepsTotal = asm.steps.length;
       for (const pr of asm.problems) blog("warning", `📋 Mpango Kazi: ⚠️ ${pr}`);
       // Data Guard (maandishi): kila bei/saa/simu/email/anwani lazima iwepo kwenye Fact Sheet
@@ -3349,10 +3352,14 @@ Rewrite ONLY the affected sections (same headings, same structure), with every v
         planTexts.push(fixed);
         ingestPlan(fixed);
         asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts, constraintFallback });
+        asm = { ...asm, markdown: maybeSabotagePlan(asm.markdown, runner.project) }; // TASK-4: test hook
         planStepsTotal = asm.steps.length;
         planHits = facts ? guardOf(asm.markdown) : [];
       }
-      const planStatus = planHits.length ? "guard_failed" : "active";
+      // TASK-4: guard_failed (Data Guard) > structure_failed (sehemu/hatua hazipo) > active — Computer haitekelezi zinazoshindwa
+      const planStatus = planStatusOf(planHits.length, asm.problems);
+      if (planStatus === "structure_failed") blog("error", `⛔ Mpango Kazi · structure_failed — ${blockingPlanProblems(asm.problems).join(" · ")}`);
+      planWarnings = planWarningsOf(asm.problems);
       planSavedId = await saveProjectPlan({
         projectId: runner.id,
         sessionId: sessionId || runner.id,
@@ -3363,10 +3370,11 @@ Rewrite ONLY the affected sections (same headings, same structure), with every v
         officialData: officialDataMarkdown(facts),
         planContent: asm.markdown,
         totalSteps: planStepsTotal,
+        warnings: planWarnings,
       });
       runner.finale = { ...(runner.finale || {}), planId: planSavedId };
       if (planSavedId) {
-        addChip(`${PLAN_SAVED_CHIP} (hatua ${planStepsTotal}${planHits.length ? ` · ⚠️ tofauti ${planHits.length} za data zimeandikwa wazi` : ""}) — computer-use agent inaupata kwa /api/plans?session=${sessionId || runner.id}`);
+        addChip(`${PLAN_SAVED_CHIP} (hatua ${planStepsTotal}${planHits.length ? ` · ⚠️ tofauti ${planHits.length} za data zimeandikwa wazi` : ""}${planStatus !== "active" ? ` · ⛔ status ${planStatus}` : ""}) — computer-use agent inaupata kwa /api/plans?session=${sessionId || runner.id}`);
         blog("success", `📋 Mpango Kazi wa Agent umehifadhiwa (hatua ${planStepsTotal} · status ${planStatus} · doc ${planSavedId.slice(0, 8)}… · herufi ${asm.markdown.length}).`);
       } else {
         addChip("❌ Mpango Kazi umeshindwa kuhifadhiwa Appwrite — ripoti inaendelea; bonyeza Endeleza kujaribu tena.");
@@ -3705,6 +3713,13 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
         )
       ).filter(Boolean);
       if (minis.length) assembled.push("## Kiambatisho: Mini-Reports za Agenda (Optimus)", "", "_Kumbukumbu rasmi za kila agenda kama Optimus alivyoziandika baada ya mjadala wote kuisha._", "", minis.join("\n\n"), "");
+    }
+    // TASK-4: onyo za muundo wa Mpango Kazi (whitelist ya planGate) — zinaonekana kwenye ripoti ya mwisho.
+    if (planModeRun && !planWarnings.length && (sessionId || runner.id)) {
+      planWarnings = ((await getPlanBySession(sessionId || runner.id).catch(() => null))?.warnings || []).map(String);
+    }
+    if (planModeRun && planWarnings.length) {
+      assembled.push("## Kiambatisho: ⚠️ Onyo za Mpango Kazi (warnings)", "", "_Onyo hizi HAZIKUZUIA utekelezaji (si matatizo ya muundo) — zinaonyeshwa kwa uwazi._", "", ...planWarnings.map((w) => `- ⚠️ ${w}`), "");
     }
     // R30.1 (E1): Plan mode — HAKUNA hatua iliyotekelezwa (computer-use agent ndiye atakayetekeleza).
     // LLM ikidai [x] = udanganyifu wa R29 unaorudi → guard ya mfumo inarudisha kuwa [ ] + log.
