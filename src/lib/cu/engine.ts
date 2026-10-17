@@ -18,6 +18,7 @@ import { appwriteConfigured, databases, DB, storage, SCREENSHOTS_BUCKET } from "
 import { publicFileUrl } from "@/lib/server/supabase"; // R42.1
 import { mirrorEvent, mirrorMapOf, restoreFromMirror, sandboxAlive } from "./mirror"; // R44: kiovu + liveness
 import { computeFinalOutcome, type CuFinalState } from "./finalState"; // TASK-3
+import { isPlanExecutable } from "./planGate"; // TASK-4
 import { FEATURE_LIST_SANDBOX_PATH, featureListJson, featuresFromPlan } from "./features"; // R50-Awamu 1
 import { getPlanBySession, PROJECT_PLANS_COL, type ProjectPlanDoc } from "@/lib/server/plans";
 import { unpack } from "@/lib/server/packed";
@@ -319,14 +320,34 @@ async function planDocFor(runner: Runner): Promise<ProjectPlanDoc | null> {
   return runner.sessionId ? await getPlanBySession(runner.sessionId) : null;
 }
 
-export async function planMarkdown(runner: Runner): Promise<{ title: string; md: string; steps: number } | null> {
+export async function planMarkdown(runner: Runner): Promise<{ title: string; md: string; steps: number; status: string; warnings: string[] } | null> {
   const doc = await planDocFor(runner);
   if (!doc) return null;
   return {
     title: doc.title || runner.project.slice(0, 120),
     md: unpack(doc.plan_content) || doc.plan_content || doc.objective || "",
     steps: doc.total_steps || 0,
+    status: String(doc.status || ""), // TASK-4: gate inasoma status (guard_failed/structure_failed)
+    warnings: Array.isArray(doc.warnings) ? doc.warnings.map(String) : [],
   };
+}
+
+/** TASK-4: Mpango Kazi umezuiwa — sandbox HAIUNDWI; BLOCKED + sababu zinaonekana (chip, log, items, export). */
+function blockComputerForPlan(runner: Runner, hooks: CuHooks, reasons: string[]): void {
+  const cu = runner.cu!;
+  const reason = reasons.join(" · ").slice(0, 600);
+  const message = `⛔ Plan blocked: ${reason}`;
+  cu.finalState = "BLOCKED";
+  cu.finalReason = reason;
+  hooks.bcast({ type: "cu", cu: { type: "error", message } });
+  runner.items.push({ kind: "cu", id: `cu_err_${runner.items.length}`, cu: "error", message } as any);
+  runner.items.push({ kind: "cu", id: `cu_end_${runner.items.length}`, cu: "run_end", status: "blocked", finalState: "BLOCKED", finalReason: reason, steps: 0, ms: 0 } as any);
+  hooks.blog("error", `${message} — XMD Computer HAIKUANZISHWA (sandbox haikuundwa).`);
+  hooks.addChip(`${message} — XMD Computer haikuanza. Rekebisha Mpango Kazi kisha bonyeza ▶ Endeleza.`);
+  cu.phaseResolve?.();
+  writeCuChip(runner);
+  hooks.bcast({ type: "cu", cu: { type: "phase_done", ok: false, status: "blocked", finalState: "BLOCKED", finalReason: reason } });
+  void hooks.persist("finale_incomplete", hooks.title);
 }
 
 /* ============================ sandbox lifecycle ============================ */
@@ -465,6 +486,16 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
   if (!plan) {
     cuError(runner, hooks, "Mpango Kazi haukupatikana kwenye project_plans — computer-use haiwezi kuanza.");
     return;
+  }
+  // TASK-4: gate KABLA ya sandbox — plan iliyoshindwa guard/muundo HAITEKELEZWI
+  const gate = isPlanExecutable({ status: plan.status, md: plan.md, warnings: plan.warnings });
+  if (!gate.ok) {
+    blockComputerForPlan(runner, hooks, gate.reasons);
+    return;
+  }
+  if (gate.warnings.length) {
+    hooks.addChip(`⚠️ Mpango Kazi una warnings ${gate.warnings.length} (hazizuii utekelezaji): ${gate.warnings.join(" · ").slice(0, 300)}`);
+    hooks.blog("warning", `⚠️ Mpango Kazi warnings: ${gate.warnings.join(" · ").slice(0, 400)}`);
   }
 
   const resume = cu.maxI > 0;
