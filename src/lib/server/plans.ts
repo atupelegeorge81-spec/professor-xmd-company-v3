@@ -66,6 +66,7 @@ const toDoc = (d: any): ProjectPlanDoc => ({
   official_data: unpack(d.official_data) || "",
   plan_content: unpack(d.plan_content),
   total_steps: Number(d.total_steps) || 0,
+  warnings: Array.isArray(d.warnings) ? d.warnings.map(String) : [], // TASK-4: zisomwe tena (API/gate/ripoti)
   created_at: String(d.created_at || d.$createdAt || ""),
   updated_at: String(d.updated_at || d.$updatedAt || ""),
 });
