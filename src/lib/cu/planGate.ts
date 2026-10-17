@@ -91,6 +91,14 @@ export function isPlanExecutable(plan: PlanGateInput): PlanGateResult {
 }
 
 /* ------------------------------------------------------------------ TEST HOOK (T3 pekee) */
+/** TASK-6: alama ya majaribio `xmdtest-plansteps-max=<N>` — kikomo kidogo cha LANGO pekee (prompt ya Optimus haibadiliki).
+ *  Inert kabisa bila XMD_TEST_HOOKS=1 + alama kwenye project. */
+export function planStepsMaxFor(project: string | null | undefined, fallback: number, env: Record<string, string | undefined> = process.env): number {
+  if (env.XMD_TEST_HOOKS !== "1") return fallback;
+  const m = String(project || "").match(/xmdtest-plansteps-max=(\d+)/);
+  return m && Number(m[1]) > 0 ? Number(m[1]) : fallback;
+}
+
 /** Alama ya brief ya majaribio — sabotage inafanya kazi TU ikiwa XMD_TEST_HOOKS=1 NA project ina alama hii. */
 export const PLANGUARD_SABOTAGE_MARK = "xmdtest-planguard-sabotage";
 

@@ -193,7 +193,8 @@ export interface PlanAssembleResult {
  *  · hatua zinapewa namba mfululizo 1..N (deterministic);
  *  · kichwa kina session + tarehe + mode.
  */
-export function assemblePlanDocument(o: { partTexts: string[]; title: string; sessionId: string; date: string; facts?: FactSheet | null; constraintFallback?: string[] }): PlanAssembleResult {
+export function assemblePlanDocument(o: { partTexts: string[]; title: string; sessionId: string; date: string; facts?: FactSheet | null; constraintFallback?: string[]; maxSteps?: number }): PlanAssembleResult {
+  const maxSteps = o.maxSteps || PLAN_STEPS_MAX;
   const collected: Record<number, string> = {};
   const ingest = (md: string) => {
     const sec = extractPlanSections(md);
@@ -226,7 +227,7 @@ export function assemblePlanDocument(o: { partTexts: string[]; title: string; se
     steps = parsePlanSteps(body);
     collected[6] = `${body}\n\n**TOTAL STEPS: ${steps.length}**`;
     if (steps.length && steps.length < PLAN_STEPS_MIN) problems.push(`hatua ${steps.length} < ndogo ya ${PLAN_STEPS_MIN}`);
-    if (steps.length > PLAN_STEPS_MAX) problems.push(`hatua ${steps.length} > kubwa ya ${PLAN_STEPS_MAX}`);
+    if (steps.length > maxSteps) problems.push(`hatua ${steps.length} > kubwa ya ${maxSteps}`);
   } else {
     problems.push("sehemu ya 6 (Work Steps) haipo");
   }
@@ -241,6 +242,39 @@ export function assemblePlanDocument(o: { partTexts: string[]; title: string; se
   ];
   for (const d of PLAN_SECTION_DEFS) if (collected[d[0]]) L.push(`## ${d[0]}. ${d[2]}`, "", collected[d[0]].trim(), "");
   return { markdown: L.join("\n").trim(), steps, sections: collected, problems };
+}
+
+/* ================= TASK-6: hatua > kikomo → Optimus anaandika upya Kipande 2 ================= */
+
+/** Majaribio ya kuandika upya (CEO): yakiisha bado > kikomo → structure_failed (fail-safe, kama awali). */
+export const PLAN_STEPS_REWRITES = 2;
+
+/** Agizo kwa Optimus: andika upya Kipande 2 (sehemu 5–8) kikamilifu chenye hatua ≤ max. */
+export function planStepsRewriteInstruction(found: number, max: number): string {
+  return `The PART 2 you wrote has ${found} work steps, but the maximum allowed is ${max}. It has been DISCARDED.
+Rewrite PART 2 COMPLETELY (sections 5, 6, 7 and 8 — same headings) with AT MOST ${max} work steps in section 6:
+merge related small steps into coarser steps (each step one meaningful chunk of work with its own verification).
+Keep every locked decision, file and official value — only the step granularity changes. Same step template, numbering 1..N.`;
+}
+
+/**
+ * Plan mpya inachukua NAFASI ya ya zamani (si kuunganishwa): kila maandishi yenye sehemu 6 yanaondolewa
+ * (assemblePlanDocument huchagua sehemu NDEFU zaidi — hatua za zamani zingeshinda). Sehemu 5/7/8 za zamani
+ * zinabaki kama akiba TU ikiwa maandishi mapya hayana sehemu hiyo.
+ */
+export function replacePlanStepsPart(planTexts: string[], newText: string): string[] {
+  const keep: string[] = [];
+  const old: Record<number, string> = {};
+  for (const t of planTexts) {
+    const sec = extractPlanSections(String(t || ""));
+    if (!sec[6]) { keep.push(t); continue; }
+    for (const [k, v] of Object.entries(sec)) if (!old[+k] || v.length > old[+k].length) old[+k] = v;
+  }
+  const fresh = extractPlanSections(newText);
+  const fallback = [5, 7, 8]
+    .filter((n) => !fresh[n] && old[n])
+    .map((n) => `## ${n}. ${PLAN_SECTION_DEFS.find((d) => d[0] === n)?.[2] || ""}\n${old[n]}`);
+  return [...keep, fallback.length ? `${newText}\n\n${fallback.join("\n\n")}` : newText];
 }
 
 /** Muundo wa HATUA uniform (kwa prompt ya Optimus — anaruhusiwa kuandika hii pekee). */

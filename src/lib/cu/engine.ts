@@ -820,7 +820,10 @@ const CAP = {
 function schedulePersist(runner: Runner, hooks: CuHooks, force = false) {
   const cu = runner.cu!;
   // R31-G4: status halisi ya runner — "paused" ikirudi kutoka pause haivurugwi na "running"
-  const st = runner.status === "paused" ? "paused" : runner.cu?.pausedOnce && !runner.cu?.done ? "paused" : "running";
+  // TASK-6: CU ikishamaliza (finalState imewekwa na finishComputer/blocked) — tukio lolote linalochelewa
+  // HALIANDIKI "running" juu ya status ya mwisho (smoke 2 ya Task 5: session ilibaki "running").
+  const st = cu.finalState ? (cu.done ? "completed" : "finale_incomplete")
+    : runner.status === "paused" ? "paused" : runner.cu?.pausedOnce && !runner.cu?.done ? "paused" : "running";
   if (force) {
     if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; }
     void hooks.persist(st, hooks.title);

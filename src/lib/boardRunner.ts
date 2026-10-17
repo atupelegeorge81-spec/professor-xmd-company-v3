@@ -45,11 +45,13 @@ import { BOARD_PLAN_MODE } from "./env";
 import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, type MiniReportDoc } from "./server/miniReports";
 import { saveProjectPlan, getPlanBySession } from "./server/plans";
 // R31 · XMD COMPUTER (computer-use): engine ya phase ya mwisho — baada ya memory ya Board
-import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf } from "./cu/planGate"; // TASK-4
+import { serialQueue } from "./serialQueue"; // TASK-6
+import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
 import {
   PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
   extractPlanSections, parsePlanSteps, assemblePlanDocument, officialDataMarkdown, constraintsMarkdown, constraintFallbackLines, PLAN_STEP_TEMPLATE,
+  PLAN_STEPS_REWRITES, planStepsRewriteInstruction, replacePlanStepsPart, // TASK-6
 } from "./board/workPlan";
 
 export interface Runner {
@@ -591,7 +593,11 @@ async function run(runner: Runner) {
       await persistOnce(status, title);
     }
   };
-  const persistOnce = async (status: string, title?: string) => {
+  // TASK-6: writes za session zinapangwa FOLENI (kwa mpangilio wa wito) — write ya "running" iliyoanza mapema
+  // haitui tena BAADA ya status ya mwisho. Kusubiri write iliyotangulia kuna kikomo (isiyorudi haizuii nyingine).
+  const persistQueue = serialQueue(30_000);
+  const persistOnce = (status: string, title?: string): Promise<void> => persistQueue(() => persistWrite(status, title));
+  const persistWrite = async (status: string, title?: string) => {
     try {
       if (!sessionId) {
         sessionId = await saveSession(runner.project.slice(0, 500), getPersistItems(), status, title);
@@ -3265,6 +3271,24 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
       const planCtx = `PROJECT BRIEF: "${runner.project}"\n\n${facts ? `${factsBlock()}\n\n` : ""}${sysFiles.length ? `${dataFilesBlock(sysFiles)}\n\n` : ""}=== LOCKED DECISIONS + MINI-REPORTS (the Board has finished — this is the source of truth) ===\n${miniLines}`;
 
       blog("info", "📋 Mpango Kazi · lanes pekee: XKiro qwen (akaunti 1·2 = keys za Optimus) → UnoRouter/OpenRouter (nemotron-3-ultra-550b · space-bunny-alpha) — Gemini/Groq haziruhusiwi (R49).");
+      const planSecsOf = (part: 1 | 2, max = PLAN_STEPS_MAX): string =>
+        part === 1
+          ? `## 1. Objective & Deliverable — what the agent is building (3-6 sentences, from the brief + Agenda 1 decision)
+## 2. Official Data — copy the DATA RASMI block above WORD FOR WORD as bullet lists (the system replaces this section with its own deterministic copy — never invent anything here)
+## 3. Constraints — copy the project constraints word for word (the system replaces this section too)
+## 4. Tech Stack & Design Tokens — from LOCKED decisions only: framework, fonts, colors (hex codes + where used), touch targets, layout rules`
+          : `## 5. File Structure — every file with its job and the agenda that owns it (tree or table)
+## 6. Work Steps — ${Math.min(PLAN_STEPS_MIN, max)} to ${max} steps; each step EXACTLY in this shape:
+${PLAN_STEP_TEMPLATE}
+Step rules: sequential numbering 1..N; coarse-grained (each step is one meaningful chunk of work with its own verification); copy every official value word for word; if something was not discussed, write "not discussed"; dependencies reference earlier steps only.
+## 7. QA Checklist — checkbox list (size budget, WCAG contrast, data accuracy vs Official Data, closed days, phone placeholder, no-JS rule)
+## 8. Agent Rules — DATA RASMI is law; never invent; mark additions beyond this plan as NYONGEZA (not discussed); stop and report on data conflicts or failed verification x2`;
+      const planRules = `RULES:
+- English only. Markdown only. No preamble, no closing remarks.
+- Never invent prices, hours, names, phone numbers, emails or addresses — copy them from DATA RASMI / LOCKED decisions only.
+- If something was not discussed by the Board, write "not discussed" — never fill gaps.
+- Do NOT write complete files or full scripts; short reference snippets only (max 40 lines).${THINK_CAP}`;
+      const planPartMsg: Record<number, string> = {}; // TASK-6: ujumbe wa kila kipande (kuandikwa upya mahali palepale)
       for (const p of PLAN_PARTS) {
         if (p.nums.every((n) => planCollected[n])) {
           blog("info", `♻️ Endeleza: Kipande ${p.label} cha Mpango Kazi tayari kimeandikwa kamili — kinarukwa.`);
@@ -3273,18 +3297,8 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
         blog("system", `📋 Optimus anaandika Mpango Kazi wa Agent — Kipande ${p.label}...`);
         addChip(planPartChip(p.part)); // adapter inaifungua kuwa CARD ya plan (kama ripoti) — si chip ya UI
         const planMsgId = addMsg(pm.id);
-        const secs =
-          p.part === 1
-            ? `## 1. Objective & Deliverable — what the agent is building (3-6 sentences, from the brief + Agenda 1 decision)
-## 2. Official Data — copy the DATA RASMI block above WORD FOR WORD as bullet lists (the system replaces this section with its own deterministic copy — never invent anything here)
-## 3. Constraints — copy the project constraints word for word (the system replaces this section too)
-## 4. Tech Stack & Design Tokens — from LOCKED decisions only: framework, fonts, colors (hex codes + where used), touch targets, layout rules`
-            : `## 5. File Structure — every file with its job and the agenda that owns it (tree or table)
-## 6. Work Steps — ${PLAN_STEPS_MIN} to ${PLAN_STEPS_MAX} steps; each step EXACTLY in this shape:
-${PLAN_STEP_TEMPLATE}
-Step rules: sequential numbering 1..N; coarse-grained (each step is one meaningful chunk of work with its own verification); copy every official value word for word; if something was not discussed, write "not discussed"; dependencies reference earlier steps only.
-## 7. QA Checklist — checkbox list (size budget, WCAG contrast, data accuracy vs Official Data, closed days, phone placeholder, no-JS rule)
-## 8. Agent Rules — DATA RASMI is law; never invent; mark additions beyond this plan as NYONGEZA (not discussed); stop and report on data conflicts or failed verification x2`;
+        planPartMsg[p.part] = planMsgId;
+        const secs = planSecsOf(p.part);
         const planPart = await streamTurn(
           pm,
           [
@@ -3298,11 +3312,7 @@ Write PART ${p.part} of the AGENT WORK PLAN in English. A computer-use coding ag
 
 ${secs}
 
-RULES:
-- English only. Markdown only. No preamble, no closing remarks.
-- Never invent prices, hours, names, phone numbers, emails or addresses — copy them from DATA RASMI / LOCKED decisions only.
-- If something was not discussed by the Board, write "not discussed" — never fill gaps.
-- Do NOT write complete files or full scripts; short reference snippets only (max 40 lines).${THINK_CAP}`,
+${planRules}`,
             },
           ],
           planMsgId,
@@ -3318,9 +3328,48 @@ RULES:
       }
 
       // kuunganisha (deterministic): sehemu 2/3 za mfumo + hatua zinapewa namba mfululizo
-      let asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts, constraintFallback });
-      asm = { ...asm, markdown: maybeSabotagePlan(asm.markdown, runner.project) }; // TASK-4: test hook (inert bila XMD_TEST_HOOKS=1 + alama)
+      // TASK-6: kikomo cha hatua (alama ya majaribio xmdtest-plansteps-max=N inafanya kazi TU na XMD_TEST_HOOKS=1)
+      const planMax = planStepsMaxFor(runner.project, PLAN_STEPS_MAX);
+      const assemblePlan = () => {
+        const a = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts, constraintFallback, maxSteps: planMax });
+        return { ...a, markdown: maybeSabotagePlan(a.markdown, runner.project) }; // TASK-4: test hook (inert bila XMD_TEST_HOOKS=1 + alama)
+      };
+      let asm = assemblePlan();
       planStepsTotal = asm.steps.length;
+      // TASK-6 (CEO): hatua > kikomo → Kipande 2 cha zamani KINAFUTWA na Optimus anakiandika upya (≤ kikomo) mahali palepale.
+      // Majaribio PLAN_STEPS_REWRITES; yakiisha bado > kikomo → structure_failed (fail-safe, kama awali).
+      for (let rw = 1; rw <= PLAN_STEPS_REWRITES && asm.steps.length > planMax; rw++) {
+        const found = asm.steps.length;
+        blog("warning", `📋 Mpango Kazi: hatua ${found} > kikomo ${planMax} — Kipande 2 cha zamani kimefutwa; Optimus anaandika upya (jaribio ${rw}/${PLAN_STEPS_REWRITES})…`);
+        let rwId = planPartMsg[2] || [...runner.items].reverse().find((x) => x.kind === "msg" && !!extractPlanSections(String(x.content || ""))[6])?.id || "";
+        const old = rwId ? runner.items.find((x) => x.kind === "msg" && x.id === rwId) : undefined;
+        if (old && old.kind === "msg") {
+          old.content = ""; old.thinking = ""; old.done = false;
+          bcast({ type: "msg_reset", id: rwId });
+        } else {
+          addChip(planPartChip(2));
+          rwId = addMsg(pm.id);
+        }
+        planPartMsg[2] = rwId;
+        const rewritten = await streamTurn(
+          pm,
+          [
+            { role: "system", content: planSystem },
+            { role: "user", content: `${planCtx}\n\n=== YOUR TASK ===\n${planStepsRewriteInstruction(found, planMax)}\nOutput ONLY the sections listed below, each starting with its exact heading.\n\n${planSecsOf(2, planMax)}\n\n${planRules}` },
+          ],
+          rwId,
+          true,
+          24000,
+          { critical: true, planWork: true }, // R49: lanes zilezile za plan
+        );
+        setItemContent(rwId, rewritten);
+        bcast({ type: "msg_done", id: rwId });
+        planTexts.splice(0, planTexts.length, ...replacePlanStepsPart(planTexts, rewritten));
+        asm = assemblePlan();
+        planStepsTotal = asm.steps.length;
+        blog(asm.steps.length > planMax ? "warning" : "success", `📋 Mpango Kazi: baada ya kuandika upya (jaribio ${rw}) — hatua ${asm.steps.length} (kikomo ${planMax}).`);
+        await persist("plan_part_2", conversationTitle);
+      }
       for (const pr of asm.problems) blog("warning", `📋 Mpango Kazi: ⚠️ ${pr}`);
       // Data Guard (maandishi): kila bei/saa/simu/email/anwani lazima iwepo kwenye Fact Sheet
       planHits = facts ? guardOf(asm.markdown) : [];
@@ -3351,8 +3400,7 @@ Rewrite ONLY the affected sections (same headings, same structure), with every v
         bcast({ type: "msg_done", id: fixMsgId });
         planTexts.push(fixed);
         ingestPlan(fixed);
-        asm = assemblePlanDocument({ partTexts: planTexts, title: planTitle, sessionId: sessionId || runner.id, date: nowDate(), facts, constraintFallback });
-        asm = { ...asm, markdown: maybeSabotagePlan(asm.markdown, runner.project) }; // TASK-4: test hook
+        asm = assemblePlan(); // TASK-4 hook + TASK-6 kikomo
         planStepsTotal = asm.steps.length;
         planHits = facts ? guardOf(asm.markdown) : [];
       }
