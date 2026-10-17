@@ -9,7 +9,7 @@ import { findRunner } from "@/lib/boardRunner";
 import { handleCuEvent, ensureCuState, noteProviderUsage, type CuEvent } from "@/lib/cu/engine";
 import { appwriteConfigured } from "@/lib/server/appwrite";
 import { getConversation, updateSessionItems } from "@/lib/reports";
-import { readUsageChip, isHiddenChip } from "@/lib/usageChip";
+import { readUsageChip } from "@/lib/usageChip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,7 +64,8 @@ async function orphanPersist(ev: CuEvent): Promise<{ ok: boolean; orphan: boolea
     const sid = String(ev.session);
     const saved = await getConversation(sid);
     if (!saved) return { ok: false, orphan: true };
-    const items = (saved.items || []).filter((it: any) => !isHiddenChip(it));
+    // TASK-5: chips zilizofichwa (resume state + CU state) ZIBAKI — zamani zilifutwa hapa, recovery/Resume ikashindwa
+    const items = [...(saved.items || [])];
     if (String(ev.type) === "files") {
       // R31-G4: files → item MOJA "cu_files_tree" inayosasishwa (kosa la G: append ya kila bucket
       // iliwahi kubakiza snapshot ya kwanza tupu kwenye session ndogo)
