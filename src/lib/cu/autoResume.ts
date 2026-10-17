@@ -30,7 +30,7 @@ export async function autoResumeSession(sessionId: string): Promise<boolean> {
   try {
     const { resumeRun, streamRunner } = await import("@/lib/boardRunner");
     const runner = await resumeRun(sessionId, "system"); // TASK-1: auto-recovery = system
-    if (!runner || runner === "busy" || runner === "pausing" || runner === "user_paused") return false; // R38-RC5: "pausing" = snapshot bado inapangwa — tick ijayo itajaribu; TASK-1: "user_paused" = user-Detach, KIMYA usiguse
+    if (!runner || runner === "busy" || runner === "pausing" || runner === "user_paused") { inflight.delete(sessionId); return false; } // TASK-8: zamani inflight haikufutwa → tick ijayo HAIKUWEZA kujaribu tena // R38-RC5: "pausing" = snapshot bado inapangwa — tick ijayo itajaribu; TASK-1: "user_paused" = user-Detach, KIMYA usiguse
     // stream isifungwe bila msomaji — tuna-drain kama "client" wa kimya (kazi inaendelea server-side)
     const res = streamRunner(runner) as unknown as Response;
     if (res?.body) {
@@ -57,7 +57,9 @@ export async function autoResumeSession(sessionId: string): Promise<boolean> {
 }
 
 /** Scan ya sessions zilizo "paused" — zile ambazo resumeAt imepita zinaendelea YENYEWE. */
-export async function checkPausedDue(force = false): Promise<number> {
+/** TASK-8: graceMs — burst ya boot inaendeleza TU resumeAt iliyopita ≥graceMs: instance mmiliki (kama bado hai wakati
+ *  wa rolling deploy) inapata nafasi ya kwanza kwa timer yake, isije session ikaendelezwa mara mbili. */
+export async function checkPausedDue(force = false, graceMs = 0): Promise<number> {
   const now = Date.now();
   if (!force && now - G.lastCheck < 60_000) return 0;
   G.lastCheck = now;
@@ -74,7 +76,7 @@ export async function checkPausedDue(force = false): Promise<number> {
       if (chip.pauseOrigin === "user") continue;
       const resumeAt = Number(chip.resumeAt) || 0;
       if (!resumeAt) continue; // pause ya mwandamizi (manual) — haigusiwi
-      if (resumeAt <= now) {
+      if (resumeAt <= now - graceMs) {
         if (await autoResumeSession(d.$id)) resumed += 1;
       }
     }

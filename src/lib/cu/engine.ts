@@ -164,6 +164,12 @@ export interface CuHooks {
   title: string;
 }
 
+/** TASK-8: maandishi ni ripoti halisi? (CLI huweka error text yake kama "report"). */
+export function isRealReport(t: string): boolean {
+  const s = String(t || "").trim();
+  return !!s && !/^API Error/i.test(s) && s !== "(hakuna ripoti)";
+}
+
 export function ensureCuState(runner: Runner, token?: string): CuRunState {
   if (!runner.cu) {
     // seen inaanza na events ZILIZOHIFADHIWA (i zipo kwenye items) — replay/idhini haizirudii
@@ -193,8 +199,16 @@ export function ensureCuState(runner: Runner, token?: string): CuRunState {
     };
     for (const it of runner.items as any[]) {
       if (it?.kind === "cu" && typeof it.i === "number") runner.cu.seen.add(`${it.cu}:${it.i}`);
+      // TASK-8: item ya "report" inatoka tukio la "finish" — replay ya finish ile ile isirudie ripoti
+      if (it?.kind === "cu" && it.cu === "report" && typeof it.i === "number") runner.cu.seen.add(`finish:${it.i}`);
       // item ya "files" ile ile inayosasishwa — rudia id yake (item ya pili isionekane)
       if (it?.kind === "cu" && it.cu === "files" && typeof it.id === "string") (runner.cu as any).filesItemId = it.id;
+    }
+    // TASK-8: chip haina ripoti (finish ilifika BILA runner → orphanPersist) → ichukue kutoka items
+    if (!runner.cu.report) {
+      const it = [...(runner.items as any[])].reverse().find((x) => x?.kind === "cu" && ((x.cu === "report" && x.text) || (x.cu === "finish" && x.report)));
+      const t = it ? String(it.cu === "report" ? it.text : it.report) : "";
+      if (isRealReport(t)) runner.cu.report = t.slice(0, 120_000);
     }
   }
   return runner.cu;
@@ -547,6 +561,13 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
             const ev = JSON.parse(line);
             if (typeof ev.i !== "number") continue;
             if (ev.type === "run_end") { lastEnd = ev; if (ev.i > cu.maxI) cu.maxI = ev.i; continue; }
+            // TASK-8: finish ilihifadhiwa na orphanPersist (bila maandishi) → seen inairuka → ripoti ilipotea → PARTIAL ya uongo
+            if (ev.type === "finish" && cu.seen.has(`finish:${ev.i}`) && !cu.report && isRealReport(String(ev.report || ""))) {
+              cu.report = String(ev.report).slice(0, 120_000);
+              runner.items.push({ kind: "cu", id: `cu_report_${runner.items.length}`, i: ev.i, cu: "report", text: cu.report, partial: ev.partial, status: ev.status } as any);
+              hooks.blog("info", "♻️ Ripoti ya bridge (ilifika bila runner) imerejeshwa kutoka events.jsonl.");
+              continue;
+            }
             const before = cu.seen.size;
             await handleCuEvent(runner, hooks, ev);
             if (cu.seen.size > before) replayed++;
@@ -615,6 +636,21 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
 
     // R44-B: RESTORE — kiovu (cu_files) kwanza: freshest (kila write); tar ya snapshot ni fallback.
     let mirrorCount = 0;
+    // TASK-8: zamani tar ilitumika TU kiovu kikiwa tupu — kiovu pungufu (k.m. faili za shell) kilipoteza faili za tar.
+    // Sasa: sandbox MPYA + snapshot → tar inarejeshwa kwanza (engine), kiovu kinafuata juu yake.
+    let tarRestored = false;
+    if (resume && (sbx as any).__xmdFresh && cu.snapshot?.fileId && !cu.done) {
+      const url = publicFileUrl(cu.snapshot.bucketId || CU_BUCKET, cu.snapshot.fileId);
+      try {
+        const r: any = await sbx.commands.run(
+          `mkdir -p /home/user/ws && cd /home/user/ws && export XMD_URL=${q(url)} && { (curl -fsSL --max-time 180 "$XMD_URL" | tar xzf -) || python3 -c ${q(`import os,io,tarfile,urllib.request as u; tarfile.open(fileobj=io.BytesIO(u.urlopen(os.environ["XMD_URL"],timeout=180).read()),mode="r:gz").extractall(".")`)}; } && echo XMD_TAR_OK`,
+          { timeoutMs: 200_000 });
+        tarRestored = String(r?.stdout || "").includes("XMD_TAR_OK");
+      } catch { /* fallback: bridge --restore-url (njia ya zamani) */ }
+      hooks.blog(tarRestored ? "success" : "warning", tarRestored
+        ? "🎒 Snapshot (tar) imerejeshwa kwenye sandbox mpya — kiovu kinafuata juu yake."
+        : "🎒 Snapshot (tar) haikurejesheka na engine — bridge itajaribu --restore-url.");
+    }
     if (resume) {
       mirrorCount = await restoreFromMirror(runner.sessionId || runner.id, sbx);
       if (mirrorCount > 0) hooks.blog("success", `🪞 Kiovu: faili ${mirrorCount} za agent zimerudishwa kwenye sandbox — sandbox mpya imejaa kazi yako.`);
@@ -627,7 +663,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
       cu.rebuild = false;
     }
     // R31-G4+R44: tar ya snapshot inarejesha pale KIOVU hakina kitu
-    const restoreUrl = resume && mirrorCount === 0 && cu.snapshot?.fileId && !cu.done
+    const restoreUrl = resume && !tarRestored && mirrorCount === 0 && cu.snapshot?.fileId && !cu.done
       ? publicFileUrl(cu.snapshot.bucketId || CU_BUCKET, cu.snapshot.fileId) // R42.1: Supabase public URL
       : undefined;
     const cmd = bridgeCommand({
@@ -823,7 +859,9 @@ function schedulePersist(runner: Runner, hooks: CuHooks, force = false) {
   // TASK-6: CU ikishamaliza (finalState imewekwa na finishComputer/blocked) — tukio lolote linalochelewa
   // HALIANDIKI "running" juu ya status ya mwisho (smoke 2 ya Task 5: session ilibaki "running").
   const st = cu.finalState ? (cu.done ? "completed" : "finale_incomplete")
-    : runner.status === "paused" ? "paused" : runner.cu?.pausedOnce && !runner.cu?.done ? "paused" : "running";
+    // TASK-8: "paused" = pause ya SASA tu (pausedNow/pausing). Zamani pausedOnce (historia) iliacha run iliyoresumiwa
+    // ionekane "paused" kwenye DB hadi mwisho. pausedNow inafutwa startComputerPhase ikianza (resume).
+    : runner.status === "paused" ? "paused" : (cu.pausedNow || cu.pausing) && !cu.done ? "paused" : "running";
   if (force) {
     if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; }
     void hooks.persist(st, hooks.title);
@@ -1260,7 +1298,7 @@ export async function pauseComputerFromServer(runner: Runner, hooks: CuHooks | n
   if (sbx2) {
     try {
       await Promise.race([
-        sbx2.commands.run("pkill -9 -f '[c]u_bridge.py'; pkill -9 -f '[c]u_brain.py'; true", { timeoutMs: budgetMs ? 3_000 : 20_000 }),
+        sbx2.commands.run("pkill -9 -f '[c]u_bridge.py'; pkill -9 -f '[o]h_bridge.py'; pkill -9 -f '[c]u_brain.py'; true", { timeoutMs: budgetMs ? 3_000 : 20_000 }),
         new Promise((r2) => setTimeout(r2, budgetMs ? 4_000 : 25_000).unref?.()), // TASK-6: SIGTERM — neema ni 22s
       ]);
     } catch { /* bridge haikuuliwa — sandbox-kill hapa chini inaugua */ }
