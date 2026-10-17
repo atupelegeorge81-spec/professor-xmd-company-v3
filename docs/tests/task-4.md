@@ -131,3 +131,18 @@ Sessions za majaribio (`xmdtest-*`) + plans/mini-reports zake zimefutwa baada ya
 
 Baselines: pytest 285 · unittest OK · tsc 0 · vitest 216/216 · eslint (files zilizoguswa) 0.
 Bado: `QuotaSync` haijaonekana ndani ya run halisi ya CU (sandbox → Koyeb) — njia ileile ya token kama `cu-search`.
+
+### Live run 13 — main `d43ad65` (deploy 89825c8a), session `xmdtest-final13` (2026-10-17 05:03–05:19 UTC)
+- **Quota sync live ✅:**
+  - CU note sekunde 7.6 baada ya kuanza: `quota sync: ledger ya server imesomwa (gemini 4 · or 2)`.
+  - Server logs `[cu-quota] 8886887a · gemini 4 · or 2` kuanzia 05:03:35 hadi 05:19:09. Usomaji unafanyika kwenye `acquire` pale ≥60s zimepita.
+- **Matokeo:** finalState **COMPLETED_UNVERIFIED** (harness ✓). Requests 27, muda 947s, tokens 669k.
+- **Judge:** Uno Ultra (uno-2), raundi 1.
+- **Mgawanyo:**
+
+  | Family | Requests | Models |
+  |---|---|---|
+  | Flash | 11 | 3.8 ×3, 3.7 ×4, 3.6 ×4 |
+  | Lite | 9 | 3.5 ×7, 3.1 ×2 |
+  | Uno | 2 | minimax |
+  | OR | 2 | Lightning |
