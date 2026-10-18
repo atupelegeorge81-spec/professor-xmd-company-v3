@@ -52,7 +52,8 @@ import { putRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/st
 import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
 import { maybeCloseMilestones, milestonesDoneFromChips, type LoopHooks } from "./milestone/loop"; // TASK-14
 import { buildOCB, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14
-import { maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks"; // TASK-14 (XMD_TEST_HOOKS=1 pekee)
+import { maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks";
+import { generateMilestonePlan } from "./milestone/plan"; // TASK-15 // TASK-14 (XMD_TEST_HOOKS=1 pekee)
 import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
@@ -1563,6 +1564,37 @@ async function run(runner: Runner) {
       bcast: (e) => bcast(e as BoardEvent), addChip, blog: (lvl, t) => blog(lvl, t),
       persist: () => persist(status, conversationTitle),
       resolvedAgendas: async () => new Set((await finalBoardResolution(runner.id)).map((e) => e.agenda_index)),
+      // TASK-15: plan ya milestone MOJA — mashine ya plan ya Board (lanes za plan, Data Guard, lango la Task 4)
+      plan: async (m) => {
+        brain.state({ phase: "plan" });
+        const sys0 = await brain.prompt(pm.id, { phase: "plan", role: "milestone plan writer", date: nowDate() });
+        const system = withOCB(sys0, buildOCB({
+          project: { name: conversationTitle, summary: runner.project }, map: runner.msMap!, stage: "PLAN", self: "pm", milestoneId: m.id, round: null,
+          consumer: { role: "XMD Computer (literal)", use: "it executes this plan literally and cannot ask questions — every requirement, value and check must be explicit" },
+          counts: {
+            lockedDecisions: runner.items.filter((it) => it.kind === "chip" && /^\s*🔒 LOCKED/.test(String((it as { text?: string }).text || ""))).length,
+            milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects: 0, waivers: 0,
+          },
+        }));
+        maybeCapturePrompt({ sessionId: runner.sessionId || runner.id, agent: "pm", agenda: 0, phase: `plan:${m.id}`, system });
+        blog("system", `🗺️ Optimus anaandika plan ya Milestone ${m.id} (agenda ${m.agendas.from}–${m.agendas.to} · ${m.reviewMode}) — lanes za plan (R49).`);
+        return generateMilestonePlan(m, {
+          project: runner.project, title: conversationTitle || "Milestone plan", sessionId: sessionId || runner.id, date: nowDate(), facts,
+          factsBlock: facts ? factsBlock() : "", dataFilesBlock: sysFiles.length ? dataFilesBlock(sysFiles) : "",
+          ledger: await finalBoardResolution(runner.id), miniOf: (e) => miniDetailOf(e), system,
+          write: async ({ label, user, maxOut }) => {
+            addChip(`🗺️ Optimus anaandika plan ya Milestone ${label}`);
+            const id = addMsg(pm.id);
+            const text = await streamTurn(pm, [{ role: "system", content: system }, { role: "user", content: user }], id, true, maxOut, { critical: true, planWork: true });
+            setItemContent(id, text);
+            bcast({ type: "msg_done", id });
+            return text;
+          },
+          guard: guardOf, sabotage: (md) => maybeSabotagePlan(md, runner.project),
+          maxSteps: planStepsMaxFor(runner.project, PLAN_STEPS_MAX), prevReports: [], repoState: "", defects: [],
+          log: (lvl, t) => blog(lvl, t),
+        });
+      },
     });
     const closeMilestones = async (status: string) => {
       if (!milestonesEnabled() || !runner.msMap) return;
@@ -3321,7 +3353,9 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
     let planWarnings: string[] = []; // TASK-4: onyo za muundo (whitelist) — kwenye plan + ripoti
     let planStepsTotal = 0;
     let planSavedId: string | null = runner.finale?.planId || null;
-    if (planModeRun && !planSavedId) {
+    const msPlans = milestonesEnabled() && !!runner.msMap; // TASK-15: kila milestone ina plan yake — plan ya mradi mzima haitumiki
+    if (msPlans && planModeRun && !planSavedId) blog("info", "🗺️ XMD_MILESTONES: Mpango Kazi wa mradi mzima hauandikwi — kila milestone imeandikiwa plan yake.");
+    if (planModeRun && !planSavedId && !msPlans) {
       const pc = (s: string | undefined | null, n: number) => (String(s || "").length > n ? String(s).slice(0, n) + " […]" : String(s || ""));
       const planTitle = conversationTitle || "Agent Work Plan";
       const planTexts: string[] = [...(prior?.planTexts || [])];

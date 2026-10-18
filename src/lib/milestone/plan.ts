@@ -1,0 +1,317 @@
+// src/lib/milestone/plan.ts — TASK 15 (maelezo15): Optimus anaandika plan ya MILESTONE MOJA (si mradi mzima).
+// Inatumia mashine ya plan iliyopo (workPlan.ts: sehemu 8, assemblePlanDocument ya deterministic, Data Guard,
+// lango la Task 4) kwa ngazi ya milestone, + validator ya milestone (Styling + Dependencies, Checks za mashine,
+// routes/states/viewports, uthibitisho wa technical). Plan isiyopita HAITEKELEZWI (Computer haianzi).
+
+import {
+  assemblePlanDocument, constraintFallbackLines, extractPlanSections, parsePlanSteps, planStepBody,
+  replacePlanStepsPart, PLAN_STEP_TEMPLATE, PLAN_STEPS_MAX, PLAN_STEPS_MIN,
+} from "@/lib/board/workPlan";
+import type { FactSheet } from "@/lib/board/factSheet";
+import type { GuardHit } from "@/lib/board/dataGuard";
+import { isPlanExecutable, planStatusOf, planWarningsOf } from "@/lib/cu/planGate";
+import { validateCheck } from "./schemas";
+import type { Check, Milestone } from "./types";
+
+/** Viewports za ushahidi (maelezo19) — plan inazitaja kwa kila route. */
+export const PLAN_VIEWPORTS = ["375x667", "768x1024", "1280x800"] as const;
+
+/** Mifano ya Check union (Task 9) kwa prompt — sehemu zote ni za lazima isipokuwa zilizoandikwa (optional). */
+export const CHECK_SHAPES = `Allowed check objects (exact field names; "id" unique in the whole plan, e.g. "M1-S2-a"):
+{"id":"…","type":"file_exists","path":"index.html"}
+{"id":"…","type":"file_contains","path":"index.html","text":"<form"}
+{"id":"…","type":"grep","pattern":"messages\\\\.json","path":"server.js","expect":"present"}        (expect: "present" | "absent")
+{"id":"…","type":"command","cmd":"node --check server.js","expectExit":0}                           (run from the workspace root)
+{"id":"…","type":"http","url":"http://localhost:3000/","method":"GET","expectStatus":200}
+{"id":"…","type":"dom_exists","route":"/","selector":"form#contact","viewport":"375x667"}           (viewport optional)
+{"id":"…","type":"computed_style","route":"/","selector":"h1","property":"font-size","expected":"32px"}
+{"id":"…","type":"no_horizontal_overflow","route":"/","viewport":"375x667"}
+{"id":"…","type":"console_clean","route":"/"}
+{"id":"…","type":"contrast_min","route":"/","selector":"button","min":4.5}
+{"id":"…","type":"touch_target_min","route":"/","selector":"button","minPx":44}
+{"id":"…","type":"screenshot_taken","route":"/","viewport":"1280x800"}`;
+
+export const MS_STEP_TEMPLATE = `${PLAN_STEP_TEMPLATE}
+- **Checks:** REQUIRED for every step that creates or edits files — machine-readable acceptance checks, as ONE fenced block:
+\`\`\`checks
+[{"id":"M1-S1-a","type":"file_exists","path":"index.html"}]
+\`\`\``;
+
+// ── Validator (pure) ─────────────────────────────────────────────────────────
+export interface MilestonePlanValidation {
+  ok: boolean;
+  errors: string[];
+  checks: Check[];
+  stats: { steps: number; structural: number; checks: number; routes: number; proofChecks: number };
+}
+
+const STYLING_RE = /Styling\s*\+\s*Dependencies\s*\**\s*:\s*\**\s*(.*)$/im;
+const ROUTE_RE = /route\s*:\s*`?(\/[^\s`·|;,]*)`?\s*[·|;,]\s*states?\s*:\s*([^·|;]+?)\s*[·|;]\s*viewports?\s*:\s*(.+)$/gim;
+const NO_FILES = /^(none|n\/a|-|—|no files?|not applicable)\b/i;
+
+/** Block ya ```checks (au ```json) baada ya "**Checks:**" ndani ya mwili wa hatua. */
+export function stepChecksBlock(body: string): string | null {
+  const at = body.search(/\*\*Checks:?\*\*|^\s*-?\s*Checks\s*:/im);
+  if (at < 0) return null;
+  const m = body.slice(at).match(/```(?:checks|json)?[^\n]*\n([\s\S]*?)```/i);
+  return m ? m[1].trim() : null;
+}
+
+export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "reviewMode">): MilestonePlanValidation {
+  const errors: string[] = [];
+  const sec = extractPlanSections(md);
+  const checks: Check[] = [];
+
+  // 1. Styling + Dependencies (SafariSmart: Tailwind haikuwahi kusakinishwa)
+  const st = (sec[4] || "").match(STYLING_RE) || md.match(STYLING_RE);
+  const stVal = st ? st[1].replace(/\*+/g, "").trim() : "";
+  if (!st) errors.push(`${m.id} plan §4: missing the "Styling + Dependencies:" line — name the exact styling approach/framework and every package to install (e.g. "Styling + Dependencies: plain CSS in styles.css; packages: none")`);
+  else if (stVal.length < 6 || /^(not discussed|tbd|n\/a|none|unknown)\.?$/i.test(stVal)) errors.push(`${m.id} plan §4: "Styling + Dependencies:" is empty or vague (${JSON.stringify(stVal)}) — it must name the exact framework and the installed packages`);
+
+  // 2. Hatua + Checks za mashine kwa kila hatua ya muundo (inayounda/kubadilisha faili)
+  const s6 = sec[6] || "";
+  const steps = parsePlanSteps(s6);
+  if (!steps.length) errors.push(`${m.id} plan §6: no "### Step N — Title" work steps`);
+  let structural = 0;
+  const ids = new Set<string>();
+  for (const s of steps) {
+    const body = planStepBody(s6, s.n);
+    const files = (body.match(/\*\*Files:?\*\*\s*:?\s*(.+)/i)?.[1] || "").replace(/[`*]/g, "").trim();
+    const isStructural = !!files && !NO_FILES.test(files);
+    const raw = stepChecksBlock(body);
+    let arr: unknown[] | null = null;
+    if (raw !== null) {
+      try {
+        const j = JSON.parse(raw);
+        if (Array.isArray(j)) arr = j;
+        else errors.push(`${m.id} plan Step ${s.n} ("${s.title.slice(0, 60)}"): Checks block must be a JSON array of Check objects`);
+      } catch (e: any) {
+        errors.push(`${m.id} plan Step ${s.n} ("${s.title.slice(0, 60)}"): Checks block is not valid JSON (${String(e?.message || e).slice(0, 80)})`);
+      }
+    }
+    let valid = 0;
+    (arr || []).forEach((c, i) => {
+      const v = validateCheck(c, `Step ${s.n} check[${i}]`);
+      if (!v.ok) { errors.push(`${m.id} plan ${v.errors.join("; ")}`); return; }
+      const id = (c as Check).id;
+      if (ids.has(id)) { errors.push(`${m.id} plan Step ${s.n} check[${i}].id: duplicate id ${JSON.stringify(id)} (ids must be unique in the plan)`); return; }
+      ids.add(id);
+      checks.push(c as Check);
+      valid++;
+    });
+    if (isStructural) {
+      structural++;
+      if (!valid && raw === null) errors.push(`${m.id} plan Step ${s.n} ("${s.title.slice(0, 60)}"): no machine-readable Acceptance Checks — this step touches files (${files.slice(0, 60)}) so it needs a \`\`\`checks JSON array with ≥1 valid Check`);
+      else if (!valid && arr && !arr.length) errors.push(`${m.id} plan Step ${s.n} ("${s.title.slice(0, 60)}"): Checks array is empty — needs ≥1 valid Check`);
+    }
+  }
+
+  // 3. Routes + states + viewports (visual/mixed)
+  let routes = 0;
+  if (m.reviewMode !== "technical") {
+    const area = sec[7] || md;
+    for (const r of area.matchAll(ROUTE_RE)) {
+      if (/\d{3,4}\s*x\s*\d{3,4}/i.test(r[3])) routes++;
+      else errors.push(`${m.id} plan §7: screenshot line for route ${r[1]} has no viewport sizes (use ${PLAN_VIEWPORTS.join(", ")})`);
+    }
+    if (!routes) errors.push(`${m.id} plan §7: missing the screenshot matrix (reviewMode ${m.reviewMode}) — add lines like "- route: / · states: default, error · viewports: ${PLAN_VIEWPORTS.join(", ")}"`);
+  }
+
+  // 4. Uthibitisho wa technical: command/http Check
+  const proofChecks = checks.filter((c) => c.type === "command" || c.type === "http").length;
+  if (m.reviewMode !== "visual" && !proofChecks) errors.push(`${m.id} plan: reviewMode ${m.reviewMode} needs ≥1 "command" or "http" Check that proves the work (e.g. {"type":"command","cmd":"node --check server.js"})`);
+
+  return { ok: errors.length === 0, errors, checks, stats: { steps: steps.length, structural, checks: checks.length, routes, proofChecks } };
+}
+
+// ── Kizazi (LLM kupitia lanes za plan za Board) ──────────────────────────────
+export interface LedgerLike {
+  agenda_index: number;
+  agenda_item: string;
+  status: string;
+  decision_summary?: string;
+  decision_detail?: string;
+  carried_constraints?: string;
+  owners?: string;
+}
+
+export interface MilestonePlanDeps {
+  project: string;
+  title: string;
+  sessionId: string;
+  date: string;
+  facts: FactSheet | null;
+  /** DATA RASMI (factSheetBlock) au "" */
+  factsBlock: string;
+  /** faili za data za mfumo au "" */
+  dataFilesBlock: string;
+  /** finalBoardResolution ya session (zote — zinachujwa hapa kwa agenda za milestone) */
+  ledger: LedgerLike[];
+  miniOf: (e: LedgerLike) => Promise<string>;
+  /** system prompt ya Optimus (plan writer) — tayari ina OCB (stage PLAN) */
+  system: string;
+  /** zamu moja ya Optimus kwenye lanes za plan (streamTurn) → maandishi */
+  write: (o: { label: string; user: string; maxOut: number }) => Promise<string>;
+  guard: (md: string) => GuardHit[];
+  /** muhtasari wa ripoti za build za milestones zilizopita (≤60 mistari kila moja) */
+  prevReports?: string[];
+  repoState?: string;
+  defects?: string[];
+  /** test hook ya Task 4 (inert bila XMD_TEST_HOOKS=1 + alama) */
+  sabotage?: (md: string) => string;
+  maxSteps?: number;
+  log?: (level: "info" | "success" | "warning" | "error", text: string) => void;
+}
+
+export interface MilestonePlanResult {
+  milestoneId: string;
+  status: "active" | "guard_failed" | "structure_failed";
+  executable: boolean;
+  reasons: string[];
+  markdown: string;
+  steps: number;
+  checks: number;
+  routes: number;
+  problems: string[];
+  warnings: string[];
+  guardHits: { found: string; expected: string }[];
+  repairs: { structure: number; guard: number };
+}
+
+const cap = (s: unknown, n: number) => (String(s ?? "").length > n ? `${String(s).slice(0, n)} […]` : String(s ?? ""));
+
+function sectionsSpec(part: 1 | 2, m: Milestone, max: number): string {
+  if (part === 1)
+    return `## 1. Objective & Deliverable — what milestone ${m.id} delivers (3-6 sentences, ONLY this milestone's agendas ${m.agendas.from}–${m.agendas.to})
+## 2. Official Data — copy the DATA RASMI block WORD FOR WORD (the system replaces this section with its own deterministic copy)
+## 3. Constraints — copy the project constraints word for word (the system replaces this section too)
+## 4. Tech Stack & Design Tokens — from LOCKED decisions only. The FIRST line of this section MUST be exactly:
+Styling + Dependencies: <exact styling approach/framework, e.g. "plain CSS in styles.css" or "Tailwind CSS v3 via npm (tailwind.config.js)"> ; packages: <every package that must be installed, exact npm names, or "none">
+then fonts, colors (hex + where used), touch targets, layout rules.`;
+  const visual = m.reviewMode !== "technical";
+  const technical = m.reviewMode !== "visual";
+  return `## 5. File Structure — every file this milestone creates or edits, with its job and owning agenda
+## 6. Work Steps — 1 to ${max} steps for THIS milestone only; each step EXACTLY in this shape:
+${MS_STEP_TEMPLATE}
+${CHECK_SHAPES}
+Step rules: sequential numbering 1..N; every step that creates or edits files MUST have a \`\`\`checks block with ≥1 check; copy official values word for word; if something was not discussed write "not discussed".
+## 7. QA Checklist — checkbox list.${visual ? `
+Then a "**Screenshots:**" list — one line per route the harness must capture, EXACTLY in this shape:
+- route: / · states: default, error · viewports: ${PLAN_VIEWPORTS.join(", ")}` : ""}${technical ? `
+Then a "**Proof:**" list — the exact commands / tests / API calls that prove the work (they must also appear as "command" or "http" checks in the steps).` : ""}
+## 8. Agent Rules — DATA RASMI and LEDGER decisions are law; never invent; build ONLY milestone ${m.id}; stop and report on data conflicts or a failed check x2`;
+}
+
+const RULES = `RULES:
+- English only. Markdown only. No preamble, no closing remarks.
+- Never invent prices, hours, names, phone numbers, emails or addresses — copy them from DATA RASMI / LOCKED decisions only.
+- On any conflict between a mini-report and a LEDGER decision, the LEDGER decision wins.
+- Where a ledger decision states a number or a rule (money, VAT, limits, sizes), quote it verbatim — never re-derive it.
+- Do NOT write complete files; short reference snippets only (max 40 lines).`;
+
+/** §9 ya code: maamuzi ya Ledger ya milestone neno kwa neno (hakuna LLM). */
+export function ledgerDecisionsSection(entries: LedgerLike[]): string {
+  if (!entries.length) return "_No ledger decisions for this milestone._";
+  return entries.map((e) => `- **A${e.agenda_index} [${e.status}] ${e.agenda_item}:** ${String(e.decision_summary || "").trim() || "_(no summary)_"}`).join("\n");
+}
+
+export async function generateMilestonePlan(m: Milestone, deps: MilestonePlanDeps): Promise<MilestonePlanResult> {
+  const log = deps.log || (() => {});
+  const max = Math.max(1, deps.maxSteps || PLAN_STEPS_MAX);
+  const inRange = (i: number) => i >= m.agendas.from && i <= m.agendas.to;
+  const ledger = deps.ledger.filter((e) => inRange(e.agenda_index)).sort((a, b) => a.agenda_index - b.agenda_index);
+  const constraintFallback = constraintFallbackLines(ledger.filter((e) => e.status === "LOCKED").flatMap((e) => String(e.carried_constraints || "").split("\n")));
+
+  // Ingizo kwa mpangilio wa kipaumbele: (1) mini-reports, (2) ledger, (3) ripoti za build zilizopita + repo, (4) defects
+  const miniLines = (
+    await Promise.all(
+      ledger.map(async (e) => {
+        const md = await deps.miniOf(e);
+        return `### A${e.agenda_index} [${e.status}] ${e.agenda_item}\nOptimus mini-report (primary memory):\n${cap(md || e.decision_summary, 2600)}\nLEDGER decision (authoritative — wins on conflict): ${cap(e.decision_summary, 1500)}`;
+      }),
+    )
+  ).join("\n\n");
+  const prev = (deps.prevReports || []).filter(Boolean);
+  const ctx = [
+    `PROJECT BRIEF: "${deps.project}"`,
+    deps.factsBlock,
+    deps.dataFilesBlock,
+    `=== MILESTONE ${m.id}: ${m.title} · agendas ${m.agendas.from}–${m.agendas.to} · phase ${m.phase} · reviewMode ${m.reviewMode} ===`,
+    `=== (1) MINI-REPORTS + (2) LEDGER DECISIONS of this milestone's agendas ===\n${miniLines || "(none)"}`,
+    `=== (3) PREVIOUS MILESTONES — build report summaries + current repo state ===\n${prev.length ? prev.join("\n\n") : "none yet — this is the first build"}${deps.repoState ? `\n${deps.repoState}` : ""}`,
+    `=== (4) INHERITED DEFECTS from earlier milestones ===\n${(deps.defects || []).length ? deps.defects!.join("\n") : "none"}`,
+  ].filter(Boolean).join("\n\n");
+
+  const task = (part: 1 | 2) => `${ctx}
+
+=== YOUR TASK ===
+Write PART ${part} of the MILESTONE PLAN for ${m.id} in English. XMD Computer (a literal executor that has NOT seen this Board and cannot ask questions) will build ${m.id} from it — it must be fully self-contained. Output ONLY the sections listed below, each starting with its exact heading.
+
+${sectionsSpec(part, m, max)}
+
+${RULES}`;
+
+  const planTexts: string[] = [];
+  planTexts.push(await deps.write({ label: `${m.id} 1/2`, user: task(1), maxOut: 12000 }));
+  planTexts.push(await deps.write({ label: `${m.id} 2/2`, user: task(2), maxOut: 24000 }));
+
+  const assemble = () => {
+    const a = assemblePlanDocument({ partTexts: planTexts, title: `${deps.title} — ${m.id}: ${m.title}`, sessionId: deps.sessionId, date: deps.date, facts: deps.facts, constraintFallback, maxSteps: max });
+    let md = a.markdown.replace(/^# AGENT WORK PLAN — /, "# MILESTONE PLAN — ");
+    md = `${md}\n\n## 9. Ledger Decisions (verbatim)\n\n${ledgerDecisionsSection(ledger)}`;
+    if (deps.sabotage) md = deps.sabotage(md);
+    return { a, md, v: validateMilestonePlan(md, m) };
+  };
+  let cur = assemble();
+  const repairs = { structure: 0, guard: 0 };
+
+  // Muundo: jaribio 1 la kuandika upya PART 2 kwa makosa halisi ya validator
+  const structErrs = () => [...cur.a.problems.filter((p) => /hatua \d+ > kubwa|sehemu ya 6|Work Steps/.test(p)), ...cur.v.errors];
+  if (structErrs().length) {
+    repairs.structure++;
+    log("warning", `🗺️ Plan ${m.id}: validator imekataa (${structErrs().length}) — Optimus anaandika upya kipande 2…`);
+    const fixed = await deps.write({
+      label: `${m.id} rekebisha muundo`,
+      user: `${ctx}\n\n=== YOUR TASK ===\nThe code validator REJECTED your ${m.id} plan:\n${structErrs().map((e) => `- ${e}`).join("\n")}\n\nRewrite PART 2 COMPLETELY (sections 5, 6, 7 and 8 — same headings) fixing every error above. Same step template.\n\n${sectionsSpec(2, m, max)}\n\n${RULES}`,
+      maxOut: 24000,
+    });
+    planTexts.splice(0, planTexts.length, ...replacePlanStepsPart(planTexts, fixed));
+    cur = assemble();
+  }
+
+  // Data Guard: jaribio 1 la kurekebisha thamani
+  let hits = deps.facts ? deps.guard(cur.md) : [];
+  if (hits.length) {
+    repairs.guard++;
+    log("warning", `🛡️ Data Guard · plan ${m.id}: tofauti ${hits.length} — ${hits.slice(0, 4).map((h) => `"${h.found}"`).join(", ")} — Optimus anarekebisha…`);
+    const fixed = await deps.write({
+      label: `${m.id} rekebisha data`,
+      user: `${ctx}\n\nThe ${m.id} plan you wrote contains values that contradict DATA RASMI (deterministic guard):\n${hits.map((h) => `- Found: "${h.found}" — expected instead: ${String(h.expected).slice(0, 140)}`).join("\n")}\n\nRewrite ONLY the affected sections (same headings, same structure), every value corrected to match DATA RASMI word for word. Do not change anything else.`,
+      maxOut: 8000,
+    });
+    planTexts.push(fixed);
+    cur = assemble();
+    hits = deps.facts ? deps.guard(cur.md) : [];
+  }
+
+  const problems = [...cur.a.problems, ...cur.v.errors];
+  const status = planStatusOf(hits.length, problems);
+  const gate = isPlanExecutable({ status, md: cur.md, problems });
+  return {
+    milestoneId: m.id,
+    status,
+    executable: gate.ok,
+    reasons: gate.reasons,
+    markdown: cur.md,
+    steps: cur.v.stats.steps,
+    checks: cur.v.stats.checks,
+    routes: cur.v.stats.routes,
+    problems,
+    warnings: planWarningsOf(problems),
+    guardHits: hits.map((h) => ({ found: String(h.found), expected: String(h.expected).slice(0, 200) })),
+    repairs,
+  };
+}
+
+/** Kikomo cha chini cha hatua (onyo tu, Task 4) — kinatumika na ripoti. */
+export const MS_PLAN_STEPS_MIN = PLAN_STEPS_MIN;

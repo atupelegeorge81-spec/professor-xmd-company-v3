@@ -179,3 +179,15 @@ $ npm run cu:test        → Ran 186 tests — OK
   T3 `YOU ARE HERE: DISCUSS | Milestone M1` kwenye prompt halisi · T4 flag OFF: kinds sawa, prompts bila OCB.
 - Baselines: tsc 0 · vitest 455 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-14.md.
 
+
+## Task 15 (maelezo15): Plan ya kila Milestone (2026-10-18), branch task/15-milestone-plan
+- Mpya: `src/lib/milestone/plan.ts`:
+  - `validateMilestonePlan` (muundo: §1–9, Styling+Dependencies, ```checks kwa kila hatua yenye Files, route + viewports 3, proof command/http);
+  - `generateMilestonePlan` (vipande 2 + §9 ya Ledger neno kwa neno; repair muundo ≤1, data ≤1; active/structure_failed/guard_failed).
+- loop.ts: hatua ya plan si stub tena. Plan isiyotekelezeka → BLOCKED (resumeTo PLANNING), Computer haianzi. BLOCKED/PAUSED hairudiwi yenyewe.
+- boardRunner: OCB PLAN, event `milestonePlan`, store `plan:Mk` pekee. Flag ON + map → plan ya zamani ya mradi mzima inarukwa. Tests 13.
+- Maamuzi yangu (11, yameandikwa kwenye task-15.md): deps interface; §9 kwa code; muundo wa ```checks/route;
+  plan haiendi project_plans; chips 🗺️ zinaonekana; hairudii BLOCKED; build stub hadi Task 16.
+- T1 plan halisi active (hatua 3 · checks 14 · routes 1) · T2 bila Checks → makosa 4 sahihi kwa kila hatua ·
+  T3 sabotage → guard_failed, M1 BLOCKED, CU 0 · T4 VAT haiongezwi · T5 flag OFF: plan ya zamani (hatua 9), milestone/OCB 0.
+- Baselines: tsc 0 · vitest 468 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-15.md.
