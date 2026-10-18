@@ -78,6 +78,8 @@ export interface StepEntry {
   status: StepStatus;
   attempts: number; // mara ngapi imewekwa RUNNING (re-run baada ya crash huongeza)
   updatedAt: string; // ISO
+  /** TASK-14: hatua iliyokamilishwa na stub (si kazi halisi bado) */
+  stub?: boolean;
 }
 
 export interface LaneUse {
