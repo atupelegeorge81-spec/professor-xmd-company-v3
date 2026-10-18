@@ -50,16 +50,17 @@ const COMPUTER_LINE =
 const RULES =
   "RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).";
 
-const STAGE_LABEL: Record<OcbStage, string> = {
-  MAP: "MAP (step 1: agendas + milestone map)",
-  DISCUSS: "DISCUSS (step 2: agenda discussion)",
-  PLAN: "PLAN (step 3: milestone plan)",
-  BUILD: "BUILD (step 4: Computer builds)",
-  REVIEW_ANALYSE: "REVIEW_ANALYSE (step 6: reviewers analyse evidence)",
-  REVIEW_DISCUSS: "REVIEW_DISCUSS (step 6: team discusses findings)",
-  REVIEW_VERIFY: "REVIEW_VERIFY (step 7: reviewers verify fixes)",
-  FIX: "FIX (step 7: Computer fixes)",
-  FINAL_REPORT: "FINAL_REPORT (step 9: report for the CEO)",
+/** TASK-14: maelezo ya hatua — kipande cha MWISHO cha mstari (kiolezo cha maelezo11: `YOU ARE HERE: <stage> | Milestone …`). */
+const STAGE_STEP: Record<OcbStage, string> = {
+  MAP: "step 1: agendas + milestone map",
+  DISCUSS: "step 2: agenda discussion",
+  PLAN: "step 3: milestone plan",
+  BUILD: "step 4: Computer builds",
+  REVIEW_ANALYSE: "step 6: reviewers analyse evidence",
+  REVIEW_DISCUSS: "step 6: team discusses findings",
+  REVIEW_VERIFY: "step 7: reviewers verify fixes",
+  FIX: "step 7: Computer fixes",
+  FINAL_REPORT: "step 9: report for the CEO",
 };
 
 // ── Hali ya sasa ndani ya ramani ─────────────────────────────────────────────
@@ -73,7 +74,7 @@ function milestoneCtx(input: OcbInput) {
 
 function hereLine(input: OcbInput, titleMax = 120): string {
   const { ms, i, cur } = milestoneCtx(input);
-  const parts = [`YOU ARE HERE: ${STAGE_LABEL[input.stage]}`];
+  const parts = [`YOU ARE HERE: ${input.stage}`];
   if (cur) {
     const t = cur.title.length > titleMax ? `${cur.title.slice(0, titleMax - 1)}…` : cur.title;
     parts.push(`Milestone ${cur.id}: ${t} (agendas ${cur.agendas.from}–${cur.agendas.to}), milestone ${i + 1} of ${ms.length}`);
@@ -82,6 +83,7 @@ function hereLine(input: OcbInput, titleMax = 120): string {
   if (input.agenda) { const a = input.agenda.title; parts.push(`agenda ${input.agenda.index}: ${a.length > titleMax ? `${a.slice(0, titleMax - 1)}…` : a}`); }
   if (input.round && input.round.current > 0) parts.push(`round ${input.round.current}/${input.round.max}`);
   else if (input.stage === "REVIEW_ANALYSE") parts.push("round 0 (first review, not counted)");
+  parts.push(STAGE_STEP[input.stage]);
   return parts.join(" | ");
 }
 

@@ -168,3 +168,14 @@ $ npm run cu:test        → Ran 186 tests — OK
   T4 Koyeb flag OFF: signature sawa na baseline.
 - Baselines: tsc 0 · vitest 448 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-13.md.
 
+## Task 14 (maelezo14): Milestone loop + trigger (2026-10-18), branch task/14-milestone-trigger
+- Mpya: `src/lib/milestone/loop.ts` (maybeCloseMilestones: Ledger = ukweli → CAS DISCUSSING→PLANNING → runMilestoneBuild STUB:
+  milestoneClosed + chip, plan/build DONE stub, SIGNED_OFF), `testHooks.ts` (kunasa prompts, kukata agenda). boardRunner: trigger
+  baada ya kila agenda + resume + baada ya kitanzi; OCB DISCUSS kwenye prompts za mjadala (flag ON tu). ocb.ts: `YOU ARE HERE: <stage> |`
+  sasa sawa na kiolezo cha maelezo11. Tests 7.
+- Maamuzi yangu: agenda imefungwa = iko kwenye finalBoardResolution; event inatolewa na mshindi wa CAS tu; hitilafu ya loop haiangushi Board;
+  dev ya local ni `--turbopack` (webpack inazidi RAM).
+- T1 M1 ×1 baada ya agenda 2, M2 ×1 baada ya agenda 3 · T2 kill -9 wakati wa agenda 3 → recovery ya Task 5, M1 haikurudi (v5), M2 ×1 ·
+  T3 `YOU ARE HERE: DISCUSS | Milestone M1` kwenye prompt halisi · T4 flag OFF: kinds sawa, prompts bila OCB.
+- Baselines: tsc 0 · vitest 455 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-14.md.
+

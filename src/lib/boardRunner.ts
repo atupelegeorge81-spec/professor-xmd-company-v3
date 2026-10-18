@@ -49,7 +49,10 @@ import { serialQueue } from "./serialQueue"; // TASK-6
 import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES, default OFF)
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
 import { putRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13
-import { activeAgentsFor, rosterOwners, participantNames } from "./milestone/roster"; // TASK-13
+import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
+import { maybeCloseMilestones, milestonesDoneFromChips, type LoopHooks } from "./milestone/loop"; // TASK-14
+import { buildOCB, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14
+import { maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks"; // TASK-14 (XMD_TEST_HOOKS=1 pekee)
 import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
@@ -1221,6 +1224,10 @@ async function run(runner: Runner) {
       addChip("📋 Optimus anaunda agenda ya mradi...");
       const agendaResult = await generateAgenda(pmClient("agenda", "normal", true), pm.model, runner.project);
       agenda = agendaResult.items;
+      { // TASK-14 test hook (XMD_TEST_HOOKS=1 pekee): punguza agenda kwa majaribio mafupi
+        const cap = testMaxAgendas();
+        if (cap && agenda.length > cap) { blog("warning", `🧪 XMD_TEST_MAX_AGENDAS=${cap}: agenda ${agenda.length} → ${cap}`); agenda = agenda.slice(0, cap); }
+      }
       runner.agenda = agenda;
       if (agendaResult.skills) {
         blog("info", `🧠 skills.scope · Optimus · ${agendaResult.skills.scope || "—"}`);
@@ -1551,6 +1558,36 @@ async function run(runner: Runner) {
       );
     }
 
+    // TASK-14 · XMD_MILESTONES=1 PEKEE: code inaamua milestone imefungwa (Ledger = ukweli) → runMilestoneBuild (stub kwa sasa)
+    const msHooks = (status: string): LoopHooks => ({
+      bcast: (e) => bcast(e as BoardEvent), addChip, blog: (lvl, t) => blog(lvl, t),
+      persist: () => persist(status, conversationTitle),
+      resolvedAgendas: async () => new Set((await finalBoardResolution(runner.id)).map((e) => e.agenda_index)),
+    });
+    const closeMilestones = async (status: string) => {
+      if (!milestonesEnabled() || !runner.msMap) return;
+      try { await maybeCloseMilestones(runner, msHooks(status)); }
+      catch (e: any) { blog("warning", `⚠️ Milestone loop: ${String(e?.message || e).slice(0, 200)} — Board inaendelea.`); }
+    };
+    // OCB (stage DISCUSS) kwa prompts za mjadala — flag ON + ramani tu; vinginevyo prompt haibadiliki kabisa
+    const discussPrompt = (selfId: string, agendaIndex: number, agendaTitle: string, prompt: string): string => {
+      let out = prompt;
+      if (milestonesEnabled() && runner.msMap) {
+        const m = milestoneOf(runner.msMap, agendaIndex);
+        out = withOCB(prompt, buildOCB({
+          project: { name: conversationTitle, summary: runner.project }, map: runner.msMap, stage: "DISCUSS", self: selfId as OcbSelf,
+          milestoneId: m?.id, agenda: { index: agendaIndex, title: agendaTitle }, round: null,
+          counts: {
+            lockedDecisions: runner.items.filter((it) => it.kind === "chip" && /^\s*🔒 LOCKED/.test(String((it as { text?: string }).text || ""))).length,
+            milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects: 0, waivers: 0,
+          },
+        }));
+      }
+      maybeCapturePrompt({ sessionId: runner.sessionId || runner.id, agent: selfId, agenda: agendaIndex, phase: "discussion", system: out });
+      return out;
+    };
+    if (isResume) await closeMilestones("running");
+
     for (const item of agenda) {
       if (isResume && resolvedIndices.has(item.index)) {
         blog("info", `♻️ Kipengele ${item.index}/${agenda.length} tayari kimeshughulikiwa — kinarukwa.`);
@@ -1860,10 +1897,10 @@ ${delib.instructionFor(agent.id)}`;
             [
               {
                 role: "system",
-                content: await brain.prompt(agent.id, {
+                content: discussPrompt(agent.id, item.index, item.item, await brain.prompt(agent.id, {
                   phase: "discussion", role: "owner", agenda: agendaCtx, owners: ownerAgents.map((a) => a.name), observers: observerNames,
                   task: `${proposed ? `Current proposal: ${proposed.slice(0, 600)}` : ""}`, need: itemSources.length ? "" : "evidence missing", msgId, date: nowDate(),
-                }),
+                })), // TASK-14: OCB (flag ON tu)
               },
               {
                 role: "user",
@@ -2661,7 +2698,7 @@ Keep the answer under 80 words.
               [
                 {
                   role: "system",
-                  content: await brain.prompt(ob.id, { phase: "observer", role: "observer", agenda: agendaCtx, owners: ownerAgents.map((a) => a.name), observers: observerNames, task: decision.slice(0, 800), msgId: oid, date: nowDate() }),
+                  content: discussPrompt(ob.id, item.index, item.item, await brain.prompt(ob.id, { phase: "observer", role: "observer", agenda: agendaCtx, owners: ownerAgents.map((a) => a.name), observers: observerNames, task: decision.slice(0, 800), msgId: oid, date: nowDate() })), // TASK-14
                 },
                 {
                   role: "user",
@@ -2825,7 +2862,7 @@ const response = await streamTurn(
               [
                 {
                   role: "system",
-                  content: await brain.prompt(responder.id, { phase: "objection", role: round === 1 ? "owner answering an objection" : "owner deciding after the objector answered", agenda: agendaCtx, task: `${objection.agent}: ${objection.concern}`, need: "evidence claim objection", msgId: uid, date: nowDate() }),
+                  content: discussPrompt(responder.id, item.index, item.item, await brain.prompt(responder.id, { phase: "objection", role: round === 1 ? "owner answering an objection" : "owner deciding after the objector answered", agenda: agendaCtx, task: `${objection.agent}: ${objection.concern}`, need: "evidence claim objection", msgId: uid, date: nowDate() })), // TASK-14
                 },
                 {
                   role: "user",
@@ -2900,7 +2937,7 @@ ${roundNote}`,
               [
                 {
                   role: "system",
-                  content: await brain.prompt(objectorAgent.id, { phase: "objection", role: "objector answering the owner's question", agenda: agendaCtx, task: String(objection.concern).slice(0, 600), need: "evidence answer", msgId: oid2, date: nowDate() }),
+                  content: discussPrompt(objectorAgent.id, item.index, item.item, await brain.prompt(objectorAgent.id, { phase: "objection", role: "objector answering the owner's question", agenda: agendaCtx, task: String(objection.concern).slice(0, 600), need: "evidence answer", msgId: oid2, date: nowDate() })), // TASK-14
                 },
                 {
                   role: "user",
@@ -3175,8 +3212,10 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
         brain.state({ phase: "memory checkpoints" });
         await brain.onAgendaDone({ agendaIndex: item.index, agendaItem: item.item, participants, talk: subTalk, miniDecision: (item as any).__deferred ? `DEFERRED — ${String((item as any).__deferred).slice(0, 600)}` : `UNRESOLVED — no consensus; the item stays OPEN.${delib.closedReason ? ` (${delib.closedReason})` : ""}${openNote ? `\n${openNote.slice(0, 1200)}` : ""}` });
       }
+      await closeMilestones(`agenda_${item.index}_mini`); // TASK-14 (flag ON tu)
 
 }
+    await closeMilestones("running"); // TASK-14: wavu wa mwisho (agenda iliyoruka kwa `continue`)
     // ===== R20: FINISHING PASS (Endeleza) — finale iliyokatika inakamilishwa: KILICHOKOSEKANA tu kinaandikwa =====
     const prior = isResume ? scanFinale(runner.items as FinaleItem[]) : null;
     if (prior?.started) {
