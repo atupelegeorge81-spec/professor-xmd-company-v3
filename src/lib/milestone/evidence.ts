@@ -11,6 +11,8 @@ export interface EvidenceSpec {
   startCommand: string;
   port: number;
   routes: EvidenceRoute[];
+  /** TASK-20: `Key Selectors:` za plan — elements muhimu za DOM metrics (pamoja na generic) */
+  keySelectors: string[];
   /** makosa ya kusoma plan (mf. action isiyojulikana) — yanaingia kwenye manifest kama errors */
   problems: string[];
 }
@@ -22,12 +24,18 @@ export interface EvidenceRunConfig extends Omit<EvidenceSpec, "problems"> {
   outDir: string;
   startTimeoutMs: number;
   base?: string;
+  /** TASK-20: kikomo cha elements kwa kila dom.json */
+  domMaxElements: number;
 }
 
 export const EVIDENCE_TOOLS_DIR = ".xmd/tools";
 export const EVIDENCE_SCRIPT = `${EVIDENCE_TOOLS_DIR}/xmd-evidence.mjs`;
 export const evidenceDir = (milestoneId: string, round: number) => `.xmd/evidence/${milestoneId}/R${round}`;
 export const evidenceConfigPath = (milestoneId: string, round: number) => `${EVIDENCE_TOOLS_DIR}/evidence-${milestoneId}-R${round}.json`;
+/** TASK-20: kikomo cha elements kwa kila screenshot (maelezo20 "Cap"). */
+export const DOM_MAX_ELEMENTS = 150;
+/** TASK-20: S-001.png → S-001.dom.json (faili la pembeni). */
+export const domMetricsPath = (pngPath: string) => pngPath.replace(/\.png$/i, ".dom.json");
 export const evidenceKey = (milestoneId: string, round: number) => `evidence:${milestoneId}:R${round}`;
 
 /** visual/mixed tu wanahitaji screenshots (maelezo19 Goal). */
@@ -75,7 +83,10 @@ export function planEvidenceSpec(planMarkdown: string): EvidenceSpec {
     if (prev) { prev.states.push(...states); continue; }
     routes.push({ route: r[1], viewports: viewports.length ? viewports : [...PLAN_VIEWPORTS], states });
   }
-  return { startCommand: cmdLine(md, "Start Command"), port: EVIDENCE_PORT, routes, problems };
+  // mstari mzima (cmdLine inachukua backtick ya KWANZA tu — selectors nyingi zinaweza kuwa kila moja ndani ya backticks)
+  const ksLine = /^\s*[-*]?\s*\**\s*Key Selectors\s*\**\s*:\s*\**\s*(.+?)\s*$/im.exec(md)?.[1] || "";
+  const keySelectors = /^(none|n\/a|-)?$/i.test(ksLine.replace(/[`*]/g, "").trim()) ? [] : splitTop(ksLine).map((x) => x.replace(/`/g, "").replace(/^\*+|\*+$/g, "").trim()).filter(Boolean);
+  return { startCommand: cmdLine(md, "Start Command"), port: EVIDENCE_PORT, routes, keySelectors, problems };
 }
 
 /** Config ya script kwa raundi moja (local mode; `base` = deployed mode). */
@@ -83,6 +94,7 @@ export function evidenceRunConfig(spec: EvidenceSpec, milestoneId: string, round
   return {
     milestoneId, round, cwd: opts.cwd || "/home/user/ws", outDir: evidenceDir(milestoneId, round),
     startCommand: spec.startCommand, port: spec.port, routes: spec.routes, startTimeoutMs: opts.startTimeoutMs ?? 120_000,
+    keySelectors: spec.keySelectors || [], domMaxElements: DOM_MAX_ELEMENTS,
     ...(opts.base ? { base: opts.base } : {}),
   };
 }

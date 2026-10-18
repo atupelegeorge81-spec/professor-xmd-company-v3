@@ -244,3 +244,19 @@ $ npm run cu:test        → Ran 186 tests — OK
   T3 deployed Koyeb 3 viewports requireUrls OK, consoleErrors 0 (baada ya filter) · T4 404→exit 1 + kind http, manifest imeandikwa;
   T4b server faiba 1.2s · T5 URLs 21/21 200, uploads 21 zimefutwa (storage list: baki 0, public 200 = CDN cache).
 - Baselines: tsc 0 · vitest 525 + 2 skipped · pytest 333 · unittest 263 · eslint 0. Ushahidi: docs/tests/task-19.md.
+
+## Task 20 (maelezo20): Evidence — DOM metrics (2026-10-18), branch task/20-dom-metrics
+- `cu/xmd-evidence.mjs`: `collectDomMetrics` ndani ya ukurasa (KABLA ya screenshot) → `S-nnn.dom.json` kwa kila screenshot:
+  elements ≤150 (keySelectors + header/nav/main/footer/h1–h3/button/a/input/img): selector thabiti, text 40, box (CSS px, ukurasa),
+  visible, font family/size/weight/letterSpacing/textTransform, color, backgroundColor (ancestor asiye wazi + alpha), contrastRatio
+  WCAG, lowContrast (4.5 / 3 large), touchTarget + tooSmall (<44). Page: scrollWidth/innerWidth/hasHorizontalOverflow/overflowPx,
+  fontsLoaded/Failed, imagesWithoutAlt, headingOrderProblems, bodyBackground. `manifest.domMetrics[{screenshotId,path,url,summary}]`, kosa → kind `dom`.
+- evidence.ts: `Key Selectors:` (mstari mpya wa HIARI kwenye plan template) → `keySelectors`; `DOM_MAX_ELEMENTS=150`; config inapeleka zote.
+  cu/evidence.ts: dom.json → storage (url). schemas: validate domMetrics. types: EvidenceDomSummary + kind `dom`. appwrite.ts: `.json` mime.
+- Maamuzi yangu (9, kwenye task-20.md) — ya kipekee: pima KABLA ya full-page capture (inasogeza layout 1px); landmarks juu ya vitufe
+  kwenye kikomo; kazi nzito kwa ≤150 tu; dom.json inapakiwa storage.
+- T1 evil: overflow 3px, 20×20 tooSmall, contrast 2.03, uppercase+monospace, img bila alt, h1 baada ya h3 → zote kwenye JSON (8/8) ·
+  T2 good: overflow 0, tooSmall 0, min contrast 6.7 (8/8) · T3 Koyeb: header 56px, h1 25/28px, kitufe 36×36 / 32×32 (tooSmall),
+  overflow false, body rgb(7,8,11); requireUrls OK · T4 box = boundingBox() ±0.004px (3/3) · T5 150/363, hidden 0, landmarks zimebaki.
+  Jumla 23/23 PASS kwenye sandbox halisi ya E2B; uploads 32 + workspaces zimefutwa, sandbox imeuawa.
+- Baselines: tsc 0 · vitest 533 + 2 skipped · pytest 330 + 3 skipped · unittest 263 OK · eslint (bila backups/) 29 = kabla (0 mpya). Ushahidi: docs/tests/task-20.md.

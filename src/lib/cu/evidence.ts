@@ -33,6 +33,7 @@ export interface CaptureEvidenceResult {
   exit: number;
   /** makosa ya validateEvidencePack (requireUrls) — tupu = manifest sahihi */
   invalid: string[];
+  /** PNG + dom.json zilizopakiwa */
   uploaded: number;
   ms: number;
 }
@@ -89,6 +90,19 @@ export async function captureEvidence(sbx: EvidenceSandbox, input: CaptureEviden
       pack.errors.push({ kind: "upload", detail: `${s.id} (${s.path}): ${String(e?.message || e).slice(0, 200)}` });
     }
   }
+  // TASK-20: S-nnn.dom.json → storage (reviewers wanasoma namba hata sandbox ikifa)
+  if (!Array.isArray(pack.domMetrics)) pack.domMetrics = [];
+  for (const d of pack.domMetrics) {
+    try {
+      const raw: any = await sbx.files.read(`${ws}/${d.path}`, { format: "bytes" });
+      const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+      if (!u8.length) throw new Error("empty dom.json");
+      d.url = await upload(u8, `xmd-ev-${sid8}-${mk}-R${round}-${d.screenshotId}.dom.json`);
+      uploaded++;
+    } catch (e: any) {
+      pack.errors.push({ kind: "upload", detail: `${d.screenshotId} dom (${d.path}): ${String(e?.message || e).slice(0, 200)}` });
+    }
+  }
   const v = validateEvidencePack(pack, { requireUrls: true });
   return { pack, exit, invalid: v.ok ? [] : v.errors, uploaded, ms: Date.now() - t0 };
 }
@@ -96,5 +110,5 @@ export async function captureEvidence(sbx: EvidenceSandbox, input: CaptureEviden
 /** Muhtasari mfupi (chip/log). */
 export function evidenceSummary(r: CaptureEvidenceResult): string {
   const p = r.pack;
-  return `${p.screenshots.length} screenshots · uploaded ${r.uploaded} · errors ${p.errors.length} · console ${p.consoleErrors.length}${r.invalid.length ? ` · manifest invalid ${r.invalid.length}` : ""}`;
+  return `${p.screenshots.length} screenshots · dom ${(p.domMetrics || []).length} · uploaded ${r.uploaded} · errors ${p.errors.length} · console ${p.consoleErrors.length}${r.invalid.length ? ` · manifest invalid ${r.invalid.length}` : ""}`;
 }

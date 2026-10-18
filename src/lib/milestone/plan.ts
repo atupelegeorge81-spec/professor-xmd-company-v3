@@ -208,7 +208,8 @@ Step rules: sequential numbering 1..N; every step that creates or edits files MU
 Then a "**Screenshots:**" list — one line per route the harness must capture, EXACTLY in this shape:
 - route: / · states: default, menu-open[click #menu-toggle] · viewports: ${PLAN_VIEWPORTS.join(", ")}
 An extra state = a name plus its actions in brackets: \`click <css selector>\` or \`hover <css selector>\`, several actions joined with " > ".
-Then one line \`Start Command: <command that builds and serves the app on port ${EVIDENCE_PORT}>\` (e.g. \`npm run build && npm run start -- -p ${EVIDENCE_PORT}\`) — the harness runs it to take the screenshots.` : ""}${technical ? `
+Then one line \`Start Command: <command that builds and serves the app on port ${EVIDENCE_PORT}>\` (e.g. \`npm run build && npm run start -- -p ${EVIDENCE_PORT}\`) — the harness runs it to take the screenshots.
+Optionally one line \`Key Selectors: <comma-separated CSS selectors of this milestone's key elements, e.g. .product-card, #cart-button>\` — the harness measures them (box, fonts, colors, contrast, touch size) next to the generic landmarks.` : ""}${technical ? `
 Then a "**Proof:**" list — the exact commands / tests / API calls that prove the work (they must also appear as "command" or "http" checks in the steps).` : ""}
 ## 8. Agent Rules — DATA RASMI and LEDGER decisions are law; never invent; build ONLY milestone ${m.id}; stop and report on data conflicts or a failed check x2`;
 }

@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- TASK 20 (maelezo20) T1: ukurasa wenye kasoro za makusudi — kila moja lazima ionekane kwenye S-nnn.dom.json -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xmdtest evil fixture</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; color: #111111; font-family: Arial, sans-serif; }
+  header { height: 56px; background: #0a2540; color: #ffffff; display: flex; align-items: center; padding: 0 16px; }
+  /* kasoro 1: overflow ya 3px kwenye 375px (378 > 375) */
+  #wide { width: 378px; height: 10px; background: #e11d48; }
+  /* kasoro 2: kitufe 20x20 */
+  #tiny { width: 20px; height: 20px; padding: 0; border: 0; background: #2563eb; color: #fff; font-size: 10px; }
+  /* kasoro 3: contrast 2:1 (#b6b6b6 juu ya #ffffff) */
+  #faint { color: #b6b6b6; font-size: 16px; }
+  /* kasoro 4: uppercase + monospace */
+  #mono { text-transform: uppercase; font-family: monospace; font-size: 18px; }
+</style>
+</head>
+<body>
+  <header><strong>XMD evil</strong></header>
+  <main id="content">
+    <div id="wide"></div>
+    <h3 id="h3-first">Section before the title</h3>
+    <!-- kasoro 6: h1 inakuja baada ya h3 -->
+    <h1 id="title">Evil page title</h1>
+    <p id="faint">This text has a contrast ratio of about two to one.</p>
+    <p id="mono">monospace uppercase text</p>
+    <button id="tiny">x</button>
+    <!-- kasoro 5: img bila alt -->
+    <img id="noalt" width="40" height="40" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%2310b981'/%3E%3C/svg%3E">
+  </main>
+</body>
+</html>
