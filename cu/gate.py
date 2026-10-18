@@ -9,6 +9,9 @@ Masharti (kila moja linathibitishwa na hook YENYEWE kwa amri halisi ndani ya san
   b. `git status --porcelain` ni tupu NA kuna commit ≥1 tangu milestone ilipoanza (baseCommit);
   c. buildCommand ya plan (`.xmd/startpack.json`) inatoka exit 0;
   d. requiresTests → testCommand inaendeshwa na hook na inatoka exit 0.
+  e. TASK-25 (raundi ya marekebisho, `receipts` ndani ya startpack.json): `.xmd/receipts/R<n>.json` ni JSON array ya
+     Receipt halali (schema ya task 9) NA kila CO ina receipt. Raundi ya marekebisho haina Build Report (`report: false`);
+     receipts zote BLOCKED/CANNOT → commit haihitajiki (hakuna kazi ya kucommit).
 
 Loop guard: blocks 3 mfululizo bila maendeleo (hakuna commit mpya wala badiliko la ripoti) → kusimama kunaruhusiwa
 kama PARTIAL (`PARTIAL: gate failed: <list>`) — kamwe si mafanikio ya uongo. Pure: I/O ya amri ni `run` (inaweza kudungwa).
@@ -151,7 +154,16 @@ def evaluate(ws: str, cfg: dict, run: Runner = run_cmd) -> dict:
     # (a) Build Report
     rp = report_path(mk) if mk else ".xmd/reports/<milestone>-build-report.md"
     full = os.path.join(ws, rp)
-    if not mk:
+    rc_cfg = cfg.get("receipts") if isinstance(cfg.get("receipts"), dict) else None  # TASK-25
+    all_blocked = False
+    if rc_cfg is not None:
+        rres = check_receipts(ws, rc_cfg)
+        checks["receipts"] = rres["summary"]
+        failed.extend(rres["failed"])
+        all_blocked = rres["allBlocked"]
+    if mk and cfg.get("report") is False:
+        checks["report"] = "n/a"  # TASK-25: raundi ya marekebisho — receipts badala ya Build Report
+    elif not mk:
         failed.append("startpack: .xmd/startpack.json is missing or has no milestoneId")
         checks["report"] = "no-config"
     elif not os.path.isfile(full):
@@ -180,7 +192,9 @@ def evaluate(ws: str, cfg: dict, run: Runner = run_cmd) -> dict:
         checks["git"] = {"dirty": dirty[:20], "commitsSinceStart": n}
         if dirty:
             failed.append(f"git: uncommitted changes ({len(dirty)}): {', '.join(dirty[:6])} — commit your work (git add -A && git commit -m ...)")
-        if n < 1:
+        if n < 1 and all_blocked:
+            notes.append("git: no commit — every order is BLOCKED/CANNOT, nothing to commit")
+        elif n < 1:
             failed.append("git: no commit since this milestone started — commit the milestone work")
 
     # (c) build command ya plan
@@ -209,6 +223,83 @@ def evaluate(ws: str, cfg: dict, run: Runner = run_cmd) -> dict:
         checks["tests"] = "not-required"
 
     return {"passed": not failed, "failed": failed, "notes": notes, "checks": checks}
+
+
+# ------------------------------------------------------------------ (e) TASK-25: receipts (sawa na validateReceipt ya schemas.ts)
+RECEIPT_STATUSES = ("DONE", "PARTIAL", "BLOCKED", "CANNOT")
+
+
+def validate_receipt(r: object) -> list:
+    """Makosa ya Receipt moja (tupu = halali) — sheria zilezile za `validateReceipt` (task 9)."""
+    if not isinstance(r, dict):
+        return ["receipt: must be an object"]
+    e: list = []
+    oid = r.get("orderId")
+    if not isinstance(oid, str) or not oid.strip():
+        e.append("receipt.orderId: required (non-empty string)")
+    st = r.get("status")
+    if st not in RECEIPT_STATUSES:
+        e.append(f"receipt.status: must be one of {'|'.join(RECEIPT_STATUSES)} (got {st!r})")
+    blocked = st in ("BLOCKED", "CANNOT")
+    br = r.get("blockedReason")
+    if blocked and (not isinstance(br, str) or not br.strip()):
+        e.append(f"receipt.blockedReason: required (non-empty) when status is {st}")
+    elif br is not None and not isinstance(br, str):
+        e.append("receipt.blockedReason: must be a string")
+    fc = r.get("filesChanged")
+    if fc is None and blocked:
+        pass
+    elif not isinstance(fc, list):
+        e.append("receipt.filesChanged: must be an array")
+    else:
+        if not blocked and not fc:
+            e.append(f"receipt.filesChanged: must be non-empty when status is {st!r} (empty allowed only for BLOCKED|CANNOT)")
+        for i, f in enumerate(fc):
+            if not isinstance(f, dict):
+                e.append(f"receipt.filesChanged[{i}]: must be an object {{path,summary}}")
+                continue
+            for k in ("path", "summary"):
+                if not isinstance(f.get(k), str) or not f.get(k).strip():
+                    e.append(f"receipt.filesChanged[{i}].{k}: required (non-empty string)")
+    cr = r.get("commandsRun")
+    if cr is not None and (not isinstance(cr, list) or any(not isinstance(c, str) for c in cr)):
+        e.append("receipt.commandsRun: must be an array of strings")
+    if r.get("notes") is not None and not isinstance(r.get("notes"), str):
+        e.append("receipt.notes: must be a string")
+    return e
+
+
+def check_receipts(ws: str, rc: dict) -> dict:
+    """(e) receipts file ipo, ni array ya Receipt halali, na kila orderId ya raundi ina receipt."""
+    path = str(rc.get("path") or "")
+    orders = [str(x) for x in (rc.get("orderIds") or [])]
+    failed: list = []
+    full = os.path.join(ws, path) if path else ""
+    if not path or not os.path.isfile(full):
+        failed.append(f"receipts: file {path or '.xmd/receipts/R<n>.json'} does not exist — write one Receipt per change order ({', '.join(orders)})")
+        return {"failed": failed, "allBlocked": False, "summary": "missing"}
+    try:
+        with open(full, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception as ex:  # noqa: BLE001
+        failed.append(f"receipts: {path} is not valid JSON — {_short(str(ex), 120)}")
+        return {"failed": failed, "allBlocked": False, "summary": "invalid-json"}
+    if not isinstance(data, list):
+        failed.append(f"receipts: {path} must be a JSON array of Receipt objects")
+        return {"failed": failed, "allBlocked": False, "summary": "not-array"}
+    errs: list = []
+    for i, r in enumerate(data):
+        errs.extend(f"[{i}] {x}" for x in validate_receipt(r))
+    if errs:
+        failed.append(f"receipts: {path} has invalid receipts — " + "; ".join(errs[:6]))
+    have = {str(r.get("orderId")) for r in data if isinstance(r, dict)}
+    missing = [o for o in orders if o not in have]
+    if missing:
+        failed.append(f"receipts: no receipt for {', '.join(missing)} — every change order needs exactly one receipt")
+    statuses = [r.get("status") for r in data if isinstance(r, dict)]
+    all_blocked = bool(statuses) and not errs and not missing and all(s in ("BLOCKED", "CANNOT") for s in statuses)
+    return {"failed": failed, "allBlocked": all_blocked,
+            "summary": {"count": len(data), "missing": missing, "errors": len(errs), "allBlocked": all_blocked}}
 
 
 def _failure_key(f: str) -> str:

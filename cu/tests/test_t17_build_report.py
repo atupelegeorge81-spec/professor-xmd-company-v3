@@ -34,7 +34,9 @@ class BuildReportContract(unittest.TestCase):
         br = (CU / "bridge.py").read_text(encoding="utf-8")
         self.assertIn('ap.add_argument("--milestone", default="")', oh)
         self.assertIn('ap.add_argument("--milestone", default="")', br)
-        self.assertRegex(oh, re.escape("B.build_report_contract(a.milestone)") + r"\) if getattr\(a, \"milestone\", \"\"\) else \"\"\)")
+        # TASK-25: milestone_contract = Build Report (build) au Receipts (raundi ya marekebisho, startpack.json ina `receipts`)
+        self.assertRegex(oh, re.escape("B.milestone_contract(a.milestone, a.workspace)") + r"\) if getattr\(a, \"milestone\", \"\"\) else \"\"\)")
+        self.assertIn("build_report_contract(milestone)", br)
 
 
 if __name__ == "__main__":

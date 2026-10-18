@@ -188,13 +188,17 @@ export function buildOCB(input: OcbInput): string {
   return fit(input, []);
 }
 
-export function buildOCBForComputer(input: OcbInput): string {
+/** TASK-25: `ledger` (hiari, FIX tu) = maamuzi yaliyofungwa kwa mstari mfupi — Computer anaweza kukataa (BLOCKED) order inayoyapinga. */
+export function buildOCBForComputer(input: OcbInput, opts: { ledger?: string[] } = {}): string {
   const designer = `${nameOf("designer")} (${roleOf("designer")})`;
   const frontend = `${nameOf("frontend")} (${roleOf("frontend")})`;
+  const fix = input.stage === "FIX";
+  const ledger = (opts.ledger || []).map((l) => String(l).replace(/\s+/g, " ").trim().slice(0, 200)).filter(Boolean).slice(0, 12);
   return fit({ ...input, self: "computer" }, [
     `YOU ARE XMD COMPUTER: your work WILL be reviewed by a Designer — ${designer} — and a Frontend Engineer — ${frontend} — plus automatic checks run by the harness.`,
     "RECEIPTS: return one Receipt per change order (orderId, status DONE|PARTIAL|BLOCKED|CANNOT, filesChanged, commandsRun; blockedReason when BLOCKED|CANNOT).",
-    "FINISH: you cannot finish without the Build Report and passing checks.",
+    fix ? "FINISH: no finish without a valid receipt per order, a commit and passing checks." : "FINISH: you cannot finish without the Build Report and passing checks.",
+    ...(ledger.length ? [`LOCKED LEDGER (an order that contradicts these → do not apply it; receipt BLOCKED with the reason): ${ledger.join(" | ")}`] : []),
     "REPEATS: a repeated order means the previous attempt was not enough — change your approach, do not resubmit the same change.",
     "SELF-GRADING: do not grade yourself — the harness measures.",
   ]);

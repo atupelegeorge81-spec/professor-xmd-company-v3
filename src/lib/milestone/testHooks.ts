@@ -49,3 +49,10 @@ export function testGateOverride(milestoneId: string, env: NodeJS.ProcessEnv = p
   if (note) out.note = note;
   return out;
 }
+
+/** TASK 25 (T2): `XMD_TEST_FIX_NOOP_<Mk>=1` → baada ya attempt 1 ya raundi ya marekebisho, kazi ya Computer inafutwa
+ *  (`git reset --hard <HEAD ya mwanzo>`) — "Computer haikubadilisha kitu"; harness lazima iseme NOT_ATTEMPTED na irudie mara moja.
+ *  Attempt 2 (rerun) haiguswi. Inert bila XMD_TEST_HOOKS=1. */
+export function testFixNoop(milestoneId: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.XMD_TEST_HOOKS === "1" && !!milestoneId && env[`XMD_TEST_FIX_NOOP_${milestoneId}`] === "1";
+}

@@ -8,10 +8,14 @@ import type { MilestonePlanResult } from "./plan";
 import { BUILD_REPORT_INLINE_MAX, buildReportPath, crossCheckBuildReport, parseBuildReport, type BuildReportCommand } from "./buildReport";
 import { evidenceKey } from "./evidence"; // TASK-19
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
-import type { EvidencePack, Milestone, MilestoneMap, MilestoneState, MilestoneStatus } from "./types";
+import type { ChangeOrder, Defect, EvidenceCheckResult, EvidencePack, Milestone, MilestoneMap, MilestoneState, MilestoneStatus, RoundHeaderData } from "./types";
 import { reviewRound0, type ReviewContext, type ReviewDeps } from "./review"; // TASK-24 (T23 analyses)
-import { consolidate, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
+import { consolidate, cosKey, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
 import { brokerComplete } from "../broker/broker"; // TASK-24: Optimus consolidate
+import {
+  applyRoundToDefects, fixChecksKey, fixKey, mergeAttempts, noOpReminder, parseNumstat, parseReceipts, prevChangesLines, renderFixPack, roundChecks,
+  summarizeChecks, verifyReceipts, type CoVerification, type FixPhaseInput, type FixRaw, type RoundChecks, type RoundVerification,
+} from "./fixRound"; // TASK-25
 
 export interface LoopRunner {
   id: string;
@@ -40,6 +44,15 @@ export interface LoopHooks {
     analyseDeps?: ReviewDeps;
     consolidate?: (i: ConsolidateInput) => Promise<ConsolidateResult>;
   };
+  /** TASK-25: raundi ya marekebisho — Computer (mechanics za task 16) anatekeleza COs na kurudisha receipts. */
+  fix?: {
+    /** Computer OCB (stage FIX, pamoja na ledger fupi iliyofungwa) */
+    ocb: (m: Milestone, round: number, openDefects: number) => Promise<string>;
+    /** awamu ya Computer (engine.startComputerPhase + fix) */
+    run: (m: Milestone, planMarkdown: string, fix: FixPhaseInput) => Promise<BuildOutcome>;
+    /** acceptance + global checks (task 21 runChecks) kwenye sandbox ya milestone */
+    checks: (m: Milestone, rc: RoundChecks) => Promise<{ results: EvidenceCheckResult[]; ms: number }>;
+  };
 }
 
 /** TASK-16: matokeo ya awamu ya Computer (engine.MilestoneBuildOutcome — bila ku-import engine hapa). */
@@ -58,6 +71,8 @@ export interface BuildOutcome {
   buildReport?: { found: boolean; path: string; markdown: string; fileId?: string; changed: string[] };
   /** TASK-19: EvidencePack ya R0 (engine.captureEvidence) — visual/mixed tu */
   evidence?: { pack: EvidencePack; exit: number; invalid: string[]; uploaded: number; ms: number };
+  /** TASK-25: receipts + git diff ya raundi ya marekebisho (engine.MsFixRaw) */
+  fix?: FixRaw;
 }
 
 export const buildKey = (milestoneId: string) => `build:${milestoneId}`;
@@ -149,7 +164,7 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
     const status = cur?.status ?? "DISCUSSING";
     if (TERMINAL_STATUSES.includes(status)) continue;
     if (HOLD_STATUSES.includes(status)) continue; // TASK-15: BLOCKED (plan haitekelezeki) / PAUSED — hairudiwi yenyewe
-    if (status === "FIXING" || status === "VERIFYING") continue; // TASK-24: COs zinasubiri raundi za marekebisho (tasks 25+)
+    if (status === "VERIFYING" || (status === "FIXING" && !hooks.fix)) continue; // TASK-24/25: FIXING → raundi ya marekebisho (hooks.fix); VERIFYING = task 26
     const lockKey = `${runner.sessionId}:${m.id}`;
     if (running.has(lockKey)) continue;
     running.add(lockKey);
@@ -207,10 +222,11 @@ export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks:
       continue;
     }
     if (id.endsWith(".review") && hooks.review) {
-      // TASK-24: R0 — findings huru (T23) → mjadala wa timu (R-Mk-0) → Optimus COs. CHANGES → FIXING (inasimama hapa).
+      // TASK-24: R0 — findings huru (T23) → mjadala wa timu (R-Mk-0) → Optimus COs. CHANGES → FIXING.
       const r = await runReviewStep(runner, m, hooks, id);
-      if (!r.ok) return r.state;
+      if (!r.ok && !(r.state.status === "FIXING" && hooks.fix)) return r.state;
       rec = { ...rec, data: r.state };
+      if (r.state.status === "FIXING") break; // TASK-25: raundi ya marekebisho inafuata (chini)
       continue;
     }
     rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
@@ -219,6 +235,7 @@ export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks:
     });
     hooks.blog("info", `🧩 ${id} DONE (stub — kazi halisi inakuja tasks 15+).`);
   }
+  if (rec.data.status === "FIXING" && hooks.fix) return runFixRound(runner, m, rec.data.round, hooks); // TASK-25 (resume pia)
   rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
     let st = s as MilestoneState;
     for (let i = STUB_PATH.indexOf(st.status) + 1; i > 0 && i < STUB_PATH.length; i++) st = must(transition(st, { type: "GOTO", to: STUB_PATH[i] }));
@@ -368,6 +385,131 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
   const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "DONE")));
   await hooks.persist();
   return { ok: true, state: rec.data, result };
+}
+
+/* ============================ TASK-25: raundi ya marekebisho ============================ */
+
+const CLOSED_DEFECT = ["VERIFIED_FIXED", "WAIVED"];
+const OPEN_DEFECT = ["OPEN", "IN_FIX", "REOPENED"];
+
+/** RoundHeader (data) ya raundi n kutoka ledger ya defects. */
+export function fixRoundHeader(m: Milestone, round: number, maxRounds: number, defects: Defect[]): RoundHeaderData {
+  const mine = defects.filter((d) => d.milestoneId === m.id);
+  return {
+    milestoneId: m.id, round, maxRounds,
+    closedDefects: mine.filter((d) => CLOSED_DEFECT.includes(d.status)).length,
+    open: mine.filter((d) => OPEN_DEFECT.includes(d.status)).map((d) => ({ id: d.id, attempt: (d.attempts || 0) + 1 })),
+    waivers: mine.filter((d) => d.status === "WAIVED").length,
+    roundsLeft: Math.max(0, maxRounds - round),
+  };
+}
+
+function verifyRaw(cos: ChangeOrder[], raw: FixRaw | undefined): RoundVerification {
+  return verifyReceipts(cos, parseReceipts(raw?.receiptsRaw ?? null), raw?.changed || [], parseNumstat(raw?.numstat || ""));
+}
+
+function verificationLine(v: RoundVerification): string {
+  const n = (k: string) => v.cos.filter((c) => c.verdict === k).length;
+  return `APPLIED ${n("APPLIED")} · NOT_ATTEMPTED ${n("NOT_ATTEMPTED")} · BLOCKED ${n("BLOCKED")}${v.unlisted.length ? ` · UNLISTED_CHANGE ${v.unlisted.join(", ")}` : ""}${v.cos.some((c) => c.receipt === "REJECTED") ? ` · receipt REJECTED ${v.cos.filter((c) => c.receipt === "REJECTED").map((c) => c.orderId).join(", ")}` : ""}${v.receiptErrors.length ? ` · receipt errors ${v.receiptErrors.length}` : ""}`;
+}
+
+/**
+ * TASK-25 (maelezo25): raundi n ya marekebisho. Pack ya Computer = RoundHeader · Computer OCB · COs (kamili) · repo summary ·
+ * "what previous rounds changed" (≤40) — hakuna kingine. Computer anaandika `.xmd/receipts/R<n>.json` + commit (lango la task 18 (e)).
+ * Code inathibitisha receipts dhidi ya `git diff <before>..HEAD`; NO-OP → ujumbe wa kudumu + rerun MARA MOJA. Kisha acceptance za COs
+ * + checks za global (task 21) → store `fix:Mk:Rn`, `checks:Mk:Rn`, historia ya defects → VERIFYING (verify ya reviewers = task 26).
+ */
+export async function runFixRound(runner: LoopRunner, m: Milestone, round: number, hooks: LoopHooks): Promise<MilestoneState> {
+  const fh = hooks.fix as NonNullable<LoopHooks["fix"]>;
+  const sid = runner.sessionId as string;
+  const id = stepIdOf(m.id, round, "fix");
+  let rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(planSteps(s as MilestoneState, [id])));
+  if ((rec.data.steps || []).find((x) => x.stepId === id)?.status === "DONE") return rec.data;
+  const fail = async (to: MilestoneStatus, why: string) => {
+    const r = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "FAILED")), { type: "GOTO", to })));
+    hooks.addChip(`⛔ Raundi ya marekebisho ${m.id} R${round}: ${why.slice(0, 240)}`);
+    hooks.blog("error", `⛔ ${m.id} R${round}: ${why.slice(0, 400)} → ${m.id} ${to}.`);
+    await hooks.persist();
+    return r.data;
+  };
+  const cos = ((await getRecord<{ changeOrders?: ChangeOrder[] }>(sid, cosKey(m.id)))?.data?.changeOrders || []).slice().sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id));
+  const plan = (await getRecord<{ markdown?: string }>(sid, planKey(m.id)))?.data?.markdown || "";
+  if (!cos.length) return fail("BLOCKED", `cos:${m.id} haina Change Orders — hakuna cha kutekeleza`);
+  const defects0 = (await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || [];
+  const header = fixRoundHeader(m, round, rec.data.maxRounds, defects0);
+  const prev: { round: number; cos: CoVerification[] }[] = [];
+  for (let k = 1; k < round; k++) {
+    const r = (await getRecord<{ verification?: RoundVerification }>(sid, fixKey(m.id, k)))?.data;
+    if (r?.verification) prev.push({ round: k, cos: r.verification.cos });
+  }
+  const ocb = await fh.ocb(m, round, header.open.length);
+  const orderIds = cos.map((c) => c.id);
+  const render = (repo: { tree: string; gitLog: string }) => renderFixPack({ roundHeader: header, ocb, changeOrders: cos, repo, prevChanges: prevChangesLines(prev), milestoneId: m.id, round });
+
+  await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "RUNNING")));
+  await hooks.persist();
+  hooks.addChip(`🔧 ${m.id} R${round}: XMD Computer anatekeleza COs ${orderIds.length} (${orderIds.join(", ")})`);
+  hooks.blog("system", `🔧 ${m.id} R${round}: raundi ya marekebisho — COs ${orderIds.join(", ")} · ${header.open.length} defects wazi.`);
+  hooks.bcast({ type: "fixRound", id: m.id, round, phase: "start", orderIds });
+
+  const t0 = Date.now();
+  let out = await fh.run(m, plan, { round, attempt: 1, orderIds, render });
+  if (out.finalState === "PAUSED") {
+    hooks.blog("warning", `⏸️ ${m.id} R${round}: Computer imesimama (Board pause) — raundi itarudiwa Board ikiresume.`);
+    return ((await getRecord<MilestoneState>(sid, stateKey(m.id)))?.data ?? rec.data) as MilestoneState;
+  }
+  const v1 = verifyRaw(cos, out.fix);
+  hooks.bcast({ type: "receipts", id: m.id, round, attempt: 1, finalState: out.finalState, flags: v1.flags, unlisted: v1.unlisted, cos: v1.cos.map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus })) });
+  hooks.blog(v1.flags.length ? "warning" : "success", `🧾 ${m.id} R${round} attempt 1 (${out.finalState}): ${verificationLine(v1)}`);
+  let v: RoundVerification & { rerun?: { before: string[]; after: string[]; reminder: string } } = v1;
+  const attempts: { attempt: number; finalState: string; reason: string; verification: RoundVerification; fix?: FixRaw }[] = [{ attempt: 1, finalState: out.finalState, reason: out.reason, verification: v1, fix: out.fix }];
+  if (out.ok && v1.notAttempted.length) {
+    // NO-OP: ujumbe wa kudumu (maelezo25 §3) → Computer → rerun MARA MOJA (diff ya raundi nzima inapimwa upya)
+    const reminder = noOpReminder(v1);
+    hooks.addChip(`🔁 ${m.id} R${round}: NO-OP ${v1.notAttempted.join(", ")} — Computer anarudishiwa agizo (mara moja)`);
+    hooks.blog("warning", `🔁 ${m.id} R${round}: NOT_ATTEMPTED ${v1.notAttempted.join(", ")} → ujumbe kwa Computer: ${reminder.replace(/\n/g, " | ").slice(0, 400)}`);
+    hooks.bcast({ type: "fixReminder", id: m.id, round, orderIds: v1.notAttempted, message: reminder });
+    out = await fh.run(m, plan, { round, attempt: 2, orderIds, render, reminder, diffBase: out.fix?.headBefore || out.fix?.diffBase });
+    if (out.finalState === "PAUSED") {
+      hooks.blog("warning", `⏸️ ${m.id} R${round}: rerun imesimama (Board pause).`);
+      return ((await getRecord<MilestoneState>(sid, stateKey(m.id)))?.data ?? rec.data) as MilestoneState;
+    }
+    const v2 = verifyRaw(cos, out.fix);
+    v = { ...mergeAttempts(v1, v2), rerun: { ...mergeAttempts(v1, v2).rerun, reminder } };
+    attempts.push({ attempt: 2, finalState: out.finalState, reason: out.reason, verification: v2, fix: out.fix });
+    hooks.bcast({ type: "receipts", id: m.id, round, attempt: 2, finalState: out.finalState, flags: v2.flags, unlisted: v2.unlisted, cos: v2.cos.map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus })) });
+    hooks.blog(v2.flags.length ? "warning" : "success", `🧾 ${m.id} R${round} attempt 2 (${out.finalState}): ${verificationLine(v2)}`);
+  }
+
+  // checks: acceptance za COs + global (build, tests, console_clean, no_horizontal_overflow) — Computer ikimaliza kwa mafanikio tu
+  const rc = roundChecks(cos, plan);
+  let results: EvidenceCheckResult[] = [];
+  let checksMs = 0;
+  if (out.ok) {
+    try { const r = await fh.checks(m, rc); results = r.results; checksMs = r.ms; }
+    catch (e: any) { results = rc.checks.map((c) => ({ id: c.id, type: c.type, result: "ERROR" as const, detail: `check runner failed: ${String(e?.message || e).slice(0, 200)}` })); }
+  }
+  const perCo = summarizeChecks(results, rc.owner);
+  const now = new Date().toISOString();
+  await msUpdate(runner, fixChecksKey(m.id, round), () => ({ version: 1, id: m.id, round, results, owner: rc.owner, routes: rc.routes, ms: checksMs, ran: out.ok, at: now }));
+  await msUpdate(runner, fixKey(m.id, round), () => ({
+    version: 1, id: m.id, round, finalState: out.finalState, reason: out.reason, ok: out.ok, ms: Date.now() - t0,
+    orderIds, flags: v.flags, unlisted: v.unlisted, verification: v,
+    perCo: v.cos.map((c) => ({ orderId: c.orderId, attempt: c.attempt, verdict: c.verdict, receiptStatus: c.receiptStatus, receipt: c.receipt, diff: c.diff, checks: perCo[c.orderId] || { pass: 0, fail: 0, error: 0 }, blockedReason: c.blockedReason })),
+    attempts: attempts.map((a) => ({ attempt: a.attempt, finalState: a.finalState, reason: a.reason, flags: a.verification.flags, notAttempted: a.verification.notAttempted,
+      headBefore: a.fix?.headBefore, head: a.fix?.head, diffBase: a.fix?.diffBase, changed: (a.fix?.changed || []).slice(0, 200), receiptsRaw: String(a.fix?.receiptsRaw ?? "").slice(0, 20_000) || null, sabotaged: !!a.fix?.sabotaged })),
+    global: perCo.global || { pass: 0, fail: 0, error: 0 }, at: now,
+  }));
+  await msUpdate<{ version: number; defects: Defect[] }>(runner, "defects", (cur) => ({ version: 1, ...(cur || {}), defects: applyRoundToDefects(cur?.defects || defects0, cos, v, round, perCo) }));
+  const ck = perCo.global || { pass: 0, fail: 0, error: 0 };
+  const all = Object.values(perCo).reduce((a, s) => ({ pass: a.pass + s.pass, fail: a.fail + s.fail, error: a.error + s.error }), { pass: 0, fail: 0, error: 0 });
+  hooks.bcast({ type: "fixRound", id: m.id, round, phase: "done", finalState: out.finalState, ok: out.ok, flags: v.flags, unlisted: v.unlisted, perCo: v.cos.map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus, diff: c.diff, checks: perCo[c.orderId] })), checks: all, global: ck, rerun: v.rerun ? { before: v.rerun.before, after: v.rerun.after } : undefined });
+  if (!out.ok) return fail(out.finalState === "PAUSED_QUOTA" ? "PAUSED_QUOTA" : "BLOCKED", `${out.finalState}${out.reason ? ` — ${out.reason}` : ""} (XMD Computer, raundi ya marekebisho) · ${verificationLine(v)}`);
+  const done = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "DONE")), { type: "GOTO", to: "VERIFYING" })));
+  hooks.addChip(`🧾 ${m.id} R${round}: ${verificationLine(v)} · checks ${all.pass}P/${all.fail}F/${all.error}E`);
+  hooks.blog(all.error ? "warning" : "success", `🧾 ${m.id} R${round} imekamilika: ${verificationLine(v)} · checks PASS ${all.pass} · FAIL ${all.fail} · ERROR ${all.error} → VERIFYING (verify ya reviewers = task 26).`);
+  await hooks.persist();
+  return done.data;
 }
 
 /** Hali ya milestones kutoka chips za runner (kwa OCB counts) — bila kugusa DB. */
