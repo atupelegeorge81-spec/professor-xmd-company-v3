@@ -29,7 +29,7 @@ vi.mock("../store", async () => {
 
 import { maybeCloseMilestones, milestonesDoneFromChips, type LoopHooks, type LoopRunner } from "../loop";
 import { stateKey } from "../store";
-import { captureTarget, maybeCapturePrompt, testMaxAgendas } from "../testHooks";
+import { captureTarget, maybeCapturePrompt, testGateOverride, testMaxAgendas } from "../testHooks";
 import type { MilestoneMap } from "../types";
 import { validateMilestoneState } from "../schemas";
 
@@ -164,6 +164,13 @@ describe("testHooks", () => {
     expect(testMaxAgendas({ XMD_TEST_HOOKS: "1", XMD_TEST_MAX_AGENDAS: "3" } as any)).toBe(3);
     expect(testMaxAgendas({ XMD_TEST_HOOKS: "1", XMD_TEST_MAX_AGENDAS: "0" } as any)).toBeNull();
   });
+  it("TASK-18 testGateOverride: inert bila XMD_TEST_HOOKS=1; per-milestone ikiwa ON", () => {
+    expect(testGateOverride("M1", { XMD_TEST_BUILD_CMD_M1: "exit 3", XMD_TEST_CU_NOTE_M1: "x" } as any)).toEqual({});
+    expect(testGateOverride("M1", { XMD_TEST_HOOKS: "1", XMD_TEST_BUILD_CMD_M1: "exit 3", XMD_TEST_CU_NOTE_M2: "y" } as any)).toEqual({ buildCommand: "exit 3" });
+    expect(testGateOverride("M2", { XMD_TEST_HOOKS: "1", XMD_TEST_BUILD_CMD_M1: "exit 3", XMD_TEST_CU_NOTE_M2: "y" } as any)).toEqual({ note: "y" });
+    expect(testGateOverride("M1", { XMD_TEST_GOAL_OFF_M1: "1" } as any)).toEqual({});
+    expect(testGateOverride("M1", { XMD_TEST_HOOKS: "1", XMD_TEST_GOAL_OFF_M1: "1" } as any)).toEqual({ goalOff: true });
+  });
 });
 
 describe("TASK-16: hatua ya build kupitia hooks.build (XMD Computer kwa kila milestone)", () => {
@@ -188,7 +195,7 @@ describe("TASK-16: hatua ya build kupitia hooks.build (XMD Computer kwa kila mil
     expect(validateMilestoneState(t.st).ok).toBe(true);
   });
 
-  for (const fs of ["STUCK", "BLOCKED", "ERROR"]) {
+  for (const fs of ["STUCK", "BLOCKED", "ERROR", "PARTIAL"]) {
     it(`${fs} → build FAILED, M1 BLOCKED (resumeTo BUILDING), sababu wazi, hairudiwi yenyewe`, async () => {
       const t = await run({ ok: false, finalState: fs, reason: "liveness: no bridge event for 60s" });
       expect([t.st.status, t.st.resumeTo]).toEqual(["BLOCKED", "BUILDING"]);

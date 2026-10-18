@@ -17,7 +17,7 @@ import { InputFile } from "node-appwrite/file";
 import { appwriteConfigured, databases, DB, storage, SCREENSHOTS_BUCKET } from "@/lib/server/appwrite";
 import { publicFileUrl } from "@/lib/server/supabase"; // R42.1
 import { mirrorEvent, mirrorMapOf, restoreFromMirror, sandboxAlive } from "./mirror"; // R44: kiovu + liveness
-import { computeFinalOutcome, type CuFinalState } from "./finalState"; // TASK-3
+import { type CuGateInfo, computeFinalOutcome, type CuFinalState } from "./finalState"; // TASK-3
 import { isPlanExecutable } from "./planGate"; // TASK-4
 import { FEATURE_LIST_SANDBOX_PATH, featureListJson, featuresFromPlan } from "./features"; // R50-Awamu 1
 import { getPlanBySession, PROJECT_PLANS_COL, type ProjectPlanDoc } from "@/lib/server/plans";
@@ -32,9 +32,10 @@ import { GEM_ACCOUNTS, type GemAccountId } from "@/lib/usage/accounts";
 import type { ProviderUsage, UsageMap } from "@/lib/usageChip";
 import type { Runner, PauseOrigin } from "@/lib/boardRunner";
 import type { BoardEvent, LogEntry } from "@/lib/types";
-import { parseRepoSummary, renderStartPack, REPO_SUMMARY_CMD, type MilestoneStartPack } from "@/lib/milestone/startpack"; // TASK-16
-import { cuSilentBridge, maybeCapturePrompt } from "@/lib/milestone/testHooks"; // TASK-16
+import { parseRepoSummary, planGateCommands, renderStartPack, REPO_SUMMARY_CMD, type MilestoneStartPack } from "@/lib/milestone/startpack"; // TASK-16/18
+import { cuSilentBridge, maybeCapturePrompt, testGateOverride } from "@/lib/milestone/testHooks"; // TASK-16/18
 import { BUILD_REPORT_INLINE_MAX, buildReportPath } from "@/lib/milestone/buildReport"; // TASK-17
+const STARTPACK_JSON = ".xmd/startpack.json"; // TASK-18 (cu/gate.py STARTPACK_JSON)
 
 /* ============================ env ============================ */
 
@@ -428,6 +429,8 @@ function bridgeCommand(o: {
   title: string; session: string; token: string; startI: number; resumeNote: string; restoreUrl?: string; taskFile?: string;
   /** TASK-17: awamu ya milestone → bridge inaweka mkataba wa Build Report (.xmd/reports/<Mk>-build-report.md) */
   milestone?: string;
+  /** TASK-18 test hook pekee (XMD_TEST_GOAL_OFF_<Mk>): bridge bila judge → lango ndilo kizuizi pekee */
+  goalOff?: boolean;
 }): string {
   const common = [
     `cd /home/user && bash /home/user/cu_setup.sh;`,
@@ -444,6 +447,7 @@ function bridgeCommand(o: {
     `GITHUB_ORG=${q(GITHUB_ORG)}`,
     `GITHUB_USERNAME=${q(GITHUB_USER)}`,
     `VERCEL_TOKEN=${q(process.env.CU_VERCEL_TOKEN || process.env.VERCEL_TOKEN || "")}`,
+    ...(o.goalOff ? ["XMD_GOAL_OFF=1"] : []),
   ];
   const sharedArgs = [
     `--task-file ${o.taskFile || "/home/user/plan.md"}`,
@@ -483,12 +487,14 @@ async function loadEngineFiles(): Promise<Array<[string, string]>> {
           ["/home/user/xmd_shot.py", "xmd_shot.py"],
           ["/home/user/xmd-law.md", "xmd-law.md"],
           ["/home/user/features_verify.py", "features_verify.py"], // Awamu 2: harness gate
+          ["/home/user/gate.py", "gate.py"], // TASK-18: completion gate (milestone)
           ["/home/user/oh_bridge.py", "oh_bridge.py"],
           ["/home/user/cu_setup.sh", "setup.sh"],
         ]
       : [
           ["/home/user/cu_brain.py", "brain.py"],
           ["/home/user/cu_bridge.py", "bridge.py"],
+          ["/home/user/gate.py", "gate.py"], // TASK-18: on_stop ya milestone ina-import `gate`
           ["/home/user/cu_setup.sh", "setup.sh"],
         ];
   const srcs = await Promise.all(pairs.map(([, n]) => readCuFile(n)));
@@ -776,11 +782,11 @@ export interface MsBuildReportRaw {
 }
 
 /** Hali zinazomaliza hatua ya build kama FAILED (spec 6). PAUSED_QUOTA → milestone PAUSED_QUOTA. */
-export const MS_BUILD_FAIL_STATES: readonly string[] = ["STUCK", "BLOCKED", "ERROR", "PAUSED_QUOTA"];
+export const MS_BUILD_FAIL_STATES: readonly string[] = ["STUCK", "BLOCKED", "ERROR", "PAUSED_QUOTA", "PARTIAL"]; // TASK-18: PARTIAL = lango halikupita → si mafanikio
 
 const MS_GIT = "git -c user.name='XMD Computer' -c user.email='computer@professor-xmd.local'";
 /** faili za harness/installs — hazi-commitiwi kwenye repo ya mradi (.git/info/exclude, si .gitignore ya mradi) */
-const MS_GIT_EXCLUDE = ["node_modules/", ".xmd/oh/", ".cache/", "plan.md", "feature_list.json", "AGENTS.md"];
+const MS_GIT_EXCLUDE = ["node_modules/", ".xmd/oh/", ".cache/", "plan.md", "feature_list.json", "AGENTS.md", ".xmd/startpack.json", "CLAUDE.md", "STATUS.md"]; // TASK-18: faili za harness hazichafui `git status`
 const MS_KILL_BRIDGE = "pkill -9 -f '[c]u_bridge\\.py|[o]h_bridge\\.py|[s]leep 86400' || true";
 const MS_SNAP = "/tmp/xmd-ms-ws.tar.gz";
 
@@ -825,7 +831,7 @@ async function msReadBuildReport(sbx: any, hooks: CuHooks, id: string, headBefor
   const SEP = "@@XMD_DIFF@@";
   const diff = /^[0-9a-f]{7,40}$/.test(headBefore)
     ? `git diff --name-only ${headBefore} HEAD`
-    : "git diff-tree --root -r --name-only --no-commit-id HEAD";
+    : "git ls-tree -r --name-only HEAD"; // repo mpya: KILA faili ya HEAD ni ya awamu hii (agent anaweza kucommit mara kadhaa — TASK-18)
   const out: MsBuildReportRaw = { found: false, path, markdown: "", changed: [] };
   try {
     const r: any = await sbx.commands.run(
@@ -913,7 +919,7 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
     } catch (e) { console.warn(`[cu] feature_list.json (${id}): ${String(e).slice(0, 140)}`); }
     await sbx.files.write("/home/user/cu-config.json", JSON.stringify(buildCuConfig()));
     await sbx.commands.run(
-      `mkdir -p /home/user/ws && cd /home/user/ws && (git rev-parse --git-dir >/dev/null 2>&1 || git init -q) && mkdir -p .git/info && printf '%s\\n' ${MS_GIT_EXCLUDE.map(q).join(" ")} > .git/info/exclude`,
+      `mkdir -p /home/user/ws && cd /home/user/ws && (git rev-parse --git-dir >/dev/null 2>&1 || git init -q) && mkdir -p .git/info .xmd && printf '%s\\n' ${MS_GIT_EXCLUDE.map(q).join(" ")} > .git/info/exclude`,
       { timeoutMs: 30_000 }).catch(() => {});
 
     // (2) StartPack + muhtasari HALISI wa repo kutoka sandbox
@@ -922,17 +928,37 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
     const note = fresh && restored
       ? `IMPORTANT: this is a NEW sandbox — the workspace of earlier milestones was restored (${restored} files). Reinstall dependencies (npm install etc.) before you continue.`
       : "";
-    const pack = renderStartPack(ph.startPack, parseRepoSummary(repoOut), note);
+    const tg = testGateOverride(id); // TASK-18 test hook (inert bila XMD_TEST_HOOKS=1)
+    const gateCmds = planGateCommands(ph.planMarkdown);
+    const gateBuild = tg.buildCommand ?? gateCmds.buildCommand;
+    const gateText = [
+      "", "## COMPLETION GATE (the harness checks this itself before you may finish)",
+      `1. \`${buildReportPath(id)}\` exists and follows the Build Report contract.`,
+      "2. `git status --porcelain` is empty and this milestone has at least one commit: commit your work yourself (`git add -A && git commit -m \"...\"`).",
+      gateBuild ? `3. The build command \`${gateBuild}\` exits 0.` : "3. (no build command in this plan)",
+      gateCmds.requiresTests ? `4. The test command \`${gateCmds.testCommand}\` exits 0.` : "4. (tests not required by this plan)",
+      "If any check fails you will be blocked and told exactly what failed.",
+    ].join("\n");
+    const pack = renderStartPack(ph.startPack, parseRepoSummary(repoOut), note) + `\n${gateText}\n` + (tg.note ? `\n## TEST INSTRUCTION (harness test)\n${tg.note}\n` : "");
     await sbx.files.write("/home/user/startpack.md", pack);
     maybeCapturePrompt({ sessionId: runner.sessionId || runner.id, agent: "computer", agenda: 0, phase: `computer:${id}`, system: pack });
 
     const silent = cuSilentBridge();
     const cmd = silent
       ? "sleep 86400"
-      : bridgeCommand({ title: `${ph.title || hooks.title || "Mradi"} · ${id}`, session: runner.sessionId || runner.id, token: cu.token, startI: cu.maxI, resumeNote: "", taskFile: "/home/user/startpack.md", milestone: id });
+      : bridgeCommand({ title: `${ph.title || hooks.title || "Mradi"} · ${id}`, session: runner.sessionId || runner.id, token: cu.token, startI: cu.maxI, resumeNote: "", taskFile: "/home/user/startpack.md", milestone: id, goalOff: tg.goalOff });
     // TASK-17: HEAD ya mwanzo wa awamu → `git diff` ya awamu hii (sehemu ya 2 ya Build Report inalinganishwa nayo)
     let headBefore = "";
     try { headBefore = String((await sbx.commands.run("cd /home/user/ws && git rev-parse --verify -q HEAD || true", { timeoutMs: 15_000 }))?.stdout || "").trim(); } catch { /* */ }
+    // TASK-18: `.xmd/startpack.json` — lango la bridge linasoma amri za plan + baseCommit (commit ≥1 tangu mwanzo)
+    const gateCfg = {
+      milestoneId: id, title: ph.startPack.title,
+      buildCommand: gateBuild, testCommand: gateCmds.testCommand, requiresTests: gateCmds.requiresTests,
+      baseCommit: /^[0-9a-f]{7,40}$/.test(headBefore) ? headBefore : "",
+      reportPath: buildReportPath(id),
+    };
+    await sbx.files.write(`/home/user/ws/${STARTPACK_JSON}`, JSON.stringify(gateCfg, null, 2));
+    hooks.blog("info", `🚦 ${id}: lango la kumaliza — build \`${gateCfg.buildCommand || "(plan haina Build Command)"}\`${gateCfg.requiresTests ? ` · tests \`${gateCfg.testCommand}\`` : ""} · base ${gateCfg.baseCommit ? gateCfg.baseCommit.slice(0, 7) : "(repo mpya)"}.`);
     if (silent) hooks.blog("warning", `🧪 XMD_TEST_CU_SILENT: bridge ya kimya (test hook) — liveness ya ${Math.round(CU_LIVENESS_MS / 1000)}s itaikata.`);
     hooks.blog("api", `🚀 ${id}: sandbox ${cu.sandboxId?.slice(0, 8)}… — bridge mpya inaanzishwa (StartPack herufi ${pack.length}).`);
 
@@ -1025,12 +1051,16 @@ function finishMilestonePhase(runner: Runner, hooks: CuHooks | null, ev: CuEvent
   if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; }
   const id = String((cu as any).msPhase?.id || "");
   const status = String(ev.status || "done");
+  // TASK-18: flag ON → COMPLETED_VERIFIED TU lango likipita (gate kwenye run_end); COMPLETED_UNVERIFIED haipo hapa
+  const gate = (ev as any).gate && typeof (ev as any).gate === "object" ? (ev as any).gate as CuGateInfo : undefined;
   const outcome = computeFinalOutcome({
     status, hasReport: !!cu.report, paused: status === "paused_quota",
     error: ev.fatal ? String(ev.fatal).slice(0, 200) : undefined,
+    milestone: true, gate,
   });
   cu.finalState = outcome.state;
   cu.finalReason = outcome.reason;
+  (cu as any).gate = gate;
   cu.done = true;
   runner.items.push({
     kind: "cu", id: `cu_end_${runner.items.length}`, i: ev.i, cu: "run_end", status, milestone: id,

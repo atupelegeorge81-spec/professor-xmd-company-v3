@@ -55,3 +55,18 @@ describe("TASK-3 · computeFinalOutcome — ok + reason", () => {
     expect(o.reason).toBe("stuck · brake fired");
   });
 });
+
+describe("TASK-18 · COMPLETED_VERIFIED (milestone + gate)", () => {
+  it("milestone: done + gate.passed → COMPLETED_VERIFIED (ok); bila gate → PARTIAL; partial → PARTIAL na orodha", () => {
+    const v = computeFinalOutcome({ status: "done", hasReport: true, paused: false, milestone: true, gate: { passed: true, blocks: 2 } });
+    expect(v).toEqual({ state: "COMPLETED_VERIFIED", ok: true, reason: "completed, verified by the completion gate (blocks 2)" });
+    expect(computeFinalOutcome({ status: "done", hasReport: true, paused: false, milestone: true }).state).toBe("PARTIAL");
+    const p = computeFinalOutcome({ status: "partial", hasReport: true, paused: false, milestone: true, gate: { passed: false, partial: true, failed: ["git: no commit"] } });
+    expect([p.state, p.ok, p.reason]).toEqual(["PARTIAL", false, "PARTIAL: gate failed: git: no commit"]);
+    expect(computeFinalOutcome({ status: "stuck", hasReport: true, paused: false, milestone: true, gate: { passed: true } }).state).toBe("STUCK");
+  });
+  it("legacy (bila milestone) haibadiliki: done + ripoti → COMPLETED_UNVERIFIED hata gate ikiwepo", () => {
+    expect(computeFinalOutcome({ status: "done", hasReport: true, paused: false, gate: { passed: true } }).state).toBe("COMPLETED_UNVERIFIED");
+    expect(computeFinalOutcome({ status: "partial", hasReport: true, paused: false }).state).toBe("ERROR");
+  });
+});

@@ -31,19 +31,30 @@ beforeEach(() => { vi.spyOn(console, "log").mockImplementation(() => {}); vi.spy
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 describe("TASK-16 · run_end ya awamu ya milestone", () => {
-  it("finish + run_end done → COMPLETED_UNVERIFIED; persist \"running\" (Board inaendelea); session/finale haziguswi", async () => {
+  it("finish + run_end done + gate passed → COMPLETED_VERIFIED (TASK-18); persist \"running\" (Board inaendelea); session/finale haziguswi", async () => {
     const runner = fakeRunner();
     const p = msPhase(runner);
     const persisted: string[] = []; const events: any[] = [];
     const h = hooksOf(persisted, events);
     await handleCuEvent(runner, h, { type: "finish", i: 3, report: "Ripoti ya M1", status: "done" } as any);
-    await handleCuEvent(runner, h, { type: "run_end", i: 4, status: "done", steps: 5, ms: 1000 } as any);
-    expect([p.cu.finalState, p.cu.done, p.resolved()]).toEqual(["COMPLETED_UNVERIFIED", true, true]);
+    await handleCuEvent(runner, h, { type: "run_end", i: 4, status: "done", steps: 5, ms: 1000, gate: { passed: true, blocks: 1, failed: [] } } as any);
+    expect([p.cu.finalState, p.cu.done, p.resolved()]).toEqual(["COMPLETED_VERIFIED", true, true]);
     expect(persisted).not.toContain("completed");
     expect(persisted.at(-1)).toBe("running");
     expect((runner as any).finale.computer).toBeUndefined();
-    expect(runner.items.filter((it: any) => it.cu === "run_end").map((it: any) => [it.milestone, it.finalState])).toEqual([["M1", "COMPLETED_UNVERIFIED"]]);
+    expect(runner.items.filter((it: any) => it.cu === "run_end").map((it: any) => [it.milestone, it.finalState])).toEqual([["M1", "COMPLETED_VERIFIED"]]);
     expect(events.some((e) => e.cu?.type === "phase_done" && e.cu.milestone === "M1" && e.cu.ok === true)).toBe(true);
+  });
+
+  it("TASK-18: run_end done BILA gate → PARTIAL (si COMPLETED_UNVERIFIED); status partial + gate failed → PARTIAL na orodha", async () => {
+    const r1 = fakeRunner(); const p1 = msPhase(r1);
+    await handleCuEvent(r1, hooksOf([]), { type: "finish", i: 3, report: "R", status: "done" } as any);
+    await handleCuEvent(r1, hooksOf([]), { type: "run_end", i: 4, status: "done", steps: 1, ms: 1 } as any);
+    expect([p1.cu.finalState, p1.cu.finalReason]).toEqual(["PARTIAL", "PARTIAL: completion gate did not pass (no gate result)"]);
+    const r2 = fakeRunner(); const p2 = msPhase(r2);
+    await handleCuEvent(r2, hooksOf([]), { type: "run_end", i: 4, status: "partial", steps: 1, ms: 1, gate: { passed: false, partial: true, blocks: 3, failed: ["build: `exit 3` exited 3 — "] } } as any);
+    expect(p2.cu.finalState).toBe("PARTIAL");
+    expect(p2.cu.finalReason).toContain("PARTIAL: gate failed: build: `exit 3` exited 3");
   });
 
   it("run_end stuck (liveness) → STUCK, reason ina sababu", async () => {
@@ -141,10 +152,10 @@ describe("TASK-17 · msReadBuildReport (ripoti + git diff ya awamu)", () => {
     expect(r).toMatchObject({ found: true, path: ".xmd/reports/M2-build-report.md", markdown: "# M2 Build Report\n## 1 Summary\nx", changed: ["README.md", ".xmd/reports/M2-build-report.md"] });
     expect(cmds[0]).toContain("git diff --name-only 80306f7aa HEAD");
   });
-  it("repo mpya (bila HEAD) → diff-tree --root; ripoti haipo → found:false", async () => {
+  it("repo mpya (bila HEAD ya mwanzo) → ls-tree ya HEAD (commits zote za awamu); ripoti haipo → found:false", async () => {
     const cmds: string[] = [];
     const r = await __t16Snapshot.msReadBuildReport(sbx("\n@@XMD_DIFF@@\nREADME.md\n", cmds), h, "M1", "");
     expect(r).toMatchObject({ found: false, markdown: "", changed: ["README.md"] });
-    expect(cmds[0]).toContain("git diff-tree --root -r --name-only --no-commit-id HEAD");
+    expect(cmds[0]).toContain("git ls-tree -r --name-only HEAD");
   });
 });

@@ -142,3 +142,31 @@ export function renderStartPack(p: MilestoneStartPack, repo: { tree: string; git
     "",
   ].join("\n");
 }
+
+/* ---------------------------------------------------------------- TASK 18: amri za lango (.xmd/startpack.json) */
+
+export interface PlanGateCommands {
+  /** `Build Command:` ya plan (§4) — lango (c) linaiendesha, lazima exit 0 */
+  buildCommand: string;
+  /** `Test Command:` ya plan — "" ikiwa haipo au "none" */
+  testCommand: string;
+  /** plan inadai tests (Test Command halisi ipo) → lango (d) */
+  requiresTests: boolean;
+}
+
+const NONE_RE = /^(?:none|n\/a|na|hakuna|no tests?|-|—)\.?$/i;
+const cmdLine = (md: string, label: string): string => {
+  const m = new RegExp(`^\\s*[-*]?\\s*\\**${label}\\s*\\**\\s*:\\s*\\**\\s*(.+?)\\s*$`, "im").exec(md || "");
+  if (!m) return "";
+  let v = m[1].trim().replace(/\*+$/, "").trim();
+  const tick = /^`([^`]+)`/.exec(v);
+  if (tick) v = tick[1].trim();
+  return NONE_RE.test(v) ? "" : v;
+};
+
+/** Soma `Build Command:` / `Test Command:` kutoka plan ya milestone (mistari ya §4). */
+export function planGateCommands(planMarkdown: string): PlanGateCommands {
+  const buildCommand = cmdLine(planMarkdown, "Build Command");
+  const testCommand = cmdLine(planMarkdown, "Test Command");
+  return { buildCommand, testCommand, requiresTests: !!testCommand };
+}

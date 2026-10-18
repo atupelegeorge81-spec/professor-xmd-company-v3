@@ -13,6 +13,8 @@ x
 x
 ## 4. Tech Stack & Design Tokens
 Styling + Dependencies: plain CSS in styles.css ; packages: none
+Build Command: \`node --check app.js\`
+Test Command: none
 - Font: Inter`;
 
 const step = (n: number, files: string, checks: string | null) => `### Step ${n} — Step ${n} title
@@ -145,7 +147,7 @@ describe("generateMilestonePlan", () => {
   });
 
   it("Data Guard: tofauti inayobaki baada ya urekebishaji → guard_failed (Computer haianzi)", async () => {
-    const r = await generateMilestonePlan(M1, deps([PART1, PART2(GOOD_STEPS), "## 4. Tech Stack & Design Tokens\nStyling + Dependencies: plain CSS ; packages: none"], {
+    const r = await generateMilestonePlan(M1, deps([PART1, PART2(GOOD_STEPS), "## 4. Tech Stack & Design Tokens\nBuild Command: `test -s index.html`\nStyling + Dependencies: plain CSS ; packages: none"], {
       facts: { version: 1 } as any,
       guard: (md) => (md.includes("TSh 999,999") ? [{ kind: "price", found: "TSh 999,999", expected: "TSh 5,000" } as any] : []),
       sabotage: (md) => `${md}\n\`\`\`js\nconst X = "TSh 999,999";\n\`\`\``,
@@ -160,5 +162,13 @@ describe("generateMilestonePlan", () => {
 describe("ledgerDecisionsSection", () => {
   it("neno kwa neno", () => {
     expect(ledgerDecisionsSection([{ agenda_index: 2, agenda_item: "Bei", status: "LOCKED", decision_summary: " Bei TSh 5,000 inajumuisha VAT. " }])).toBe("- **A2 [LOCKED] Bei:** Bei TSh 5,000 inajumuisha VAT.");
+  });
+});
+
+describe("TASK-18 · validator inadai Build Command", () => {
+  it("bila 'Build Command:' → kosa la §4", () => {
+    const v = validateMilestonePlan(doc(PART1.replace(/Build Command:.*\n/, ""), PART2(GOOD_STEPS)), M1);
+    expect(v.ok).toBe(false);
+    expect(v.errors.some((e) => e.includes('missing the "Build Command:" line'))).toBe(true);
   });
 });
