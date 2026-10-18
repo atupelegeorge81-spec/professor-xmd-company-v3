@@ -5,6 +5,7 @@
 import { milestonesEnabled } from "./flag";
 import { HOLD_STATUSES, newMilestoneState, planSteps, setStep, stepIdOf, transition, TERMINAL_STATUSES } from "./state";
 import type { MilestonePlanResult } from "./plan";
+import { BUILD_REPORT_INLINE_MAX, buildReportPath, crossCheckBuildReport, parseBuildReport, type BuildReportCommand } from "./buildReport";
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
 import type { Milestone, MilestoneMap, MilestoneState, MilestoneStatus } from "./types";
 
@@ -40,9 +41,40 @@ export interface BuildOutcome {
   restored?: number;
   gitLog?: string;
   ms?: number;
+  /** TASK-17: ripoti ghafi kutoka sandbox (engine.MsBuildReportRaw) */
+  buildReport?: { found: boolean; path: string; markdown: string; fileId?: string; changed: string[] };
 }
 
 export const buildKey = (milestoneId: string) => `build:${milestoneId}`;
+export const reportKey = (milestoneId: string) => `report:${milestoneId}`;
+
+/** TASK-17: kagua Build Report (muundo + sehemu ya 2 ↔ git diff), ihifadhi `report:Mk`, toa tukio `buildReport`.
+ *  Haibadilishi hali ya milestone (lango la on_stop ni task 18; review inapima baadaye). */
+async function recordBuildReport(runner: LoopRunner, m: Milestone, hooks: LoopHooks, raw: NonNullable<BuildOutcome["buildReport"]> | undefined) {
+  const r = raw ?? { found: false, path: buildReportPath(m.id), markdown: "", changed: [] };
+  const parsed = r.found ? parseBuildReport(r.markdown) : { ok: false, errors: [`report file missing: ${r.path}`], paths: [] as string[], commands: [] as BuildReportCommand[], sections: {} };
+  const cross = crossCheckBuildReport(parsed.paths, r.changed);
+  const inline = r.markdown.length <= BUILD_REPORT_INLINE_MAX || !r.fileId;
+  await msUpdate(runner, reportKey(m.id), () => ({
+    version: 1, id: m.id, path: r.path, found: r.found, ok: parsed.ok, errors: parsed.errors,
+    paths: parsed.paths, commands: parsed.commands.slice(0, 60), changed: r.changed.slice(0, 300), fake: cross.fake, unreported: cross.unreported,
+    chars: r.markdown.length, markdown: inline ? r.markdown.slice(0, BUILD_REPORT_INLINE_MAX) : "", fileId: r.fileId,
+    at: new Date().toISOString(),
+  }));
+  hooks.bcast({
+    type: "buildReport", id: m.id, found: r.found, ok: parsed.ok, errors: parsed.errors.slice(0, 10),
+    sections: Object.keys(parsed.sections).length, commands: parsed.commands.length, paths: parsed.paths.length,
+    fake: cross.fake.slice(0, 20), unreported: cross.unreported.slice(0, 20), chars: r.markdown.length, fileId: r.fileId,
+  });
+  const flags = [
+    !r.found ? "haipo" : parsed.ok ? "muundo sahihi" : `makosa ${parsed.errors.length}`,
+    cross.fake.length ? `paths ${cross.fake.length} hazipo kwenye git diff` : "",
+    cross.unreported.length ? `faili ${cross.unreported.length} hazikutajwa` : "",
+  ].filter(Boolean).join(" · ");
+  const bad = !r.found || !parsed.ok || cross.fake.length > 0;
+  hooks.addChip(`📑 Build Report ya ${m.id}: ${flags}`);
+  hooks.blog(bad ? "warning" : "success", `📑 Build Report ya ${m.id}: ${flags}${parsed.errors.length ? ` — ${parsed.errors.slice(0, 3).join("; ")}` : ""}${cross.fake.length ? ` — fake: ${cross.fake.slice(0, 5).join(", ")}` : ""}.`);
+}
 
 /** Mfuatano wa forward edges hadi SIGNED_OFF (njia ya stub — hakuna mzunguko wa marekebisho bado). */
 const STUB_PATH: MilestoneStatus[] = ["PLANNING", "BUILDING", "EVIDENCE", "REVIEW_R0", "SIGNED_OFF"];
@@ -209,6 +241,10 @@ async function runBuildStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, 
     restored: out.restored, gitLog: out.gitLog, ms: out.ms, at: new Date().toISOString(),
   }));
   hooks.bcast({ type: "milestoneBuild", id: m.id, ok: out.ok, finalState: out.finalState, reason: out.reason, restored: out.restored ?? 0, freshSandbox: !!out.freshSandbox });
+  if (out.finalState !== "PAUSED") {
+    try { await recordBuildReport(runner, m, hooks, out.buildReport); }
+    catch (e: any) { hooks.blog("warning", `📑 Build Report ya ${m.id} haikuhifadhiwa: ${String(e?.message || e).slice(0, 160)}`); }
+  }
   if (out.finalState === "PAUSED") {
     hooks.blog("warning", `⏸️ Build ya ${m.id} imesimama (Board pause) — itarudiwa Board ikiresume.`);
     const cur = runner.sessionId ? (await getRecord<MilestoneState>(runner.sessionId, stateKey(m.id)))?.data : null;

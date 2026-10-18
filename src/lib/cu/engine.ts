@@ -34,6 +34,7 @@ import type { Runner, PauseOrigin } from "@/lib/boardRunner";
 import type { BoardEvent, LogEntry } from "@/lib/types";
 import { parseRepoSummary, renderStartPack, REPO_SUMMARY_CMD, type MilestoneStartPack } from "@/lib/milestone/startpack"; // TASK-16
 import { cuSilentBridge, maybeCapturePrompt } from "@/lib/milestone/testHooks"; // TASK-16
+import { BUILD_REPORT_INLINE_MAX, buildReportPath } from "@/lib/milestone/buildReport"; // TASK-17
 
 /* ============================ env ============================ */
 
@@ -425,6 +426,8 @@ async function getSandbox(cu: CuRunState): Promise<any> {
 
 function bridgeCommand(o: {
   title: string; session: string; token: string; startI: number; resumeNote: string; restoreUrl?: string; taskFile?: string;
+  /** TASK-17: awamu ya milestone → bridge inaweka mkataba wa Build Report (.xmd/reports/<Mk>-build-report.md) */
+  milestone?: string;
 }): string {
   const common = [
     `cd /home/user && bash /home/user/cu_setup.sh;`,
@@ -452,6 +455,7 @@ function bridgeCommand(o: {
   ];
   if (o.resumeNote) sharedArgs.push(`--resume-note ${q(o.resumeNote.slice(0, 3000))}`);
   if (o.restoreUrl) sharedArgs.push(`--restore-url ${q(o.restoreUrl)}`);
+  if (o.milestone) sharedArgs.push(`--milestone ${q(o.milestone)}`);
   if (CU_AGENT_BACKEND === "openhands") {
     // R51: OpenHands SDK native — hakuna ANTHROPIC_*, hakuna brain (lanes.py ndani ya oh_bridge)
     const env = [...common, `OPENHANDS_SUPPRESS_BANNER=1`].join(" ");
@@ -755,7 +759,20 @@ export interface MilestoneBuildOutcome {
   freshSandbox?: boolean;
   restored?: number;
   gitLog?: string;
+  /** TASK-17: Build Report iliyosomwa kutoka sandbox + faili zilizobadilika kwenye awamu hii (git) */
+  buildReport?: MsBuildReportRaw;
   ms: number;
+}
+
+/** TASK-17: ripoti ghafi (harness inaisoma; loop inaikagua na kuihifadhi). */
+export interface MsBuildReportRaw {
+  found: boolean;
+  path: string;
+  markdown: string;
+  /** ripoti > BUILD_REPORT_INLINE_MAX → nakala kamili Supabase storage */
+  fileId?: string;
+  /** `git diff --name-only <HEAD ya mwanzo wa awamu> HEAD` (repo mpya: faili zote za commit ya kwanza) */
+  changed: string[];
 }
 
 /** Hali zinazomaliza hatua ya build kama FAILED (spec 6). PAUSED_QUOTA → milestone PAUSED_QUOTA. */
@@ -802,8 +819,38 @@ async function msRestoreSnapshot(sbx: any, cu: CuRunState): Promise<number> {
     return out.includes("XMD_TAR_OK") ? Number(out.trim().split(/\s+/).pop()) || 0 : -1;
   } catch { return -1; }
 }
+/** TASK-17: soma `.xmd/reports/<Mk>-build-report.md` + faili zilizobadilika kwenye awamu hii (baada ya commit ya harness). */
+async function msReadBuildReport(sbx: any, hooks: CuHooks, id: string, headBefore: string): Promise<MsBuildReportRaw> {
+  const path = buildReportPath(id);
+  const SEP = "@@XMD_DIFF@@";
+  const diff = /^[0-9a-f]{7,40}$/.test(headBefore)
+    ? `git diff --name-only ${headBefore} HEAD`
+    : "git diff-tree --root -r --name-only --no-commit-id HEAD";
+  const out: MsBuildReportRaw = { found: false, path, markdown: "", changed: [] };
+  try {
+    const r: any = await sbx.commands.run(
+      `cd /home/user/ws && { if [ -f ${q(path)} ]; then echo XMD_REPORT_FOUND; head -c 262144 ${q(path)}; fi; echo; echo ${SEP}; ${diff} 2>/dev/null || true; }`,
+      { timeoutMs: 30_000 });
+    const so = String(r?.stdout || "");
+    const k = so.lastIndexOf(SEP);
+    const head = k >= 0 ? so.slice(0, k) : so;
+    out.changed = (k >= 0 ? so.slice(k + SEP.length) : "").split("\n").map((l) => l.trim()).filter(Boolean);
+    if (head.startsWith("XMD_REPORT_FOUND\n")) { out.found = true; out.markdown = head.slice("XMD_REPORT_FOUND\n".length).replace(/\n+$/, ""); }
+  } catch (e: any) {
+    hooks.blog("warning", `📑 ${id}: Build Report haikusomeka: ${String(e?.message || e).slice(0, 160)}`);
+    return out;
+  }
+  if (out.found && out.markdown.length > BUILD_REPORT_INLINE_MAX && appwriteConfigured) {
+    try {
+      const f: any = await storage.createFile(CU_BUCKET, "unique()", InputFile.fromBuffer(Buffer.from(out.markdown, "utf8"), `cu-report-${id}-${Date.now()}.md`));
+      out.fileId = f.$id;
+    } catch (e: any) { hooks.blog("warning", `📑 ${id}: ripoti kubwa haikupakiwa storage: ${String(e?.message || e).slice(0, 120)}`); }
+  }
+  return out;
+}
+
 /** test-only (vitest) — helpers za snapshot ya milestone. */
-export const __t16Snapshot = { msSnapshot, msRestoreSnapshot };
+export const __t16Snapshot = { msSnapshot, msRestoreSnapshot, msReadBuildReport };
 
 async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: MilestonePhaseInput): Promise<MilestoneBuildOutcome> {
   const cu = ensureCuState(runner);
@@ -882,7 +929,10 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
     const silent = cuSilentBridge();
     const cmd = silent
       ? "sleep 86400"
-      : bridgeCommand({ title: `${ph.title || hooks.title || "Mradi"} · ${id}`, session: runner.sessionId || runner.id, token: cu.token, startI: cu.maxI, resumeNote: "", taskFile: "/home/user/startpack.md" });
+      : bridgeCommand({ title: `${ph.title || hooks.title || "Mradi"} · ${id}`, session: runner.sessionId || runner.id, token: cu.token, startI: cu.maxI, resumeNote: "", taskFile: "/home/user/startpack.md", milestone: id });
+    // TASK-17: HEAD ya mwanzo wa awamu → `git diff` ya awamu hii (sehemu ya 2 ya Build Report inalinganishwa nayo)
+    let headBefore = "";
+    try { headBefore = String((await sbx.commands.run("cd /home/user/ws && git rev-parse --verify -q HEAD || true", { timeoutMs: 15_000 }))?.stdout || "").trim(); } catch { /* */ }
     if (silent) hooks.blog("warning", `🧪 XMD_TEST_CU_SILENT: bridge ya kimya (test hook) — liveness ya ${Math.round(CU_LIVENESS_MS / 1000)}s itaikata.`);
     hooks.blog("api", `🚀 ${id}: sandbox ${cu.sandboxId?.slice(0, 8)}… — bridge mpya inaanzishwa (StartPack herufi ${pack.length}).`);
 
@@ -949,12 +999,13 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
     } catch (e: any) {
       hooks.blog("warning", `🧾 git commit ya ${id} haikufanyika: ${String(e?.message || e).slice(0, 140)}`);
     }
+    const buildReport = await msReadBuildReport(sbx, hooks, id, headBefore);
     await msSnapshot(sbx, cu, hooks, id);
     if (ph.last) setTimeout(() => sbx.kill?.().catch(() => {}), 15_000);
     else sbx.setTimeout(30 * 60_000).catch(() => {}); // inabaki kwa milestone inayofuata (ikifa → kiovu)
 
     const fs = (cu.finalState || "ERROR") as CuFinalState;
-    return out(!MS_BUILD_FAIL_STATES.includes(fs), fs, cu.finalReason || "", { report: cu.report, freshSandbox: fresh, restored, gitLog });
+    return out(!MS_BUILD_FAIL_STATES.includes(fs), fs, cu.finalReason || "", { report: cu.report, freshSandbox: fresh, restored, gitLog, buildReport });
   } catch (e: any) {
     stopHeartbeat(cu);
     hooks.blog("error", `❌ XMD Computer · ${id}: ${String(e?.message || e).slice(0, 200)}`);

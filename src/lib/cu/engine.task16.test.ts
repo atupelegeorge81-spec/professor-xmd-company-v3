@@ -131,3 +131,20 @@ describe("TASK-16 · snapshot ya mwisho wa awamu (tar + git) → restore kwenye 
     expect(await __t16Snapshot.msRestoreSnapshot(sbxOf("curl: (22) 404\n", []), cu)).toBe(-1);
   });
 });
+
+describe("TASK-17 · msReadBuildReport (ripoti + git diff ya awamu)", () => {
+  const sbx = (stdout: string, cmds: string[]) => ({ commands: { run: async (c: string) => { cmds.push(c); return { stdout }; } } });
+  const h = { blog: () => {} } as unknown as CuHooks;
+  it("ripoti ipo + HEAD ya mwanzo → `git diff --name-only <sha> HEAD`", async () => {
+    const cmds: string[] = [];
+    const r = await __t16Snapshot.msReadBuildReport(sbx("XMD_REPORT_FOUND\n# M2 Build Report\n## 1 Summary\nx\n\n@@XMD_DIFF@@\nREADME.md\n.xmd/reports/M2-build-report.md\n", cmds), h, "M2", "80306f7aa");
+    expect(r).toMatchObject({ found: true, path: ".xmd/reports/M2-build-report.md", markdown: "# M2 Build Report\n## 1 Summary\nx", changed: ["README.md", ".xmd/reports/M2-build-report.md"] });
+    expect(cmds[0]).toContain("git diff --name-only 80306f7aa HEAD");
+  });
+  it("repo mpya (bila HEAD) → diff-tree --root; ripoti haipo → found:false", async () => {
+    const cmds: string[] = [];
+    const r = await __t16Snapshot.msReadBuildReport(sbx("\n@@XMD_DIFF@@\nREADME.md\n", cmds), h, "M1", "");
+    expect(r).toMatchObject({ found: false, markdown: "", changed: ["README.md"] });
+    expect(cmds[0]).toContain("git diff-tree --root -r --name-only --no-commit-id HEAD");
+  });
+});

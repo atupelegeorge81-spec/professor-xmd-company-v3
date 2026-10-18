@@ -436,6 +436,69 @@ Ukitenda kazi hapa, fuata sheria hizi (zinatokana na mafunzo halisi ya Anthropic
    bila mpango.
 """
 
+# TASK-17: Build Report contract — kwa awamu za MILESTONE tu (--milestone Mk). Headings = BUILD_REPORT_HEADINGS
+# za src/lib/milestone/buildReport.ts (test ya vitest inalinganisha). Harness inakagua; Computer hajipi alama.
+BUILD_REPORT_HEADINGS = (
+    "1 Summary",
+    "2 Files created or changed",
+    "3 Commands run and results",
+    "4 Tests run",
+    "5 Decisions and deviations from the plan",
+    "6 Security notes",
+    "7 Known problems / technical debt",
+    "8 Risks for the next milestone",
+)
+BUILD_REPORT_MARK_START = "<!-- XMD-BUILD-REPORT-CONTRACT -->"
+BUILD_REPORT_MARK_END = "<!-- /XMD-BUILD-REPORT-CONTRACT -->"
+
+
+def build_report_path(milestone: str) -> str:
+    return f".xmd/reports/{milestone}-build-report.md"
+
+
+def build_report_contract(milestone: str) -> str:
+    """Kiolezo + mkataba wa Build Report wa milestone hii (maandishi ya Kiingereza — agent anasoma neno kwa neno)."""
+    path = build_report_path(milestone)
+    return (
+        f"## XMD BUILD REPORT CONTRACT (milestone {milestone})\n"
+        f"Before you finish this milestone, write the file `{path}` inside the workspace "
+        "(/home/user/ws). Use EXACTLY these headings, in this order, none empty:\n\n"
+        "```markdown\n"
+        f"# {milestone} Build Report\n"
+        "## 1 Summary\n"
+        "<what this milestone built, 2-5 sentences>\n"
+        "## 2 Files created or changed\n"
+        "- `path/relative/to/workspace` — created|changed — why\n"
+        "## 3 Commands run and results\n"
+        "- `the exact command` — exit 0 — one sentence on the result\n"
+        "## 4 Tests run\n"
+        "- test name — PASS|FAIL\n"
+        "## 5 Decisions and deviations from the plan\n"
+        "- decision or deviation — reason\n"
+        "## 6 Security notes\n"
+        "- secrets, auth, sensitive data (write \"None\" with a reason if nothing applies)\n"
+        "## 7 Known problems / technical debt\n"
+        "- ...\n"
+        "## 8 Risks for the next milestone\n"
+        "- ...\n"
+        "```\n\n"
+        "Rules: list in section 2 only real files you actually created or changed in this milestone "
+        "(the harness compares section 2 with `git diff`). Every line in section 3 is a command you "
+        "really ran, with its real exit code.\n"
+        "You cannot finish without this report. Do not grade yourself; the harness measures.\n"
+    )
+
+
+def with_build_report_contract(existing: str, milestone: str) -> str:
+    """Weka (au badilisha) block ya mkataba ndani ya CLAUDE.md — maandishi mengine hayaguswi."""
+    text = existing or ""
+    a, b = text.find(BUILD_REPORT_MARK_START), text.find(BUILD_REPORT_MARK_END)
+    if a >= 0 and b > a:
+        text = (text[:a].rstrip("\n") + text[b + len(BUILD_REPORT_MARK_END):]).rstrip("\n")
+    if not milestone:
+        return text
+    return f"{text}\n\n{BUILD_REPORT_MARK_START}\n{build_report_contract(milestone)}{BUILD_REPORT_MARK_END}\n"
+
 
 def fingerprint_cmd(cmd: str) -> str:
     """R32: fingerprint ya command — whitespace za ziada + temp paths zime-normalize (sawa=sawa)."""
@@ -1338,6 +1401,7 @@ async def main():
     ap.add_argument("--done-steps", default="")
     ap.add_argument("--resume-note", default="")
     ap.add_argument("--restore-url", default="")
+    ap.add_argument("--milestone", default="")  # TASK-17: awamu ya milestone (Mk) → mkataba wa Build Report
     ap.add_argument("--brain", default="/home/user/cu_brain.py")
     ap.add_argument("--brain-config", default="/home/user/cu-config.json")
     ap.add_argument("--brain-port", type=int, default=4010)
@@ -1430,6 +1494,12 @@ async def main():
         if "XMD Computer — Nidhamu ya Kazi" not in existing:
             with open(cm_path, "w", encoding="utf-8") as fh:
                 fh.write(R32_CLAUDE_MD + (("\n\n" + existing) if existing else ""))
+        # TASK-17: awamu ya milestone → mkataba wa Build Report ndani ya CLAUDE.md (block yake tu ndiyo inabadilishwa)
+        if getattr(a, "milestone", ""):
+            with open(cm_path, "r", encoding="utf-8") as fh:
+                cur = fh.read()
+            with open(cm_path, "w", encoding="utf-8") as fh:
+                fh.write(with_build_report_contract(cur, a.milestone))
     except Exception as e:
         sys.stderr.write(f"[bridge] CLAUDE.md haikuwekwa: {e}\n")
 

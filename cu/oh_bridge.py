@@ -149,6 +149,7 @@ async def main_async() -> None:
     ap.add_argument("--done-steps", default="")
     ap.add_argument("--resume-note", default="")
     ap.add_argument("--restore-url", default="")
+    ap.add_argument("--milestone", default="")  # TASK-17: awamu ya milestone (Mk) → mkataba wa Build Report
     ap.add_argument("--oh-config", default="/home/user/cu-config.json")
     ap.add_argument("--events-out", default="/home/user/events.jsonl")
     # zinakubaliwa kwa ajili ya mshyono na engine (hazitumiki hapa):
@@ -491,6 +492,7 @@ async def main_async() -> None:
         "+ muundo + ukaguzi ✓/✗ wa kila hatua). Link/screenshot ziwe HALISI tu (zilizotokea kwenye "
         "kazi hii); kama mpango haukutaka deploy/GitHub andika \"haikuhitajika\" — USIBUNI link.\n"
         + resume_part
+        + (("\n" + B.build_report_contract(a.milestone)) if getattr(a, "milestone", "") else "")  # TASK-17
         + "\n─────────────────────────────────────────────\n\n"
         + plan_md
     )
