@@ -1071,7 +1071,7 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
       baseCommit: /^[0-9a-f]{7,40}$/.test(headBefore) ? headBefore : "",
       reportPath: fx ? "" : buildReportPath(id),
       // TASK-25: lango (e) — receipts badala ya Build Report
-      ...(fx ? { report: false, round: fx.round, receipts: { path: receiptsPath(fx.round), orderIds: fx.orderIds, commitMessage: commitMessage(id, fx.round, fx.orderIds) } } : {}),
+      ...(fx ? { report: false, round: fx.round, receipts: { path: tg.receiptsPath || receiptsPath(fx.round), orderIds: fx.orderIds, commitMessage: commitMessage(id, fx.round, fx.orderIds) } } : {}),
     };
     await sbx.files.write(`/home/user/ws/${STARTPACK_JSON}`, JSON.stringify(gateCfg, null, 2));
     hooks.blog("info", `🚦 ${id}${fx ? ` R${fx.round} (attempt ${fx.attempt}) · receipts ${receiptsPath(fx.round)}` : ""}: lango la kumaliza — build \`${gateCfg.buildCommand || "(plan haina Build Command)"}\`${gateCfg.requiresTests ? ` · tests \`${gateCfg.testCommand}\`` : ""} · base ${gateCfg.baseCommit ? gateCfg.baseCommit.slice(0, 7) : "(repo mpya)"}.`);

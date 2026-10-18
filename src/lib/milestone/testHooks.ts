@@ -37,9 +37,9 @@ export function cuSilentBridge(env: NodeJS.ProcessEnv = process.env): boolean {
 
 /** TASK 18 (T1–T4): kwa milestone Mk — `XMD_TEST_BUILD_CMD_<Mk>` inabadilisha buildCommand ya lango;
  *  `XMD_TEST_GOAL_OFF_<Mk>=1` inazima judge kwa awamu hiyo; `XMD_TEST_CU_NOTE_<Mk>` ni agizo la ziada mwishoni mwa StartPack (mf. "usiandike Build Report"). Inert bila XMD_TEST_HOOKS=1. */
-export function testGateOverride(milestoneId: string, env: NodeJS.ProcessEnv = process.env): { buildCommand?: string; note?: string; goalOff?: boolean } {
+export function testGateOverride(milestoneId: string, env: NodeJS.ProcessEnv = process.env): { buildCommand?: string; note?: string; goalOff?: boolean; receiptsPath?: string } {
   if (env.XMD_TEST_HOOKS !== "1" || !milestoneId) return {};
-  const out: { buildCommand?: string; note?: string; goalOff?: boolean } = {};
+  const out: { buildCommand?: string; note?: string; goalOff?: boolean; receiptsPath?: string } = {};
   // `XMD_TEST_GOAL_OFF_<Mk>=1` → bridge inaendeshwa bila judge (XMD_GOAL_OFF=1, njia ya dev ya oh_bridge) ili
   // lango la kumaliza liwe kizuizi PEKEE — T1/T3 zinapima hook yenyewe, si judge (real run 2: judge alikamata kwanza).
   if (env[`XMD_TEST_GOAL_OFF_${milestoneId}`] === "1") out.goalOff = true;
@@ -47,6 +47,10 @@ export function testGateOverride(milestoneId: string, env: NodeJS.ProcessEnv = p
   const note = env[`XMD_TEST_CU_NOTE_${milestoneId}`];
   if (bc) out.buildCommand = bc;
   if (note) out.note = note;
+  // TASK 25 (T5): `XMD_TEST_FIX_RECEIPTS_PATH_<Mk>` → lango (e) linatafuta receipts kwenye njia isiyowezekana (mf. /proc/…)
+  // — "kumaliza bila receipts" kwa uhakika (kama T18 T4 `test -f /proc/…`); agent bado anaambiwa `.xmd/receipts/R<n>.json`.
+  const rp = env[`XMD_TEST_FIX_RECEIPTS_PATH_${milestoneId}`];
+  if (rp) out.receiptsPath = rp;
   return out;
 }
 

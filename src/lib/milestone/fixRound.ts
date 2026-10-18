@@ -151,8 +151,10 @@ export function verifyReceipts(changeOrders: ChangeOrder[], parsed: ParsedReceip
     const touched = eff.filter((p) => changedSet.has(p));
     const phantom = listed.filter((p) => !changedSet.has(p));
     const blocked = !!r && (r.status === "BLOCKED" || r.status === "CANNOT") && !!String(r.blockedReason || "").trim();
-    const verdict: CoVerdict = blocked && !touched.length ? "BLOCKED" : touched.length ? "APPLIED" : "NOT_ATTEMPTED";
-    const mine = new Set([...touched, ...listed.filter((p) => changedSet.has(p))]);
+    // BLOCKED/CANNOT yenye sababu inaheshimiwa hata kama faili lengwa liliguswa — COs mbili zinaweza kulenga faili moja
+    // (real run T25 R1: CO-001 ilibadilisha src/styles.css, CO-002 kwenye faili hilohilo ilikuwa BLOCKED na A1)
+    const verdict: CoVerdict = blocked ? "BLOCKED" : touched.length ? "APPLIED" : "NOT_ATTEMPTED";
+    const mine = new Set(blocked ? listed.filter((p) => changedSet.has(p)) : [...touched, ...listed.filter((p) => changedSet.has(p))]);
     const st = numstat.filter((s) => mine.has(s.path));
     return {
       orderId: co.id, attempt: co.attempt || 1, verdict,
@@ -225,7 +227,7 @@ export function causeOf(c: CoVerification): string {
   return `receipt ${c.receiptStatus}`;
 }
 
-export function applyRoundToDefects(defects: Defect[], changeOrders: ChangeOrder[], v: RoundVerification, round: number, checks: Record<string, { pass: number; fail: number; error: number }>): Defect[] {
+export function applyRoundToDefects(defects: Defect[], changeOrders: ChangeOrder[], v: RoundVerification & { rerun?: { before: string[] } }, round: number, checks: Record<string, { pass: number; fail: number; error: number }>): Defect[] {
   const byCo = new Map(v.cos.map((c) => [c.orderId, c]));
   return defects.map((d) => {
     const cos = changeOrders.filter((co) => co.defectIds.includes(d.id));
@@ -233,7 +235,8 @@ export function applyRoundToDefects(defects: Defect[], changeOrders: ChangeOrder
     const entries = cos.map((co) => {
       const c = byCo.get(co.id);
       const ck = checks[co.id];
-      const result = `${co.id}: ${c ? c.verdict : "NO_VERIFICATION"}${ck ? ` · checks ${ck.pass}P/${ck.fail}F/${ck.error}E` : ""}`;
+      const noop = v.rerun?.before.includes(co.id) ? " (NO-OP on run 1 → reminder + rerun)" : "";
+      const result = `${co.id}: ${c ? c.verdict : "NO_VERIFICATION"}${noop}${ck ? ` · checks ${ck.pass}P/${ck.fail}F/${ck.error}E` : ""}`;
       return { round, result, cause: c ? causeOf(c) : "no verification" };
     });
     const attempted = cos.some((co) => byCo.get(co.id)?.verdict === "APPLIED");

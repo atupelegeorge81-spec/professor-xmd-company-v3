@@ -1,0 +1,135 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 1,
+ "finalState": "COMPLETED_VERIFIED",
+ "reason": "completed, verified by the completion gate",
+ "ok": true,
+ "ms": 227285,
+ "orderIds": [
+  "CO-001",
+  "CO-002"
+ ],
+ "flags": [
+  "UNLISTED_CHANGE"
+ ],
+ "unlisted": [
+  "README.md"
+ ],
+ "verification": {
+  "cos": [
+   {
+    "orderId": "CO-001",
+    "attempt": 1,
+    "verdict": "APPLIED",
+    "receiptStatus": "DONE",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "diff": {
+     "files": 1,
+     "added": 1,
+     "deleted": 1
+    }
+   },
+   {
+    "orderId": "CO-002",
+    "attempt": 1,
+    "verdict": "BLOCKED",
+    "receiptStatus": "BLOCKED",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "blockedReason": "Contradicts LOCKED LEDGER A1: Headings must use Inter / system sans-serif ONLY. Serif fonts are forbidden.",
+    "diff": {
+     "files": 0,
+     "added": 0,
+     "deleted": 0
+    }
+   }
+  ],
+  "unlisted": [
+   "README.md"
+  ],
+  "flags": [
+   "UNLISTED_CHANGE"
+  ],
+  "notAttempted": [],
+  "receiptErrors": [],
+  "unknownReceipts": []
+ },
+ "perCo": [
+  {
+   "orderId": "CO-001",
+   "attempt": 1,
+   "verdict": "APPLIED",
+   "receiptStatus": "DONE",
+   "receipt": "VALID",
+   "diff": {
+    "files": 1,
+    "added": 1,
+    "deleted": 1
+   },
+   "checks": {
+    "pass": 1,
+    "fail": 0,
+    "error": 0
+   }
+  },
+  {
+   "orderId": "CO-002",
+   "attempt": 1,
+   "verdict": "BLOCKED",
+   "receiptStatus": "BLOCKED",
+   "receipt": "VALID",
+   "diff": {
+    "files": 0,
+    "added": 0,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 0,
+    "fail": 1,
+    "error": 0
+   },
+   "blockedReason": "Contradicts LOCKED LEDGER A1: Headings must use Inter / system sans-serif ONLY. Serif fonts are forbidden."
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": 1,
+   "finalState": "COMPLETED_VERIFIED",
+   "reason": "completed, verified by the completion gate",
+   "flags": [
+    "UNLISTED_CHANGE"
+   ],
+   "notAttempted": [],
+   "headBefore": "42b0e702acffe4dbedc1d41cd62b574bfac740fc",
+   "head": "dc0a0b523567fac2ccf443bbab0b48903eaaede1",
+   "diffBase": "42b0e702acffe4dbedc1d41cd62b574bfac740fc",
+   "changed": [
+    ".xmd/receipts/R1.json",
+    "README.md",
+    "src/styles.css"
+   ],
+   "receiptsRaw": "[\n  {\n    \"orderId\": \"CO-001\",\n    \"status\": \"DONE\",\n    \"filesChanged\": [\n      {\n        \"path\": \"src/styles.css\",\n        \"summary\": \"Changed h1 color to #F2F0EB\"\n      }\n    ],\n    \"commandsRun\": [\n      \"npm run build\"\n    ],\n    \"notes\": \"Applied CO-001 by changing h1 color to #F2F0EB in src/styles.css\"\n  },\n  {\n    \"orderId\": \"CO-002\",\n    \"status\": \"BLOCKED\",\n    \"filesChanged\": [],\n    \"commandsRun\": [],\n    \"blockedReason\": \"Contradicts LOCKED LEDGER A1: Headings must use Inter / system sans-serif ONLY. Serif fonts are forbidden.\"\n  }\n]",
+   "sabotaged": false
+  }
+ ],
+ "global": {
+  "pass": 3,
+  "fail": 0,
+  "error": 0
+ },
+ "at": "2026-10-18T22:44:02.712Z"
+}

@@ -1,5 +1,6 @@
 // TASK 25 — raundi ya marekebisho: pack ya Computer, uthibitishaji wa receipts (code, dhidi ya git diff), NO-OP + rerun mara moja,
 // checks za raundi, historia ya defects, na runFixRound kupitia maybeCloseMilestones (store ya memory yenye CAS).
+import { testGateOverride } from "../testHooks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = new Map<string, { version: number; data: any }>();
@@ -76,6 +77,15 @@ describe("receipts: muundo + uthibitishaji dhidi ya git diff", () => {
     expect(v.cos[0].verdict).toBe("APPLIED");
     expect(v.unlisted).toEqual(["README.md"]);
     expect(v.flags).toContain("UNLISTED_CHANGE");
+  });
+  it("T4 + T1 kwenye faili moja (real run R1): CO-001 DONE inagusa src/styles.css, CO-002 BLOCKED kwenye faili hilohilo → APPLIED + BLOCKED", () => {
+    const v = verifyReceipts([co("CO-001", ["src/styles.css"]), co("CO-002", ["src/styles.css"])],
+      P([rcpt("CO-001", ["src/styles.css"]), rcpt("CO-002", [], "BLOCKED", { blockedReason: "contradicts ledger A1" })]),
+      ["src/styles.css", ".xmd/receipts/R1.json"], [{ path: "src/styles.css", added: 1, deleted: 1 }]);
+    expect(v.cos.map((c) => c.verdict)).toEqual(["APPLIED", "BLOCKED"]);
+    expect(v.cos[1].diff).toEqual({ files: 0, added: 0, deleted: 0 });
+    expect(v.cos[0].diff).toEqual({ files: 1, added: 1, deleted: 1 });
+    expect(v.flags).toEqual([]);
   });
   it("T4 BLOCKED: receipt BLOCKED + sababu, faili hazikuguswa → BLOCKED (si NOT_ATTEMPTED → hakuna rerun)", () => {
     const v = verifyReceipts([co("CO-002", ["src/styles.css"])], P([rcpt("CO-002", [], "BLOCKED", { blockedReason: "contradicts ledger A1 (Inter only)" })]), []);
@@ -213,6 +223,8 @@ describe("runFixRound (loop)", () => {
     const fx = db.get(`${SID}|${fixKey("M1", 1)}`)!.data;
     expect(fx.attempts.map((a: any) => a.notAttempted)).toEqual([["CO-001"], []]);
     expect(fx.verification.rerun).toMatchObject({ before: ["CO-001"], after: [] });
+    expect(fx.perCo[0]).toMatchObject({ verdict: "APPLIED", runs: 2 });
+    expect(db.get(`${SID}|defects`)!.data.defects[0].history[0].result).toContain("CO-001: APPLIED (NO-OP on run 1 → reminder + rerun)");
   });
   it("T2b: NO-OP inaendelea baada ya rerun → inabaki NOT_ATTEMPTED (hakuna rerun ya tatu); historia: cause NOT_ATTEMPTED", async () => {
     await seed([co("CO-001", ["src/styles.css"])]);
@@ -255,5 +267,13 @@ describe("runFixRound (loop)", () => {
     const h = harness([]);
     delete (h.hooks as any).fix;
     expect(await maybeCloseMilestones(h.runner, h.hooks)).toEqual([]);
+  });
+});
+
+describe("TASK 25 test hook ya T5 (XMD_TEST_FIX_RECEIPTS_PATH_<Mk>)", () => {
+  it("inert bila XMD_TEST_HOOKS=1; ON → njia ya receipts ya lango inabadilishwa kwa milestone hiyo tu", () => {
+    expect(testGateOverride("M1", { XMD_TEST_FIX_RECEIPTS_PATH_M1: "/proc/x/R1.json" } as any)).toEqual({});
+    expect(testGateOverride("M1", { XMD_TEST_HOOKS: "1", XMD_TEST_FIX_RECEIPTS_PATH_M1: "/proc/x/R1.json" } as any)).toEqual({ receiptsPath: "/proc/x/R1.json" });
+    expect(testGateOverride("M2", { XMD_TEST_HOOKS: "1", XMD_TEST_FIX_RECEIPTS_PATH_M1: "/proc/x/R1.json" } as any)).toEqual({});
   });
 });

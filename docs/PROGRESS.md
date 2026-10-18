@@ -342,3 +342,31 @@ $ npm run cu:test        → Ran 186 tests — OK
   - CEO #3: searches 3 kwa kila run (SearXNG halisi + READ_SOURCE).
 - Kasoro 5 zilizopatikana kwenye runs halisi zimerekebishwa: CAS ya hook, `[Condition added by`, CR ya fallback, id ndani ya mabano, kichwa "P-05". Maelezo yako task-24.md.
 - Baselines: tsc 0 · vitest 594 + 2 skipped (+30) · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-24.md + docs/tests/task-24/ (bila `.log`).
+- Deploy ya T24: Koyeb `f49b0b24` HEALTHY (main `d9f91b9`).
+
+## Task 25 — Raundi ya marekebisho: Computer anatekeleza COs na kurudisha Receipts
+- Branch `task/25-fix-round`, nyuma ya `XMD_MILESTONES` (OFF kwa default). Inategemea T16–18, T21 na T24.
+- `runFixRound(m, round, cos)` (`milestone/loop.ts`):
+  - hali FIXING → hatua `Mk.R<n>.fix` → `msHooks.fix.run` → `startComputerPhase(..., {fix})` (mechanics za T16; sandbox haiuawi);
+  - pack = RoundHeader · OCB ya computer (stage FIX + LOCKED LEDGER) · COs kamili · repo summary · "what previous rounds changed" (≤40) — `renderFixPack` (`milestone/fixRound.ts`).
+- Receipts: Computer anaandika `.xmd/receipts/R<n>.json` + `git commit -m "Mk Rn: CO-…"`.
+  - Bridge: `milestone_contract` (`cu/bridge.py`, `cu/oh_bridge.py`).
+  - Lango la T18, sharti (e) `cu/gate.py`: receipts halali + receipt kwa kila CO. Raundi ya marekebisho haina Build Report; zote BLOCKED/CANNOT → commit haihitajiki.
+- Uthibitishaji kwa code (`verifyReceipts`) dhidi ya `git diff --name-only <before>..HEAD`:
+  - lengo halikuguswa bila BLOCKED/CANNOT → `NOT_ATTEMPTED` → rerun MARA MOJA kwa ujumbe wa kudumu;
+  - faili iliyobadilika bila kutajwa → `UNLISTED_CHANGE`;
+  - faili iliyotajwa lakini haikubadilika → receipt `REJECTED`.
+- Checks (T21 `runChecks` kwenye sandbox ileile): acceptance za COs + global (build, tests, console_clean, no_horizontal_overflow kwenye routes muhimu). Store `fix:Mk:Rn`, `checks:Mk:Rn`; `defects[].history` + `attempts`; `perCo` {attempt, runs, verdict, receipt, diff stats, checks}. Matokeo: VERIFYING (T26) au BLOCKED (resumeTo FIXING).
+- Test hooks (inert bila `XMD_TEST_HOOKS=1`): `XMD_TEST_FIX_INPUT`, `XMD_TEST_FIX_NOOP_<Mk>`, `XMD_TEST_FIX_RECEIPTS_PATH_<Mk>`.
+- REAL (E2B + OpenHands + Chromium + Supabase, repo `xmdtest-fix`):
+  - T1: h1 `rgb(242, 240, 235)` PASS;
+  - T2: NO-OP → ujumbe → rerun → APPLIED;
+  - T3: `UNLISTED_CHANGE README.md`;
+  - T4: BLOCKED "Contradicts LOCKED LEDGER A1", bila rerun;
+  - T5: blocks 10 → PARTIAL → M1 BLOCKED.
+- Kasoro 3 zilizopatikana kwenye runs halisi zimerekebishwa:
+  - BLOCKED ya CO kwenye faili lililoguswa na CO nyingine;
+  - NO-OP haikuwa kwenye historia ya defect;
+  - hook ya uhakika kwa T5.
+- Hatari kwa CEO: session ya majaribio iliyokatika iliendelezwa na orphan-resume ya Koyeb (imesafishwa); pendekezo liko task-25.md.
+- Baselines: tsc 0 · vitest 616 + 2 skipped (+22) · unittest 271 OK (+8) · pytest 338 + 3 (+8) · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-25.md + docs/tests/task-25/ (bila `.log`).

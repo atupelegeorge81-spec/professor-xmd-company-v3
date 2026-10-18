@@ -1,0 +1,32 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "id": "D-001",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "area": "typography",
+   "severity": "major",
+   "title": "h1 is near-invisible (#111111 on #0B0C10)",
+   "evidence": [
+    "S-001",
+    "S-001 dom: h1 color=rgb(17, 17, 17)"
+   ],
+   "expected": "A2: headings #F2F0EB",
+   "actual": "h1 color #111111",
+   "status": "IN_FIX",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED",
+     "cause": "receipt PARTIAL"
+    }
+   ]
+  }
+ ]
+}

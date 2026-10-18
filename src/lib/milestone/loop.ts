@@ -495,7 +495,7 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
   await msUpdate(runner, fixKey(m.id, round), () => ({
     version: 1, id: m.id, round, finalState: out.finalState, reason: out.reason, ok: out.ok, ms: Date.now() - t0,
     orderIds, flags: v.flags, unlisted: v.unlisted, verification: v,
-    perCo: v.cos.map((c) => ({ orderId: c.orderId, attempt: c.attempt, verdict: c.verdict, receiptStatus: c.receiptStatus, receipt: c.receipt, diff: c.diff, checks: perCo[c.orderId] || { pass: 0, fail: 0, error: 0 }, blockedReason: c.blockedReason })),
+    perCo: v.cos.map((c) => ({ orderId: c.orderId, attempt: c.attempt, runs: v.rerun?.before.includes(c.orderId) ? 2 : 1, verdict: c.verdict, receiptStatus: c.receiptStatus, receipt: c.receipt, diff: c.diff, checks: perCo[c.orderId] || { pass: 0, fail: 0, error: 0 }, blockedReason: c.blockedReason })),
     attempts: attempts.map((a) => ({ attempt: a.attempt, finalState: a.finalState, reason: a.reason, flags: a.verification.flags, notAttempted: a.verification.notAttempted,
       headBefore: a.fix?.headBefore, head: a.fix?.head, diffBase: a.fix?.diffBase, changed: (a.fix?.changed || []).slice(0, 200), receiptsRaw: String(a.fix?.receiptsRaw ?? "").slice(0, 20_000) || null, sabotaged: !!a.fix?.sabotaged })),
     global: perCo.global || { pass: 0, fail: 0, error: 0 }, at: now,

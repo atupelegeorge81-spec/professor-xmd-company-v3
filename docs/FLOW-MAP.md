@@ -53,6 +53,12 @@
     - REVIEW inarudi KABLA ya R37 (rough/fallback/defer), Ledger ya Board, mini-report na pingamizi. Bila consensus, proposals zote ni REJECTED.
     - Store ya milestone: `findings:Mk:R0`, `review:Mk:R0`, `defects`, `decisions`, `changeRequests`, `cos:Mk`. Events: `reviewFindings`, `reviewDecision`, `changeOrders`.
     - Matokeo ya hatua: CHANGES → FIXING (round 1); NO_CHANGES → SIGNED_OFF; consolidate batili ×3 → BLOCKED.
+11. **TASK-25 · Raundi ya marekebisho (FIXING, `XMD_MILESTONES=1` pekee):**
+    - `runMilestoneBuild` ikikuta hali FIXING → `runFixRound(m, round, cos)` (`milestone/loop.ts`), hatua `Mk.R<n>.fix` → `msHooks.fix.run` → `startComputerPhase(..., {fix})` (mechanics za task 16; sandbox haiuawi).
+    - Pack ya Computer ni HIZI TU (`renderFixPack`, `milestone/fixRound.ts`): RoundHeader · OCB ya computer (stage FIX + LOCKED LEDGER) · COs kamili · repo summary · "what previous rounds changed" (≤40). Hakuna plan/Build Report/screenshots.
+    - Computer anaandika `.xmd/receipts/R<n>.json` + `git commit -m "Mk Rn: CO-…"`. Lango la task 18 (`cu/gate.py` sharti e): receipts halali + receipt kwa kila CO; Build Report haihitajiki. Bridge: `milestone_contract` (`cu/bridge.py`).
+    - Code inathibitisha (`verifyReceipts`) dhidi ya `git diff --name-only <before>..HEAD`: lengo halikuguswa bila BLOCKED/CANNOT → NOT_ATTEMPTED (rerun MARA MOJA na ujumbe wa kudumu); faili iliyobadilika bila kutajwa → UNLISTED_CHANGE; receipt inayotaja faili isiyobadilika → REJECTED.
+    - Checks (task 21, `runChecks` kwenye sandbox ileile): acceptance za COs + global (build, tests, console_clean, no_horizontal_overflow kwenye routes muhimu). Store: `fix:Mk:Rn`, `checks:Mk:Rn`, `defects` (history). Matokeo: VERIFYING (task 26) au BLOCKED (PARTIAL/ERROR, resumeTo FIXING).
 
 ## C. Computer flow (`src/lib/cu/*`)
 1. **start:** `startComputerPhase(runner, hooks)` — `cu/engine.ts:418`. Ndiyo inachofanya: events zilizohifadhiwa zinareplay (`:575` `resumeNote = resume ? buildResumeNote(runner) : ""`), sandbox ikipatikana hai → attach tu (`:515` pgrep ya bridge), vinginevyo bridge mpya inaandikwa (`:598-601` background, timeout 3600s) na mirror-restore + replay (`mirror.ts`).
