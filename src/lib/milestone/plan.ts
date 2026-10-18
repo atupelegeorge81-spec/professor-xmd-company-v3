@@ -11,6 +11,7 @@ import type { FactSheet } from "@/lib/board/factSheet";
 import type { GuardHit } from "@/lib/board/dataGuard";
 import { isPlanExecutable, planStatusOf, planWarningsOf } from "@/lib/cu/planGate";
 import { validateCheck } from "./schemas";
+import { planGateCommands } from "./startpack"; // TASK-18
 import type { Check, Milestone } from "./types";
 
 /** Viewports za ushahidi (maelezo19) — plan inazitaja kwa kila route. */
@@ -67,6 +68,9 @@ export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "rev
   const stVal = st ? st[1].replace(/\*+/g, "").trim() : "";
   if (!st) errors.push(`${m.id} plan §4: missing the "Styling + Dependencies:" line — name the exact styling approach/framework and every package to install (e.g. "Styling + Dependencies: plain CSS in styles.css; packages: none")`);
   else if (stVal.length < 6 || /^(not discussed|tbd|n\/a|none|unknown)\.?$/i.test(stVal)) errors.push(`${m.id} plan §4: "Styling + Dependencies:" is empty or vague (${JSON.stringify(stVal)}) — it must name the exact framework and the installed packages`);
+
+  // 1b. TASK-18: Build Command (lango la kumaliza linaiendesha — lazima exit 0)
+  if (!planGateCommands(md).buildCommand) errors.push(`${m.id} plan §4: missing the "Build Command:" line — one shell command run from the workspace root that exits 0 only when this milestone builds (e.g. "Build Command: \`npm run build\`" or, for a docs-only milestone, "Build Command: \`test -s README.md\`")`);
 
   // 2. Hatua + Checks za mashine kwa kila hatua ya muundo (inayounda/kubadilisha faili)
   const s6 = sec[6] || "";
@@ -187,6 +191,9 @@ function sectionsSpec(part: 1 | 2, m: Milestone, max: number): string {
 ## 3. Constraints — copy the project constraints word for word (the system replaces this section too)
 ## 4. Tech Stack & Design Tokens — from LOCKED decisions only. The FIRST line of this section MUST be exactly:
 Styling + Dependencies: <exact styling approach/framework, e.g. "plain CSS in styles.css" or "Tailwind CSS v3 via npm (tailwind.config.js)"> ; packages: <every package that must be installed, exact npm names, or "none">
+The next two lines MUST be exactly (the completion gate runs them itself before the milestone may finish):
+Build Command: <ONE shell command run from the workspace root that exits 0 only when this milestone builds correctly, e.g. \`npm run build\`, \`node --check server.js\`, or for a docs-only milestone \`test -s README.md\`>
+Test Command: <ONE shell command that runs this milestone's automated tests, or "none" if the plan has no automated tests>
 then fonts, colors (hex + where used), touch targets, layout rules.`;
   const visual = m.reviewMode !== "technical";
   const technical = m.reviewMode !== "visual";

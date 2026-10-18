@@ -34,3 +34,18 @@ export function testMaxAgendas(env: NodeJS.ProcessEnv = process.env): number | n
 export function cuSilentBridge(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.XMD_TEST_HOOKS === "1" && env.XMD_TEST_CU_SILENT === "1";
 }
+
+/** TASK 18 (T1–T4): kwa milestone Mk — `XMD_TEST_BUILD_CMD_<Mk>` inabadilisha buildCommand ya lango;
+ *  `XMD_TEST_GOAL_OFF_<Mk>=1` inazima judge kwa awamu hiyo; `XMD_TEST_CU_NOTE_<Mk>` ni agizo la ziada mwishoni mwa StartPack (mf. "usiandike Build Report"). Inert bila XMD_TEST_HOOKS=1. */
+export function testGateOverride(milestoneId: string, env: NodeJS.ProcessEnv = process.env): { buildCommand?: string; note?: string; goalOff?: boolean } {
+  if (env.XMD_TEST_HOOKS !== "1" || !milestoneId) return {};
+  const out: { buildCommand?: string; note?: string; goalOff?: boolean } = {};
+  // `XMD_TEST_GOAL_OFF_<Mk>=1` → bridge inaendeshwa bila judge (XMD_GOAL_OFF=1, njia ya dev ya oh_bridge) ili
+  // lango la kumaliza liwe kizuizi PEKEE — T1/T3 zinapima hook yenyewe, si judge (real run 2: judge alikamata kwanza).
+  if (env[`XMD_TEST_GOAL_OFF_${milestoneId}`] === "1") out.goalOff = true;
+  const bc = env[`XMD_TEST_BUILD_CMD_${milestoneId}`];
+  const note = env[`XMD_TEST_CU_NOTE_${milestoneId}`];
+  if (bc) out.buildCommand = bc;
+  if (note) out.note = note;
+  return out;
+}

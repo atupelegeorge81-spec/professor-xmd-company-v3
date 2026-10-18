@@ -117,10 +117,13 @@ export interface BuildReportCrossCheck {
   unreported: string[];
 }
 
+/** Faili za harness ambazo git inazitenga kwa makusudi (.git/info/exclude ya engine) — kuzitaja si "fake". */
+export const HARNESS_FILES = ["plan.md", "feature_list.json", "AGENTS.md", "CLAUDE.md", "STATUS.md", ".xmd/startpack.json"];
+
 /** Linganisha paths za sehemu ya 2 na `git diff --name-only` ya awamu hii. Directory iliyotajwa inakubali faili zilizo chini yake. */
 export function crossCheckBuildReport(reportPaths: string[], changed: string[]): BuildReportCrossCheck {
   const ch = changed.map(normalizeReportPath).filter(Boolean);
-  const rp = reportPaths.map(normalizeReportPath).filter(Boolean);
+  const rp = reportPaths.map(normalizeReportPath).filter((p) => p && !HARNESS_FILES.includes(p));
   const covers = (r: string, c: string) => c === r || c.startsWith(`${r}/`);
   return {
     fake: rp.filter((r) => !ch.some((c) => covers(r, c))),

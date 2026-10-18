@@ -15,11 +15,20 @@
 // │ <status isiyojulikana>    │ -          │ -        │ ERROR, reason = raw    │
 // └───────────────────────────┴────────────┴──────────┴────────────────────────┘
 //
-// INTERIM: COMPLETED_VERIFIED haipo hadi task 18 (evidence gate) — run ya kawaida
-// iliyomaliza ni COMPLETED_UNVERIFIED tu; KAMWE usiandike "verified".
+// TASK-18: awamu za MILESTONE (flag ON) — lango la kumaliza (cu/gate.py) linatuma `gate` kwenye run_end:
+// ┌───────────────────────────┬──────────────────────────────┬────────────────────────┐
+// │ status (milestone)        │ gate                         │ → CuFinalState         │
+// ├───────────────────────────┼──────────────────────────────┼────────────────────────┤
+// │ "done"                    │ passed:true                  │ COMPLETED_VERIFIED     │
+// │ "done"                    │ haipo / passed:false         │ PARTIAL (gate missing) │
+// │ "partial" (loop guard)    │ partial:true, failed:[...]   │ PARTIAL (gate failed)  │
+// │ stuck/blocked/paused/err  │ yoyote                       │ kama jedwali la juu    │
+// └───────────────────────────┴──────────────────────────────┴────────────────────────┘
+// COMPLETED_UNVERIFIED haitolewi kwa milestone; legacy (flag OFF) haibadiliki — KAMWE "verified" bila gate.
 // "stuck" + ripoti HAIKuhesabiwa success (hili ndilo tatizo la awali: ok = !!report).
 
 export type CuFinalState =
+  | "COMPLETED_VERIFIED"
   | "COMPLETED_UNVERIFIED"
   | "PARTIAL"
   | "STUCK"
@@ -36,11 +45,26 @@ export interface FinalStateInput {
   paused: boolean;
   /** maelezo ya kosa (mf. ev.fatal) — ikiwepo inaingizwa kwenye reason */
   error?: string;
+  /** TASK-18: awamu ya milestone (flag ON) — mapping ya lango inatumika */
+  milestone?: boolean;
+  /** TASK-18: matokeo ya lango kutoka run_end ya bridge */
+  gate?: CuGateInfo;
+}
+
+/** TASK-18: `gate` ya run_end (cu/gate.py GateGuard.summary). */
+export interface CuGateInfo {
+  passed: boolean;
+  partial?: boolean;
+  evaluated?: boolean;
+  blocks?: number;
+  failed?: string[];
+  notes?: string[];
+  checks?: Record<string, unknown>;
 }
 
 export interface FinalStateOutcome {
   state: CuFinalState;
-  /** ndio TU ikiwa state === "COMPLETED_UNVERIFIED" (interim: hii pekee inahesabika ok) */
+  /** ndio TU ikiwa state ni COMPLETED_VERIFIED (milestone) au COMPLETED_UNVERIFIED (legacy) */
   ok: boolean;
   /** maelezo mafupi (kwa chip/item/log) — hasa kwa unknown status: raw status haiishi kimya */
   reason?: string;
@@ -54,6 +78,10 @@ export function computeFinalState(input: FinalStateInput): CuFinalState {
   if (input.paused || raw === "paused_quota") return "PAUSED_QUOTA";
   if (raw === "stuck") return "STUCK";
   if (raw === "blocked") return "BLOCKED";
+  if (input.milestone) {
+    if (raw === "partial") return "PARTIAL";
+    if (DONE_SET.has(raw)) return input.gate?.passed === true ? "COMPLETED_VERIFIED" : "PARTIAL";
+  }
   if (DONE_SET.has(raw)) return input.hasReport ? "COMPLETED_UNVERIFIED" : "PARTIAL";
   if (raw === "error" || raw === "crash" || raw === "fatal") return "ERROR";
   return "ERROR"; // unknown status → KAMWE "ok" kimya kimya (reason hubeba raw hapa chini)
@@ -65,8 +93,11 @@ export function computeFinalOutcome(input: FinalStateInput): FinalStateOutcome {
   const raw = String(input.status || "");
   let reason: string | undefined;
   switch (state) {
+    case "COMPLETED_VERIFIED": reason = `completed, verified by the completion gate${input.gate?.blocks ? ` (blocks ${input.gate.blocks})` : ""}`; break;
     case "COMPLETED_UNVERIFIED": reason = "completed, NOT yet verified"; break;
-    case "PARTIAL": reason = "imekamilika ila ripoti haipo (missing report)"; break;
+    case "PARTIAL": reason = input.milestone
+      ? (input.gate?.failed?.length ? `PARTIAL: gate failed: ${input.gate.failed.join("; ").slice(0, 600)}` : "PARTIAL: completion gate did not pass (no gate result)")
+      : "imekamilika ila ripoti haipo (missing report)"; break;
     case "STUCK": reason = `stuck${input.error ? ` · ${input.error}` : ""}`; break;
     case "BLOCKED": reason = `blocked${input.error ? ` · ${input.error}` : ""}`; break;
     case "PAUSED_QUOTA": reason = "paused (quota)"; break;
@@ -78,5 +109,5 @@ export function computeFinalOutcome(input: FinalStateInput): FinalStateOutcome {
       break;
     }
   }
-  return { state, ok: state === "COMPLETED_UNVERIFIED", reason };
+  return { state, ok: state === "COMPLETED_VERIFIED" || state === "COMPLETED_UNVERIFIED", reason };
 }

@@ -1434,7 +1434,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         // TASK-3: ok TU kwa COMPLETED_UNVERIFIED — stuck/blocked/unknown si "done" tena (hata na ripoti).
         // Items mpya zina finalState (engine); live/legacy bila finalState: "done"/"ok"/"success" pekee ni done.
         const fs = cu.finalState ? String(cu.finalState) : undefined;
-        const okEnd = fs ? fs === "COMPLETED_UNVERIFIED" : ["done", "ok", "success"].includes(String(cu.status || "done").toLowerCase());
+        const okEnd = fs ? (fs === "COMPLETED_UNVERIFIED" || fs === "COMPLETED_VERIFIED") : ["done", "ok", "success"].includes(String(cu.status || "done").toLowerCase());
         patch<CuRunItem>(cuRunUi, {
           status: okEnd ? "done" : "error",
           ...(fs ? { finalState: fs, finalReason: cu.finalReason ? String(cu.finalReason) : undefined } : {}),

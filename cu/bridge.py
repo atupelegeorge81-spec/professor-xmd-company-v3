@@ -640,6 +640,8 @@ class HookState:
         # R33: mabaki — tests ziliyoandikwa lazima ziendeshwe; ripoti si code-dump
         self.tests_written: bool = False
         self.tests_run: bool = False
+        self.gate_guard = None          # TASK-18: GateGuard (milestone runs tu)
+        self.gate_partial_line: str = ""
         # R48: verification is recorded only after a successful tool result. Calling a test/build
         # command is not evidence that it passed. Plan runs cannot report success without this gate.
         self.verification_passed: bool = False
@@ -905,6 +907,24 @@ class HookState:
             return "\n".join(HookState._response_text(x) for x in response)
         return str(response)
 
+    @staticmethod
+    def _exit_code(response) -> "int | None":
+        """TASK-18: exit code halisi ya tool result (dict exit_code/exitCode/returncode, is_error, au "Exit code: N")."""
+        if isinstance(response, dict):
+            for k in ("exit_code", "exitCode", "returncode", "code"):
+                v = response.get(k)
+                if isinstance(v, bool):
+                    continue
+                if isinstance(v, int):
+                    return v
+                if isinstance(v, str) and v.strip().lstrip("-").isdigit():
+                    return int(v.strip())
+            if response.get("is_error") is True or response.get("interrupted") is True:
+                return 1
+        txt = HookState._response_text(response)
+        m = _re.search(r"(?:exit(?:\s*code)?|returned)\s*[:=]?\s*(-?\d{1,3})\b", txt, _re.I)
+        return int(m.group(1)) if m else None
+
     def note_post_tool(self, name: str, ti: dict, response=None) -> None:
         """PostToolUse: track UI evidence and mark verification only after a successful result."""
         if name == "Bash":
@@ -915,7 +935,11 @@ class HookState:
                 self.verification_command = cmd[:300]
                 self.verification_passed = not failed
             if TEST_RUN_RX.search(cmd):
-                self.tests_run = not failed
+                # TASK-18: tests_run = True TU baada ya test command kumaliza na exit 0 (exit code halisi
+                # ikijulikana; vinginevyo dalili za kufeli kwenye output). Jaribio lililofeli halifungui mlango.
+                # Non-milestone (legacy) runs: kanuni ya zamani (`not failed`) haibadiliki.
+                ec = self._exit_code(response) if self.gate_guard is not None else None
+                self.tests_run = (ec == 0) if ec is not None else not failed
         elif name in ("Write", "Edit", "NotebookEdit"):
             # A source/config change after a green check makes that check stale.
             path = str(ti.get("file_path") or ti.get("path") or "").lower()
@@ -1172,6 +1196,16 @@ def build_xmd_hooks(state: HookState, em, workspace: str):
                 if dv.get("block_reason"):
                     em.emit("xmd_hook", kind="continue", text=str(dv["block_reason"])[:500])
                     return {"decision": "block", "reason": dv["block_reason"]}
+            # TASK-18: COMPLETION GATE (milestone tu) — hook inathibitisha yenyewe (ripoti, git, build, tests)
+            gg = getattr(state, "gate_guard", None)
+            if gg is not None and not verdict.get("brake"):
+                gv, gres, gmsg = gg.check()
+                if gv == "block":
+                    em.emit("xmd_hook", kind="gate", text=gmsg[:600])
+                    return {"decision": "block", "reason": gmsg}
+                if gv == "partial":
+                    state.gate_partial_line = gmsg
+                    em.emit("xmd_hook", kind="gate", text=gmsg[:600])
         except Exception as e:
             sys.stderr.write(f"[bridge] hook on_stop: {e}\n")
         return {}
@@ -1505,6 +1539,9 @@ async def main():
 
     # R32: hali ya hooks (ushauri + brake) + MCP search server (SearXNG via Koyeb/direct)
     hook_state = HookState()
+    if getattr(a, "milestone", ""):  # TASK-18: lango la on_stop kwa awamu za milestone tu
+        import gate as G
+        hook_state.gate_guard = G.GateGuard(a.workspace)
     xmd_hooks = build_xmd_hooks(hook_state, em, a.workspace)
     search_server = build_search_tool(a.callback_url, a.callback_token, a.session)
 
@@ -1847,6 +1884,15 @@ async def main():
     # R32-C: brake ya hooks iliwaka → status "stuck" (si "done" ya uongo) — UI + Endeleza
     if hook_state.brake_fired and status == "done":
         status = "stuck"
+    # TASK-18: lango lilishindwa (loop guard) → PARTIAL (si "done" ya uongo); mstari unaingia kwenye Build Report
+    gate_guard = getattr(hook_state, "gate_guard", None)
+    if gate_guard is not None and getattr(hook_state, "gate_partial_line", "") and status == "done":
+        status = "partial"
+        try:
+            import gate as G
+            G.append_partial_to_report(a.workspace, gate_guard.cfg, hook_state.gate_partial_line)
+        except Exception as e:
+            sys.stderr.write(f"[bridge] gate partial line: {e}\n")
     if pause_at_ms:
         # R31-G4: quota imeisha — snapshot ya workspace ifuate Koyeb (bucket) kabla ya pause;
         # resume ya kesho inairejesha (sandbox mpya, kazi ya jana ipo).
@@ -1871,7 +1917,8 @@ async def main():
             pass
     em.emit("run_end", status=status, steps=step, ms=int((time.time() - BASE_TS) * 1000),
             github=sorted(gh_url_seen), deploy=sorted(vc_url_seen),
-            **({"resume_at": pause_at_ms} if pause_at_ms else {}))
+            **({"resume_at": pause_at_ms} if pause_at_ms else {}),
+            **({"gate": gate_guard.summary()} if gate_guard is not None else {}))
 
 
 if __name__ == "__main__":

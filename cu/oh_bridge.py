@@ -26,7 +26,8 @@ import sys
 import time
 
 # --- reuse kabisa ya miundombinu ya bridge.py (Emitter/files/snapshot/regex zilezile) ---
-import bridge as B  # noqa: E402  (Emitter, files_tree, make_snapshot, restore_snapshot, …)
+import bridge as B  # noqa: E402
+import gate as G  # noqa: E402  TASK-18: completion gate (milestone runs tu)  (Emitter, files_tree, make_snapshot, restore_snapshot, …)
 import features_verify  # noqa: E402  (R51-Awamu2: harness ndiye mamlaka ya feature states)
 import lanes  # noqa: E402
 import oh_router  # noqa: E402
@@ -506,6 +507,33 @@ async def main_async() -> None:
         _steps_n = 0
     max_iter = int(os.environ.get("XMD_GOAL_MAX_ITER") or max(40, _steps_n * 3))  # Task 3b: CEO — 40 (bila dari ya 25)
 
+    # TASK-18: COMPLETION GATE (awamu za milestone tu) — agent hawezi kumaliza bila ushahidi uliothibitishwa na hook.
+    gate_guard = G.GateGuard(a.workspace) if getattr(a, "milestone", "") else None
+    gate_partial_line = ""
+
+    def _gate_note(n: str) -> None:
+        em.emit("usage", lane="gate", provider="", account="", model="", prompt=0, completion=0,
+                total=0, ok=False, waiting=False, note=first_words(n, 140))
+
+    def _run_gate(guard, conv) -> str:
+        """Lango baada ya judge "complete": block → ujumbe kwa agent → conversation.run() → tathmini tena."""
+        nonlocal gate_partial_line
+        while True:
+            verdict, res, msg = guard.check()
+            if verdict == "pass":
+                _gate_note(f"gate: PASSED (blocks {guard.blocks})")
+                return "done"
+            if verdict == "partial":
+                gate_partial_line = msg
+                G.append_partial_to_report(a.workspace, guard.cfg, msg)
+                _gate_note(f"gate: PARTIAL after {guard.blocks} blocks — {msg}")
+                em.emit("error", message=first_words(msg, 300))
+                return "partial"
+            _gate_note(f"gate: BLOCK {guard.blocks} — " + "; ".join(res["failed"]))
+            em.emit("xmd_hook", kind="gate", text=msg[:600])
+            conv.send_message(msg)
+            conv.run()
+
     try:
         conversation.send_message(first_message)
         if judge_router is not None and os.environ.get("XMD_GOAL_OFF") != "1":
@@ -534,6 +562,8 @@ async def main_async() -> None:
             em.emit("usage", lane="judge", provider="", account="", model="run_goal",
                     prompt=0, completion=0, total=0, ok=status == "done", waiting=False,
                     note=first_words(f"judge: {g_status} score={score}", 140))
+            if gate_guard is not None and status == "done":
+                status = _run_gate(gate_guard, conversation)
         else:
             # Njia ya DEV pekee (XMD_GOAL_OFF=1): uzalishaji hutumia run_goal (judge) iliyo juu.
             conversation.run()
@@ -543,6 +573,8 @@ async def main_async() -> None:
             em.emit("usage", lane="", provider="", account="", model="", prompt=0, completion=0,
                     total=0, ok=status == "done", waiting=False,
                     note="dev-run (judge off)")
+            if gate_guard is not None and status == "done":
+                status = _run_gate(gate_guard, conversation)
     except lanes.AllLanesDead as e:
         # quota-pause (kama XMD-PAUSE ya claude-mode): snapshot + resume_at
         status = "paused_quota"
@@ -592,6 +624,8 @@ async def main_async() -> None:
     report = last_assistant_text or "(hakuna ripoti)"
     if harness_note:
         report += harness_note
+    if gate_partial_line:
+        report += "\n\n" + gate_partial_line
     partial = status != "done"
     em.emit("finish", report=report[:24000], partial=partial, status=status)
 
@@ -604,7 +638,8 @@ async def main_async() -> None:
 
     em.emit("run_end", status=status, steps=step, ms=int((time.time() - BASE_TS) * 1000),
             github=sorted(gh_urls), deploy=sorted(vc_urls),
-            **({"resume_at": resume_at} if resume_at else {}))
+            **({"resume_at": resume_at} if resume_at else {}),
+            **({"gate": gate_guard.summary()} if gate_guard is not None else {}))
 
 
 def main() -> None:

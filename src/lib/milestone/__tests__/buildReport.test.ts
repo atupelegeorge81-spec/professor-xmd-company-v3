@@ -97,6 +97,9 @@ describe("TASK-17 · crossCheckBuildReport (sehemu ya 2 ↔ git diff)", () => {
     expect(x.fake).toEqual(["src/fake/ghost.ts"]);
     expect(x.unreported).toEqual(["package.json"]);
   });
+  it("TASK-18: faili za harness (feature_list.json, plan.md…) zilizotajwa si fake", () => {
+    expect(crossCheckBuildReport(["README.md", "feature_list.json", "./plan.md"], ["README.md"])).toEqual({ fake: [], unreported: [] });
+  });
   it("directory iliyotajwa inafunika faili zilizo chini yake", () => {
     expect(crossCheckBuildReport(["src/components/"], ["src/components/a.tsx", "src/components/b.tsx"])).toEqual({ fake: [], unreported: [] });
   });

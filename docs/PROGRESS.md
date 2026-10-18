@@ -215,3 +215,16 @@ $ npm run cu:test        → Ran 186 tests — OK
 - T1 parser (accept + 4 rejects) · T2 ripoti halisi ya M1 (sehemu 8, amri 4 = vipande halisi vya exec_start, fake 0) na M2 ·
   T3 snapshot halisi `git diff HEAD~1`: path iliyopandikizwa → fake, README iliyoondolewa → unreported · T4 pytest 311, unittest 241.
 - Baselines: tsc 0 · vitest 506 + 2 skipped · pytest 311 · unittest 241 · eslint 0. Ushahidi: docs/tests/task-17.md.
+
+## Task 18 (maelezo18): Completion gate (2026-10-18), branch task/18-completion-gate
+- Mpya: `cu/gate.py` (masharti 4: Build Report · git safi + commit ≥1 · buildCommand exit 0 · testCommand exit 0 ikihitajika;
+  GateGuard: 3 bila maendeleo halisi → PARTIAL, kikomo 10). bridge.py `on_stop` + oh_bridge `_run_gate` (baada ya judge);
+  `tests_run` tu baada ya exit 0 (milestone). engine: sehemu ya COMPLETION GATE kwenye StartPack + `.xmd/startpack.json`;
+  finalState: `COMPLETED_VERIFIED` (gate.passed tu), PARTIAL → BLOCKED; legacy COMPLETED_UNVERIFIED haibadiliki.
+  plan.ts: Build/Test Command zinadaiwa. Test hooks: XMD_TEST_BUILD_CMD_/CU_NOTE_/GOAL_OFF_<Mk>.
+- Maamuzi yangu (18, kwenye task-18.md) — ya kipekee: maendeleo HALISI (commit ya ripoti peke yake haihesabiwi), ujumbe wa block
+  unakataza kuchezea mazingira (real run: agent alijaribu /proc → sandbox ikafa), repo mpya → `git ls-tree` (rekebisho la Task 17).
+- T1 block "report does not exist" → agent aliandika · T2 block scratch-notes.txt → commit → VERIFIED · T3 SyntaxError → rekebisho →
+  VERIFIED · T4 blocks 3 → PARTIAL → M2 BLOCKED + mstari wa PARTIAL kwenye ripoti · T5 pytest halisi fail→False, pass→True ·
+  T6 flag OFF: gate/milestone 0, COMPLETED_UNVERIFIED kama zamani. Ugunduzi: pause ya watchdog ya RAM ndani ya milestone → ERROR (haijarekebishwa).
+- Baselines: tsc 0 · vitest 514 + 2 skipped · pytest 333 · unittest 263 · eslint 0. Ushahidi: docs/tests/task-18.md.
