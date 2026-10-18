@@ -273,3 +273,21 @@ $ npm run cu:test        → Ran 186 tests — OK
 - REAL: kesi 24 (12×2) + ziada 7 + server iliyokufa = **32/32 kama zilivyoundwa** (sandbox halisi ya E2B + Chromium + site ya CEO);
   http /api/live 200 PASS, 404 FAIL; selector batili → ERROR ×3; suite 7.2s (jumla pamoja na evidence 18.8s, chini ya 3 min).
 - Baselines: tsc 0 · vitest 543 + 2 skipped · pytest 330 + 3 skipped · unittest 263 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-21.md.
+
+## Task 21 — nyongeza: merged main `c7ababf`, Koyeb deploy `b1f5dfa9` HEALTHY; smoke `/`, `/api/live`, `/api/health`, `/board` = 200.
+
+## Task 22 (maelezo22): Baselines + regression (2026-10-18), branch task/22-baselines
+- Mpya: `cu/xmd-regression.mjs`:
+  - `diffImages` (pixelmatch 7.2.0 + pngjs 7.0.0, zinasakinishwa kwenye `.xmd/tools` ikiwa hazipo tu; AA inarukwa; vipimo tofauti → 100% + note);
+  - mode save/diff;
+  - baseline inarudishwa kutoka storage ikikosekana.
+- Mpya: `src/lib/milestone/regression.ts`:
+  - `saveBaselines` → `.xmd/baselines/<Mk>/<route>-<viewport>-<state>.png` + manifest, zote → storage;
+  - `checkRegression` → `EvidencePack.regression[]` (RegressionEntry: regression / expected_change kwa `CO.location.route`, diffUrl);
+  - `REGRESSION_THRESHOLD_PCT` (default 2).
+- types/schemas: `RegressionEntry`. engine: `checkRegression` baada ya screenshots za R0; `.xmd/baselines/` kwenye git exclude.
+- REAL (E2B + Chromium + storage halisi):
+  - T1 0% · T2 rangi moja → 12.884%, diff inaangazia `.cta` tu (imekaguliwa kwa macho) · T3 100% + note;
+  - T4 sign-off M1 → baselines 5, zimepatikana M2 R1: `/` regression ×2, `/pricing` expected (CO-001) ×2, `/about` 0%;
+  - T4b restore kutoka storage 5/5 · T5 env 14 → `/` haiorodheshwi, abc → 2.
+- Baselines: tsc 0 · vitest 552 + 2 skipped · pytest 330 + 3 skipped · unittest 263 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-22.md.

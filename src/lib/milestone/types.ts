@@ -298,6 +298,30 @@ export interface EvidenceCommand {
   logPath: string;
 }
 
+/** TASK-22 (maelezo22): screenshot iliyobadilika > REGRESSION_THRESHOLD_PCT ukilinganisha na baseline ya milestone iliyoidhinishwa.
+ *  "expected_change" = route imeguswa na Change Order ya raundi hii (si regression). */
+export const REGRESSION_KINDS = ["regression", "expected_change"] as const;
+export type RegressionKind = (typeof REGRESSION_KINDS)[number];
+export interface RegressionEntry {
+  kind: RegressionKind;
+  route: string;
+  viewport: string;
+  state: string;
+  /** % ya pixels zilizobadilika (100 = vipimo tofauti) */
+  changedPct: number;
+  thresholdPct: number;
+  /** milestone ambayo baseline yake ilitumika (mf. "M1") */
+  baselineMilestone: string;
+  baselineUrl: string;
+  currentUrl: string;
+  /** picha ya tofauti (storage) — "" ikiwa vipimo tofauti */
+  diffUrl: string;
+  diffPath: string;
+  note?: string;
+  /** expected_change: Change Orders zilizogusa route hii */
+  changeOrderIds?: string[];
+}
+
 export interface EvidencePack {
   milestoneId: string;
   round: number;
@@ -306,7 +330,8 @@ export interface EvidencePack {
   checks: EvidenceCheckResult[];
   commands: EvidenceCommand[];
   gitDiffSummary: string;
-  regression: string[]; // muundo wa kina: task 22
+  /** TASK-22: regressions + expected changes (reviewers wanapokea orodha hii, task 23+) */
+  regression: RegressionEntry[];
   consoleErrors: string[];
   /** TASK-19: makosa ya runner (manifest inaandikwa hata yakiwepo) */
   errors: EvidenceError[];
