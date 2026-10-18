@@ -1,0 +1,14 @@
+{
+  "project": { "name": "xmdtest PROFESSOR XMD dashboard", "summary": "The CEO's live control dashboard for the AI engineering company: start a project conversation, watch the board of agents discuss, follow the XMD Computer, read reports. Must work on a phone." },
+  "map": { "milestones": [ { "id": "M1", "title": "Dashboard shell — header, board view, mobile navigation", "agendas": { "from": 1, "to": 2 }, "phase": "foundation", "reviewMode": "visual", "roster": ["optimus", "ultron", "vextron"] } ] },
+  "ledger": [
+    { "agenda_index": 1, "agenda_item": "Dashboard shell & accessibility", "status": "LOCKED", "decision_summary": "Header on top; conversation/board in the main area; on mobile a bottom navigation bar. Every interactive control ≥44×44 px. Text contrast ≥4.5:1 (WCAG AA). No horizontal overflow at 375/768/1280." },
+    { "agenda_index": 2, "agenda_item": "Visual language", "status": "LOCKED", "decision_summary": "Calm, professional, dense-but-readable UI; one consistent type scale; icons with accessible labels." }
+  ],
+  "miniReports": [
+    { "agendaIndex": 1, "title": "Dashboard shell & accessibility", "detail": "DECISION: header + main board + mobile bottom nav. CONSTRAINTS: touch targets ≥44px, WCAG AA contrast, no overflow. TRADE-OFF: bigger controls take space on mobile, accepted for usability." },
+    { "agendaIndex": 2, "title": "Visual language", "detail": "DECISION: calm professional look, consistent type scale, labelled icons. CONSTRAINTS: none beyond AA. TRADE-OFF: less decoration, more clarity." }
+  ],
+  "buildReport": "# M1 Build Report (live site — reviewed as deployed)\n## Summary\nThe dashboard is live on Koyeb; this review uses the deployed build.\n",
+  "gitDiffSummary": "(deployed site — no diff for this review)"
+}
