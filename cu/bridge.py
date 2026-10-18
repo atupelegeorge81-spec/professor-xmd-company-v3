@@ -489,7 +489,46 @@ def build_report_contract(milestone: str) -> str:
     )
 
 
-def with_build_report_contract(existing: str, milestone: str) -> str:
+def receipts_contract(milestone: str, receipts: dict) -> str:
+    """TASK-25: raundi ya marekebisho — Receipts badala ya Build Report (sawa na fixRound.ts receiptsContract)."""
+    path = str(receipts.get("path") or ".xmd/receipts/R1.json")
+    orders = [str(x) for x in (receipts.get("orderIds") or [])]
+    msg = str(receipts.get("commitMessage") or f"{milestone}: {', '.join(orders)}")
+    return (
+        f"## XMD RECEIPTS CONTRACT (milestone {milestone}, fix round)\n"
+        "This is a FIX ROUND: apply the change orders in the task file — nothing else. No Build Report this round.\n"
+        f"Before you finish, write `{path}` inside the workspace (/home/user/ws): a JSON ARRAY with exactly one "
+        f"Receipt per change order ({', '.join(orders)}):\n\n"
+        "```json\n"
+        '[{"orderId": "CO-001", "status": "DONE|PARTIAL|BLOCKED|CANNOT",\n'
+        '  "filesChanged": [{"path": "relative/path", "summary": "what changed"}],\n'
+        '  "commandsRun": ["the exact commands"], "notes": "optional",\n'
+        '  "blockedReason": "required when BLOCKED or CANNOT"}]\n'
+        "```\n\n"
+        "Rules: filesChanged lists ONLY files you really changed for that order — the harness compares it with "
+        "`git diff`; an order whose target files are not in the diff is marked NOT_ATTEMPTED, a receipt that lists "
+        "unchanged files is rejected, and changed files that no receipt lists are flagged UNLISTED_CHANGE. "
+        "If an order contradicts a locked ledger decision (see LOCKED LEDGER in the task file) or cannot be done, "
+        "do NOT apply it: status BLOCKED (or CANNOT) with blockedReason, filesChanged [].\n"
+        f'Then commit everything yourself: `git add -A && git commit -m "{msg}"`.\n'
+        "You cannot finish without a valid receipts file for every order. Do not grade yourself; the harness measures.\n"
+    )
+
+
+def milestone_contract(milestone: str, ws: str) -> str:
+    """TASK-25: `.xmd/startpack.json` ina `receipts` → mkataba wa Receipts (raundi ya marekebisho); vinginevyo Build Report."""
+    if not milestone:
+        return ""
+    try:
+        with open(os.path.join(ws, ".xmd/startpack.json"), "r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except Exception:  # noqa: BLE001
+        cfg = {}
+    rc = cfg.get("receipts") if isinstance(cfg, dict) else None
+    return receipts_contract(milestone, rc) if isinstance(rc, dict) else build_report_contract(milestone)
+
+
+def with_build_report_contract(existing: str, milestone: str, ws: str = "") -> str:
     """Weka (au badilisha) block ya mkataba ndani ya CLAUDE.md — maandishi mengine hayaguswi."""
     text = existing or ""
     a, b = text.find(BUILD_REPORT_MARK_START), text.find(BUILD_REPORT_MARK_END)
@@ -497,7 +536,8 @@ def with_build_report_contract(existing: str, milestone: str) -> str:
         text = (text[:a].rstrip("\n") + text[b + len(BUILD_REPORT_MARK_END):]).rstrip("\n")
     if not milestone:
         return text
-    return f"{text}\n\n{BUILD_REPORT_MARK_START}\n{build_report_contract(milestone)}{BUILD_REPORT_MARK_END}\n"
+    body = milestone_contract(milestone, ws) if ws else build_report_contract(milestone)
+    return f"{text}\n\n{BUILD_REPORT_MARK_START}\n{body}{BUILD_REPORT_MARK_END}\n"
 
 
 def fingerprint_cmd(cmd: str) -> str:
@@ -1533,7 +1573,7 @@ async def main():
             with open(cm_path, "r", encoding="utf-8") as fh:
                 cur = fh.read()
             with open(cm_path, "w", encoding="utf-8") as fh:
-                fh.write(with_build_report_contract(cur, a.milestone))
+                fh.write(with_build_report_contract(cur, a.milestone, a.workspace))  # TASK-25: receipts kwa raundi ya marekebisho
     except Exception as e:
         sys.stderr.write(f"[bridge] CLAUDE.md haikuwekwa: {e}\n")
 

@@ -1,0 +1,50 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 1,
+ "results": [
+  {
+   "id": "CO-001/h1-color",
+   "type": "computed_style",
+   "result": "PASS",
+   "detail": "/ @1280x800: color of \"h1\" = rgb(242, 240, 235) (expected #F2F0EB; 0/1 differ)"
+  },
+  {
+   "id": "CO-002/h1-serif",
+   "type": "computed_style",
+   "result": "FAIL",
+   "detail": "/ @1280x800: font-family of \"h1\" = Inter, system-ui, sans-serif (expected Georgia, \"Times New Roman\", serif; 1/1 differ)"
+  },
+  {
+   "id": "global/build",
+   "type": "command",
+   "result": "PASS",
+   "detail": "exit 0 (expected 0) — last lines:\n\n> xmdtest-fix@0.0.1 build\n> node scripts/build.mjs\n\nbuild ok: 3 css rules"
+  },
+  {
+   "id": "global/console_clean",
+   "type": "console_clean",
+   "result": "PASS",
+   "detail": "/ @1280x800: 0 console/page/request errors · / @375x667: 0 console/page/request errors · / @768x1024: 0 console/page/request errors"
+  },
+  {
+   "id": "global/no_horizontal_overflow",
+   "type": "no_horizontal_overflow",
+   "result": "PASS",
+   "detail": "/ @1280x800: scrollWidth 1280 vs clientWidth 1280 · / @375x667: scrollWidth 375 vs clientWidth 375 · / @768x1024: scrollWidth 768 vs clientWidth 768"
+  }
+ ],
+ "owner": {
+  "CO-001/h1-color": "CO-001",
+  "CO-002/h1-serif": "CO-002",
+  "global/build": "global",
+  "global/console_clean": "global",
+  "global/no_horizontal_overflow": "global"
+ },
+ "routes": [
+  "/"
+ ],
+ "ms": 7053,
+ "ran": true,
+ "at": "2026-10-18T22:36:50.923Z"
+}

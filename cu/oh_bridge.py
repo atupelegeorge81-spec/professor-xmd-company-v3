@@ -493,7 +493,7 @@ async def main_async() -> None:
         "+ muundo + ukaguzi ✓/✗ wa kila hatua). Link/screenshot ziwe HALISI tu (zilizotokea kwenye "
         "kazi hii); kama mpango haukutaka deploy/GitHub andika \"haikuhitajika\" — USIBUNI link.\n"
         + resume_part
-        + (("\n" + B.build_report_contract(a.milestone)) if getattr(a, "milestone", "") else "")  # TASK-17
+        + (("\n" + B.milestone_contract(a.milestone, a.workspace)) if getattr(a, "milestone", "") else "")  # TASK-17/25
         + "\n─────────────────────────────────────────────\n\n"
         + plan_md
     )

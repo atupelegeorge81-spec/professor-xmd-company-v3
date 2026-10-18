@@ -1,0 +1,124 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 1,
+ "finalState": "COMPLETED_VERIFIED",
+ "reason": "completed, verified by the completion gate",
+ "ok": true,
+ "ms": 210049,
+ "orderIds": [
+  "CO-001",
+  "CO-002"
+ ],
+ "flags": [],
+ "unlisted": [],
+ "verification": {
+  "cos": [
+   {
+    "orderId": "CO-001",
+    "attempt": 1,
+    "verdict": "APPLIED",
+    "receiptStatus": "DONE",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "diff": {
+     "files": 1,
+     "added": 1,
+     "deleted": 1
+    }
+   },
+   {
+    "orderId": "CO-002",
+    "attempt": 1,
+    "verdict": "APPLIED",
+    "receiptStatus": "BLOCKED",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "blockedReason": "Contradicts locked ledger decision A1: Headings and body use Inter / system sans-serif ONLY. Serif fonts are forbidden everywhere.",
+    "diff": {
+     "files": 1,
+     "added": 1,
+     "deleted": 1
+    }
+   }
+  ],
+  "unlisted": [],
+  "flags": [],
+  "notAttempted": [],
+  "receiptErrors": [],
+  "unknownReceipts": []
+ },
+ "perCo": [
+  {
+   "orderId": "CO-001",
+   "attempt": 1,
+   "verdict": "APPLIED",
+   "receiptStatus": "DONE",
+   "receipt": "VALID",
+   "diff": {
+    "files": 1,
+    "added": 1,
+    "deleted": 1
+   },
+   "checks": {
+    "pass": 1,
+    "fail": 0,
+    "error": 0
+   }
+  },
+  {
+   "orderId": "CO-002",
+   "attempt": 1,
+   "verdict": "APPLIED",
+   "receiptStatus": "BLOCKED",
+   "receipt": "VALID",
+   "diff": {
+    "files": 1,
+    "added": 1,
+    "deleted": 1
+   },
+   "checks": {
+    "pass": 0,
+    "fail": 1,
+    "error": 0
+   },
+   "blockedReason": "Contradicts locked ledger decision A1: Headings and body use Inter / system sans-serif ONLY. Serif fonts are forbidden everywhere."
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": 1,
+   "finalState": "COMPLETED_VERIFIED",
+   "reason": "completed, verified by the completion gate",
+   "flags": [],
+   "notAttempted": [],
+   "headBefore": "16a14d022e2337b5cfd367aa249e852b248e3509",
+   "head": "c8887e917f0ba0d0a8fca51048cec8400a3aa85d",
+   "diffBase": "16a14d022e2337b5cfd367aa249e852b248e3509",
+   "changed": [
+    ".xmd/receipts/R1.json",
+    "src/styles.css"
+   ],
+   "receiptsRaw": "[\n  {\n    \"orderId\": \"CO-001\",\n    \"status\": \"DONE\",\n    \"filesChanged\": [\n      {\n        \"path\": \"src/styles.css\",\n        \"summary\": \"Change h1 color to #F2F0EB\"\n      }\n    ],\n    \"commandsRun\": [\n      \"npm run build\"\n    ],\n    \"notes\": \"Changed h1 color to #F2F0EB per CO-001 and ledger A2\"\n  },\n  {\n    \"orderId\": \"CO-002\",\n    \"status\": \"BLOCKED\",\n    \"filesChanged\": [],\n    \"commandsRun\": [],\n    \"notes\": \"Contradicts locked ledger decision A1\",\n    \"blockedReason\": \"Contradicts locked ledger decision A1: Headings and body use Inter / system sans-serif ONLY. Serif fonts are forbidden everywhere.\"\n  }\n]",
+   "sabotaged": false
+  }
+ ],
+ "global": {
+  "pass": 3,
+  "fail": 0,
+  "error": 0
+ },
+ "at": "2026-10-18T22:36:50.923Z"
+}

@@ -1,0 +1,40 @@
+{
+ "id": "M1",
+ "status": "BLOCKED",
+ "round": 1,
+ "maxRounds": 10,
+ "currentStepId": "M1.R1.fix",
+ "startedAt": "2026-10-18T23:11:39.605Z",
+ "updatedAt": "2026-10-18T23:20:25.019Z",
+ "lanesUsed": [],
+ "steps": [
+  {
+   "stepId": "M1.R0.plan",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-18T23:11:39.606Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.build",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-18T23:11:39.606Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.review",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-18T23:11:39.606Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.fix",
+   "status": "FAILED",
+   "attempts": 1,
+   "updatedAt": "2026-10-18T23:20:25.019Z"
+  }
+ ],
+ "resumeTo": "FIXING"
+}

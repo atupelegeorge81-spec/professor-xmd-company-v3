@@ -38,6 +38,8 @@ import { BUILD_REPORT_INLINE_MAX, buildReportPath } from "@/lib/milestone/buildR
 import { needsScreenshots } from "@/lib/milestone/evidence"; // TASK-19
 import { captureEvidence, evidenceSummary, type CaptureEvidenceResult, type EvidenceUploader } from "./evidence"; // TASK-19
 import { checkRegression, regressionSummary } from "@/lib/milestone/regression"; // TASK-22
+import { commitMessage, receiptsPath } from "@/lib/milestone/fixRound"; // TASK-25
+import { testFixNoop } from "@/lib/milestone/testHooks"; // TASK-25 (T2 sabotage, inert bila XMD_TEST_HOOKS=1)
 const STARTPACK_JSON = ".xmd/startpack.json"; // TASK-18 (cu/gate.py STARTPACK_JSON)
 
 /* ============================ env ============================ */
@@ -758,6 +760,32 @@ export interface MilestonePhaseInput {
   last?: boolean;
   /** TASK-19: visual/mixed → harness inapiga screenshots (R0) mwishoni mwa build */
   reviewMode?: string;
+  /** TASK-25: raundi ya marekebisho — pack ni COs (si plan), lango linadai receipts, hakuna Build Report/screenshots */
+  fix?: MilestoneFixInput;
+}
+
+/** TASK-25: pembejeo ya awamu ya marekebisho. `render` inapewa muhtasari HALISI wa repo kutoka sandbox. */
+export interface MilestoneFixInput {
+  round: number;
+  attempt: number;
+  orderIds: string[];
+  render: (repo: { tree: string; gitLog: string }) => string;
+  /** rerun ya NO-OP: ujumbe wa kudumu unawekwa JUU ya pack */
+  reminder?: string;
+  /** HEAD ya mwanzo wa RAUNDI (rerun inapima diff ya raundi nzima) */
+  diffBase?: string;
+}
+
+/** TASK-25: matokeo ghafi ya awamu ya marekebisho (loop inayathibitisha). */
+export interface MsFixRaw {
+  headBefore: string;
+  diffBase: string;
+  head: string;
+  receiptsPath: string;
+  receiptsRaw: string | null;
+  changed: string[];
+  numstat: string;
+  sabotaged?: boolean;
 }
 
 /** Matokeo ya awamu moja. finalState kutoka computeFinalOutcome (task 3); "PAUSED" = Board ilipumzishwa katikati. */
@@ -774,6 +802,8 @@ export interface MilestoneBuildOutcome {
   buildReport?: MsBuildReportRaw;
   /** TASK-19: EvidencePack ya R0 (visual/mixed tu) */
   evidence?: CaptureEvidenceResult;
+  /** TASK-25: receipts + git diff ya raundi ya marekebisho */
+  fix?: MsFixRaw;
   ms: number;
 }
 
@@ -872,6 +902,59 @@ const evidenceUploader: EvidenceUploader = async (bytes, name) => {
 /** test-only (majaribio halisi ya Task 19) — uploader halisi wa evidence. */
 export const __t19 = { evidenceUploader };
 
+/** TASK-25: receipts (`.xmd/receipts/R<n>.json`) + `git diff` ya raundi. T2 test hook: kazi ya Computer inafutwa (reset). */
+async function msReadFix(sbx: any, hooks: CuHooks, id: string, fx: MilestoneFixInput, headBefore: string): Promise<MsFixRaw> {
+  const base = /^[0-9a-f]{7,40}$/.test(fx.diffBase || "") ? String(fx.diffBase) : headBefore;
+  const raw: MsFixRaw = { headBefore, diffBase: base, head: "", receiptsPath: receiptsPath(fx.round), receiptsRaw: null, changed: [], numstat: "" };
+  if (fx.attempt === 1 && testFixNoop(id) && /^[0-9a-f]{7,40}$/.test(headBefore)) {
+    await sbx.commands.run(`cd /home/user/ws && git reset -q --hard ${headBefore} && git clean -fdq -e .xmd/receipts`, { timeoutMs: 30_000 }).catch(() => {});
+    raw.sabotaged = true;
+    hooks.blog("warning", `🧪 XMD_TEST_FIX_NOOP_${id}: kazi ya Computer (attempt 1) imefutwa kwa \`git reset --hard ${headBefore.slice(0, 7)}\` — harness lazima iitambue kama NO-OP.`);
+  }
+  const S1 = "@@XMD_RCPT_END@@", S2 = "@@XMD_DIFF_END@@";
+  const diff = /^[0-9a-f]{7,40}$/.test(base) ? `git diff --name-only ${base} HEAD` : "git ls-tree -r --name-only HEAD";
+  const num = /^[0-9a-f]{7,40}$/.test(base) ? `git diff --numstat ${base} HEAD` : "true";
+  try {
+    const r: any = await sbx.commands.run(
+      `cd /home/user/ws && { if [ -f ${q(raw.receiptsPath)} ]; then echo XMD_RCPT_FOUND; head -c 262144 ${q(raw.receiptsPath)}; fi; echo; echo ${S1}; ${diff} 2>/dev/null || true; echo ${S2}; ${num} 2>/dev/null || true; echo @@HEAD; git rev-parse --verify -q HEAD || true; }`,
+      { timeoutMs: 30_000 });
+    const so = String(r?.stdout || "");
+    const a = so.indexOf(S1), b = so.indexOf(S2), h = so.lastIndexOf("@@HEAD");
+    const rc = a >= 0 ? so.slice(0, a) : "";
+    if (rc.startsWith("XMD_RCPT_FOUND\n")) raw.receiptsRaw = rc.slice("XMD_RCPT_FOUND\n".length).trim();
+    raw.changed = (a >= 0 && b > a ? so.slice(a + S1.length, b) : "").split("\n").map((l) => l.trim()).filter(Boolean);
+    raw.numstat = b >= 0 ? so.slice(b + S2.length, h >= 0 ? h : undefined).trim() : "";
+    raw.head = h >= 0 ? so.slice(h + 6).trim() : "";
+  } catch (e: any) {
+    hooks.blog("warning", `🧾 ${id} R${fx.round}: receipts/diff hazikusomeka: ${String(e?.message || e).slice(0, 160)}`);
+  }
+  return raw;
+}
+
+/** TASK-25: endesha kazi ya harness (checks za raundi) kwenye sandbox ya milestone (iliyopo, au mpya + snapshot). */
+export async function runOnMilestoneSandbox<T>(runner: Runner, fn: (sbx: any) => Promise<T>): Promise<T> {
+  const cu = ensureCuState(runner);
+  const sbx = await getSandbox(cu);
+  if ((sbx as any).__xmdFresh) { (sbx as any).__xmdFresh = false; await msRestoreSnapshot(sbx, cu); }
+  try { await sbx.setTimeout(30 * 60_000); } catch { /* */ }
+  return fn(sbx);
+}
+
+/** TASK-25: maandishi ya script ya harness (cu/xmd-evidence.mjs n.k.) kwa checks za raundi. */
+export const readEngineScript = (name: string) => readCuFile(name);
+
+/** TASK-25 test hook pekee (XMD_TEST_FIX_INPUT): repo ndogo `xmdtest-fix` inapandwa kwenye sandbox ya milestone + commit ya kwanza. */
+export async function seedMilestoneWorkspace(runner: Runner, files: Record<string, string>, message = "xmdtest-fix: seed"): Promise<{ sandboxId: string; head: string }> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    await sbx.commands.run(`rm -rf /home/user/ws && mkdir -p /home/user/ws`, { timeoutMs: 30_000 });
+    for (const [p, src] of Object.entries(files)) await sbx.files.write(`/home/user/ws/${p.replace(/^\/+/, "")}`, src);
+    const r: any = await sbx.commands.run(
+      `cd /home/user/ws && git init -q && mkdir -p .git/info && printf '%s\\n' ${MS_GIT_EXCLUDE.map(q).join(" ")} > .git/info/exclude && ${MS_GIT} add -A && ${MS_GIT} commit -qm ${q(message)} && git rev-parse HEAD`,
+      { timeoutMs: 60_000 });
+    return { sandboxId: String(runner.cu?.sandboxId || ""), head: String(r?.stdout || "").trim() };
+  });
+}
+
 /** test-only (vitest) — helpers za snapshot ya milestone. */
 export const __t16Snapshot = { msSnapshot, msRestoreSnapshot, msReadBuildReport };
 
@@ -930,7 +1013,10 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
     await sbx.commands.run(MS_KILL_BRIDGE, { timeoutMs: 15_000 }).catch(() => {});
     for (const [p, src] of files) await sbx.files.write(p, src);
     await sbx.files.write("/home/user/ws/plan.md", ph.planMarkdown); // plan ya milestone HII (bridge haiandiki juu ya iliyopo)
-    try {
+    if (ph.fix) {
+      // TASK-25: raundi ya marekebisho inapimwa kwa receipts + checks za COs — features za build hazibebwi
+      await sbx.commands.run(`rm -f ${q(FEATURE_LIST_SANDBOX_PATH)}`, { timeoutMs: 15_000 }).catch(() => {});
+    } else try {
       const fl = featuresFromPlan(ph.planMarkdown, { runId: `${runner.sessionId || runner.id}:${id}` });
       if (fl.features.length) await sbx.files.write(FEATURE_LIST_SANDBOX_PATH, featureListJson(fl));
     } catch (e) { console.warn(`[cu] feature_list.json (${id}): ${String(e).slice(0, 140)}`); }
@@ -956,9 +1042,20 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
       gateCmds.requiresTests ? `4. The test command \`${gateCmds.testCommand}\` exits 0.` : "4. (tests not required by this plan)",
       "If any check fails you will be blocked and told exactly what failed.",
     ].join("\n");
-    const pack = renderStartPack(ph.startPack, parseRepoSummary(repoOut), note) + `\n${gateText}\n` + (tg.note ? `\n## TEST INSTRUCTION (harness test)\n${tg.note}\n` : "");
+    const fx = ph.fix;
+    const fixGate = fx ? [
+      "", "## COMPLETION GATE (the harness checks this itself before you may finish)",
+      `1. \`${receiptsPath(fx.round)}\` is a JSON array with one valid Receipt for every order (${fx.orderIds.join(", ")}).`,
+      "2. `git status --porcelain` is empty and this round has at least one commit (not needed only when every order is BLOCKED/CANNOT).",
+      gateBuild ? `3. The build command \`${gateBuild}\` exits 0.` : "3. (no build command in this plan)",
+      gateCmds.requiresTests ? `4. The test command \`${gateCmds.testCommand}\` exits 0.` : "4. (tests not required by this plan)",
+      "If any check fails you will be blocked and told exactly what failed.",
+    ].join("\n") : "";
+    const pack = fx
+      ? (fx.reminder ? `## HARNESS REMINDER (attempt ${fx.attempt})\n${fx.reminder}\n\n` : "") + fx.render(parseRepoSummary(repoOut)) + `\n${fixGate}\n` + (tg.note ? `\n## TEST INSTRUCTION (harness test)\n${tg.note}\n` : "")
+      : renderStartPack(ph.startPack, parseRepoSummary(repoOut), note) + `\n${gateText}\n` + (tg.note ? `\n## TEST INSTRUCTION (harness test)\n${tg.note}\n` : "");
     await sbx.files.write("/home/user/startpack.md", pack);
-    maybeCapturePrompt({ sessionId: runner.sessionId || runner.id, agent: "computer", agenda: 0, phase: `computer:${id}`, system: pack });
+    maybeCapturePrompt({ sessionId: runner.sessionId || runner.id, agent: "computer", agenda: 0, phase: fx ? `computer:${id}:R${fx.round}:a${fx.attempt}` : `computer:${id}`, system: pack });
 
     const silent = cuSilentBridge();
     const cmd = silent
@@ -972,10 +1069,12 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
       milestoneId: id, title: ph.startPack.title,
       buildCommand: gateBuild, testCommand: gateCmds.testCommand, requiresTests: gateCmds.requiresTests,
       baseCommit: /^[0-9a-f]{7,40}$/.test(headBefore) ? headBefore : "",
-      reportPath: buildReportPath(id),
+      reportPath: fx ? "" : buildReportPath(id),
+      // TASK-25: lango (e) — receipts badala ya Build Report
+      ...(fx ? { report: false, round: fx.round, receipts: { path: tg.receiptsPath || receiptsPath(fx.round), orderIds: fx.orderIds, commitMessage: commitMessage(id, fx.round, fx.orderIds) } } : {}),
     };
     await sbx.files.write(`/home/user/ws/${STARTPACK_JSON}`, JSON.stringify(gateCfg, null, 2));
-    hooks.blog("info", `🚦 ${id}: lango la kumaliza — build \`${gateCfg.buildCommand || "(plan haina Build Command)"}\`${gateCfg.requiresTests ? ` · tests \`${gateCfg.testCommand}\`` : ""} · base ${gateCfg.baseCommit ? gateCfg.baseCommit.slice(0, 7) : "(repo mpya)"}.`);
+    hooks.blog("info", `🚦 ${id}${fx ? ` R${fx.round} (attempt ${fx.attempt}) · receipts ${receiptsPath(fx.round)}` : ""}: lango la kumaliza — build \`${gateCfg.buildCommand || "(plan haina Build Command)"}\`${gateCfg.requiresTests ? ` · tests \`${gateCfg.testCommand}\`` : ""} · base ${gateCfg.baseCommit ? gateCfg.baseCommit.slice(0, 7) : "(repo mpya)"}.`);
     if (silent) hooks.blog("warning", `🧪 XMD_TEST_CU_SILENT: bridge ya kimya (test hook) — liveness ya ${Math.round(CU_LIVENESS_MS / 1000)}s itaikata.`);
     hooks.blog("api", `🚀 ${id}: sandbox ${cu.sandboxId?.slice(0, 8)}… — bridge mpya inaanzishwa (StartPack herufi ${pack.length}).`);
 
@@ -1033,7 +1132,7 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
     let gitLog = "";
     try {
       const r: any = await sbx.commands.run(
-        `cd /home/user/ws && ${MS_GIT} add -A && (${MS_GIT} diff --cached --quiet || ${MS_GIT} commit -qm ${q(`XMD ${id}: ${ph.startPack.title}`.slice(0, 120))}); git log --oneline -n 5 2>/dev/null || true`,
+        `cd /home/user/ws && ${MS_GIT} add -A && (${MS_GIT} diff --cached --quiet || ${MS_GIT} commit -qm ${q((fx ? `XMD ${id} R${fx.round}: harness commit (leftovers)` : `XMD ${id}: ${ph.startPack.title}`).slice(0, 120))}); git log --oneline -n 5 2>/dev/null || true`,
         { timeoutMs: 60_000 });
       gitLog = String(r?.stdout || "").trim();
       hooks.blog("info", gitLog
@@ -1041,6 +1140,14 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
         : `🧾 git ${id}: hakuna mabadiliko ya kucommit (repo bado haina commit).`);
     } catch (e: any) {
       hooks.blog("warning", `🧾 git commit ya ${id} haikufanyika: ${String(e?.message || e).slice(0, 140)}`);
+    }
+    if (fx) {
+      // TASK-25: receipts + diff ya raundi (code inazipima — loop.verifyReceipts). Hakuna Build Report wala screenshots.
+      const fix = await msReadFix(sbx, hooks, id, fx, headBefore);
+      await msSnapshot(sbx, cu, hooks, `${id}-R${fx.round}`);
+      sbx.setTimeout(30 * 60_000).catch(() => {}); // sandbox inabaki kwa checks + raundi inayofuata
+      const fsx = (cu.finalState || "ERROR") as CuFinalState;
+      return out(!MS_BUILD_FAIL_STATES.includes(fsx), fsx, cu.finalReason || "", { report: cu.report, freshSandbox: fresh, restored, gitLog, fix });
     }
     const buildReport = await msReadBuildReport(sbx, hooks, id, headBefore);
     // TASK-19: screenshots za harness (visual/mixed, build imepita) — kabla ya snapshot, sandbox bado hai
