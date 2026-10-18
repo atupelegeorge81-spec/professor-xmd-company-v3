@@ -191,3 +191,16 @@ $ npm run cu:test        → Ran 186 tests — OK
 - T1 plan halisi active (hatua 3 · checks 14 · routes 1) · T2 bila Checks → makosa 4 sahihi kwa kila hatua ·
   T3 sabotage → guard_failed, M1 BLOCKED, CU 0 · T4 VAT haiongezwi · T5 flag OFF: plan ya zamani (hatua 9), milestone/OCB 0.
 - Baselines: tsc 0 · vitest 468 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-15.md.
+
+## Task 16 (maelezo16): XMD Computer kwa kila Milestone (2026-10-18), branch task/16-computer-per-milestone
+- Mpya: `src/lib/milestone/startpack.ts` (StartPack (a)–(e): plan · Ledger fupi · repo tree+git log · ripoti zilizopita ≤60 · kasoro).
+- engine.ts: `startComputerPhase(runner, hooks, phase)` = milestone MOJA. Kila awamu: bridge mpya, sandbox iliyopo ikiwa hai
+  (la sivyo mpya + restore ya snapshot/kiovu), liveness `CU_LIVENESS_MS` (dak 15) → STUCK, commit ya harness "XMD Computer",
+  snapshot tar+git ya mwisho wa awamu. loop.ts `runBuildStep`: STUCK/BLOCKED/ERROR → BLOCKED. Test hook `XMD_TEST_CU_SILENT`.
+- Maamuzi yangu (9, yameandikwa kwenye task-16.md): concurrency guard `msBusy` (jibu la swali la bridges mbili); pause → hatua inarudiwa;
+  ping ×2 → ERROR; `.git/info/exclude` ya harness; snapshot tar+git (kiovu hakinasi faili za terminal); timeoutMs saa 24;
+  checkCuStall "ok" kwenye njia ya milestone; resume ya CU ya zamani inarukwa; git log bila commit sio kosa.
+- T1 M1/M2 → commits 2 (`80306f7`, `70bf1a5`), sandbox imetumika tena, mazungumzo 2 ya OpenHands · T2 prompt ya M2 ina StartPack,
+  chat ya M1 haipo (think 0/126) · T3 sandbox imeuawa → M2 sandbox mpya, faili 6 + git zimerejeshwa (`2616771` → `e6e995e`) ·
+  T4 bridge kimya → STUCK baada ya 60.05s → M1 BLOCKED · T5 flag OFF: milestone 0, CU ya zamani ×1.
+- Baselines: tsc 0 · vitest 489 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-16.md.

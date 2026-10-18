@@ -29,3 +29,8 @@ export function testMaxAgendas(env: NodeJS.ProcessEnv = process.env): number | n
   const n = Number(env.XMD_TEST_MAX_AGENDAS);
   return Number.isInteger(n) && n >= 1 ? n : null;
 }
+
+/** TASK 16 (T4): XMD_TEST_CU_SILENT=1 → bridge ya kimya (`sleep`) badala ya oh_bridge — liveness ya CU_LIVENESS_MS ipimwe. */
+export function cuSilentBridge(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.XMD_TEST_HOOKS === "1" && env.XMD_TEST_CU_SILENT === "1";
+}
