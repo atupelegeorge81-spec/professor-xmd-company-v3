@@ -35,6 +35,8 @@ import type { BoardEvent, LogEntry } from "@/lib/types";
 import { parseRepoSummary, planGateCommands, renderStartPack, REPO_SUMMARY_CMD, type MilestoneStartPack } from "@/lib/milestone/startpack"; // TASK-16/18
 import { cuSilentBridge, maybeCapturePrompt, testGateOverride } from "@/lib/milestone/testHooks"; // TASK-16/18
 import { BUILD_REPORT_INLINE_MAX, buildReportPath } from "@/lib/milestone/buildReport"; // TASK-17
+import { needsScreenshots } from "@/lib/milestone/evidence"; // TASK-19
+import { captureEvidence, evidenceSummary, type CaptureEvidenceResult, type EvidenceUploader } from "./evidence"; // TASK-19
 const STARTPACK_JSON = ".xmd/startpack.json"; // TASK-18 (cu/gate.py STARTPACK_JSON)
 
 /* ============================ env ============================ */
@@ -753,6 +755,8 @@ export interface MilestonePhaseInput {
   title?: string;
   /** milestone ya mwisho kwenye ramani → sandbox inauawa baada ya awamu (nyingine: inabaki kwa M inayofuata) */
   last?: boolean;
+  /** TASK-19: visual/mixed → harness inapiga screenshots (R0) mwishoni mwa build */
+  reviewMode?: string;
 }
 
 /** Matokeo ya awamu moja. finalState kutoka computeFinalOutcome (task 3); "PAUSED" = Board ilipumzishwa katikati. */
@@ -767,6 +771,8 @@ export interface MilestoneBuildOutcome {
   gitLog?: string;
   /** TASK-17: Build Report iliyosomwa kutoka sandbox + faili zilizobadilika kwenye awamu hii (git) */
   buildReport?: MsBuildReportRaw;
+  /** TASK-19: EvidencePack ya R0 (visual/mixed tu) */
+  evidence?: CaptureEvidenceResult;
   ms: number;
 }
 
@@ -786,7 +792,7 @@ export const MS_BUILD_FAIL_STATES: readonly string[] = ["STUCK", "BLOCKED", "ERR
 
 const MS_GIT = "git -c user.name='XMD Computer' -c user.email='computer@professor-xmd.local'";
 /** faili za harness/installs — hazi-commitiwi kwenye repo ya mradi (.git/info/exclude, si .gitignore ya mradi) */
-const MS_GIT_EXCLUDE = ["node_modules/", ".xmd/oh/", ".cache/", "plan.md", "feature_list.json", "AGENTS.md", ".xmd/startpack.json", "CLAUDE.md", "STATUS.md"]; // TASK-18: faili za harness hazichafui `git status`
+const MS_GIT_EXCLUDE = ["node_modules/", ".xmd/oh/", ".cache/", "plan.md", "feature_list.json", "AGENTS.md", ".xmd/startpack.json", "CLAUDE.md", "STATUS.md", ".xmd/tools/", ".xmd/evidence/M*/R*/"]; // TASK-18/19: faili za harness hazichafui `git status`
 const MS_KILL_BRIDGE = "pkill -9 -f '[c]u_bridge\\.py|[o]h_bridge\\.py|[s]leep 86400' || true";
 const MS_SNAP = "/tmp/xmd-ms-ws.tar.gz";
 
@@ -854,6 +860,16 @@ async function msReadBuildReport(sbx: any, hooks: CuHooks, id: string, headBefor
   }
   return out;
 }
+
+/** TASK-19: PNG ya ushahidi → bucket ya CU files (public) → URL. Keys za storage HAZIINGII sandbox. */
+const evidenceUploader: EvidenceUploader = async (bytes, name) => {
+  if (!appwriteConfigured) throw new Error("storage haijasanidiwa");
+  const f: any = await storage.createFile(CU_BUCKET, "unique()", InputFile.fromBuffer(Buffer.from(bytes), name));
+  return publicFileUrl(CU_BUCKET, f.$id);
+};
+
+/** test-only (majaribio halisi ya Task 19) — uploader halisi wa evidence. */
+export const __t19 = { evidenceUploader };
 
 /** test-only (vitest) — helpers za snapshot ya milestone. */
 export const __t16Snapshot = { msSnapshot, msRestoreSnapshot, msReadBuildReport };
@@ -1026,12 +1042,23 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
       hooks.blog("warning", `🧾 git commit ya ${id} haikufanyika: ${String(e?.message || e).slice(0, 140)}`);
     }
     const buildReport = await msReadBuildReport(sbx, hooks, id, headBefore);
+    // TASK-19: screenshots za harness (visual/mixed, build imepita) — kabla ya snapshot, sandbox bado hai
+    let evidence: CaptureEvidenceResult | undefined;
+    if (needsScreenshots(ph.reviewMode) && !MS_BUILD_FAIL_STATES.includes((cu.finalState || "ERROR") as CuFinalState)) {
+      hooks.blog("info", `📸 ${id}: harness inapiga screenshots (R0)…`);
+      try {
+        evidence = await captureEvidence(sbx, { milestoneId: id, round: 0, planMarkdown: ph.planMarkdown, script: await readCuFile("xmd-evidence.mjs"), sessionId: runner.sessionId || runner.id }, evidenceUploader);
+        hooks.blog(evidence.pack.errors.length || evidence.invalid.length ? "warning" : "success", `📸 ${id} R0: ${evidenceSummary(evidence)}${evidence.pack.errors.length ? ` — ${evidence.pack.errors.slice(0, 3).map((e) => `${e.kind}: ${e.detail}`).join("; ").slice(0, 300)}` : ""}`);
+      } catch (e: any) {
+        hooks.blog("warning", `📸 ${id}: evidence haikufanyika: ${String(e?.message || e).slice(0, 160)}`);
+      }
+    }
     await msSnapshot(sbx, cu, hooks, id);
     if (ph.last) setTimeout(() => sbx.kill?.().catch(() => {}), 15_000);
     else sbx.setTimeout(30 * 60_000).catch(() => {}); // inabaki kwa milestone inayofuata (ikifa → kiovu)
 
     const fs = (cu.finalState || "ERROR") as CuFinalState;
-    return out(!MS_BUILD_FAIL_STATES.includes(fs), fs, cu.finalReason || "", { report: cu.report, freshSandbox: fresh, restored, gitLog, buildReport });
+    return out(!MS_BUILD_FAIL_STATES.includes(fs), fs, cu.finalReason || "", { report: cu.report, freshSandbox: fresh, restored, gitLog, buildReport, evidence });
   } catch (e: any) {
     stopHeartbeat(cu);
     hooks.blog("error", `❌ XMD Computer · ${id}: ${String(e?.message || e).slice(0, 200)}`);

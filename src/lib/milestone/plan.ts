@@ -16,6 +16,8 @@ import type { Check, Milestone } from "./types";
 
 /** Viewports za ushahidi (maelezo19) — plan inazitaja kwa kila route. */
 export const PLAN_VIEWPORTS = ["375x667", "768x1024", "1280x800"] as const;
+/** TASK-19: port ambayo Start Command inatumikia app (harness inapiga http://127.0.0.1:<port>). */
+export const EVIDENCE_PORT = 4173;
 
 /** Mifano ya Check union (Task 9) kwa prompt — sehemu zote ni za lazima isipokuwa zilizoandikwa (optional). */
 export const CHECK_SHAPES = `Allowed check objects (exact field names; "id" unique in the whole plan, e.g. "M1-S2-a"):
@@ -204,7 +206,9 @@ ${CHECK_SHAPES}
 Step rules: sequential numbering 1..N; every step that creates or edits files MUST have a \`\`\`checks block with ≥1 check; copy official values word for word; if something was not discussed write "not discussed".
 ## 7. QA Checklist — checkbox list.${visual ? `
 Then a "**Screenshots:**" list — one line per route the harness must capture, EXACTLY in this shape:
-- route: / · states: default, error · viewports: ${PLAN_VIEWPORTS.join(", ")}` : ""}${technical ? `
+- route: / · states: default, menu-open[click #menu-toggle] · viewports: ${PLAN_VIEWPORTS.join(", ")}
+An extra state = a name plus its actions in brackets: \`click <css selector>\` or \`hover <css selector>\`, several actions joined with " > ".
+Then one line \`Start Command: <command that builds and serves the app on port ${EVIDENCE_PORT}>\` (e.g. \`npm run build && npm run start -- -p ${EVIDENCE_PORT}\`) — the harness runs it to take the screenshots.` : ""}${technical ? `
 Then a "**Proof:**" list — the exact commands / tests / API calls that prove the work (they must also appear as "command" or "http" checks in the steps).` : ""}
 ## 8. Agent Rules — DATA RASMI and LEDGER decisions are law; never invent; build ONLY milestone ${m.id}; stop and report on data conflicts or a failed check x2`;
 }

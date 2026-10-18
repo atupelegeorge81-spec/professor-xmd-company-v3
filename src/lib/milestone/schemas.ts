@@ -8,6 +8,7 @@ import {
   DEFECT_SEVERITIES,
   DEFECT_STATUSES,
   DIAGNOSIS_CAUSES,
+  EVIDENCE_ERROR_KINDS,
   MILESTONE_PHASES,
   MILESTONE_STATUSES,
   RECEIPT_STATUSES,
@@ -16,6 +17,7 @@ import {
   type ChangeOrder,
   type Check,
   type Defect,
+  type EvidencePack,
   type MilestoneMap,
   type MilestoneState,
   type Receipt,
@@ -319,4 +321,49 @@ export function validateMilestoneState(s: unknown): ValidationResult<MilestoneSt
     }
   }
   return done<MilestoneState>(e, s);
+}
+
+// ── EvidencePack (TASK 19) ───────────────────────────────────────────────────
+const VIEWPORT_RE = /^\d{3,4}x\d{3,4}$/;
+const SHOT_ID_RE = /^S-\d{3,}$/;
+
+/** Manifest ya cu/xmd-evidence.mjs (+ urls za harness). opts.requireUrls → kila screenshot iwe na URL ya http(s). */
+export function validateEvidencePack(p: unknown, opts: { requireUrls?: boolean } = {}): ValidationResult<EvidencePack> {
+  const e: Errs = [];
+  const P = "evidence";
+  if (!isObj(p)) return { ok: false, errors: [`${P}: must be an object (got ${show(p)})`] };
+  if (typeof p.milestoneId !== "string" || !/^M\d+$/.test(p.milestoneId)) e.push(`${P}.milestoneId: must look like "M1" (got ${show(p.milestoneId)})`);
+  int(e, p, "round", P, 0);
+  if (!Array.isArray(p.screenshots)) e.push(`${P}.screenshots: must be an array (got ${show(p.screenshots)})`);
+  else {
+    const seen = new Set<string>();
+    p.screenshots.forEach((s: unknown, i: number) => {
+      const q = `${P}.screenshots[${i}]`;
+      if (!isObj(s)) { e.push(`${q}: must be an object {id,route,viewport,state,path,url}`); return; }
+      if (typeof s.id !== "string" || !SHOT_ID_RE.test(s.id)) e.push(`${q}.id: must look like "S-001" (got ${show(s.id)})`);
+      else if (seen.has(s.id)) e.push(`${q}.id: duplicate ${s.id}`);
+      else seen.add(s.id);
+      if (typeof s.route !== "string" || !s.route.startsWith("/")) e.push(`${q}.route: must start with "/" (got ${show(s.route)})`);
+      if (typeof s.viewport !== "string" || !VIEWPORT_RE.test(s.viewport)) e.push(`${q}.viewport: must look like "375x667" (got ${show(s.viewport)})`);
+      str(e, s, "state", q);
+      str(e, s, "path", q);
+      if (typeof s.path === "string" && !/\.png$/i.test(s.path)) e.push(`${q}.path: must be a .png file (got ${show(s.path)})`);
+      if (typeof s.url !== "string") e.push(`${q}.url: must be a string (got ${show(s.url)})`);
+      else if (/^data:/i.test(s.url)) e.push(`${q}.url: base64 data URLs are not allowed — upload to storage`);
+      else if (opts.requireUrls && !/^https?:\/\//.test(s.url)) e.push(`${q}.url: must be an uploaded http(s) URL (got ${show(s.url)})`);
+    });
+  }
+  for (const k of ["domMetrics", "checks", "commands"]) if (!Array.isArray(p[k])) e.push(`${P}.${k}: must be an array (got ${show(p[k])})`);
+  if (typeof p.gitDiffSummary !== "string") e.push(`${P}.gitDiffSummary: must be a string (got ${show(p.gitDiffSummary)})`);
+  strArr(e, p, "regression", P);
+  strArr(e, p, "consoleErrors", P);
+  if (!Array.isArray(p.errors)) e.push(`${P}.errors: must be an array (got ${show(p.errors)})`);
+  else p.errors.forEach((x: unknown, i: number) => {
+    const q = `${P}.errors[${i}]`;
+    if (!isObj(x)) { e.push(`${q}: must be an object {kind,detail}`); return; }
+    oneOf(e, x, "kind", q, EVIDENCE_ERROR_KINDS);
+    str(e, x, "detail", q);
+  });
+  optStr(e, p, "base", P);
+  return done<EvidencePack>(e, p);
 }

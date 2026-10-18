@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xmdtest site-a — Home</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; color: #1b1b1f; background: #f6f5f2; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: #12355b; color: #fff; }
+  #menu-toggle { font-size: 16px; padding: 10px 14px; border: 0; border-radius: 8px; background: #ffd166; cursor: pointer; }
+  #drawer { display: none; position: fixed; top: 0; right: 0; width: 260px; height: 100%; background: #0b1f35; color: #fff; padding: 24px; }
+  #drawer.open { display: block; }
+  #drawer a { display: block; color: #ffd166; margin: 14px 0; font-size: 18px; }
+  main { padding: 24px 20px; max-width: 960px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .card:hover { outline: 3px solid #ef476f; }
+</style>
+</head>
+<body>
+<header><strong>site-a</strong><button id="menu-toggle" aria-controls="drawer">Menu</button></header>
+<nav id="drawer" aria-label="Main"><a href="/">Home</a><a href="/about/">About</a></nav>
+<main>
+  <h1>Fixture home</h1>
+  <p>Tiny static site for the XMD evidence runner (Task 19).</p>
+  <div class="grid">
+    <div class="card">Product one</div><div class="card">Product two</div><div class="card">Product three</div>
+    <div class="card">Product four</div><div class="card">Product five</div><div class="card">Product six</div>
+  </div>
+</main>
+<script>
+  document.getElementById("menu-toggle").addEventListener("click", function () {
+    document.getElementById("drawer").classList.toggle("open");
+  });
+</script>
+</body>
+</html>

@@ -1616,7 +1616,7 @@ async function run(runner: Runner) {
           },
         });
         const startPack = buildStartPack({ m, planMarkdown, ledger: await finalBoardResolution(runner.id), prevBuilds, defects: [], ocb });
-        return startComputerPhase(runner, runner.cuHooks, { milestoneId: m.id, planMarkdown, startPack, title: conversationTitle, last: idx === map.milestones.length - 1 });
+        return startComputerPhase(runner, runner.cuHooks, { milestoneId: m.id, planMarkdown, startPack, title: conversationTitle, last: idx === map.milestones.length - 1, reviewMode: m.reviewMode });
       },
     });
     const closeMilestones = async (status: string) => {
