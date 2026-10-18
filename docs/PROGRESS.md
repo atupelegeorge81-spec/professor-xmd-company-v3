@@ -260,3 +260,16 @@ $ npm run cu:test        → Ran 186 tests — OK
   overflow false, body rgb(7,8,11); requireUrls OK · T4 box = boundingBox() ±0.004px (3/3) · T5 150/363, hidden 0, landmarks zimebaki.
   Jumla 23/23 PASS kwenye sandbox halisi ya E2B; uploads 32 + workspaces zimefutwa, sandbox imeuawa.
 - Baselines: tsc 0 · vitest 533 + 2 skipped · pytest 330 + 3 skipped · unittest 263 OK · eslint (bila backups/) 29 = kabla (0 mpya). Ushahidi: docs/tests/task-20.md.
+
+## Task 20 — nyongeza: merged main `9251878`, Koyeb deploy `be8fc9ec` HEALTHY; smoke `/`, `/api/live`, `/api/health`, `/board` = 200.
+
+## Task 21 (maelezo21): Check runners (2026-10-18), branch task/21-checks
+- Mpya: `src/lib/milestone/checks.ts`: `runCheck`/`runChecks` (aina 12), `canSignOff` (FAIL/ERROR inazuia), `applyReviewerVerdict`
+  (kanuni ya dhahabu: LLM hawezi kugeuza FAIL/ERROR → PASS). command/grep/file_* = shell ndani ya sandbox (exit + mistari 40);
+  http localhost = curl sandbox, nje = fetch; checks 6 za browser = batch moja ya `xmd-evidence.mjs` `mode:"checks"`
+  (contrast/touch zinatumia collectDomMetrics ya Task 20); screenshot_taken = EvidencePack + PNG. Schema batili / exception → ERROR.
+- types/schemas/plan CHECK_SHAPES: fields za maelezo21 kama mbadala (count/op, paths, forbidden, routes/viewports, px, status, bodyContains, state); za Task 9 bado halali.
+- Maamuzi (7, kwenye task-21.md): viewport default 375x667 (overflow: zote 3); ERROR vs FAIL; elementi zote lazima zipite; grep inaruka .git pia.
+- REAL: kesi 24 (12×2) + ziada 7 + server iliyokufa = **32/32 kama zilivyoundwa** (sandbox halisi ya E2B + Chromium + site ya CEO);
+  http /api/live 200 PASS, 404 FAIL; selector batili → ERROR ×3; suite 7.2s (jumla pamoja na evidence 18.8s, chini ya 3 min).
+- Baselines: tsc 0 · vitest 543 + 2 skipped · pytest 330 + 3 skipped · unittest 263 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-21.md.

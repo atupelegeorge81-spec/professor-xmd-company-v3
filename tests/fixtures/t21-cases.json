@@ -1,0 +1,38 @@
+{
+  "note": "TASK 21 (maelezo21): kesi 24 (aina 12 × PASS/FAIL) + ziada. ws = mzizi wa tests/fixtures ndani ya sandbox; app = python http.server 4173.",
+  "cases": [
+    { "expect": "PASS", "check": { "id": "T21-command-pass", "type": "command", "cmd": "node --check t21-repo/app.js" } },
+    { "expect": "FAIL", "check": { "id": "T21-command-fail", "type": "command", "cmd": "bash -n t21-repo/broken.sh", "expectExit": 0 } },
+    { "expect": "PASS", "check": { "id": "T21-grep-pass", "type": "grep", "pattern": "TODO", "paths": ["t21-repo"], "count": 2, "op": "eq" } },
+    { "expect": "FAIL", "check": { "id": "T21-grep-fail", "type": "grep", "pattern": "console\\.log", "paths": ["t21-repo"], "count": 0, "op": "eq" } },
+    { "expect": "PASS", "check": { "id": "T21-dom-pass", "type": "dom_exists", "route": "/good.html", "selector": "button.btn" } },
+    { "expect": "FAIL", "check": { "id": "T21-dom-fail", "type": "dom_exists", "route": "/good.html", "selector": "form#contact" } },
+    { "expect": "PASS", "check": { "id": "T21-style-pass", "type": "computed_style", "route": "/evil.html", "selector": "#mono", "property": "text-transform", "expected": "uppercase" } },
+    { "expect": "FAIL", "check": { "id": "T21-style-fail", "type": "computed_style", "route": "/good.html", "selector": "header", "property": "background-color", "forbidden": "#0a2540" } },
+    { "expect": "PASS", "check": { "id": "T21-overflow-pass", "type": "no_horizontal_overflow", "routes": ["/good.html"] } },
+    { "expect": "FAIL", "check": { "id": "T21-overflow-fail", "type": "no_horizontal_overflow", "route": "/evil.html", "viewport": "375x667" } },
+    { "expect": "PASS", "check": { "id": "T21-console-pass", "type": "console_clean", "routes": ["/good.html", "/site-a/"] } },
+    { "expect": "FAIL", "check": { "id": "T21-console-fail", "type": "console_clean", "route": "/noisy.html" } },
+    { "expect": "PASS", "check": { "id": "T21-contrast-pass", "type": "contrast_min", "route": "/good.html", "selector": "p, h1, .btn", "min": 4.5 } },
+    { "expect": "FAIL", "check": { "id": "T21-contrast-fail", "type": "contrast_min", "route": "/evil.html", "selector": "#faint", "min": 4.5 } },
+    { "expect": "PASS", "check": { "id": "T21-touch-pass", "type": "touch_target_min", "route": "/good.html", "selector": ".btn, nav a", "px": 44 } },
+    { "expect": "FAIL", "check": { "id": "T21-touch-fail", "type": "touch_target_min", "route": "/evil.html", "selector": "#tiny", "minPx": 44 } },
+    { "expect": "PASS", "check": { "id": "T21-http-pass", "type": "http", "url": "{BASE}/api/live", "expectStatus": 200, "bodyContains": "\"ok\":true" } },
+    { "expect": "FAIL", "check": { "id": "T21-http-fail", "type": "http", "url": "{BASE}/xmdtest-route-that-does-not-exist", "status": 200 } },
+    { "expect": "PASS", "check": { "id": "T21-file-exists-pass", "type": "file_exists", "path": "t21-repo/app.js" } },
+    { "expect": "FAIL", "check": { "id": "T21-file-exists-fail", "type": "file_exists", "path": "t21-repo/missing.txt" } },
+    { "expect": "PASS", "check": { "id": "T21-file-contains-pass", "type": "file_contains", "path": "t21-repo/README.md", "text": "XMD tiny repo" } },
+    { "expect": "FAIL", "check": { "id": "T21-file-contains-fail", "type": "file_contains", "path": "t21-repo/README.md", "text": "Lorem ipsum" } },
+    { "expect": "PASS", "check": { "id": "T21-shot-pass", "type": "screenshot_taken", "route": "/good.html", "viewport": "375x667" } },
+    { "expect": "FAIL", "check": { "id": "T21-shot-fail", "type": "screenshot_taken", "route": "/good.html", "viewport": "768x1024" } }
+  ],
+  "extras": [
+    { "expect": "ERROR", "check": { "id": "T21-x-bad-selector-dom", "type": "dom_exists", "route": "/good.html", "selector": "div[[" } },
+    { "expect": "ERROR", "check": { "id": "T21-x-bad-selector-contrast", "type": "contrast_min", "route": "/good.html", "selector": "##nope", "min": 4.5 } },
+    { "expect": "ERROR", "check": { "id": "T21-x-bad-selector-style", "type": "computed_style", "route": "/good.html", "selector": "p:::x", "property": "color", "expected": "red" } },
+    { "expect": "ERROR", "check": { "id": "T21-x-grep-missing-path", "type": "grep", "pattern": "x", "paths": ["no-such-dir"], "count": 0, "op": "eq" } },
+    { "expect": "ERROR", "check": { "id": "T21-x-invalid-schema", "type": "dom_exists", "route": "/good.html" } },
+    { "expect": "ERROR", "check": { "id": "T21-x-http-local-down", "type": "http", "url": "http://127.0.0.1:4199/", "expectStatus": 200 } },
+    { "expect": "FAIL", "check": { "id": "T21-x-route-404", "type": "dom_exists", "route": "/nope-xmdtest.html", "selector": "h1" } }
+  ]
+}

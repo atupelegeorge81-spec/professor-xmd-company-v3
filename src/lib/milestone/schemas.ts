@@ -57,37 +57,53 @@ function strArr(e: Errs, o: Record<string, any>, k: string, p: string, opts: { n
 const done = <T>(e: Errs, v: unknown): ValidationResult<T> => (e.length ? { ok: false, errors: e } : { ok: true, value: v as T });
 
 // ── Check ────────────────────────────────────────────────────────────────────
-const ROUTE_TYPES = new Set(["dom_exists", "computed_style", "no_horizontal_overflow", "console_clean", "contrast_min", "touch_target_min", "screenshot_taken"]);
+const ROUTE_TYPES = new Set(["dom_exists", "computed_style", "contrast_min", "touch_target_min", "screenshot_taken"]);
+/** TASK-21: route AU routes[] (+ viewport AU viewports[]) */
+const MULTI_ROUTE_TYPES = new Set(["no_horizontal_overflow", "console_clean"]);
+const has = (o: Record<string, any>, k: string) => o[k] !== undefined && o[k] !== null && o[k] !== "";
 
 function checkInto(e: Errs, c: unknown, p: string): void {
   if (!isObj(c)) { e.push(`${p}: must be a Check object (got ${show(c)}) — free-text acceptance is not allowed`); return; }
   str(e, c, "id", p);
   if (!CHECK_TYPES.includes(c.type)) { e.push(`${p}.type: must be one of ${CHECK_TYPES.join("|")} (got ${show(c.type)})`); return; }
   if (ROUTE_TYPES.has(c.type)) { str(e, c, "route", p); optStr(e, c, "viewport", p); }
+  if (MULTI_ROUTE_TYPES.has(c.type)) {
+    if (has(c, "routes")) strArr(e, c, "routes", p, { nonEmpty: true }); else str(e, c, "route", p);
+    if (has(c, "viewports")) strArr(e, c, "viewports", p, { nonEmpty: true }); else optStr(e, c, "viewport", p);
+  }
   switch (c.type) {
     case "command":
       str(e, c, "cmd", p);
       if (c.expectExit !== undefined && !isInt(c.expectExit)) e.push(`${p}.expectExit: must be an integer when present (got ${show(c.expectExit)})`);
       break;
     case "grep":
-      str(e, c, "pattern", p); str(e, c, "path", p); oneOf(e, c, "expect", p, ["present", "absent"]);
+      str(e, c, "pattern", p);
+      if (has(c, "paths")) strArr(e, c, "paths", p, { nonEmpty: true }); else str(e, c, "path", p);
+      if (has(c, "count") || has(c, "op")) {
+        int(e, c, "count", p, 0); oneOf(e, c, "op", p, ["eq", "lt", "gt"]);
+      } else oneOf(e, c, "expect", p, ["present", "absent"]);
       break;
     case "dom_exists":
       str(e, c, "selector", p);
       break;
     case "computed_style":
-      str(e, c, "selector", p); str(e, c, "property", p); str(e, c, "expected", p);
+      str(e, c, "selector", p); str(e, c, "property", p);
+      if (has(c, "forbidden") && !has(c, "expected")) str(e, c, "forbidden", p); else str(e, c, "expected", p);
       break;
     case "contrast_min":
       str(e, c, "selector", p);
       if (typeof c.min !== "number" || !(c.min > 0)) e.push(`${p}.min: must be a number > 0 (got ${show(c.min)})`);
       break;
     case "touch_target_min":
-      str(e, c, "selector", p); int(e, c, "minPx", p, 1);
+      str(e, c, "selector", p);
+      if (has(c, "px") && !has(c, "minPx")) int(e, c, "px", p, 1); else int(e, c, "minPx", p, 1);
       break;
     case "http":
-      str(e, c, "url", p); optStr(e, c, "method", p);
-      if (!isInt(c.expectStatus) || c.expectStatus < 100 || c.expectStatus > 599) e.push(`${p}.expectStatus: must be an HTTP status 100-599 (got ${show(c.expectStatus)})`);
+      str(e, c, "url", p); optStr(e, c, "method", p); optStr(e, c, "bodyContains", p);
+      {
+        const k = has(c, "status") && !has(c, "expectStatus") ? "status" : "expectStatus";
+        if (!isInt(c[k]) || c[k] < 100 || c[k] > 599) e.push(`${p}.${k}: must be an HTTP status 100-599 (got ${show(c[k])})`);
+      }
       break;
     case "file_exists":
       str(e, c, "path", p);
@@ -95,7 +111,10 @@ function checkInto(e: Errs, c: unknown, p: string): void {
     case "file_contains":
       str(e, c, "path", p); str(e, c, "text", p);
       break;
-    default: // no_horizontal_overflow, console_clean, screenshot_taken: route tu
+    case "screenshot_taken":
+      optStr(e, c, "state", p);
+      break;
+    default: // no_horizontal_overflow, console_clean: route(s) tu
       break;
   }
 }
