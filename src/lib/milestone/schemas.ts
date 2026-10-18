@@ -9,6 +9,7 @@ import {
   DEFECT_STATUSES,
   DIAGNOSIS_CAUSES,
   EVIDENCE_ERROR_KINDS,
+  REGRESSION_KINDS,
   MILESTONE_PHASES,
   MILESTONE_STATUSES,
   RECEIPT_STATUSES,
@@ -388,7 +389,19 @@ export function validateEvidencePack(p: unknown, opts: { requireUrls?: boolean }
     });
   }
   if (typeof p.gitDiffSummary !== "string") e.push(`${P}.gitDiffSummary: must be a string (got ${show(p.gitDiffSummary)})`);
-  strArr(e, p, "regression", P);
+  // TASK-22: regression[] = RegressionEntry
+  if (!Array.isArray(p.regression)) e.push(`${P}.regression: must be an array (got ${show(p.regression)})`);
+  else p.regression.forEach((x: unknown, i: number) => {
+    const q = `${P}.regression[${i}]`;
+    if (!isObj(x)) { e.push(`${q}: must be an object {kind,route,viewport,state,changedPct,...}`); return; }
+    oneOf(e, x, "kind", q, REGRESSION_KINDS);
+    if (typeof x.route !== "string" || !x.route.startsWith("/")) e.push(`${q}.route: must start with "/" (got ${show(x.route)})`);
+    if (typeof x.viewport !== "string" || !VIEWPORT_RE.test(x.viewport)) e.push(`${q}.viewport: must look like "375x667" (got ${show(x.viewport)})`);
+    str(e, x, "state", q);
+    for (const k of ["changedPct", "thresholdPct"]) if (typeof x[k] !== "number" || !(x[k] >= 0 && x[k] <= 100)) e.push(`${q}.${k}: must be a number 0..100 (got ${show(x[k])})`);
+    for (const k of ["baselineMilestone", "baselineUrl", "currentUrl", "diffUrl", "diffPath"]) if (typeof x[k] !== "string") e.push(`${q}.${k}: must be a string (got ${show(x[k])})`);
+    if (typeof x.diffUrl === "string" && /^data:/i.test(x.diffUrl)) e.push(`${q}.diffUrl: base64 data URLs are not allowed — upload to storage`);
+  });
   strArr(e, p, "consoleErrors", P);
   if (!Array.isArray(p.errors)) e.push(`${P}.errors: must be an array (got ${show(p.errors)})`);
   else p.errors.forEach((x: unknown, i: number) => {

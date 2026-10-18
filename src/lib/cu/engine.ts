@@ -37,6 +37,7 @@ import { cuSilentBridge, maybeCapturePrompt, testGateOverride } from "@/lib/mile
 import { BUILD_REPORT_INLINE_MAX, buildReportPath } from "@/lib/milestone/buildReport"; // TASK-17
 import { needsScreenshots } from "@/lib/milestone/evidence"; // TASK-19
 import { captureEvidence, evidenceSummary, type CaptureEvidenceResult, type EvidenceUploader } from "./evidence"; // TASK-19
+import { checkRegression, regressionSummary } from "@/lib/milestone/regression"; // TASK-22
 const STARTPACK_JSON = ".xmd/startpack.json"; // TASK-18 (cu/gate.py STARTPACK_JSON)
 
 /* ============================ env ============================ */
@@ -792,7 +793,7 @@ export const MS_BUILD_FAIL_STATES: readonly string[] = ["STUCK", "BLOCKED", "ERR
 
 const MS_GIT = "git -c user.name='XMD Computer' -c user.email='computer@professor-xmd.local'";
 /** faili za harness/installs — hazi-commitiwi kwenye repo ya mradi (.git/info/exclude, si .gitignore ya mradi) */
-const MS_GIT_EXCLUDE = ["node_modules/", ".xmd/oh/", ".cache/", "plan.md", "feature_list.json", "AGENTS.md", ".xmd/startpack.json", "CLAUDE.md", "STATUS.md", ".xmd/tools/", ".xmd/evidence/M*/R*/"]; // TASK-18/19: faili za harness hazichafui `git status`
+const MS_GIT_EXCLUDE = ["node_modules/", ".xmd/oh/", ".cache/", "plan.md", "feature_list.json", "AGENTS.md", ".xmd/startpack.json", "CLAUDE.md", "STATUS.md", ".xmd/tools/", ".xmd/evidence/M*/R*/", ".xmd/baselines/"]; // TASK-18/19/22: faili za harness hazichafui `git status`
 const MS_KILL_BRIDGE = "pkill -9 -f '[c]u_bridge\\.py|[o]h_bridge\\.py|[s]leep 86400' || true";
 const MS_SNAP = "/tmp/xmd-ms-ws.tar.gz";
 
@@ -1049,6 +1050,11 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
       try {
         evidence = await captureEvidence(sbx, { milestoneId: id, round: 0, planMarkdown: ph.planMarkdown, script: await readCuFile("xmd-evidence.mjs"), sessionId: runner.sessionId || runner.id }, evidenceUploader);
         hooks.blog(evidence.pack.errors.length || evidence.invalid.length ? "warning" : "success", `📸 ${id} R0: ${evidenceSummary(evidence)}${evidence.pack.errors.length ? ` — ${evidence.pack.errors.slice(0, 3).map((e) => `${e.kind}: ${e.detail}`).join("; ").slice(0, 300)}` : ""}`);
+        // TASK-22: regression dhidi ya baselines za milestones zilizoidhinishwa (hakuna baseline → hakuna kazi)
+        if (evidence.pack.screenshots.length) {
+          const rg = await checkRegression(sbx, { milestoneId: id, round: 0, pack: evidence.pack, changeOrders: [], script: await readCuFile("xmd-regression.mjs"), sessionId: runner.sessionId || runner.id }, evidenceUploader);
+          if (rg.rows.length || rg.errors.length) hooks.blog(rg.entries.some((e) => e.kind === "regression") || rg.errors.length ? "warning" : "info", `🔍 ${id} R0 regression: ${regressionSummary(rg)}`);
+        }
       } catch (e: any) {
         hooks.blog("warning", `📸 ${id}: evidence haikufanyika: ${String(e?.message || e).slice(0, 160)}`);
       }
