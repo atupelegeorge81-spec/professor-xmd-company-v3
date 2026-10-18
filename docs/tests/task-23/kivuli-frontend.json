@@ -1,0 +1,207 @@
+{
+  "meta": {
+    "reviewer": "frontend",
+    "promptHash": "38779bbb83ee2def543d68c3bb83402f2779dabcd4239bc1dc10e8f6a1a1bbba",
+    "promptChars": 46021,
+    "imageParts": 3,
+    "textParts": 4,
+    "attempts": 1,
+    "errors": [],
+    "lane": "gemini-1:gemini-3.8-flash",
+    "model": "gemini-3.8-flash",
+    "tier": "flash",
+    "ms": 103722,
+    "usage": {
+      "completion_tokens": 4341,
+      "prompt_tokens": 22302,
+      "total_tokens": 40347
+    }
+  },
+  "findings": {
+    "reviewer": "frontend",
+    "screenshots": [
+      {
+        "id": "S-001",
+        "description": "Viewport 375x667 (mobile default). 64px header at top (x=0 y=0 width=375 height=64) with crimson background rgb(225, 29, 72). Logo 'KIVULI' (Courier New bold 24px, 97.94x27 at x=20 y=16.5) left-aligned; navigation container (232.73x21 at x=122.27 y=19.5) contains three links 'WANAUME' (68.06x15), 'WANAWAKE' (77.78x15), 'MPYA' (38.89x15) in 13px Courier New. The required button#lang-toggle is absent. Below header, main section has dark background rgb(11, 11, 12). Hero section contains h1 'STREETWEAR YA USIKU WA DAR' in red rgb(225, 29, 72) Courier New 40px (335x132 at x=20 y=120), uppercase red body paragraph, and primary CTA button 'NUNUA SASA' (152.23x49 at x=20 y=347) with crimson background. Product section #shop displays 6 cards stacked in 1 vertical column at x=20 (each card 335x451 with surface background rgb(20, 20, 22) and red border; y=486, 957, 1428, 1899, 2370, 2841). All 6 cards use the exact same 307x307 tee.svg image, red h3 heading (height=21), red price in Courier New (height=20), and red 'ADD TO CART' button (156.08x49). Footer at bottom (x=0 y=3324 width=375 height=76) has crimson background rgb(225, 29, 72) with Courier New 12px white text."
+      },
+      {
+        "id": "S-002",
+        "description": "Viewport 768x1024 (tablet default). Header spans full width (768x64 at x=0 y=0) in crimson background rgb(225, 29, 72). Logo 'KIVULI' (97.94x27 at x=20 y=16.5) left-aligned; nav links right-aligned (nav at x=515.27 y=19.5 width=232.73 height=21; links at x=531.27, 615.33, 709.11). No language toggle. Hero displays single-line h1 (728x44 at x=20 y=120) in red Courier New, uppercase red subtext, and 'NUNUA SASA' CTA (152.23x49 at x=20 y=238). Product grid #shop renders 3 columns across 2 rows (cards 229.33x345.33; row 1 at y=377 with x=20, 269.33, 518.66; row 2 at y=742.33 with x=20, 269.33, 518.66). Each card contains 201.33x201.33 identical tee.svg, red h3, red price, and 156.08x49 red 'ADD TO CART' CTA. Footer spans full width (768x62 at x=0 y=1119.66) in crimson background."
+      },
+      {
+        "id": "S-003",
+        "description": "Viewport 1280x800 (desktop default). Header spans 1280x64 at x=0 y=0 in crimson background rgb(225, 29, 72). Logo 'KIVULI' at x=20 y=16.5; nav at x=1027.27 y=19.5 with links right-aligned. button#lang-toggle is absent. Hero section has h1 (1240x44 at x=20 y=120) in red Courier New and 'NUNUA SASA' button (152.23x49 at x=20 y=238). Product catalog #shop renders 5 columns in the first row at y=377 (cards 1–5 at x=20, 272, 524, 776, 1028; width=232 height=348) and an orphaned 6th card alone on row 2 (x=20 y=745 width=232 height=348). All 6 cards render identical tee.svg (204x204), red h3, red price, and 156.08x49 red CTA. Footer spans full width (1280x62 at x=0 y=1125) in solid crimson background."
+      }
+    ],
+    "defects": [
+      {
+        "title": "Missing bilingual language toggle button#lang-toggle",
+        "area": "header",
+        "severity": "blocker",
+        "kind": "violation",
+        "decisionRef": "A2",
+        "evidence": [
+          "check:M1-S1-a",
+          "S-001 dom: body > header > nav height=21",
+          "S-002",
+          "S-003"
+        ],
+        "expected": "Locked decision A2 requires a 64px header with logo left, navigation, and a SW/EN language toggle on the right ('button#lang-toggle') visible at all viewports.",
+        "actual": "Automated check check:M1-S1-a failed (matched 0). button#lang-toggle is not present in the DOM, as confirmed by XMD Computer's build report known gaps."
+      },
+      {
+        "title": "Repeated placeholder tee.svg used across all 6 distinct products",
+        "area": "product grid",
+        "severity": "blocker",
+        "kind": "violation",
+        "decisionRef": "A3",
+        "evidence": [
+          "S-001 dom: #shop > article:nth-of-type(1) > img width=307",
+          "S-001 dom: #shop > article:nth-of-type(2) > img width=307",
+          "S-001 dom: #shop > article:nth-of-type(3) > img width=307",
+          "S-002",
+          "S-003"
+        ],
+        "expected": "Locked decision A3 states: 'Each card: its OWN product photo (distinct real or sample photos, never one placeholder repeated)'.",
+        "actual": "All 6 product cards (including hoodie, cargo pants, cap, and jacket) render the exact same tee.svg placeholder image."
+      },
+      {
+        "title": "Accent color #E11D48 applied to header, footer, headings, body text, prices, and borders",
+        "area": "brand & design system",
+        "severity": "major",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-001 dom: body > header backgroundColor=rgb(225, 29, 72)",
+          "S-001 dom: body > footer backgroundColor=rgb(225, 29, 72)",
+          "S-001 dom: body > main > section:nth-of-type(1) > h1 color=rgb(225, 29, 72)",
+          "S-001 dom: #shop > article:nth-of-type(1) > h3 color=rgb(225, 29, 72)",
+          "S-001 dom: #shop > article:nth-of-type(1) > p color=rgb(225, 29, 72)"
+        ],
+        "expected": "Locked decision A1 strictly reserves accent #E11D48 for primary CTA buttons only — never for body text, headings, borders, header or footer backgrounds.",
+        "actual": "Accent rgb(225, 29, 72) is used as the background of header and footer, the text color of h1, product titles, prices, hero paragraph, and card borders."
+      },
+      {
+        "title": "Courier New monospace font used instead of Inter / system sans-serif",
+        "area": "typography",
+        "severity": "major",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-001 dom: body > header > div fontFamily=Courier New",
+          "S-001 dom: body > header > nav > a:nth-of-type(1) fontFamily=Courier New",
+          "S-001 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+          "S-001 dom: #shop > article:nth-of-type(1) > p fontFamily=Courier New",
+          "S-001 dom: body > footer fontFamily=Courier New"
+        ],
+        "expected": "Locked decision A1 requires typography to be Inter / system sans-serif ONLY, explicitly stating 'no monospace fonts'.",
+        "actual": "Logo, navigation links, h1 heading, product prices, and footer are rendered in Courier New (monospace)."
+      },
+      {
+        "title": "Global UPPERCASE textTransform applied to headings and body text",
+        "area": "typography",
+        "severity": "medium",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-001 dom: body > main textTransform=uppercase",
+          "S-001 dom: body > main > section:nth-of-type(1) > h1 textTransform=uppercase",
+          "S-001 dom: #shop > article:nth-of-type(1) > h3 textTransform=uppercase"
+        ],
+        "expected": "Locked decision A1 requires sentence case for headings and body; UPPERCASE is permitted only for nav labels and small labels (<=14px).",
+        "actual": "main, h1 (40px), h3 (16px), and hero body text all have textTransform=uppercase."
+      },
+      {
+        "title": "Desktop product grid renders 5 columns instead of required 4 columns at 1280px",
+        "area": "product grid",
+        "severity": "major",
+        "kind": "violation",
+        "decisionRef": "A3",
+        "evidence": [
+          "S-003",
+          "S-003 dom: #shop > article:nth-of-type(1) y=377",
+          "S-003 dom: #shop > article:nth-of-type(5) y=377",
+          "S-003 dom: #shop > article:nth-of-type(6) y=745"
+        ],
+        "expected": "Locked decision A3 requires a responsive grid with '4 columns at 1280'. With 6 products, row 1 should contain 4 cards and row 2 should contain 2 cards.",
+        "actual": "At 1280px viewport, articles 1 through 5 all share y=377 (5 columns in row 1), leaving card 6 orphaned alone on row 2 at y=745."
+      },
+      {
+        "title": "Text contrast ratio fails WCAG AA minimum 4.5:1",
+        "area": "accessibility",
+        "severity": "major",
+        "kind": "broken",
+        "decisionRef": "A1",
+        "evidence": [
+          "check:M1-S1-b",
+          "S-001 dom: #shop > article:nth-of-type(1) > p contrastRatio=3.92 LOW-CONTRAST",
+          "S-001 dom: #shop > article:nth-of-type(1) > h3 contrastRatio=3.92 LOW-CONTRAST",
+          "S-001 dom: body > header contrastRatio=4.31 LOW-CONTRAST"
+        ],
+        "expected": "WCAG AA standard and milestone design tokens require text contrast >= 4.5:1 on background.",
+        "actual": "check:M1-S1-b failed with 13 text elements below 4.5:1 (crimson rgb(225, 29, 72) text against dark surface rgb(20, 20, 22) yields 3.92:1 contrast ratio; header text yields 4.31:1)."
+      },
+      {
+        "title": "Header navigation link touch target heights are undersized (15px vs >=44px)",
+        "area": "header",
+        "severity": "medium",
+        "kind": "broken",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-001 dom: body > header > nav > a:nth-of-type(1) height=15",
+          "S-001 dom: body > header > nav > a:nth-of-type(2) height=15",
+          "S-001 dom: body > header > nav > a:nth-of-type(3) height=15"
+        ],
+        "expected": "Milestone plan tech tokens require touch targets >= 44x44 px for interactive elements.",
+        "actual": "Header nav links have a computed touch target height of only 15px (e.g. 68.06x15, 77.78x15, 38.89x15)."
+      },
+      {
+        "title": "Product card button labels in English ('ADD TO CART') while default site language is Swahili",
+        "area": "product grid",
+        "severity": "minor",
+        "kind": "broken",
+        "decisionRef": "A2",
+        "evidence": [
+          "S-001 dom: body > main > section:nth-of-type(1) > a touch=152.23x49",
+          "S-001 dom: #shop > article:nth-of-type(1) > a touch=156.08x49"
+        ],
+        "expected": "Locked decision A2 specifies Swahili default language. Hero CTA correctly uses 'Nunua sasa', so product card action buttons should default to Swahili (e.g., 'Weka kwenye mkokoteni' or 'Weka kapuni').",
+        "actual": "All 6 product cards display English 'ADD TO CART' buttons on the default Swahili page."
+      },
+      {
+        "title": "Skipped heading level from h1 directly to h3 in product cards",
+        "area": "accessibility",
+        "severity": "minor",
+        "kind": "broken",
+        "evidence": [
+          "S-001 dom: body > main > section:nth-of-type(1) > h1 fontSize=40px",
+          "S-001 dom: #shop > article:nth-of-type(1) > h3 fontSize=16px"
+        ],
+        "expected": "HTML structure should maintain proper semantic heading hierarchy (h1 followed by h2 section headings before card h3s).",
+        "actual": "DOM metrics flag headingProblems with a skipped heading level (h1 -> h3 'Kivuli Tee Nyeusi') because #shop lacks an h2 heading."
+      }
+    ],
+    "proposals": [
+      {
+        "title": "Provide distinct SVG silhouettes for each product category",
+        "detail": "Create distinct lightweight SVG illustrations for the 6 items (e.g., kivuli-tee.svg, usiku-hoodie.svg, giza-cargo.svg, kivuli-cap.svg, mwezi-tee.svg, dar-jacket.svg) so each garment type has a distinct visual appearance.",
+        "rationale": "Fulfills locked decision A3 cleanly without requiring heavy external raster images during milestone M1.",
+        "evidence": [
+          "S-001",
+          "S-002",
+          "S-003"
+        ]
+      },
+      {
+        "title": "Add hover states and differentiate secondary card buttons",
+        "detail": "Add CSS hover and focus-visible pseudo-classes on navigation links, language toggle, and card CTAs. Consider a dark surface button with border for card add-to-cart actions to let the hero CTA remain the dominant primary action.",
+        "rationale": "Currently all 7 CTA buttons on the page share identical bright crimson styling, creating visual competition and reducing the premium night-time aesthetic.",
+        "evidence": [
+          "S-001 dom: body > main > section:nth-of-type(1) > a touch=152.23x49",
+          "S-001 dom: #shop > article:nth-of-type(1) > a touch=156.08x49"
+        ]
+      }
+    ],
+    "notes": "M1 implementation deviates significantly from locked decisions A1, A2, and A3. The excessive use of red #E11D48 across header, footer, headings, and borders creates a loud aesthetic directly contrary to the requested 'dark, calm, premium night-time feel'. Courier New was used despite monospace being explicitly prohibited, and the language toggle is entirely absent. The grid layout at 1280px must be fixed from 5 columns to 4 columns (repeat(4, minmax(0, 1fr)))."
+  }
+}

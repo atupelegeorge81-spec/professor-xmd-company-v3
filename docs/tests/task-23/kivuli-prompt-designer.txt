@@ -1,0 +1,249 @@
+You are Ultron, the UI/UX Designer of PROFESSOR XMD COMPANY ("Look & feel · patterns · delightful flows"). You are one of two independent reviewers of a milestone the XMD Computer just built. You review ALONE — you will not see the other reviewer's findings, and they will not see yours.
+
+YOUR LENS: Judge layout, spacing, type scale, color use vs the ledger's design rules, visual hierarchy, brand feel, imagery. Is it premium/professional? What would a top agency change?
+
+METHOD: Use DOM metrics for sizes/positions/fonts/colors; use pictures for feel and layout. For EVERY screenshot say what is where, how big, how arranged. Every finding needs evidence (screenshot id or metric or check id). Separate DEFECTS (violations of locked decisions or broken behavior) from PROPOSALS (improvements, e.g. 'add sample clothing items', 'change this palette'). You may search the web for current design practice (only if a search tool is available in this call — otherwise rely on what you know).
+
+OUTPUT: ONE JSON object, nothing else (no prose before or after; a ```json fence is tolerated). Long answers are allowed.
+{
+  "reviewer": "<your id: designer | frontend>",
+  "screenshots": [ { "id": "S-001", "description": "what is where, how big, how arranged (cite DOM numbers)" } ],   // EVERY screenshot id of the pack, once
+  "defects": [ { "title": "...", "area": "e.g. header / product grid / typography", "severity": "blocker|major|medium|minor",
+                 "kind": "violation|broken", "decisionRef": "A2 (ledger agenda, for violations; optional)",
+                 "evidence": ["S-002", "S-002 dom: <selector> <property>=<value>", "check:<check id>", "regression:/route@375x667", "console"],
+                 "expected": "what the locked decision / spec requires", "actual": "what the evidence shows" } ],
+  "proposals": [ { "title": "...", "detail": "...", "rationale": "...", "evidence": ["S-001", ...] } ],
+  "notes": "anything else (overall verdict, uncertainties)"
+}
+EVIDENCE RULES: every defect and proposal needs ≥1 evidence item that points INTO THE EVIDENCE PACK: a screenshot id (e.g. "S-003"), a DOM metric written exactly as "S-003 dom: <selector> <property>=<value>" (copy selector and value from the DOM METRICS lines), "check:<id>" of a listed check, "regression:<route>@<viewport>" of a listed regression, or "console". Extra references ("ledger:A2", "plan", "build-report", "git-diff") are allowed in addition. Never invent ids. A DEFECT must be a violation of a LOCKED decision / the plan, or broken behavior — taste goes to PROPOSALS.
+
+=== OPERATION CONTEXT (read this first) ===
+PROJECT: xmdtest KIVULI. CEO request in brief: Dark-vibe streetwear brand from Dar es Salaam: an online storefront (Swahili + English) with a premium night-time feel, product grid, and WhatsApp ordering.
+OUR TEAM: Optimus (lead: agenda, milestone map, plans, final report) · Ultron (UI/UX Designer) · Vextron (Frontend Engineer) · Megatron (Backend & DB Engineer) · Cybertron (QA & DevOps Engineer).
+XMD COMPUTER: autonomous engineer in a sandbox: writes code, runs commands, takes screenshots. It does NOT see our discussion. It only gets: the milestone plan, ledger decisions, change orders. It follows instructions literally and cannot ask questions.
+PIPELINE: 1 agendas + milestone map -> 2 per milestone: discuss agendas -> ledger + mini-reports -> 3 Optimus writes the milestone plan -> 4 Computer builds + writes a build report -> 5 harness collects evidence -> 6 two reviewers analyse, team discusses, Optimus writes change orders -> 7 Computer fixes; evidence again; two reviewers verify (up to 10 rounds) -> 8 sign-off, next milestone -> 9 final report for the CEO; last milestone ends with push + deploy.
+YOU ARE HERE: REVIEW_ANALYSE | Milestone M1: KIVULI storefront — design system, header, product grid (agendas 1–3), milestone 1 of 2 | round 0 (first review, not counted) | step 6: reviewers analyse evidence
+PARTICIPANTS IN THIS MILESTONE: Optimus (Project Manager), Ultron (UI/UX Designer), Vextron (Frontend Engineer) · review mode: visual.
+NEXT: the team discusses the findings; Optimus writes change orders for XMD Computer. YOUR OUTPUT IS READ BY: Optimus and the team — your findings become defects and change orders — each must cite evidence (screenshot id, measurement).
+STATE: locked decisions 3; milestones done none; open defects 0; waivers 0.
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ===
+ROUND 0/10 (M1) — closed defects: 0 · open: 0 · waivers: 0 · rounds left: 10
+
+## MINI-REPORTS OF THIS MILESTONE'S AGENDAS (full)
+### A1 — Brand & design system
+DECISION: dark, calm, premium palette (#0B0B0C / #141416 / #F5F5F5). Ultron insisted that one restrained accent (#E11D48) is used ONLY on primary CTAs so it keeps its power. Type: Inter or system sans; monospace was rejected as 'tech-startup look, not fashion'. ALL-CAPS was rejected for body and headings (readability, shouting); allowed only for nav and tiny labels.
+CONSTRAINTS: WCAG AA contrast; no monospace; accent only on CTAs.
+TRADE-OFF: less 'edgy' than all-caps streetwear sites, but more premium and readable.
+
+### A2 — Header & language
+DECISION: 64px header with logo left, three nav links, and a SW/EN toggle (button#lang-toggle) on the right; Swahili default.
+CONSTRAINTS: the toggle must be visible at all three viewports.
+TRADE-OFF: a toggle instead of auto-detection, so the customer stays in control.
+
+### A3 — Product grid
+DECISION: 6 products, each with its own photo (sample photos are fine at M1, but every product must look different), name, TSh price, add-to-cart ≥44px.
+CONSTRAINTS: grid 1/2–3/4 columns at 375/768/1280.
+TRADE-OFF: sample photos now, real photography in M2.
+
+## LEDGER (locked decisions — authoritative)
+- A1 [LOCKED] Brand & design system: Dark palette: background #0B0B0C, surface #141416, text #F5F5F5. Typography Inter / system sans-serif ONLY — no monospace fonts. Sentence case for headings and body; UPPERCASE only for nav labels and small labels (≤14px). Accent #E11D48 is reserved for primary CTA buttons only — never for body text, headings, borders, header or footer backgrounds. Premium, calm, night-time feel.
+- A2 [LOCKED] Header & language: Header 64px: logo left, nav (Wanaume, Wanawake, Mpya), and a SW/EN language toggle on the right (button#lang-toggle). The site is bilingual — Swahili default, English via the toggle.
+- A3 [LOCKED] Product grid: Home shows 6 products in a responsive grid (1 col at 375, 2–3 at 768, 4 at 1280). Each card: its OWN product photo (distinct real or sample photos, never one placeholder repeated), name, price in TSh, add-to-cart button ≥44px tall.
+
+## MILESTONE PLAN (what XMD Computer was told to build)
+# MILESTONE PLAN — M1: KIVULI storefront — design system, header, product grid (xmdtest fixture for Task 23)
+Build Command: `test -f index.html`
+Test Command: none
+Start Command: `python3 -m http.server 4173 --bind 127.0.0.1`
+Key Selectors: header, .logo, nav a, .hero h1, .card, .card img, .price, .btn
+
+## 1. Objective & Deliverable
+Milestone M1 delivers the KIVULI storefront home page: dark design system, header with logo + navigation + SW/EN language toggle, a hero, and a product grid of 6 items, each with its own product photo, name, price in TSh and an add-to-cart button.
+
+## 4. Tech Stack & Design Tokens
+Styling + Dependencies: plain CSS in index.html ; packages: none
+- Background #0B0B0C, surface #141416, text #F5F5F5.
+- Typography: Inter / system sans-serif ONLY (no monospace anywhere). Sentence case for headings and body; UPPERCASE allowed only for nav labels and small labels ≤ 14px.
+- Accent #E11D48 reserved for the primary call-to-action buttons only (not for text, borders, header or footer backgrounds).
+- Touch targets ≥ 44×44 px. Contrast WCAG AA (4.5:1 body text).
+
+## 6. Work Steps
+### Step 1 — Header: logo left, nav (Wanaume, Wanawake, Mpya), SW/EN language toggle on the right (button#lang-toggle).
+### Step 2 — Hero: h1 + one paragraph + primary CTA "Nunua sasa".
+### Step 3 — Product grid: 6 product cards; EVERY card uses its own photo (distinct images, not a placeholder repeated).
+
+## 7. QA Checklist
+- [ ] header has the language toggle
+- [ ] distinct product photos
+**Screenshots:**
+- route: / · states: default · viewports: 375x667, 768x1024, 1280x800
+
+
+## XMD COMPUTER BUILD REPORT
+# M1 Build Report
+## Summary
+Built index.html with header, hero and a 6-card product grid. Used one placeholder image (tee.svg) for all products because no photos were provided.
+## Files Changed
+- index.html — page + CSS
+- tee.svg — placeholder product image
+## Commands Run
+- `test -f index.html` → exit 0
+## Known Gaps
+- language toggle not implemented yet
+
+
+## EVIDENCE PACK (M1 R0 · local http://127.0.0.1:4173)
+SCREENSHOTS:
+- S-001: route / · viewport 375x667 · state default
+- S-002: route / · viewport 768x1024 · state default
+- S-003: route / · viewport 1280x800 · state default
+DOM METRICS (measured by the harness in a real browser; px; box x/y from the page top-left):
+S-001 page: viewport 375x667 · scrollWidth=375 clientWidth=375 scrollHeight=3400 · overflowPx=0 · bodyBackground=rgb(11, 11, 12) · fontsLoaded=[] · imagesWithoutAlt=0 · headingProblems=["skipped level: h1 → h3 (\"Kivuli Tee Nyeusi\")"]
+S-001 dom: body > header · <header> "KIVULI WANAUMEWANAWAKEMPYA" · x=0 y=0 width=375 height=64 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(225, 29, 72) contrastRatio=4.31 LOW-CONTRAST
+S-001 dom: body > header > div · <div> "KIVULI" · x=20 y=16.5 width=97.94 height=27 · fontSize=24px fontWeight=700 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7
+S-001 dom: body > header > nav > a:nth-of-type(1) · <a> "WANAUME" · x=138.27 y=23.5 width=68.06 height=15 · fontSize=13px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 68.06x15 TOO-SMALL
+S-001 dom: body > header > nav > a:nth-of-type(2) · <a> "WANAWAKE" · x=222.33 y=23.5 width=77.78 height=15 · fontSize=13px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 77.78x15 TOO-SMALL
+S-001 dom: body > header > nav > a:nth-of-type(3) · <a> "MPYA" · x=316.11 y=23.5 width=38.89 height=15 · fontSize=13px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 38.89x15 TOO-SMALL
+S-001 dom: body > main > section:nth-of-type(1) > h1 · <h1> "STREETWEAR YA USIKU WA DAR" · x=20 y=120 width=335 height=132 · fontSize=40px fontWeight=700 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(11, 11, 12) contrastRatio=4.19
+S-001 dom: #shop > article:nth-of-type(1) · <article> "KIVULI TEE NYEUSI TSH 35,000 A" · x=20 y=486 width=335 height=451 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(2) · <article> "USIKU HOODIE TSH 85,000 ADD TO" · x=20 y=957 width=335 height=451 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(3) · <article> "GIZA CARGO PANTS TSH 70,000 AD" · x=20 y=1428 width=335 height=451 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(4) · <article> "KIVULI CAP TSH 25,000 ADD TO C" · x=20 y=1899 width=335 height=451 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(5) · <article> "MWEZI OVERSIZED TEE TSH 40,000" · x=20 y=2370 width=335 height=451 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(6) · <article> "DAR NIGHTS JACKET TSH 120,000 " · x=20 y=2841 width=335 height=451 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(1) > img · <img> "Kivuli Tee Nyeusi" · x=34 y=500 width=307 height=307 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(2) > img · <img> "Usiku Hoodie" · x=34 y=971 width=307 height=307 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(3) > img · <img> "Giza Cargo Pants" · x=34 y=1442 width=307 height=307 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(4) > img · <img> "Kivuli Cap" · x=34 y=1913 width=307 height=307 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(5) > img · <img> "Mwezi Oversized Tee" · x=34 y=2384 width=307 height=307 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(6) > img · <img> "Dar Nights Jacket" · x=34 y=2855 width=307 height=307 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-001 dom: #shop > article:nth-of-type(1) > p · <p> "TSH 35,000" · x=34 y=844 width=307 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(2) > p · <p> "TSH 85,000" · x=34 y=1315 width=307 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(3) > p · <p> "TSH 70,000" · x=34 y=1786 width=307 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(4) > p · <p> "TSH 25,000" · x=34 y=2257 width=307 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(5) > p · <p> "TSH 40,000" · x=34 y=2728 width=307 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(6) > p · <p> "TSH 120,000" · x=34 y=3199 width=307 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: body > main > section:nth-of-type(1) > a · <a> "NUNUA SASA" · x=20 y=347 width=152.23 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 152.23x49
+S-001 dom: #shop > article:nth-of-type(1) > a · <a> "ADD TO CART" · x=34 y=874 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-001 dom: #shop > article:nth-of-type(2) > a · <a> "ADD TO CART" · x=34 y=1345 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-001 dom: #shop > article:nth-of-type(3) > a · <a> "ADD TO CART" · x=34 y=1816 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-001 dom: #shop > article:nth-of-type(4) > a · <a> "ADD TO CART" · x=34 y=2287 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-001 dom: #shop > article:nth-of-type(5) > a · <a> "ADD TO CART" · x=34 y=2758 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-001 dom: #shop > article:nth-of-type(6) > a · <a> "ADD TO CART" · x=34 y=3229 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-001 dom: body > header > nav · <nav> "WANAUMEWANAWAKEMPYA" · x=122.27 y=19.5 width=232.73 height=21 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(225, 29, 72) contrastRatio=4.31 LOW-CONTRAST
+S-001 dom: body > main · <main> "STREETWEAR YA USIKU WA DAR MAV" · x=0 y=64 width=375 height=3260 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(11, 11, 12) contrastRatio=18.05
+S-001 dom: #shop > article:nth-of-type(1) > h3 · <h3> "KIVULI TEE NYEUSI" · x=34 y=817 width=307 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(2) > h3 · <h3> "USIKU HOODIE" · x=34 y=1288 width=307 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(3) > h3 · <h3> "GIZA CARGO PANTS" · x=34 y=1759 width=307 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(4) > h3 · <h3> "KIVULI CAP" · x=34 y=2230 width=307 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(5) > h3 · <h3> "MWEZI OVERSIZED TEE" · x=34 y=2701 width=307 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: #shop > article:nth-of-type(6) > h3 · <h3> "DAR NIGHTS JACKET" · x=34 y=3172 width=307 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-001 dom: body > footer · <footer> "KIVULI CLOTHING · KARIAKOO, DA" · x=0 y=3324 width=375 height=76 · fontSize=12px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7
+
+S-002 page: viewport 768x1024 · scrollWidth=768 clientWidth=768 scrollHeight=1182 · overflowPx=0 · bodyBackground=rgb(11, 11, 12) · fontsLoaded=[] · imagesWithoutAlt=0 · headingProblems=["skipped level: h1 → h3 (\"Kivuli Tee Nyeusi\")"]
+S-002 dom: body > header · <header> "KIVULI WANAUMEWANAWAKEMPYA" · x=0 y=0 width=768 height=64 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(225, 29, 72) contrastRatio=4.31 LOW-CONTRAST
+S-002 dom: body > header > div · <div> "KIVULI" · x=20 y=16.5 width=97.94 height=27 · fontSize=24px fontWeight=700 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7
+S-002 dom: body > header > nav > a:nth-of-type(1) · <a> "WANAUME" · x=531.27 y=23.5 width=68.06 height=15 · fontSize=13px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 68.06x15 TOO-SMALL
+S-002 dom: body > header > nav > a:nth-of-type(2) · <a> "WANAWAKE" · x=615.33 y=23.5 width=77.78 height=15 · fontSize=13px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 77.78x15 TOO-SMALL
+S-002 dom: body > header > nav > a:nth-of-type(3) · <a> "MPYA" · x=709.11 y=23.5 width=38.89 height=15 · fontSize=13px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 38.89x15 TOO-SMALL
+S-002 dom: body > main > section:nth-of-type(1) > h1 · <h1> "STREETWEAR YA USIKU WA DAR" · x=20 y=120 width=728 height=44 · fontSize=40px fontWeight=700 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(11, 11, 12) contrastRatio=4.19
+S-002 dom: #shop > article:nth-of-type(1) · <article> "KIVULI TEE NYEUSI TSH 35,000 A" · x=20 y=377 width=229.33 height=345.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(2) · <article> "USIKU HOODIE TSH 85,000 ADD TO" · x=269.33 y=377 width=229.33 height=345.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(3) · <article> "GIZA CARGO PANTS TSH 70,000 AD" · x=518.66 y=377 width=229.33 height=345.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(4) · <article> "KIVULI CAP TSH 25,000 ADD TO C" · x=20 y=742.33 width=229.33 height=345.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(5) · <article> "MWEZI OVERSIZED TEE TSH 40,000" · x=269.33 y=742.33 width=229.33 height=345.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(6) · <article> "DAR NIGHTS JACKET TSH 120,000 " · x=518.66 y=742.33 width=229.33 height=345.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(1) > img · <img> "Kivuli Tee Nyeusi" · x=34 y=391 width=201.33 height=201.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(2) > img · <img> "Usiku Hoodie" · x=283.33 y=391 width=201.33 height=201.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(3) > img · <img> "Giza Cargo Pants" · x=532.66 y=391 width=201.33 height=201.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(4) > img · <img> "Kivuli Cap" · x=34 y=756.33 width=201.33 height=201.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(5) > img · <img> "Mwezi Oversized Tee" · x=283.33 y=756.33 width=201.33 height=201.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(6) > img · <img> "Dar Nights Jacket" · x=532.66 y=756.33 width=201.33 height=201.33 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-002 dom: #shop > article:nth-of-type(1) > p · <p> "TSH 35,000" · x=34 y=629.33 width=201.33 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(2) > p · <p> "TSH 85,000" · x=283.33 y=629.33 width=201.33 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(3) > p · <p> "TSH 70,000" · x=532.66 y=629.33 width=201.33 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(4) > p · <p> "TSH 25,000" · x=34 y=994.66 width=201.33 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(5) > p · <p> "TSH 40,000" · x=283.33 y=994.66 width=201.33 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(6) > p · <p> "TSH 120,000" · x=532.66 y=994.66 width=201.33 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: body > main > section:nth-of-type(1) > a · <a> "NUNUA SASA" · x=20 y=238 width=152.23 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 152.23x49
+S-002 dom: #shop > article:nth-of-type(1) > a · <a> "ADD TO CART" · x=34 y=659.33 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-002 dom: #shop > article:nth-of-type(2) > a · <a> "ADD TO CART" · x=283.33 y=659.33 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-002 dom: #shop > article:nth-of-type(3) > a · <a> "ADD TO CART" · x=532.66 y=659.33 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-002 dom: #shop > article:nth-of-type(4) > a · <a> "ADD TO CART" · x=34 y=1024.66 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-002 dom: #shop > article:nth-of-type(5) > a · <a> "ADD TO CART" · x=283.33 y=1024.66 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-002 dom: #shop > article:nth-of-type(6) > a · <a> "ADD TO CART" · x=532.66 y=1024.66 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-002 dom: body > header > nav · <nav> "WANAUMEWANAWAKEMPYA" · x=515.27 y=19.5 width=232.73 height=21 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(225, 29, 72) contrastRatio=4.31 LOW-CONTRAST
+S-002 dom: body > main · <main> "STREETWEAR YA USIKU WA DAR MAV" · x=0 y=64 width=768 height=1055.66 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(11, 11, 12) contrastRatio=18.05
+S-002 dom: #shop > article:nth-of-type(1) > h3 · <h3> "KIVULI TEE NYEUSI" · x=34 y=602.33 width=201.33 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(2) > h3 · <h3> "USIKU HOODIE" · x=283.33 y=602.33 width=201.33 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(3) > h3 · <h3> "GIZA CARGO PANTS" · x=532.66 y=602.33 width=201.33 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(4) > h3 · <h3> "KIVULI CAP" · x=34 y=967.66 width=201.33 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(5) > h3 · <h3> "MWEZI OVERSIZED TEE" · x=283.33 y=967.66 width=201.33 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: #shop > article:nth-of-type(6) > h3 · <h3> "DAR NIGHTS JACKET" · x=532.66 y=967.66 width=201.33 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-002 dom: body > footer · <footer> "KIVULI CLOTHING · KARIAKOO, DA" · x=0 y=1119.66 width=768 height=62 · fontSize=12px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7
+
+S-003 page: viewport 1280x800 · scrollWidth=1280 clientWidth=1280 scrollHeight=1187 · overflowPx=0 · bodyBackground=rgb(11, 11, 12) · fontsLoaded=[] · imagesWithoutAlt=0 · headingProblems=["skipped level: h1 → h3 (\"Kivuli Tee Nyeusi\")"]
+S-003 dom: body > header · <header> "KIVULI WANAUMEWANAWAKEMPYA" · x=0 y=0 width=1280 height=64 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(225, 29, 72) contrastRatio=4.31 LOW-CONTRAST
+S-003 dom: body > header > div · <div> "KIVULI" · x=20 y=16.5 width=97.94 height=27 · fontSize=24px fontWeight=700 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7
+S-003 dom: body > header > nav > a:nth-of-type(1) · <a> "WANAUME" · x=1043.27 y=23.5 width=68.06 height=15 · fontSize=13px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 68.06x15 TOO-SMALL
+S-003 dom: body > header > nav > a:nth-of-type(2) · <a> "WANAWAKE" · x=1127.33 y=23.5 width=77.78 height=15 · fontSize=13px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 77.78x15 TOO-SMALL
+S-003 dom: body > header > nav > a:nth-of-type(3) · <a> "MPYA" · x=1221.11 y=23.5 width=38.89 height=15 · fontSize=13px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 38.89x15 TOO-SMALL
+S-003 dom: body > main > section:nth-of-type(1) > h1 · <h1> "STREETWEAR YA USIKU WA DAR" · x=20 y=120 width=1240 height=44 · fontSize=40px fontWeight=700 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(11, 11, 12) contrastRatio=4.19
+S-003 dom: #shop > article:nth-of-type(1) · <article> "KIVULI TEE NYEUSI TSH 35,000 A" · x=20 y=377 width=232 height=348 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(2) · <article> "USIKU HOODIE TSH 85,000 ADD TO" · x=272 y=377 width=232 height=348 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(3) · <article> "GIZA CARGO PANTS TSH 70,000 AD" · x=524 y=377 width=232 height=348 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(4) · <article> "KIVULI CAP TSH 25,000 ADD TO C" · x=776 y=377 width=232 height=348 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(5) · <article> "MWEZI OVERSIZED TEE TSH 40,000" · x=1028 y=377 width=232 height=348 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(6) · <article> "DAR NIGHTS JACKET TSH 120,000 " · x=20 y=745 width=232 height=348 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(1) > img · <img> "Kivuli Tee Nyeusi" · x=34 y=391 width=204 height=204 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(2) > img · <img> "Usiku Hoodie" · x=286 y=391 width=204 height=204 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(3) > img · <img> "Giza Cargo Pants" · x=538 y=391 width=204 height=204 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(4) > img · <img> "Kivuli Cap" · x=790 y=391 width=204 height=204 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(5) > img · <img> "Mwezi Oversized Tee" · x=1042 y=391 width=204 height=204 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(6) > img · <img> "Dar Nights Jacket" · x=34 y=759 width=204 height=204 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(20, 20, 22) contrastRatio=16.88
+S-003 dom: #shop > article:nth-of-type(1) > p · <p> "TSH 35,000" · x=34 y=632 width=204 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(2) > p · <p> "TSH 85,000" · x=286 y=632 width=204 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(3) > p · <p> "TSH 70,000" · x=538 y=632 width=204 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(4) > p · <p> "TSH 25,000" · x=790 y=632 width=204 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(5) > p · <p> "TSH 40,000" · x=1042 y=632 width=204 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(6) > p · <p> "TSH 120,000" · x=34 y=1000 width=204 height=20 · fontSize=18px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: body > main > section:nth-of-type(1) > a · <a> "NUNUA SASA" · x=20 y=238 width=152.23 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 152.23x49
+S-003 dom: #shop > article:nth-of-type(1) > a · <a> "ADD TO CART" · x=34 y=662 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-003 dom: #shop > article:nth-of-type(2) > a · <a> "ADD TO CART" · x=286 y=662 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-003 dom: #shop > article:nth-of-type(3) > a · <a> "ADD TO CART" · x=538 y=662 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-003 dom: #shop > article:nth-of-type(4) > a · <a> "ADD TO CART" · x=790 y=662 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-003 dom: #shop > article:nth-of-type(5) > a · <a> "ADD TO CART" · x=1042 y=662 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-003 dom: #shop > article:nth-of-type(6) > a · <a> "ADD TO CART" · x=34 y=1030 width=156.08 height=49 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7 · touch 156.08x49
+S-003 dom: body > header > nav · <nav> "WANAUMEWANAWAKEMPYA" · x=1027.27 y=19.5 width=232.73 height=21 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(225, 29, 72) contrastRatio=4.31 LOW-CONTRAST
+S-003 dom: body > main · <main> "STREETWEAR YA USIKU WA DAR MAV" · x=0 y=64 width=1280 height=1061 · fontSize=16px fontWeight=400 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(245, 245, 245) backgroundColor=rgb(11, 11, 12) contrastRatio=18.05
+S-003 dom: #shop > article:nth-of-type(1) > h3 · <h3> "KIVULI TEE NYEUSI" · x=34 y=605 width=204 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(2) > h3 · <h3> "USIKU HOODIE" · x=286 y=605 width=204 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(3) > h3 · <h3> "GIZA CARGO PANTS" · x=538 y=605 width=204 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(4) > h3 · <h3> "KIVULI CAP" · x=790 y=605 width=204 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(5) > h3 · <h3> "MWEZI OVERSIZED TEE" · x=1042 y=605 width=204 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: #shop > article:nth-of-type(6) > h3 · <h3> "DAR NIGHTS JACKET" · x=34 y=973 width=204 height=21 · fontSize=16px fontWeight=700 fontFamily=Inter textTransform=uppercase letterSpacing=1.92px · color=rgb(225, 29, 72) backgroundColor=rgb(20, 20, 22) contrastRatio=3.92 LOW-CONTRAST
+S-003 dom: body > footer · <footer> "KIVULI CLOTHING · KARIAKOO, DA" · x=0 y=1125 width=1280 height=62 · fontSize=12px fontWeight=400 fontFamily=Courier New textTransform=uppercase letterSpacing=1.92px · color=rgb(255, 255, 255) backgroundColor=rgb(225, 29, 72) contrastRatio=4.7
+CHECK RESULTS (decided by code):
+- check:M1-S1-a [dom_exists] FAIL — / @375x667: "button#lang-toggle" matched 0
+- check:M1-S1-b [contrast_min] FAIL — / @375x667: ".hero p, .card h3, .price" 13 text elements, min contrast 3.92 (rgb(225, 29, 72) on rgb(20, 20, 22)) vs required 4.5; 13 below
+- check:M1-S3-a [touch_target_min] PASS — / @375x667: ".btn" 7 visible, smallest 152.23×49 vs required 44×44; 0 too small
+- check:M1-S3-b [no_horizontal_overflow] PASS — / @375x667: scrollWidth 375 vs clientWidth 375 · / @768x1024: scrollWidth 768 vs clientWidth 768 · / @1280x800: scrollWidth 1280 vs clientWidth 1280
+REGRESSION vs approved baselines:
+- (none)
+CONSOLE ERRORS: none
+HARNESS ERRORS: none
+GIT DIFF SUMMARY:
+ index.html | 52 ++++++++
+ tee.svg    |  1 +
+ 2 files changed, 53 insertions(+)
+PICTURES: 3 screenshot image(s) are attached after this text, in this order: S-001, S-002, S-003. Each image is preceded by a label with its id.
+
+## DEFECT LEDGER (inherited / still open)
+- (none)
+
+## BASELINES OF PREVIOUS MILESTONES (approved screenshots)
+- (none — this is the first reviewed milestone)
+
+## YOUR TASK
+Review milestone M1 as Ultron (designer). Describe EVERY screenshot (S-001, S-002, S-003), then list DEFECTS and PROPOSALS with evidence. Reply with the JSON object only.

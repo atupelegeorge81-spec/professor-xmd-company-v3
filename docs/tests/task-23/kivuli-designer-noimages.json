@@ -1,0 +1,213 @@
+{
+  "meta": {
+    "reviewer": "designer",
+    "promptHash": "5951d94517e24b8c2d6b8d7d36ff4577a5475975bceb5a1ffbf6bbc9bc9364e1",
+    "promptChars": 46038,
+    "imageParts": 0,
+    "textParts": 1,
+    "attempts": 1,
+    "errors": [],
+    "lane": "gemini-3:gemini-3.8-flash",
+    "model": "gemini-3.8-flash",
+    "tier": "flash",
+    "ms": 194611,
+    "usage": {
+      "completion_tokens": 4695,
+      "prompt_tokens": 18957,
+      "prompt_tokens_details": {
+        "cached_tokens": 16910
+      },
+      "total_tokens": 33221
+    }
+  },
+  "findings": {
+    "reviewer": "designer",
+    "screenshots": [
+      {
+        "id": "S-001",
+        "description": "Mobile viewport (375x667, page height 3400px). At top, a 64px header (y=0, width=375, height=64) rendered with red background rgb(225, 29, 72) containing logo 'KIVULI' at x=20 y=16.5 (24px Courier New bold) and navigation links at x=122.27 y=19.5 (13px Courier New, height 15px); language toggle button#lang-toggle is absent. Hero section at y=64 contains uppercase h1 'STREETWEAR YA USIKU WA DAR' at x=20 y=120 (40px Courier New bold in red rgb(225, 29, 72)) and CTA button 'NUNUA SASA' at x=20 y=347 (152.23x49px). Below hero, #shop renders 6 product cards in a single vertical column (articles at x=20, width=335, height=451 stacked from y=486 to y=2841) with 307x307px square placeholder tee.svg, red h3 heading, red Courier New price, and 156.08x49px 'ADD TO CART' button. Footer spans x=0 y=3324 (width=375, height=76) in red rgb(225, 29, 72) with 12px Courier New text."
+      },
+      {
+        "id": "S-002",
+        "description": "Tablet viewport (768x1024, page height 1182px). Header at top (x=0 y=0, width=768, height=64) in red rgb(225, 29, 72) with logo at x=20 y=16.5 and right-aligned nav at x=515.27 y=19.5 (height 15px); language toggle missing. Hero section contains single-line h1 at x=20 y=120 (728x44px, 40px Courier New red) and CTA button at x=20 y=238 (152.23x49px). Shop product grid is arranged in 3 columns across 2 rows (articles width=229.33, height=345.33; row 1 at y=377 with x=20, 269.33, 518.66; row 2 at y=742.33 with x=20, 269.33, 518.66), each containing a 201.33x201.33px image, red h3, red price, and 156.08x49px CTA. Footer at x=0 y=1119.66 (width=768, height=62) in red background."
+      },
+      {
+        "id": "S-003",
+        "description": "Desktop viewport (1280x800, page height 1187px). Header at top (x=0 y=0, width=1280, height=64) in red rgb(225, 29, 72) with logo at x=20 y=16.5 and nav links at x=1027.27 y=19.5; language toggle missing. Hero section contains h1 at x=20 y=120 (1240x44px) and CTA at x=20 y=238. Product grid #shop renders 5 cards across row 1 at y=377 (width=232, height=348 at x=20, 272, 524, 776, 1028) and 1 orphaned card in row 2 at x=20 y=745, failing the locked 4-column layout. Footer at x=0 y=1125 (width=1280, height=62) in red background rgb(225, 29, 72)."
+      }
+    ],
+    "defects": [
+      {
+        "title": "Header background, footer background, headings, and prices misuse accent color #E11D48",
+        "area": "brand / color palette",
+        "severity": "blocker",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-001 dom: body > header backgroundColor=rgb(225, 29, 72)",
+          "S-001 dom: body > footer backgroundColor=rgb(225, 29, 72)",
+          "S-001 dom: body > main > section:nth-of-type(1) > h1 color=rgb(225, 29, 72)",
+          "S-001 dom: #shop > article:nth-of-type(1) > h3 color=rgb(225, 29, 72)",
+          "S-001 dom: #shop > article:nth-of-type(1) > p color=rgb(225, 29, 72)",
+          "S-002 dom: body > header backgroundColor=rgb(225, 29, 72)",
+          "S-003 dom: body > header backgroundColor=rgb(225, 29, 72)",
+          "check:M1-S1-b"
+        ],
+        "expected": "Ledger A1 strictly locks: 'Accent #E11D48 is reserved for primary CTA buttons only — never for body text, headings, borders, header or footer backgrounds. Premium, calm, night-time feel.' Header, footer, headings, and prices must use dark surfaces (#0B0B0C / #141416) and light text (#F5F5F5).",
+        "actual": "Header and footer backgrounds are saturated red rgb(225, 29, 72) (#E11D48). The hero h1, product h3 titles, and prices are also styled in rgb(225, 29, 72), overwhelming the storefront and breaking the calm night-time aesthetic."
+      },
+      {
+        "title": "Monospace typography (Courier New) used instead of Inter / system sans-serif",
+        "area": "typography",
+        "severity": "blocker",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-001 dom: body > header > div fontFamily=Courier New",
+          "S-001 dom: body > header > nav > a:nth-of-type(1) fontFamily=Courier New",
+          "S-001 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+          "S-001 dom: #shop > article:nth-of-type(1) > p fontFamily=Courier New",
+          "S-001 dom: body > footer fontFamily=Courier New",
+          "S-002 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+          "S-003 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New"
+        ],
+        "expected": "Ledger A1 strictly locks: 'Typography Inter / system sans-serif ONLY — no monospace fonts.' Monospace was explicitly rejected in the design agenda as tech-startup style rather than fashion.",
+        "actual": "Courier New is applied to the logo, navigation links, hero h1, product prices, and footer text across all viewports."
+      },
+      {
+        "title": "Headings, body text, and product cards styled in ALL-CAPS instead of sentence case",
+        "area": "typography",
+        "severity": "major",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-001 dom: body > main > section:nth-of-type(1) > h1 textTransform=uppercase",
+          "S-001 dom: #shop > article:nth-of-type(1) textTransform=uppercase",
+          "S-001 dom: #shop > article:nth-of-type(1) > h3 textTransform=uppercase",
+          "S-002 dom: body > main > section:nth-of-type(1) > h1 textTransform=uppercase",
+          "S-003 dom: body > main > section:nth-of-type(1) > h1 textTransform=uppercase"
+        ],
+        "expected": "Ledger A1 locks: 'Sentence case for headings and body; UPPERCASE only for nav labels and small labels (≤14px).'",
+        "actual": "Hero h1, product articles, and h3 headings enforce textTransform=uppercase, causing headings and body elements to shout in ALL-CAPS."
+      },
+      {
+        "title": "Missing SW/EN language toggle in header",
+        "area": "header",
+        "severity": "blocker",
+        "kind": "violation",
+        "decisionRef": "A2",
+        "evidence": [
+          "check:M1-S1-a",
+          "S-001 dom: body > header",
+          "S-002 dom: body > header",
+          "S-003 dom: body > header"
+        ],
+        "expected": "Ledger A2 locks: 'Header 64px: logo left, nav (Wanaume, Wanawake, Mpya), and a SW/EN language toggle on the right (button#lang-toggle). The site is bilingual — Swahili default, English via the toggle.' It must be visible across 375, 768, and 1280 viewports.",
+        "actual": "button#lang-toggle is completely absent from the header in the DOM (check:M1-S1-a matched 0 elements; admitted in build report known gaps)."
+      },
+      {
+        "title": "Single placeholder image (tee.svg) repeated across all 6 product cards",
+        "area": "product grid / imagery",
+        "severity": "major",
+        "kind": "violation",
+        "decisionRef": "A3",
+        "evidence": [
+          "S-001 dom: #shop > article:nth-of-type(1) > img",
+          "S-001 dom: #shop > article:nth-of-type(2) > img",
+          "S-001 dom: #shop > article:nth-of-type(3) > img",
+          "S-001 dom: #shop > article:nth-of-type(4) > img",
+          "S-001 dom: #shop > article:nth-of-type(5) > img",
+          "S-001 dom: #shop > article:nth-of-type(6) > img"
+        ],
+        "expected": "Ledger A3 locks: 'Each card: its OWN product photo (distinct real or sample photos, never one placeholder repeated)'.",
+        "actual": "All 6 product cards reuse the exact same tee.svg image file (confirmed by build report and git diff)."
+      },
+      {
+        "title": "Product grid renders 5 columns instead of locked 4 columns on desktop (1280px)",
+        "area": "product grid / layout",
+        "severity": "major",
+        "kind": "violation",
+        "decisionRef": "A3",
+        "evidence": [
+          "S-003 dom: #shop > article:nth-of-type(1)",
+          "S-003 dom: #shop > article:nth-of-type(2)",
+          "S-003 dom: #shop > article:nth-of-type(3)",
+          "S-003 dom: #shop > article:nth-of-type(4)",
+          "S-003 dom: #shop > article:nth-of-type(5)",
+          "S-003 dom: #shop > article:nth-of-type(6)"
+        ],
+        "expected": "Ledger A3 locks: 'Home shows 6 products in a responsive grid (1 col at 375, 2–3 at 768, 4 at 1280).'",
+        "actual": "On desktop (S-003 at 1280px), articles 1 through 5 sit on row 1 at y=377 (x=20, 272, 524, 776, 1028), leaving card 6 alone on row 2 at y=745 x=20. This is a 5-column layout rather than the specified 4 columns."
+      },
+      {
+        "title": "Header navigation links touch target height is only 15px",
+        "area": "header / accessibility",
+        "severity": "major",
+        "kind": "violation",
+        "decisionRef": "A2",
+        "evidence": [
+          "S-001 dom: body > header > nav > a:nth-of-type(1)",
+          "S-001 dom: body > header > nav > a:nth-of-type(2)",
+          "S-001 dom: body > header > nav > a:nth-of-type(3)",
+          "S-002 dom: body > header > nav > a:nth-of-type(1)",
+          "S-003 dom: body > header > nav > a:nth-of-type(1)"
+        ],
+        "expected": "Milestone Plan Section 4 constraints specify: 'Touch targets ≥ 44×44 px.'",
+        "actual": "Header navigation links have height=15px (e.g. Wanaume touch 68.06x15, Wanawake 77.78x15, Mpya 38.89x15), marked TOO-SMALL."
+      },
+      {
+        "title": "Contrast ratio failure on red headings and prices against dark card background",
+        "area": "product grid / accessibility",
+        "severity": "major",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "check:M1-S1-b",
+          "S-001 dom: #shop > article:nth-of-type(1) > h3",
+          "S-001 dom: #shop > article:nth-of-type(1) > p",
+          "S-001 dom: body > header"
+        ],
+        "expected": "Milestone Plan Section 4 and Ledger A1 require WCAG AA compliant contrast (≥ 4.5:1).",
+        "actual": "check:M1-S1-b failed with 13 text elements below 4.5:1. Card h3 headings and prices render rgb(225, 29, 72) on surface rgb(20, 20, 22) with contrastRatio=3.92 (LOW-CONTRAST); header text on red background has contrastRatio=4.31 (LOW-CONTRAST)."
+      }
+    ],
+    "proposals": [
+      {
+        "title": "Establish calm editorial typography hierarchy for product cards",
+        "detail": "Use sentence-case Inter in #F5F5F5 for the product titles (16px semi-bold). Format price as a crisp, muted currency prefix ('TSh' in 13px #A1A1AA) followed by white tabular numbers ('35,000' in 16px #F5F5F5). Reserve the accent red (#E11D48) purely for the 'Nunua sasa' / 'Add to cart' buttons.",
+        "rationale": "High-end fashion storefronts avoid coloring product titles and numbers in saturated red. Neutral tones against #141416 surface create a calm, nighttime Dar es Salaam vibe where primary CTAs carry maximum conversion weight.",
+        "evidence": [
+          "S-001 dom: #shop > article:nth-of-type(1) > h3 color=rgb(225, 29, 72)",
+          "S-001 dom: #shop > article:nth-of-type(1) > p color=rgb(225, 29, 72)"
+        ]
+      },
+      {
+        "title": "Fix heading level hierarchy between hero and product cards",
+        "detail": "Introduce an h2 section heading (e.g. 'Mkusanyiko wa Sasa' / 'Current Collection') above the #shop grid, or convert product title elements to h2 if no section heading is present.",
+        "rationale": "Harness detected headingProblems=['skipped level: h1 → h3 (\"Kivuli Tee Nyeusi\")']. Correct heading hierarchy improves accessibility outline and SEO structure.",
+        "evidence": [
+          "S-001 page: viewport 375x667 headingProblems=[\"skipped level: h1 → h3 (\\\"Kivuli Tee Nyeusi\\\")\"]"
+        ]
+      },
+      {
+        "title": "Apply 1:1 or 4:5 fashion aspect ratio container with subtle border to product cards",
+        "detail": "Style card images inside an aspect-ratio container (e.g. 1:1 or 4:5) using object-fit: cover, a subtle card border (1px solid rgba(255, 255, 255, 0.08)), and 8px card border-radius.",
+        "rationale": "Ensures varied product imagery (tees, hoodies, cargo pants, caps, jackets) displays harmoniously without distortion across viewports.",
+        "evidence": [
+          "S-001 dom: #shop > article:nth-of-type(1) > img width=307 height=307",
+          "S-002 dom: #shop > article:nth-of-type(1) > img width=201.33 height=201.33"
+        ]
+      },
+      {
+        "title": "Style language toggle as a sleek pill switcher in header",
+        "detail": "When implementing button#lang-toggle, style it as a 44px tall pill or compact switcher ('SW | EN') with subtle border (rgba(255,255,255,0.15)), #F5F5F5 active indicator, and muted inactive text (#71717A).",
+        "rationale": "Keeps the 64px header balanced and uncluttered on mobile while providing effortless bilingual switching.",
+        "evidence": [
+          "S-001 dom: body > header height=64",
+          "check:M1-S1-a"
+        ]
+      }
+    ],
+    "notes": "Milestone M1 cannot be signed off in its current state. The implementation inverted core design ledger decisions by flooding the header, footer, headings, and prices with the accent red (#E11D48), introducing monospace Courier New, omitting button#lang-toggle, repeating a single SVG placeholder, and breaking the 4-column desktop grid. Reverting to the dark palette (#0B0B0C / #141416 / #F5F5F5) with Inter sans-serif and distinct product photos will immediately restore KIVULI's premium night-time streetwear brand identity."
+  }
+}

@@ -1,0 +1,591 @@
+{
+  "T1_kivuli": {
+    "designer": {
+      "valid": true,
+      "attempts": 1,
+      "errors": [],
+      "model": "gemini-3.8-flash",
+      "tier": "flash",
+      "imageParts": 3,
+      "promptChars": 46026,
+      "hash": "955158c3856cc67b",
+      "ms": 105114,
+      "defects": 8,
+      "proposals": 3,
+      "screenshots": 3
+    },
+    "frontend": {
+      "valid": true,
+      "attempts": 1,
+      "errors": [],
+      "model": "gemini-3.8-flash",
+      "tier": "flash",
+      "imageParts": 3,
+      "promptChars": 46021,
+      "hash": "38779bbb83ee2def",
+      "ms": 103722,
+      "defects": 10,
+      "proposals": 2,
+      "screenshots": 3
+    },
+    "evidenceIdsExist": true
+  },
+  "T2_kivuli": {
+    "independence": {
+      "hashesDiffer": true,
+      "leaks": [
+        0,
+        0
+      ],
+      "ok": true
+    },
+    "grep": {
+      "designer→prompt(frontend)": {
+        "ownFragments": 377,
+        "foundInOtherPrompt": 0
+      },
+      "frontend→prompt(designer)": {
+        "ownFragments": 370,
+        "foundInOtherPrompt": 0
+      }
+    }
+  },
+  "T3": {
+    "designer": {
+      "allCaps": "defect: Headings, body copy, and card titles forced to all-caps. Hero h1, hero paragraph text, and card h3 headings all have textTransform=uppercase",
+      "monospace": "defect: Courier New monospace font used across branding, navigation, headings, prices, and footer. Logo, navigation links, hero heading h1, card pri",
+      "accentOverused": "defect: Accent color #E11D48 applied to header background, footer background, headings, prices, and borders. Both header and footer have solid crims",
+      "languageToggle": "defect: SW/EN language toggle (button#lang-toggle) is missing from header. check:M1-S1-a failed (0 matches for button#lang-toggle). The header conta",
+      "identicalImages": "defect: Product grid repeats single placeholder image tee.svg across all 6 cards. The exact same grey t-shirt graphic (tee.svg) is repeated across a"
+    },
+    "frontend": {
+      "allCaps": "defect: Global UPPERCASE textTransform applied to headings and body text. main, h1 (40px), h3 (16px), and hero body text all have textTransform=uppe",
+      "monospace": "defect: Courier New monospace font used instead of Inter / system sans-serif. Logo, navigation links, h1 heading, product prices, and footer are ren",
+      "languageToggle": "defect: Missing bilingual language toggle button#lang-toggle. Automated check check:M1-S1-a failed (matched 0). button#lang-toggle is not present in",
+      "identicalImages": "defect: Repeated placeholder tee.svg used across all 6 distinct products. All 6 product cards (including hoodie, cargo pants, cap, and jacket) rende"
+    },
+    "union": [
+      "allCaps",
+      "monospace",
+      "accentOverused",
+      "languageToggle",
+      "identicalImages"
+    ],
+    "count": 5,
+    "of": 5
+  },
+  "T5_kivuli": {
+    "designer": [
+      {
+        "title": "Accent color #E11D48 applied to header background, footer background, headings, prices, and borders",
+        "e": "S-001 dom: body > header backgroundColor=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header background, footer background, headings, prices, and borders",
+        "e": "S-001 dom: body > footer backgroundColor=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header background, footer background, headings, prices, and borders",
+        "e": "S-001 dom: body > main > section:nth-of-type(1) > h1 color=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header background, footer background, headings, prices, and borders",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > h3 color=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header background, footer background, headings, prices, and borders",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > p color=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header background, footer background, headings, prices, and borders",
+        "e": "S-002 dom: body > header backgroundColor=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header background, footer background, headings, prices, and borders",
+        "e": "S-003 dom: body > header backgroundColor=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+        "e": "S-001 dom: body > header > div fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+        "e": "S-001 dom: body > header > nav > a:nth-of-type(1) fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+        "e": "S-001 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > p fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+        "e": "S-001 dom: body > footer fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+        "e": "S-002 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+        "e": "S-003 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Headings, body copy, and card titles forced to all-caps",
+        "e": "S-001 dom: body > main > section:nth-of-type(1) > h1 textTransform=uppercase",
+        "actual": "uppercase",
+        "match": true
+      },
+      {
+        "title": "Headings, body copy, and card titles forced to all-caps",
+        "e": "S-001 dom: body > main textTransform=uppercase",
+        "actual": "uppercase",
+        "match": true
+      },
+      {
+        "title": "Headings, body copy, and card titles forced to all-caps",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > h3 textTransform=uppercase",
+        "actual": "uppercase",
+        "match": true
+      },
+      {
+        "title": "Headings, body copy, and card titles forced to all-caps",
+        "e": "S-002 dom: body > main > section:nth-of-type(1) > h1 textTransform=uppercase",
+        "actual": "uppercase",
+        "match": true
+      },
+      {
+        "title": "Headings, body copy, and card titles forced to all-caps",
+        "e": "S-003 dom: body > main > section:nth-of-type(1) > h1 textTransform=uppercase",
+        "actual": "uppercase",
+        "match": true
+      },
+      {
+        "title": "Product grid repeats single placeholder image tee.svg across all 6 cards",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > img width=307",
+        "actual": 307,
+        "match": true
+      },
+      {
+        "title": "Product grid repeats single placeholder image tee.svg across all 6 cards",
+        "e": "S-001 dom: #shop > article:nth-of-type(2) > img width=307",
+        "actual": 307,
+        "match": true
+      },
+      {
+        "title": "Product grid repeats single placeholder image tee.svg across all 6 cards",
+        "e": "S-001 dom: #shop > article:nth-of-type(3) > img width=307",
+        "actual": 307,
+        "match": true
+      },
+      {
+        "title": "Product grid repeats single placeholder image tee.svg across all 6 cards",
+        "e": "S-001 dom: #shop > article:nth-of-type(4) > img width=307",
+        "actual": 307,
+        "match": true
+      },
+      {
+        "title": "Product grid repeats single placeholder image tee.svg across all 6 cards",
+        "e": "S-001 dom: #shop > article:nth-of-type(5) > img width=307",
+        "actual": 307,
+        "match": true
+      },
+      {
+        "title": "Product grid repeats single placeholder image tee.svg across all 6 cards",
+        "e": "S-001 dom: #shop > article:nth-of-type(6) > img width=307",
+        "actual": 307,
+        "match": true
+      },
+      {
+        "title": "Desktop product grid displays 5 columns instead of locked 4 columns",
+        "e": "S-003 dom: #shop > article:nth-of-type(1) y=377",
+        "actual": 377,
+        "match": true
+      },
+      {
+        "title": "Desktop product grid displays 5 columns instead of locked 4 columns",
+        "e": "S-003 dom: #shop > article:nth-of-type(2) y=377",
+        "actual": 377,
+        "match": true
+      },
+      {
+        "title": "Desktop product grid displays 5 columns instead of locked 4 columns",
+        "e": "S-003 dom: #shop > article:nth-of-type(3) y=377",
+        "actual": 377,
+        "match": true
+      },
+      {
+        "title": "Desktop product grid displays 5 columns instead of locked 4 columns",
+        "e": "S-003 dom: #shop > article:nth-of-type(4) y=377",
+        "actual": 377,
+        "match": true
+      },
+      {
+        "title": "Desktop product grid displays 5 columns instead of locked 4 columns",
+        "e": "S-003 dom: #shop > article:nth-of-type(5) y=377",
+        "actual": 377,
+        "match": true
+      },
+      {
+        "title": "Desktop product grid displays 5 columns instead of locked 4 columns",
+        "e": "S-003 dom: #shop > article:nth-of-type(6) y=745",
+        "actual": 745,
+        "match": true
+      },
+      {
+        "title": "Red text fails WCAG AA 4.5:1 contrast on surface background",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > p contrastRatio=3.92 LOW-CONTRAST",
+        "actual": 3.92,
+        "match": true
+      },
+      {
+        "title": "Red text fails WCAG AA 4.5:1 contrast on surface background",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > h3 contrastRatio=3.92 LOW-CONTRAST",
+        "actual": 3.92,
+        "match": true
+      },
+      {
+        "title": "Red text fails WCAG AA 4.5:1 contrast on surface background",
+        "e": "S-001 dom: body > header contrastRatio=4.31 LOW-CONTRAST",
+        "actual": 4.31,
+        "match": true
+      },
+      {
+        "title": "Header navigation links touch targets are under 44px minimum height",
+        "e": "S-001 dom: body > header > nav > a:nth-of-type(1) height=15",
+        "actual": 15,
+        "match": true
+      },
+      {
+        "title": "Header navigation links touch targets are under 44px minimum height",
+        "e": "S-001 dom: body > header > nav > a:nth-of-type(2) height=15",
+        "actual": 15,
+        "match": true
+      },
+      {
+        "title": "Header navigation links touch targets are under 44px minimum height",
+        "e": "S-001 dom: body > header > nav > a:nth-of-type(3) height=15",
+        "actual": 15,
+        "match": true
+      },
+      {
+        "title": "Align card action buttons with flex auto-margin",
+        "e": "S-002 dom: #shop > article:nth-of-type(1) width=229.33 height=345.33",
+        "actual": 229.33,
+        "match": true
+      },
+      {
+        "title": "Align card action buttons with flex auto-margin",
+        "e": "S-003 dom: #shop > article:nth-of-type(1) width=232 height=348",
+        "actual": 232,
+        "match": true
+      }
+    ],
+    "frontend": [
+      {
+        "title": "Missing bilingual language toggle button#lang-toggle",
+        "e": "S-001 dom: body > header > nav height=21",
+        "actual": 21,
+        "match": true
+      },
+      {
+        "title": "Repeated placeholder tee.svg used across all 6 distinct products",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > img width=307",
+        "actual": 307,
+        "match": true
+      },
+      {
+        "title": "Repeated placeholder tee.svg used across all 6 distinct products",
+        "e": "S-001 dom: #shop > article:nth-of-type(2) > img width=307",
+        "actual": 307,
+        "match": true
+      },
+      {
+        "title": "Repeated placeholder tee.svg used across all 6 distinct products",
+        "e": "S-001 dom: #shop > article:nth-of-type(3) > img width=307",
+        "actual": 307,
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header, footer, headings, body text, prices, and borders",
+        "e": "S-001 dom: body > header backgroundColor=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header, footer, headings, body text, prices, and borders",
+        "e": "S-001 dom: body > footer backgroundColor=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header, footer, headings, body text, prices, and borders",
+        "e": "S-001 dom: body > main > section:nth-of-type(1) > h1 color=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header, footer, headings, body text, prices, and borders",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > h3 color=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Accent color #E11D48 applied to header, footer, headings, body text, prices, and borders",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > p color=rgb(225, 29, 72)",
+        "actual": "rgb(225, 29, 72)",
+        "match": true
+      },
+      {
+        "title": "Courier New monospace font used instead of Inter / system sans-serif",
+        "e": "S-001 dom: body > header > div fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used instead of Inter / system sans-serif",
+        "e": "S-001 dom: body > header > nav > a:nth-of-type(1) fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used instead of Inter / system sans-serif",
+        "e": "S-001 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used instead of Inter / system sans-serif",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > p fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Courier New monospace font used instead of Inter / system sans-serif",
+        "e": "S-001 dom: body > footer fontFamily=Courier New",
+        "actual": "\"Courier New\", monospace",
+        "match": false
+      },
+      {
+        "title": "Global UPPERCASE textTransform applied to headings and body text",
+        "e": "S-001 dom: body > main textTransform=uppercase",
+        "actual": "uppercase",
+        "match": true
+      },
+      {
+        "title": "Global UPPERCASE textTransform applied to headings and body text",
+        "e": "S-001 dom: body > main > section:nth-of-type(1) > h1 textTransform=uppercase",
+        "actual": "uppercase",
+        "match": true
+      },
+      {
+        "title": "Global UPPERCASE textTransform applied to headings and body text",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > h3 textTransform=uppercase",
+        "actual": "uppercase",
+        "match": true
+      },
+      {
+        "title": "Desktop product grid renders 5 columns instead of required 4 columns at 1280px",
+        "e": "S-003 dom: #shop > article:nth-of-type(1) y=377",
+        "actual": 377,
+        "match": true
+      },
+      {
+        "title": "Desktop product grid renders 5 columns instead of required 4 columns at 1280px",
+        "e": "S-003 dom: #shop > article:nth-of-type(5) y=377",
+        "actual": 377,
+        "match": true
+      },
+      {
+        "title": "Desktop product grid renders 5 columns instead of required 4 columns at 1280px",
+        "e": "S-003 dom: #shop > article:nth-of-type(6) y=745",
+        "actual": 745,
+        "match": true
+      },
+      {
+        "title": "Text contrast ratio fails WCAG AA minimum 4.5:1",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > p contrastRatio=3.92 LOW-CONTRAST",
+        "actual": 3.92,
+        "match": true
+      },
+      {
+        "title": "Text contrast ratio fails WCAG AA minimum 4.5:1",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > h3 contrastRatio=3.92 LOW-CONTRAST",
+        "actual": 3.92,
+        "match": true
+      },
+      {
+        "title": "Text contrast ratio fails WCAG AA minimum 4.5:1",
+        "e": "S-001 dom: body > header contrastRatio=4.31 LOW-CONTRAST",
+        "actual": 4.31,
+        "match": true
+      },
+      {
+        "title": "Header navigation link touch target heights are undersized (15px vs >=44px)",
+        "e": "S-001 dom: body > header > nav > a:nth-of-type(1) height=15",
+        "actual": 15,
+        "match": true
+      },
+      {
+        "title": "Header navigation link touch target heights are undersized (15px vs >=44px)",
+        "e": "S-001 dom: body > header > nav > a:nth-of-type(2) height=15",
+        "actual": 15,
+        "match": true
+      },
+      {
+        "title": "Header navigation link touch target heights are undersized (15px vs >=44px)",
+        "e": "S-001 dom: body > header > nav > a:nth-of-type(3) height=15",
+        "actual": 15,
+        "match": true
+      },
+      {
+        "title": "Product card button labels in English ('ADD TO CART') while default site language is Swahili",
+        "e": "S-001 dom: body > main > section:nth-of-type(1) > a touch=152.23x49",
+        "actual": "(not found)",
+        "match": false
+      },
+      {
+        "title": "Product card button labels in English ('ADD TO CART') while default site language is Swahili",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > a touch=156.08x49",
+        "actual": "(not found)",
+        "match": false
+      },
+      {
+        "title": "Skipped heading level from h1 directly to h3 in product cards",
+        "e": "S-001 dom: body > main > section:nth-of-type(1) > h1 fontSize=40px",
+        "actual": "40px",
+        "match": true
+      },
+      {
+        "title": "Skipped heading level from h1 directly to h3 in product cards",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > h3 fontSize=16px",
+        "actual": "16px",
+        "match": true
+      },
+      {
+        "title": "Add hover states and differentiate secondary card buttons",
+        "e": "S-001 dom: body > main > section:nth-of-type(1) > a touch=152.23x49",
+        "actual": "(not found)",
+        "match": false
+      },
+      {
+        "title": "Add hover states and differentiate secondary card buttons",
+        "e": "S-001 dom: #shop > article:nth-of-type(1) > a touch=156.08x49",
+        "actual": "(not found)",
+        "match": false
+      }
+    ]
+  },
+  "T4": {
+    "withImages": {
+      "imageParts": 3,
+      "findings": 11,
+      "screenshotOnlyEvidence": 3,
+      "pictureWording": 2,
+      "identicalImagesFound": true,
+      "known": [
+        "allCaps",
+        "monospace",
+        "accentOverused",
+        "languageToggle",
+        "identicalImages"
+      ]
+    },
+    "withoutImages": {
+      "imageParts": 0,
+      "valid": true,
+      "findings": 12,
+      "screenshotOnlyEvidence": 0,
+      "pictureWording": 0,
+      "identicalImagesFound": true,
+      "known": [
+        "allCaps",
+        "monospace",
+        "accentOverused",
+        "languageToggle",
+        "identicalImages"
+      ]
+    },
+    "noImagesNotes": "Milestone M1 cannot be signed off in its current state. The implementation inverted core design ledger decisions by flooding the header, footer, headings, and prices with the accent red (#E11D48), introducing monospace Courier New, omitting button#lang-toggle, repeating a single SVG placeholder, and breaking the 4-column desktop grid. Reverting to the dark palette (#0B0B0C / #141416 / #F5F5F5) wit"
+  },
+  "requests": [
+    {
+      "at": "2026-10-18T18:43:13.710Z",
+      "host": "generativelanguage.googleapis.com",
+      "model": "gemini-3.8-flash",
+      "who": "Vextron",
+      "messages": 2,
+      "textParts": 5,
+      "imageParts": 3,
+      "imageBytes": 220749,
+      "reasoning_effort": "high",
+      "bodyChars": 341585
+    },
+    {
+      "at": "2026-10-18T18:43:13.725Z",
+      "host": "generativelanguage.googleapis.com",
+      "model": "gemini-3.8-flash",
+      "who": "Ultron",
+      "messages": 2,
+      "textParts": 5,
+      "imageParts": 3,
+      "imageBytes": 220749,
+      "reasoning_effort": "high",
+      "bodyChars": 341590
+    },
+    {
+      "at": "2026-10-18T18:44:55.510Z",
+      "host": "generativelanguage.googleapis.com",
+      "model": "gemini-3.8-flash",
+      "who": "Ultron",
+      "messages": 2,
+      "textParts": 2,
+      "imageParts": 0,
+      "imageBytes": 0,
+      "reasoning_effort": "high",
+      "bodyChars": 46889
+    },
+    {
+      "at": "2026-10-18T18:46:25.515Z",
+      "host": "generativelanguage.googleapis.com",
+      "model": "gemini-3.8-flash",
+      "who": "Ultron",
+      "messages": 2,
+      "textParts": 2,
+      "imageParts": 0,
+      "imageBytes": 0,
+      "reasoning_effort": "high",
+      "bodyChars": 46889
+    }
+  ]
+}

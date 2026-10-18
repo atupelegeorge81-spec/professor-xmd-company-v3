@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "reviewer": "frontend",
+    "promptHash": "dc9d4b5e31cd5f2a8d9030dd41d121e6aafca86c10d6f6c94e80d1a802d8d098",
+    "promptChars": 58292,
+    "imageParts": 4,
+    "textParts": 5,
+    "attempts": 1,
+    "errors": [],
+    "lane": "gemini-3:gemini-3.8-flash",
+    "model": "gemini-3.8-flash",
+    "tier": "flash",
+    "ms": 159780,
+    "usage": {
+      "completion_tokens": 3756,
+      "prompt_tokens": 30065,
+      "total_tokens": 50530
+    }
+  },
+  "findings": {
+    "reviewer": "frontend",
+    "screenshots": [
+      {
+        "id": "S-001",
+        "description": "Mobile route / default view at 375x667 (scrollHeight=2956). Fixed top header sits at (x=0, y=0, 375x56px) with 36x36px hamburger button at (x=13, y=10) and brand nav at (x=57, y=6.5, 305x43px). Below header is greeting banner <header> at (x=16, y=68, 343x95px) with h1 'Karibu tena, Mkuu.' (x=16, y=88, 206.78x75px, font 25px) and 3 agent avatar thumbnails (22.4x22.4px). Hero section features 3D board room illustration at (x=0, y=175, 375x292px), h2 'Five AI engineers. One table. Your project.' at (x=16, y=391, 343x100.97px), prompt input, and 'Convene board' button at (x=205, y=659.14, 142x36px). Floating mobile bottom nav bar sits at (x=12, y=593, 351x62px) containing 4 tabs (Overview, Board, Agents, Reports each 85.25x60px). Main content body continues downward with Pulse section h3 at (x=16, y=731.14, 39.27x22.5px), KPI cards for Decisions (95) and Sources (984), System resource gauges, 2.4M Tokens card, 'Your board' agent cards at (x=16..624, y=1802.39, 142x193.33px), Latest report with 'Read' button at (x=273, y=2274.84, 70x32px), Live activity with 'Open' button at (x=282, y=2366.84, 61x26.5px), and Recent sessions list with 'All sessions' button at (x=128.5, y=2791.84, 118x36px)."
+      },
+      {
+        "id": "S-002",
+        "description": "Tablet route / default view at 768x1024 (scrollHeight=2759). Header at (x=0, y=0, 768x56px) contains menu button at (x=21, y=10, 36x36px), title nav at (x=65, y=6.5, 549x43px), and 'New session' CTA button at (x=622, y=10, 125x36px). Subheader greeting sits at (x=24, y=80, 720x62px) with h1 'Karibu tena, Mkuu.' at (x=24, y=100, 234.89x42px, font 28px). Hero section is arranged horizontally with h2 'Five AI engineers. One table.' at (x=56, y=341.81, 560x93.81px), prompt box with 'Convene board' button at (x=522, y=586, 142x36px), and room art at (x=312, y=162, 432x500px). Mobile bottom nav bar is positioned at (x=12, y=950, 744x62px) with 4 tabs (each 183.5x60px). Main section follows with Pulse h3 at (x=24, y=678, 39.27x22.5px), System and Tokens cards, 'Your board' agent cards at (x=24..688, y=1737.25, 156x212.45px), Latest report and Live activity cards, and Recent sessions list rows (each 696x60px) with 'All sessions' CTA at (x=325, y=2595.33, 118x36px)."
+      },
+      {
+        "id": "S-003",
+        "description": "Desktop route / default view at 1280x800 (scrollHeight=1808) in a full two-column layout. Left persistent sidebar (<aside>) at (x=0, y=0, 251px wide) holds company logo img at (x=12.94, y=12.94, 40.12x40.12px), navigation list at (x=0, y=76, 251x188px) with 5 nav links (Overview, Board Room, Agents, Reports, Sessions; each 227x36px), team agent links at (x=12, y=311.75..482.75, 227x40.75px), usage metrics, and CEO footer profile with 'System' button at (x=199, y=744, 32x32px). Right main panel features top bar at (x=252, y=0, 1028x56px) with breadcrumb nav (x=273, y=6.5, 853x43px) and 'New session' button at (x=1134, y=10, 125x36px). Main content body at (x=252, y=56) contains greeting at (x=276, y=80, 980x62px), hero card with 'Convene board' button at (x=774, y=606, 142x36px), right-hand KPI cards (Decisions 95, Sources 984, System, Tokens 2.4M), 'Your board' card carousel (each 80x264.5px), report card with 'Read' button at (x=917, y=1452.25, 70x32px), activity card with 'Open' button at (x=1175, y=1170.75, 61x26.5px), and 2-column Recent sessions grid with 6 items (474x60px each) and 'All sessions' button at (x=707, y=1715.5, 118x36px)."
+      },
+      {
+        "id": "S-004",
+        "description": "Mobile route /board default view at 375x667 (scrollHeight=781). Header at (x=0, y=0, 375x56px) displays 'Open menu' button at (x=13, y=10, 36x36px) and 'Board Room' title nav at (x=57, y=18.25, 305x19.5px). Main board flow graph canvas at (x=0, y=56, 375x724.55px) lays out node relationships: top CEO request card (Professor), connecting to Optimus consensus node ('Chair', avatar at x=89.64, y=213.02, 36.32x36.32px), branching to Evidence and Ledger nodes, Ultron button at (x=23.06, y=390.58, 159.39x52.46px), Vextron button at (x=192.54, y=390.58, 159.39x52.46px), Megatron button (active red glow) at (x=23.06, y=492.47, 159.39x52.46px), and Cybertron button at (x=192.54, y=493.48, 159.39x52.46px). Bottom prompt input box spans (y=640..760px) with 'Convene board' button at (x=205, y=696.55, 142x36px). The mobile bottom nav bar (<nav>) is entirely absent from this screen."
+      }
+    ],
+    "defects": [
+      {
+        "title": "Mobile bottom navigation bar is completely missing on /board route",
+        "area": "navigation / mobile shell",
+        "severity": "blocker",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-004",
+          "check:T23-live"
+        ],
+        "expected": "Locked decision A1 requires: 'Header on top; conversation/board in the main area; on mobile a bottom navigation bar.' The bottom navigation bar must persist across primary mobile routes including /board.",
+        "actual": "On route /board at 375x667 (S-004), there is no bottom navigation bar in the DOM (body > nav is missing), trapping mobile users on the board view with no tab access back to Overview, Agents, or Reports."
+      },
+      {
+        "title": "Interactive buttons and link controls violate minimum 44x44px touch target size",
+        "area": "accessibility / touch targets",
+        "severity": "blocker",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-001",
+          "S-001 dom: body > div:nth-of-type(3) > div > header > button height=36",
+          "S-001 dom: body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(2) > div > div > button height=36",
+          "S-001 dom: body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(5) > div > button height=26.5",
+          "check:T23-touch-mobile"
+        ],
+        "expected": "Locked decision A1 requires: 'Every interactive control ≥44×44 px.'",
+        "actual": "check:T23-touch-mobile fails with 3 buttons too small on mobile. Header menu button is 36x36px, 'Convene board' button is 142x36px (height 36px < 44px), 'Open' button is 61x26.5px (height 26.5px < 44px), and additional anchor buttons such as 'All' (52x27.25px), 'Read' (70x32px), and 'All sessions' (118x36px) fail the 44px height threshold."
+      },
+      {
+        "title": "Inactive mobile bottom navigation links fail WCAG AA 4.5:1 text contrast ratio",
+        "area": "navigation / typography & contrast",
+        "severity": "major",
+        "kind": "violation",
+        "decisionRef": "A1",
+        "evidence": [
+          "S-001",
+          "S-001 dom: body > nav > a:nth-of-type(2) contrastRatio=2.92",
+          "S-001 dom: body > nav > a:nth-of-type(3) contrastRatio=2.92",
+          "S-001 dom: body > nav > a:nth-of-type(4) contrastRatio=2.92"
+        ],
+        "expected": "Locked decision A1 requires: 'Text contrast ≥4.5:1 (WCAG AA).'",
+        "actual": "The inactive bottom nav items ('Board', 'Agents', 'Reports') use color rgb(86, 92, 108) on rgb(11, 12, 17) background, yielding a contrast ratio of only 2.92:1, failing the WCAG AA 4.5:1 threshold."
+      }
+    ],
+    "proposals": [
+      {
+        "title": "Dock or stick the prompt input bar above the mobile bottom nav on /board",
+        "detail": "On mobile viewports at 375x667, the prompt input textarea and 'Convene board' button sit at y=696.55, which is pushed below the initial viewport fold (scrollHeight=781). Fix or stick the input bar to the bottom of the viewport directly above the bottom navigation bar.",
+        "rationale": "Allows the CEO to immediately convene the board or dispatch instructions from mobile without having to scroll past the agent node graph.",
+        "evidence": [
+          "S-004",
+          "S-004 dom: body > div:nth-of-type(3) > div > main > div > div:nth-of-type(3) > div > button height=36"
+        ]
+      },
+      {
+        "title": "Increase sidebar link padding to 44px on desktop",
+        "detail": "In the desktop sidebar (<aside>), navigation links (height=36px) and agent links (height=40.75px) as well as the 'System' button (32x32px) are under 44px. Increasing vertical padding (e.g. py-2.5 / min-h-[44px]) will satisfy touch guidelines for touch-enabled laptops.",
+        "rationale": "Maintains consistent interaction token sizing across all viewports and improves click ergonomic comfort.",
+        "evidence": [
+          "S-003",
+          "S-003 dom: body > div:nth-of-type(3) > aside > div > div > nav > a:nth-of-type(1) height=36",
+          "S-003 dom: body > div:nth-of-type(3) > aside > div > div > div:nth-of-type(3) > div:nth-of-type(2) > button width=32"
+        ]
+      },
+      {
+        "title": "Add active indicator pill or top illumination pip to mobile bottom navigation",
+        "detail": "While the active tab has high text contrast (16.82:1), adding an accent glow pill or subtle indicator bar above the active tab icon will make the active route stand out more clearly on mobile OLED screens.",
+        "rationale": "Reinforces navigation hierarchy and instant state recognition on handheld devices under varied lighting conditions.",
+        "evidence": [
+          "S-001",
+          "S-001 dom: body > nav > a:nth-of-type(1) contrastRatio=16.82"
+        ]
+      }
+    ],
+    "notes": "No horizontal overflow detected at any viewport (scrollWidth matches clientWidth at 375, 768, and 1280). No console or harness errors observed. GeistSans font loaded smoothly. Primary remediation needed for M1 sign-off is: (1) ensuring the mobile bottom nav bar renders globally including on /board, (2) adjusting button/link min-heights to ≥44px, and (3) brightening inactive bottom nav labels to meet 4.5:1 contrast."
+  }
+}

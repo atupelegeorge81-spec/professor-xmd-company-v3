@@ -280,6 +280,9 @@ export interface CompleteSpec extends AcquireSpec {
   /** jibu tupu ni kosa (default: kweli) */
   requireText?: boolean;
   responseFormat?: unknown;
+  /** TASK-23: kimya cha juu kabla ya token ya kwanza (default BROKER_STALL_FIRST_MS = 90s). Thinking nzito (Gemini haitumi
+   *  mawazo kwenye stream) + picha → reviewer anaweza kukaa kimya > 90s bila kukwama. */
+  stallFirstMs?: number;
 }
 export interface CompleteResult { text: string; reasoning: string; usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null; lane: Lane; hops: number }
 
@@ -288,8 +291,8 @@ export interface CompleteResult { text: string; reasoning: string; usage: { prom
  * anagunduliwa na idle guard (idle.ts) ndani ya sekunde, si baada ya dakika 10 za kimya.
  * Inarudisha umbo la jibu la kawaida la OpenAI (choices[0].message + usage) ili waitaji wasibadilike.
  */
-async function collect(lease: Lease, body: Record<string, unknown>, parent?: AbortSignal): Promise<any> {
-  const guard = idleGuard(parent);
+async function collect(lease: Lease, body: Record<string, unknown>, parent?: AbortSignal, firstMs?: number): Promise<any> {
+  const guard = firstMs ? idleGuard(parent, firstMs) : idleGuard(parent);
   try {
     const s: any = await lease.client.chat.completions.create(
       {
@@ -346,6 +349,7 @@ export async function brokerComplete(spec: CompleteSpec): Promise<CompleteResult
           ...(spec.responseFormat ? { response_format: spec.responseFormat } : {}),
         },
         spec.signal,
+        spec.stallFirstMs,
       );
       const msg = r?.choices?.[0]?.message || {};
       const text = String(msg.content || "");

@@ -291,3 +291,20 @@ $ npm run cu:test        → Ran 186 tests — OK
   - T4 sign-off M1 → baselines 5, zimepatikana M2 R1: `/` regression ×2, `/pricing` expected (CO-001) ×2, `/about` 0%;
   - T4b restore kutoka storage 5/5 · T5 env 14 → `/` haiorodheshwi, abc → 2.
 - Baselines: tsc 0 · vitest 552 + 2 skipped · pytest 330 + 3 skipped · unittest 263 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-22.md.
+
+## Task 22 — nyongeza: merged main `afccaee`, Koyeb deploy `b1233ae3` HEALTHY.
+
+## Task 23 (maelezo23): Reviewer analysis — Round 0 huru (2026-10-18), branch task/23-reviewer-analysis
+- Mpya: `src/lib/milestone/review.ts`:
+  - `analyse(reviewer, pack, ctx, deps)` → Findings `{reviewer, screenshots[], defects[], proposals[], notes}`; validator (evidence lazima iwe id iliyopo kwenye pack: S-xxx / S-xxx dom / check: / regression:), retry ×2 na orodha ya makosa;
+  - `reviewRound0` = designer (Ultron) + frontend (Vextron) sambamba, sha256 ya kila prompt, `leakedFragments` (jibu la A ndani ya prompt ya B = 0);
+  - context kwa mpangilio wa maelezo23 (OCB REVIEW_ANALYSE + RoundHeader → mini-reports → ledger → plan → build report → evidence/DOM/checks/regression → defects → baselines); picha = `image_url` parts halisi.
+- broker: `CompleteSpec.stallFirstMs` ya hiari (reviewers 300s). T1 ya kwanza: Gemini haitumi thinking kwenye stream → kimya > 90s → stall ×4 + 503 → hops zikaisha. Sasa: hop 0, 145–160s. LLM ikishindwa → `valid:false` (raundi haianguki).
+- REAL (E2B + Chromium + Gemini 3.8 Flash, thinking high):
+  - T1 site ya CEO: wote valid attempt 1, image parts 4, evidence ids zote zipo. Wote wawili: `/board` 375 haina bottom nav (imethibitishwa kwa macho), touch 36px, contrast 2.92;
+  - T2 hash tofauti, grep 0/419 & 0/296 (deployed), 0/377 & 0/370 (kivuli);
+  - T3 kasoro 5/5 (designer 5, frontend 4);
+  - T4 image parts 3/4 kwenye body ya request; bila picha → 0 madai ya screenshot pekee;
+  - T5 frontend 10/10 nukuu za DOM = JSON.
+- Haijaunganishwa na loop/boardRunner bado (library). Hakuna web-search tool kwenye lane (prompt inasema "if available").
+- Baselines: tsc 0 · vitest 564 + 2 skipped (+12) · pytest 330 + 3 skipped · unittest 263 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-23.md + docs/tests/task-23/.
