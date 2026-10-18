@@ -228,3 +228,19 @@ $ npm run cu:test        → Ran 186 tests — OK
   VERIFIED · T4 blocks 3 → PARTIAL → M2 BLOCKED + mstari wa PARTIAL kwenye ripoti · T5 pytest halisi fail→False, pass→True ·
   T6 flag OFF: gate/milestone 0, COMPLETED_UNVERIFIED kama zamani. Ugunduzi: pause ya watchdog ya RAM ndani ya milestone → ERROR (haijarekebishwa).
 - Baselines: tsc 0 · vitest 514 + 2 skipped · pytest 333 · unittest 263 · eslint 0. Ushahidi: docs/tests/task-18.md.
+
+## Task 19 (maelezo19): Evidence screenshots (2026-10-18), branch task/19-screenshots
+- Mpya: `cu/xmd-evidence.mjs` (playwright global via createRequire; local mode inazindua `Start Command` port 4173, `--base` =
+  deployed; routes × viewports × states[click/hover]; console/pageerror/requestfailed/≥400 → consoleErrors; manifest daima;
+  exit 0/1/2; server fast-fail ~1s ikikufa; ERR_ABORTED imefutwa); `src/lib/milestone/evidence.ts` (planEvidenceSpec:
+  mistari `route: · states: · viewports:`, actions za " > ", splitTop, "default" huachwa, duplicate route merge, problems);
+  `src/lib/cu/evidence.ts` (`captureEvidence`: inaandika script+config `.xmd/tools/`, kuendesha 15min, upload CU bucket,
+  validate requireUrls); `validateEvidencePack` schemas (data: URL hukataliwa kwanza); engine block baada ya build report
+  (needsScreenshots=visual/mixed tu + build imepita); loop `recordEvidence` → `evidence:Mk:Rn` + chip 📸 + bcast;
+  `types:url/evidence kinds`; `plan.ts EVIDENCE_PORT=4173` + template ina mfano wa state + Start Command; MS_GIT_EXCLUDE `.xmd/`.
+- Maamuzi yangu (12, kwenye task-19.md) — ya kipekee: koma ndani ya [] hubaki selector moja; ERR_ABORTED si kosa;
+  object names ni uuid (unique()); full-page urefu unaweza kuzidi viewport.
+- T1 fixture 6 PNG, upana=viewport (home 375×685 full-page), 11.9s · T2 states ≠ default kwa hash + macho ·
+  T3 deployed Koyeb 3 viewports requireUrls OK, consoleErrors 0 (baada ya filter) · T4 404→exit 1 + kind http, manifest imeandikwa;
+  T4b server faiba 1.2s · T5 URLs 21/21 200, uploads 21 zimefutwa (storage list: baki 0, public 200 = CDN cache).
+- Baselines: tsc 0 · vitest 525 + 2 skipped · pytest 333 · unittest 263 · eslint 0. Ushahidi: docs/tests/task-19.md.

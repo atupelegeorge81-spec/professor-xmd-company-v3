@@ -6,8 +6,9 @@ import { milestonesEnabled } from "./flag";
 import { HOLD_STATUSES, newMilestoneState, planSteps, setStep, stepIdOf, transition, TERMINAL_STATUSES } from "./state";
 import type { MilestonePlanResult } from "./plan";
 import { BUILD_REPORT_INLINE_MAX, buildReportPath, crossCheckBuildReport, parseBuildReport, type BuildReportCommand } from "./buildReport";
+import { evidenceKey } from "./evidence"; // TASK-19
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
-import type { Milestone, MilestoneMap, MilestoneState, MilestoneStatus } from "./types";
+import type { EvidencePack, Milestone, MilestoneMap, MilestoneState, MilestoneStatus } from "./types";
 
 export interface LoopRunner {
   id: string;
@@ -43,10 +44,25 @@ export interface BuildOutcome {
   ms?: number;
   /** TASK-17: ripoti ghafi kutoka sandbox (engine.MsBuildReportRaw) */
   buildReport?: { found: boolean; path: string; markdown: string; fileId?: string; changed: string[] };
+  /** TASK-19: EvidencePack ya R0 (engine.captureEvidence) — visual/mixed tu */
+  evidence?: { pack: EvidencePack; exit: number; invalid: string[]; uploaded: number; ms: number };
 }
 
 export const buildKey = (milestoneId: string) => `build:${milestoneId}`;
 export const reportKey = (milestoneId: string) => `report:${milestoneId}`;
+
+/** TASK-19: hifadhi EvidencePack (`evidence:Mk:R0`) + tukio `evidence` + chip 📸. Haibadilishi hali (review inapima baadaye). */
+async function recordEvidence(runner: LoopRunner, m: Milestone, hooks: LoopHooks, ev: NonNullable<BuildOutcome["evidence"]>) {
+  const p = ev.pack;
+  await msUpdate(runner, evidenceKey(m.id, p.round), () => ({
+    version: 1, ...p, screenshots: p.screenshots.slice(0, 120), consoleErrors: p.consoleErrors.slice(0, 60), errors: p.errors.slice(0, 60),
+    exit: ev.exit, invalid: ev.invalid.slice(0, 20), uploaded: ev.uploaded, ms: ev.ms, at: new Date().toISOString(),
+  }));
+  hooks.bcast({ type: "evidence", id: m.id, round: p.round, screenshots: p.screenshots.length, uploaded: ev.uploaded, errors: p.errors.length, consoleErrors: p.consoleErrors.length, invalid: ev.invalid.length, exit: ev.exit });
+  const bad = p.errors.length > 0 || ev.invalid.length > 0;
+  hooks.addChip(`📸 Evidence ya ${m.id} R${p.round}: ${p.screenshots.length} screenshots · errors ${p.errors.length} · console ${p.consoleErrors.length}`);
+  hooks.blog(bad ? "warning" : "success", `📸 Evidence ya ${m.id} R${p.round}: ${p.screenshots.length} screenshots (uploaded ${ev.uploaded}) · errors ${p.errors.length}${p.errors.length ? ` — ${p.errors.slice(0, 3).map((e) => `${e.kind}: ${e.detail}`).join("; ").slice(0, 240)}` : ""}.`);
+}
 
 /** TASK-17: kagua Build Report (muundo + sehemu ya 2 ↔ git diff), ihifadhi `report:Mk`, toa tukio `buildReport`.
  *  Haibadilishi hali ya milestone (lango la on_stop ni task 18; review inapima baadaye). */
@@ -244,6 +260,10 @@ async function runBuildStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, 
   if (out.finalState !== "PAUSED") {
     try { await recordBuildReport(runner, m, hooks, out.buildReport); }
     catch (e: any) { hooks.blog("warning", `📑 Build Report ya ${m.id} haikuhifadhiwa: ${String(e?.message || e).slice(0, 160)}`); }
+    if (out.evidence) {
+      try { await recordEvidence(runner, m, hooks, out.evidence); }
+      catch (e: any) { hooks.blog("warning", `📸 Evidence ya ${m.id} haikuhifadhiwa: ${String(e?.message || e).slice(0, 160)}`); }
+    }
   }
   if (out.finalState === "PAUSED") {
     hooks.blog("warning", `⏸️ Build ya ${m.id} imesimama (Board pause) — itarudiwa Board ikiresume.`);

@@ -155,7 +155,8 @@ export interface PlanGateCommands {
 }
 
 const NONE_RE = /^(?:none|n\/a|na|hakuna|no tests?|-|—)\.?$/i;
-const cmdLine = (md: string, label: string): string => {
+/** Mstari `<Label>: <amri>` wa plan (bold/backticks zinakubalika; none/n/a → ""). TASK-19 inautumia kwa `Start Command`. */
+export const cmdLine = (md: string, label: string): string => {
   const m = new RegExp(`^\\s*[-*]?\\s*\\**${label}\\s*\\**\\s*:\\s*\\**\\s*(.+?)\\s*$`, "im").exec(md || "");
   if (!m) return "";
   let v = m[1].trim().replace(/\*+$/, "").trim();

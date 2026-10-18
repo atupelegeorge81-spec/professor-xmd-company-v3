@@ -240,6 +240,19 @@ export interface EvidenceScreenshot {
   viewport: string;
   state: string;
   path: string;
+  /** TASK-19: URL ya storage (bucket ya CU files) — "" hadi harness ipakie */
+  url: string;
+}
+/** TASK-19: kosa la runner (server haikuanza, route 404, state action, crash) — linakuwa defect baadaye. */
+export const EVIDENCE_ERROR_KINDS = ["server", "http", "page", "state", "viewport", "crash", "upload", "harness"] as const;
+export type EvidenceErrorKind = (typeof EVIDENCE_ERROR_KINDS)[number];
+export interface EvidenceError {
+  kind: EvidenceErrorKind;
+  detail: string;
+  route?: string;
+  viewport?: string;
+  state?: string;
+  status?: number;
 }
 export interface EvidenceDomMetrics {
   screenshotId: string;
@@ -267,6 +280,11 @@ export interface EvidencePack {
   gitDiffSummary: string;
   regression: string[]; // muundo wa kina: task 22
   consoleErrors: string[];
+  /** TASK-19: makosa ya runner (manifest inaandikwa hata yakiwepo) */
+  errors: EvidenceError[];
+  /** TASK-19: http://127.0.0.1:<port> (local) au URL ya deployed (--base) */
+  base?: string;
+  mode?: "local" | "deployed";
 }
 
 // ── RoundHeader (data; maandishi yanajengwa na code) ─────────────────────────
