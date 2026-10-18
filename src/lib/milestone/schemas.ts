@@ -197,7 +197,10 @@ export function validateChangeOrder(co: unknown, reviewMode: ReviewMode): Valida
   const P = "changeOrder";
   if (!isObj(co)) return { ok: false, errors: [`${P}: must be an object (got ${show(co)})`] };
   str(e, co, "id", P);
-  strArr(e, co, "defectIds", P, { nonEmpty: true });
+  // TASK-24: CO ya uamuzi wa REVIEW (proposal iliyokubaliwa) haina defect — decisionIds inabeba kiungo
+  const hasDecisions = Array.isArray(co.decisionIds) && co.decisionIds.length > 0;
+  if (co.decisionIds !== undefined) strArr(e, co, "decisionIds", P);
+  strArr(e, co, "defectIds", P, { nonEmpty: !hasDecisions });
   int(e, co, "attempt", P, 1);
   int(e, co, "priority", P, 1);
   oneOf(e, co, "mode", P, CO_MODES);

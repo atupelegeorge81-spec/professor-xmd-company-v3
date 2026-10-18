@@ -73,6 +73,10 @@ export type BoardEvent =
   | { type: "mode"; mode: "code" | "plan" }
   /** TASK-12 (XMD_MILESTONES=1 pekee): ramani ya milestones — additive; adapter inaipuuza (default: break). */
   | { type: "milestoneMap"; map: import("@/lib/milestone/types").MilestoneMap; usedFallback: boolean; attempts: number }
+  /** TASK-24 (XMD_MILESTONES=1 pekee): REVIEW R-Mk-n — findings huru, uamuzi wa timu, Change Orders za Optimus. Additive. */
+  | { type: "reviewFindings"; id: string; round: number; reviewId: string; designer: { defects: number; proposals: number } | null; frontend: { defects: number; proposals: number } | null; meta?: unknown }
+  | { type: "reviewDecision"; id: string; round: number; reviewId: string; consensus: boolean; closeReason: string; turns: number; [k: string]: unknown }
+  | { type: "changeOrders"; id: string; round: number; reviewId: string; valid: boolean; count: number; changeOrders: import("@/lib/milestone/types").ChangeOrder[]; errors: string[] }
   | { type: "error"; message: string }
   | { type: "done" };
 

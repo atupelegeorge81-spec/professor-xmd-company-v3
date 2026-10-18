@@ -215,6 +215,8 @@ export interface ChangeOrderLocation {
 export interface ChangeOrder {
   id: string; // "CO-012"
   defectIds: string[];
+  /** TASK-24: maamuzi ya REVIEW (proposals zilizokubaliwa, mf. "R-M1-0/P-02"); defectIds inaweza kuwa tupu TU ikiwa hii ina kitu */
+  decisionIds?: string[];
   attempt: number;
   priority: number; // 1 = juu kabisa
   location: ChangeOrderLocation;

@@ -12,6 +12,8 @@ import { curateSources, onOwnerTurn, onObserverNote, reviewFacts, onReviewVerdic
 import { saveReport, saveSession, updateSessionItems, getConversation, lastSaveError, type SessionItem } from "./reports";
 import { saveLedgerEntry, finalBoardResolution, markSuperseded, type LedgerObjection } from "./ledger";
 import { generateAgenda, type AgendaItem } from "./agenda";
+import { MAX_ROUNDS, type Defect } from "./milestone/types"; // TASK-24
+import { findingsKey, isReviewAgenda, reviewPromptBlock, testReviewInput, type TestReviewInput, turnWordRule, REVIEW_TRANSCRIPT_CHARS, REVIEW_TURN_MAX_TOKENS, type DiscussionOutcome } from "./milestone/reviewAgenda"; // TASK-24
 import type { BoardEvent } from "./types";
 import { readUsage, createLiveMeter, type ExactUsage } from "./tokenMeter";
 import { writeMiniReport as writeMiniReportCore, provisionalMini, miniDecisionSection, miniContext, needsMiniRedo, miniTries, cleanDecision, type MiniReport, type MiniInput } from "./miniReport";
@@ -50,7 +52,7 @@ import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
 import { putRecord, getRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13 (getRecord: TASK-16)
 import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
-import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, type LoopHooks } from "./milestone/loop"; // TASK-14 (buildKey: TASK-16)
+import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, runMilestoneBuild, type LoopHooks } from "./milestone/loop"; // TASK-24: msUpdate/planKey/runMilestoneBuild // TASK-14 (buildKey: TASK-16)
 import { buildOCB, buildOCBForComputer, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14 (Computer OCB: TASK-16)
 import { buildStartPack, type PrevBuild } from "./milestone/startpack"; // TASK-16
 import { maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks";
@@ -1562,6 +1564,7 @@ async function run(runner: Runner) {
     }
 
     // TASK-14 · XMD_MILESTONES=1 PEKEE: code inaamua milestone imefungwa (Ledger = ukweli) → runMilestoneBuild (stub kwa sasa)
+    let testReview: TestReviewInput | null = null; // TASK-24 test hook (XMD_TEST_REVIEW_INPUT)
     const msHooks = (status: string): LoopHooks => ({
       bcast: (e) => bcast(e as BoardEvent), addChip, blog: (lvl, t) => blog(lvl, t),
       persist: () => persist(status, conversationTitle),
@@ -1618,6 +1621,30 @@ async function run(runner: Runner) {
         const startPack = buildStartPack({ m, planMarkdown, ledger: await finalBoardResolution(runner.id), prevBuilds, defects: [], ocb });
         return startComputerPhase(runner, runner.cuHooks, { milestoneId: m.id, planMarkdown, startPack, title: conversationTitle, last: idx === map.milestones.length - 1, reviewMode: m.reviewMode });
       },
+      // TASK-24: REVIEW R0 — context ya reviewers (T23) + mjadala kupitia discussAgenda (closure hiihii ya run())
+      review: {
+        context: async (m) => {
+          const sid = sessionId || runner.id;
+          const all = testReview?.ledger ?? await finalBoardResolution(runner.id);
+          const mine = all.filter((e) => e.agenda_index >= m.agendas.from && e.agenda_index <= m.agendas.to);
+          const planMd = (await getRecord<{ markdown?: string }>(sid, planKey(m.id)))?.data?.markdown || "";
+          const buildRep = (await getRecord<{ report?: string }>(sid, buildKey(m.id)))?.data?.report || testReview?.buildReport || "";
+          const defects = (await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || [];
+          const lockedN = runner.items.filter((it) => it.kind === "chip" && /^\s*🔒 LOCKED/.test(String((it as { text?: string }).text || ""))).length;
+          return {
+            analyseCtx: {
+              ocb: { project: { name: conversationTitle, summary: runner.project }, map: runner.msMap!, milestoneId: m.id, round: { current: 0, max: MAX_ROUNDS },
+                counts: { lockedDecisions: lockedN || all.length, milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects: defects.filter((d) => d.status === "OPEN").length, waivers: 0 } },
+              roundHeader: { milestoneId: m.id, round: 0, maxRounds: MAX_ROUNDS, closedDefects: 0, open: [], waivers: 0, roundsLeft: MAX_ROUNDS },
+              miniReports: await Promise.all(mine.map(async (e) => ({ agendaIndex: e.agenda_index, title: e.agenda_item, detail: testReview ? String(e.decision_detail || e.decision_summary || "") : await miniDetailOf(e) }))),
+              ledger: all, planMarkdown: planMd, buildReport: buildRep, defects, baselines: [],
+            },
+            ledgerLines: all.map((e) => `- A${e.agenda_index} [LOCKED] ${e.agenda_item}: ${String(e.decision_summary || "").replace(/\s+/g, " ").slice(0, 420)}`),
+            extraParticipants: testReview?.extraParticipants,
+          };
+        },
+        discuss: async (item) => (await discussAgenda(item)) as DiscussionOutcome,
+      },
     });
     const closeMilestones = async (status: string) => {
       if (!milestonesEnabled() || !runner.msMap) return;
@@ -1625,41 +1652,42 @@ async function run(runner: Runner) {
       catch (e: any) { blog("warning", `⚠️ Milestone loop: ${String(e?.message || e).slice(0, 200)} — Board inaendelea.`); }
     };
     // OCB (stage DISCUSS) kwa prompts za mjadala — flag ON + ramani tu; vinginevyo prompt haibadiliki kabisa
-    const discussPrompt = (selfId: string, agendaIndex: number, agendaTitle: string, prompt: string): string => {
+    const discussPrompt = (selfId: string, agendaIndex: number, agendaTitle: string, prompt: string, review?: { milestoneId: string; round: number }): string => {
       let out = prompt;
       if (milestonesEnabled() && runner.msMap) {
-        const m = milestoneOf(runner.msMap, agendaIndex);
+        const m = review ? runner.msMap.milestones.find((x) => x.id === review.milestoneId) : milestoneOf(runner.msMap, agendaIndex);
         out = withOCB(prompt, buildOCB({
-          project: { name: conversationTitle, summary: runner.project }, map: runner.msMap, stage: "DISCUSS", self: selfId as OcbSelf,
-          milestoneId: m?.id, agenda: { index: agendaIndex, title: agendaTitle }, round: null,
+          // TASK-24: REVIEW → stage REVIEW_DISCUSS, bila agenda (haina namba)
+          project: { name: conversationTitle, summary: runner.project }, map: runner.msMap, stage: review ? "REVIEW_DISCUSS" : "DISCUSS", self: selfId as OcbSelf,
+          milestoneId: m?.id, agenda: review ? undefined : { index: agendaIndex, title: agendaTitle }, round: review ? { current: review.round, max: MAX_ROUNDS } : null,
           counts: {
             lockedDecisions: runner.items.filter((it) => it.kind === "chip" && /^\s*🔒 LOCKED/.test(String((it as { text?: string }).text || ""))).length,
             milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects: 0, waivers: 0,
           },
         }));
       }
-      maybeCapturePrompt({ sessionId: runner.sessionId || runner.id, agent: selfId, agenda: agendaIndex, phase: "discussion", system: out });
+      maybeCapturePrompt({ sessionId: runner.sessionId || runner.id, agent: selfId, agenda: agendaIndex, phase: review ? `review:${review.milestoneId}:R${review.round}` : "discussion", system: out });
       return out;
     };
-    if (isResume) await closeMilestones("running");
+    // TASK-24: mwili wa agenda ni CLOSURE (`discussAgenda`) — loop ya agenda 1..N na REVIEW (R-Mk-n, inaitwa kutoka
+    // runMilestoneBuild kupitia msHooks.review) zinatumia mashine ILEILE. REVIEW haichukui namba ya agenda (index 0 = si agenda)
+    // na inarudi kabla ya Itifaki ya Kufunga (R37), Ledger ya Board, mini-report, code, pingamizi na closeMilestones.
+    const discussAgenda = async (item: AgendaItem): Promise<DiscussionOutcome | void> => {
+      const rv = isReviewAgenda(item) ? item : null;
+      const reviewSearches: DiscussionOutcome["searches"] = [];
+      await gate(rv ? rv.reviewId : `Agenda ${item.index}`);
 
-    for (const item of agenda) {
-      if (isResume && resolvedIndices.has(item.index)) {
-        blog("info", `♻️ Kipengele ${item.index}/${agenda.length} tayari kimeshughulikiwa — kinarukwa.`);
-        continue;
-      }
-      await gate(`Agenda ${item.index}`);
-
-      bcast({ type: "round", round: item.index, total: agenda.length });
+      if (!rv) bcast({ type: "round", round: item.index, total: agenda.length });
       // TASK-13: washiriki = roster ya milestone (flag ON + ramani); vinginevyo agents wote → owners/observers kama zamani
-      const activeIds = activeAgentsFor(runner, item.index);
-      const rosterOn = activeIds.length < AGENTS.length;
-      const ownerIds = rosterOwners(item.owners, activeIds);
+      // TASK-24: REVIEW → washiriki ni owners wa item (Ultron + Vextron + Optimus [+ walioongezwa na Optimus])
+      const activeIds = rv ? rv.owners : activeAgentsFor(runner, item.index);
+      const rosterOn = !rv && activeIds.length < AGENTS.length;
+      const ownerIds = rv ? rv.owners : rosterOwners(item.owners, activeIds);
       const ownerAgents = ownerIds.map((o) => getAgent(o)!).filter(Boolean);
       const ownerNames = ownerAgents.map((a) => a.name).join(" + ");
       const partsLine = milestonesEnabled() && runner.msMap ? ` · Participants: ${participantNames(activeIds)}` : "";
-      addChip(` Agenda ${item.index}/${agenda.length}: ${item.item} — owners: ${ownerNames}${partsLine}`);
-      blog("system", `🎯 Agenda ${item.index}: ${item.item} | owners: ${ownerNames}${partsLine}`);
+      addChip(rv ? ` ${rv.reviewId}: ${item.item} — owners: ${ownerNames}` : ` Agenda ${item.index}/${agenda.length}: ${item.item} — owners: ${ownerNames}${partsLine}`);
+      blog("system", rv ? `🧑‍⚖️ ${rv.reviewId}: ${item.item} | owners: ${ownerNames}` : `🎯 Agenda ${item.index}: ${item.item} | owners: ${ownerNames}${partsLine}`);
       if (rosterOn && ownerIds.join() !== item.owners.join()) blog("info", `👥 Roster ya milestone: owners ${item.owners.map((o) => getAgent(o)?.name || o).join(" + ")} → ${ownerNames} (walio nje ya roster hawashiriki).`);
       authorityNote = ""; // R27: onyo la kikao kingine ni la agenda hii tu
       contrastNoteS = "";
@@ -1681,8 +1709,8 @@ async function run(runner: Runner) {
       const participants: { id: string; role: string }[] = [];
       const joined = (id: string, role: string) => { if (!participants.some((x) => x.id === id)) participants.push({ id, role }); };
       let pendingClarify: ClarifyAsk | null = null;
-      const observerNames = AGENTS.filter((a) => !ownerIds.includes(a.id) && activeIds.includes(a.id)).map((a) => a.name); // TASK-13
-      const agendaCtx = { index: item.index, total: agenda.length, item: item.item };
+      const observerNames = rv ? [] : AGENTS.filter((a) => !ownerIds.includes(a.id) && activeIds.includes(a.id)).map((a) => a.name); // TASK-13
+      const agendaCtx = rv ? { index: rv.index, total: 0, item: `${rv.reviewId} (REVIEW, not a numbered agenda): ${item.item}` } : { index: item.index, total: agenda.length, item: item.item };
       brain.state({ status: "running", phase: "discussion", agendaTotal: agenda.length, agendaIndex: item.index, agendaItem: item.item, owners: ownerAgents.map((a) => a.name), observers: observerNames, agendaStartTokens: boardTokens(), delib: undefined });
 
       // ========================================================
@@ -1826,6 +1854,7 @@ ${runner.project}`;
 
           pushUnique(itemSources, results);
           hasSearchedItem[agent.id] = true;
+          if (rv) reviewSearches.push({ by: agent.name, query: gateQuery, sources: results.length }); // TASK-24
 
           blog(
             "success",
@@ -1875,7 +1904,7 @@ ${runner.project}`;
             .join(", ") || "hakuna";
 
           // R10: mjadala WOTE wa agenda hii (code imebanwa), si jumbe 3 zilizokatwa herufi 500
-          const recentTalk = compactTranscript(subTalk, 9000);
+          const recentTalk = compactTranscript(subTalk, rv ? REVIEW_TRANSCRIPT_CHARS : 9000); // TASK-24: jumbe ndefu za REVIEW zisikatwe
 
           // R37 (C) → R38-RC2: dirisha la evidence 12 za mwisho (ilikuwa 16 — matumizi ya tokens
           // ya Board yalizidi +74% bila faida ya maamuzi; 12 za mwisho zinatosha kwa muktadha)
@@ -1893,7 +1922,7 @@ LOCKED LEDGER:
 ${ledger}
 
 AGENDA ITEM:
-${item.index}/${agenda.length} — ${item.item}
+${rv ? `${rv.reviewId} (REVIEW — not a numbered agenda)` : `${item.index}/${agenda.length}`} — ${item.item}
 
 YOUR ROLE:
 You are ${agent.name}.
@@ -1915,7 +1944,7 @@ ${desk.block(item.item) || "(No document has been read in full yet — use READ_
 
 Use this evidence when making factual claims. Do not invent sources, benchmarks, standards, or current facts.
 
-=== OWNER DISCUSSION ===
+${rv ? `${reviewPromptBlock(rv, agent.id)}\n\n` : ""}=== OWNER DISCUSSION ===
 
 Your job in this exchange:
 
@@ -1924,7 +1953,7 @@ Your job in this exchange:
 3. If the proposal is weak, ANY owner may create a better proposal.
 4. A new PROPOSED DECISION automatically resets all previous approvals.
 5. Never pretend to agree with a proposal that you have not actually evaluated.
-6. Keep this exchange under 180 words.
+6. ${turnWordRule(item)}
 7. Do not output internal reasoning, self-corrections, meta commentary, or tags.
 8. NEVER output SEARCH: inside your visible answer.
 9. If fresh external evidence is genuinely necessary, write only:
@@ -1955,7 +1984,7 @@ ${delib.instructionFor(agent.id)}`;
                 content: discussPrompt(agent.id, item.index, item.item, await brain.prompt(agent.id, {
                   phase: "discussion", role: "owner", agenda: agendaCtx, owners: ownerAgents.map((a) => a.name), observers: observerNames,
                   task: `${proposed ? `Current proposal: ${proposed.slice(0, 600)}` : ""}`, need: itemSources.length ? "" : "evidence missing", msgId, date: nowDate(),
-                })), // TASK-14: OCB (flag ON tu)
+                }), rv ? { milestoneId: rv.review.milestoneId, round: rv.review.round } : undefined), // TASK-14: OCB (flag ON tu) · TASK-24: REVIEW_DISCUSS
               },
               {
                 role: "user",
@@ -1964,7 +1993,7 @@ ${delib.instructionFor(agent.id)}`;
             ],
             msgId,
             true,
-            2400 // R26 (B1): 1100 ilikata maamuzi (A1 v1 / A3 v2 za R24) — thinking inakula bajeti pia
+            rv ? REVIEW_TURN_MAX_TOKENS : 2400 // R26 (B1): 1100 ilikata maamuzi (A1 v1 / A3 v2 za R24) — thinking inakula bajeti pia · TASK-24: REVIEW ndefu
           );
 
           // Visible text must be clean.
@@ -1987,14 +2016,15 @@ ${delib.instructionFor(agent.id)}`;
             tag: "owner",
           });
 
-          transcript.push({
+          // TASK-24: REVIEW haiingii transcript ya finale ya Board wala signals za agenda (haina namba ya agenda)
+          if (!rv) transcript.push({
             name: agent.name,
             text: cleanT,
             item: item.index,
           });
 
           // R10: SKILL_REQUEST + CLARIFY: @Owner (zamu inayofuata)
-          brain.noteSignals(agent.id, clean, item.index, msgId);
+          if (!rv) brain.noteSignals(agent.id, clean, item.index, msgId);
           onOwnerTurn(clean, itemSources, agent.name, blog);
           // R39: CLARIFY rasmi AU swali la moja kwa moja (jina + "?", bila signal ya uamuzi)
           const ask: ClarifyAsk | null = parseClarify(clean, agent, ownerAgents) || parseDirectQuestion(clean, agent, ownerAgents);
@@ -2014,7 +2044,9 @@ ${delib.instructionFor(agent.id)}`;
             const allow = delib.queryAllowed(agent.id, q);
             if (allow.ok) {
               delib.noteQuery(agent.id, q);
+              const before = itemSources.length;
               await handleResearchRequest(agent, q, budget, itemSources, hasSearchedItem);
+              if (rv) reviewSearches.push({ by: agent.name, query: q, sources: itemSources.length - before }); // TASK-24
               await desk.autoRead(agent, itemSources, `${item.item} ${runner.project}`);
             } else {
               blog("warning", `🔁 ${agent.name}: RESEARCH_REQUEST imerukwa — ${allow.why}${allow.similarTo ? ` ("${allow.similarTo.slice(0, 70)}")` : ""}. Tumia READ_SOURCE au pendekeza uamuzi.`);
@@ -2239,6 +2271,22 @@ ${delib.instructionFor(agent.id)}`;
       // hupata maagazi kamili, si shimo la kubuni). Njia ya dharura (exception bila uamuzi kabisa) pekee
       // inabaki na rekodi ya OPEN ya zamani — kwa uaminifu, si kwa kawaida.
       // ========================================================
+      if (rv) {
+        // TASK-24 · CEO #2: Itifaki ya Kufunga (R37: rough/fallback/defer) HAITUMIKI kwa REVIEW. Bila consensus ya owners
+        // WOTE hakuna uamuzi → code (applyReviewRules) inakataa proposals zote na kubakiza defects zote.
+        const out: DiscussionOutcome = {
+          consensus: consensusReached,
+          decision: consensusReached ? decision : "",
+          closeReason: consensusReached ? "consensus (all owners AGREE)" : `no consensus — ${delib.closedReason || "turn limit"}`,
+          transcript: subTalk.map((t) => ({ name: t.name, text: t.text, tag: t.tag })),
+          searches: reviewSearches,
+          turns: delib.turns,
+        };
+        addChip(`${consensusReached ? "🔒" : "🟠"} ${rv.reviewId}: ${consensusReached ? "consensus" : "hakuna consensus — proposals zote REJECTED (default)"} · zamu ${delib.turns} · searches ${reviewSearches.length}`);
+        blog(consensusReached ? "success" : "warning", `🧑‍⚖️ ${rv.reviewId}: ${out.closeReason} · zamu ${delib.turns} · searches ${reviewSearches.length}.`);
+        await persist(`review_${rv.reviewId}`, conversationTitle);
+        return out;
+      }
       let closeKind: "consensus" | "rough" | "fallback" | "defer" = "consensus";
       let closeReason = "";
       let dissentLines: { name: string; text: string }[] = [];
@@ -3269,7 +3317,38 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
       }
       await closeMilestones(`agenda_${item.index}_mini`); // TASK-14 (flag ON tu)
 
-}
+    };
+    if (isResume) await closeMilestones("running");
+
+    { // TASK-24 test hook (XMD_TEST_HOOKS=1 + XMD_TEST_REVIEW_INPUT PEKEE): REVIEW R0 halisi bila Computer — plan/evidence/findings
+      // kutoka faili; runMilestoneBuild → review step → discussAgenda (mashine ya agenda) → Optimus COs → store. Board inaishia hapo.
+      const tr = testReviewInput();
+      if (tr && runner.msMap && runner.sessionId) {
+        testReview = tr;
+        const m = runner.msMap.milestones.find((x) => x.id === (tr.milestoneId || "M1")) || runner.msMap.milestones[0];
+        const lr = runner as unknown as Parameters<typeof msUpdate>[0];
+        await msUpdate(lr, findingsKey(m.id, 0), () => ({ version: 1, designer: tr.findings.designer, frontend: tr.findings.frontend, meta: { source: "XMD_TEST_REVIEW_INPUT" }, at: new Date().toISOString() }));
+        blog("warning", `🧪 XMD_TEST_REVIEW_INPUT: REVIEW ya ${m.id} (plan/evidence/findings kutoka faili; mjadala + Optimus HALISI)`);
+        const st = await runMilestoneBuild(lr, m, {
+          ...msHooks("test_review"),
+          plan: async () => ({ milestoneId: m.id, status: "active", executable: true, reasons: [], markdown: tr.planMarkdown || "# xmdtest plan", steps: 1, checks: 0, routes: 0, problems: [], warnings: [], guardHits: [], repairs: { structure: 0, guard: 0 } }),
+          build: async () => ({ ok: true, finalState: "DONE", reason: "xmdtest (XMD_TEST_REVIEW_INPUT)", report: tr.buildReport || "", evidence: { pack: tr.pack, exit: 0, invalid: [], uploaded: tr.pack.screenshots.length, ms: 0 } }),
+        });
+        blog("system", `🧪 XMD_TEST_REVIEW_INPUT: ${m.id} → ${st.status} (round ${st.round})`);
+        await persist("completed", conversationTitle);
+        runner.status = "completed";
+        bcast({ type: "done" });
+        return;
+      }
+    }
+
+    for (const item of agenda) {
+      if (isResume && resolvedIndices.has(item.index)) {
+        blog("info", `♻️ Kipengele ${item.index}/${agenda.length} tayari kimeshughulikiwa — kinarukwa.`);
+        continue;
+      }
+      await discussAgenda(item);
+    }
     await closeMilestones("running"); // TASK-14: wavu wa mwisho (agenda iliyoruka kwa `continue`)
     // ===== R20: FINISHING PASS (Endeleza) — finale iliyokatika inakamilishwa: KILICHOKOSEKANA tu kinaandikwa =====
     const prior = isResume ? scanFinale(runner.items as FinaleItem[]) : null;
