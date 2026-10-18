@@ -35,7 +35,7 @@ Branch: `task/23-reviewer-analysis` · Tarehe: 2026-10-18 · Inahitaji Tasks 19�
 
 ## Tatizo halisi lililogunduliwa na kurekebishwa
 Run ya kwanza ya T1 kwenye site ya CEO (picha 4 = 2.4 MB, prompt 58k chars) ilishindwa. Gemini haitumi mawazo (thinking) kwenye stream, kwa hiyo ilikaa kimya zaidi ya 90s, na `idleGuard` ya broker ikaona kama provider amekwama. Ilitokea kama ifuatavyo:
-- Kulikuwa na reroute 4 (3.8-flash → 3.7 → 3.6), kisha 503 "high demand", na hops zikaisha. Log iko: `task-23/run-deployed-1-stalls.log`.
+- Kulikuwa na reroute 4 (3.8-flash → 3.7 → 3.6), kisha 503 "high demand", na hops zikaisha. Kipande cha log kiko chini ("Vipande vya logs" → deployed run 1).
 - Run hiyo pia ilionyesha kuwa exception iliangusha raundi nzima.
 
 Marekebisho mawili yalifanywa:
@@ -120,6 +120,65 @@ Zinakagua:
 - reviewRound0: wito sambamba, hash tofauti, hakuna uvujaji;
 - leakedFragments;
 - LLM ikishindwa → `valid:false` na raundi haianguki.
+
+## Picha 4 (T1) dhidi ya picha 3 (T4): ni runs TOFAUTI
+| | Run / process | Site | Screenshots | Image parts kwa kila request |
+|---|---|---|---|---|
+| **T1** (pamoja na T2/T5 deployed) | `node t23.mjs <sbx> deployed` (run 2, baada ya marekebisho ya stall) | Site ya CEO iliyo hai | `/` @375, @768, @1280 + `/board` @375 = **4** | 4 (designer na frontend) |
+| **T4** (pamoja na T1-kivuli, T2/T3/T5 kivuli) | `node t23.mjs <sbx> kivuli` (process tofauti, iliendeshwa kwanza) | Fixture `t23-kivuli` ndani ya sandbox | `/` @375, @768, @1280 = **3** | 3 kwenye run yenye picha, 0 kwenye `analyse(images:false)` |
+
+Plans ni tofauti (`PLAN-T23-deployed.md` ina `/board` ya ziada), kwa hiyo idadi ya picha ni tofauti. Hakuna request iliyopoteza picha: kila request inatuma picha zote za pack yake (`imageParts == screenshots`).
+
+## Vipande vya logs (raw .log hazikuhifadhiwa kwenye repo)
+**Kivuli** (T1-kivuli / T4). Mistari 1–6 ni run yenye picha; mistari 7–10 ni `images:false`:
+```
+kivuli evidence: S-001 /@375x667, S-002 /@768x1024, S-003 /@1280x800 · dom 3 · errors 0
+checks: M1-S1-a FAIL · M1-S1-b FAIL · M1-S3-a PASS · M1-S3-b PASS
+[info] 🔎 Vextron (frontend) M1 R0: prompt 46021 chars · parts: text 4 + image 3 (S-001, S-002, S-003) · hash 38779bbb83ee
+[request] Vextron → gemini-3.8-flash · parts text 5 + image 3 (216 KB) · reasoning_effort=high
+[info] 🔎 Ultron (designer) M1 R0: prompt 46026 chars · parts: text 4 + image 3 (S-001, S-002, S-003) · hash 955158c3856c
+[request] Ultron → gemini-3.8-flash · parts text 5 + image 3 (216 KB) · reasoning_effort=high
+[info] 🔎 Ultron (designer) M1 R0: prompt 46038 chars · parts: text 1 + image 0 · hash 5951d94517e2
+[request] Ultron → gemini-3.8-flash · parts text 2 + image 0 (0 KB) · reasoning_effort=high
+[broker] Gemini 2 · gemini-3.8-flash · review-analyse:M1:R0:designer · busy 60s → reroute · stalled: provider hakutuma data kwa 90s
+[request] Ultron → gemini-3.8-flash · parts text 2 + image 0 (0 KB) · reasoning_effort=high
+```
+**Deployed run 1** (imeshindwa: stall ya 90s, sababu ya `stallFirstMs`):
+```
+deployed evidence: S-001 /@375x667, S-002 /@768x1024, S-003 /@1280x800, S-004 /board@375x667 · dom 4 · errors []
+checks: T23-live PASS · T23-touch-mobile FAIL · T23-overflow PASS
+[info] 🔎 Ultron (designer) M1 R0: prompt 58297 chars · parts: text 5 + image 4 (S-001, S-002, S-003, S-004) · hash 9ad73c12a65f
+[request] Ultron → gemini-3.8-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[info] 🔎 Vextron (frontend) M1 R0: prompt 58292 chars · parts: text 5 + image 4 (S-001, S-002, S-003, S-004) · hash 15366a4b51c7
+[request] Vextron → gemini-3.8-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[broker] Gemini 3 · gemini-3.8-flash · review-analyse:M1:R0:designer · busy 60s → reroute · stalled: provider hakutuma data kwa 90s
+[request] Ultron → gemini-3.8-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[broker] Gemini 4 · gemini-3.8-flash · review-analyse:M1:R0:frontend · busy 60s → reroute · stalled: provider hakutuma data kwa 90s
+[request] Vextron → gemini-3.8-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[broker] Gemini 1 · gemini-3.8-flash · review-analyse:M1:R0:designer · busy 60s → reroute · stalled: provider hakutuma data kwa 90s
+[request] Ultron → gemini-3.7-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[broker] Gemini 2 · gemini-3.8-flash · review-analyse:M1:R0:frontend · busy 60s → reroute · stalled: provider hakutuma data kwa 90s
+[request] Vextron → gemini-3.7-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[broker] Gemini 2 · gemini-3.7-flash · review-analyse:M1:R0:frontend · busy 30s → reroute · 503 [{"error":{"code":503,"message":"This model is currently experiencing high demand. Spikes in deman
+[request] Vextron → gemini-3.7-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[broker] Gemini 1 · gemini-3.7-flash · review-analyse:M1:R0:designer · busy 60s → reroute · stalled: provider hakutuma data kwa 90s
+[request] Ultron → gemini-3.7-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[broker] Gemini 3 · gemini-3.7-flash · review-analyse:M1:R0:frontend · busy 60s → reroute · stalled: provider hakutuma data kwa 90s
+[request] Vextron → gemini-3.7-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[broker] Gemini 4 · gemini-3.7-flash · review-analyse:M1:R0:designer · busy 60s → reroute · stalled: provider hakutuma data kwa 90s
+[request] Ultron → gemini-3.6-flash · parts text 6 + image 4 (2451 KB) · reasoning_effort=high
+[broker] Gemini 1 · gemini-3.6-flash · review-analyse:M1:R0:designer · busy 30s → reroute · 503 [{"error":{"code":503,"message":"This model is currently experiencing high demand. Spikes in deman
+InternalServerError: 503 [{"error":{"code":503,"message":"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try a
+```
+**Deployed run 2** (T1/T2/T5, `stallFirstMs` 300s, hop 0):
+```
+deployed evidence: S-001 /@375x667, S-002 /@768x1024, S-003 /@1280x800, S-004 /board@375x667 · dom 4 · errors []
+checks: T23-live PASS · T23-touch-mobile FAIL · T23-overflow PASS
+[info] 🔎 Vextron (frontend) M1 R0: prompt 58292 chars · parts: text 5 + image 4 (S-001, S-002, S-003, S-004) · hash dc9d4b5e31cd
+[request] Vextron → gemini-3.8-flash · parts text 6 + image 4 (2455 KB) · reasoning_effort=high
+[info] 🔎 Ultron (designer) M1 R0: prompt 58297 chars · parts: text 5 + image 4 (S-001, S-002, S-003, S-004) · hash 230cb0202c49
+[request] Ultron → gemini-3.8-flash · parts text 6 + image 4 (2455 KB) · reasoning_effort=high
+```
 
 ## Baselines
 | | Kabla | Baada |

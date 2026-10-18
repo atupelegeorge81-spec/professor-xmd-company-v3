@@ -308,3 +308,9 @@ $ npm run cu:test        → Ran 186 tests — OK
   - T5 frontend 10/10 nukuu za DOM = JSON.
 - Haijaunganishwa na loop/boardRunner bado (library). Hakuna web-search tool kwenye lane (prompt inasema "if available").
 - Baselines: tsc 0 · vitest 564 + 2 skipped (+12) · pytest 330 + 3 skipped · unittest 263 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-23.md + docs/tests/task-23/.
+
+## Task 23 — marekebisho (maoni ya CEO, kabla ya T24)
+- **Broker, timeout ya kila wito:** `CompleteSpec.stallFirstMs?` (hiari) → `collect` → `idleGuard(parent, firstMs)`. Ni `review.ts` PEKEE inayoipitisha (`REVIEW_STALL_FIRST_MS` = 300s). Waitaji wengine wote (board turns, plans, mini-reports, map, consolidate…) hawapitishi kitu, kwa hiyo wanabaki na **default 90s** (`BROKER_STALL_FIRST_MS`), bila mabadiliko. Test: `src/lib/broker/stall.test.ts` (fake timers: bila stallFirstMs bado hai kwenye 89.999s na imekatwa kwenye 90.001s; reviewer 300s; grep ya `src/` = review.ts pekee). Sababu: Gemini haitumi thinking kwenye stream → kimya > 90s → reroute ×4 + 503 (T23 T1 run 1).
+- Raw `.log` zimeondolewa kwenye `docs/tests/task-23/`; vipande (≤ 40 mistari kwa kila test) viko ndani ya `task-23.md`.
+- Picha 4 (T1) dhidi ya 3 (T4): runs tofauti. T1 = site ya CEO (`/` ×3 + `/board`); T4 = fixture ya kivuli (`/` ×3). Jedwali liko kwenye task-23.md.
+- Deploy ya T23: Koyeb `4e0b3213` HEALTHY (main `cb347e7`).

@@ -334,6 +334,9 @@ async function collect(lease: Lease, body: Record<string, unknown>, parent?: Abo
   }
 }
 
+/** TASK-23 (majaribio tu): `collect` ili test ithibitishe stall default 90s kwa waitaji wasio reviewers. */
+export const __brokerTest = { collect };
+
 export async function brokerComplete(spec: CompleteSpec): Promise<CompleteResult> {
   const run = brokerRun(spec);
   const max = spec.maxHops ?? 5;
