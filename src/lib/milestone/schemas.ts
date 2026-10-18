@@ -354,6 +354,20 @@ export function validateEvidencePack(p: unknown, opts: { requireUrls?: boolean }
     });
   }
   for (const k of ["domMetrics", "checks", "commands"]) if (!Array.isArray(p[k])) e.push(`${P}.${k}: must be an array (got ${show(p[k])})`);
+  // TASK-20: kila dom.json ni ya screenshot iliyopo; path .dom.json; url (ikiwepo) http(s), si data:
+  if (Array.isArray(p.domMetrics)) {
+    const shotIds = new Set(Array.isArray(p.screenshots) ? p.screenshots.map((s: any) => s?.id) : []);
+    p.domMetrics.forEach((d: unknown, i: number) => {
+      const q = `${P}.domMetrics[${i}]`;
+      if (!isObj(d)) { e.push(`${q}: must be an object {screenshotId,path,url?,summary?}`); return; }
+      if (typeof d.screenshotId !== "string" || !shotIds.has(d.screenshotId)) e.push(`${q}.screenshotId: must be the id of a screenshot in this pack (got ${show(d.screenshotId)})`);
+      if (typeof d.path !== "string" || !/\.dom\.json$/i.test(d.path)) e.push(`${q}.path: must be a .dom.json file (got ${show(d.path)})`);
+      if (d.url !== undefined && typeof d.url !== "string") e.push(`${q}.url: must be a string (got ${show(d.url)})`);
+      else if (typeof d.url === "string" && /^data:/i.test(d.url)) e.push(`${q}.url: base64 data URLs are not allowed — upload to storage`);
+      else if (opts.requireUrls && typeof d.url === "string" && !/^https?:\/\//.test(d.url)) e.push(`${q}.url: must be an uploaded http(s) URL (got ${show(d.url)})`);
+      if (d.summary !== undefined && (!isObj(d.summary) || typeof d.summary.elements !== "number")) e.push(`${q}.summary: must be an object with numeric elements (got ${show(d.summary)})`);
+    });
+  }
   if (typeof p.gitDiffSummary !== "string") e.push(`${P}.gitDiffSummary: must be a string (got ${show(p.gitDiffSummary)})`);
   strArr(e, p, "regression", P);
   strArr(e, p, "consoleErrors", P);

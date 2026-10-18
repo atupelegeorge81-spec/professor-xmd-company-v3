@@ -195,7 +195,7 @@ export const storage = {
       else if (typeof (body as any).pipe === "function") body = await new Promise<Buffer>((res, rej) => { const chunks: Buffer[] = []; (body as any).on("data", (c: Buffer) => chunks.push(c)); (body as any).on("end", () => res(Buffer.concat(chunks))); (body as any).on("error", rej); });
     }
     const name = String(file?.filename || file?.name || id);
-    const mime = String(file?.type || (name.endsWith(".png") ? "image/png" : name.endsWith(".gz") ? "application/gzip" : name.endsWith(".jpg") || name.endsWith(".jpeg") ? "image/jpeg" : "application/octet-stream"));
+    const mime = String(file?.type || (name.endsWith(".png") ? "image/png" : name.endsWith(".json") ? "application/json" : name.endsWith(".gz") ? "application/gzip" : name.endsWith(".jpg") || name.endsWith(".jpeg") ? "image/jpeg" : "application/octet-stream"));
     const { error } = await supabase.storage.from(bucketId || SUPABASE_BUCKET).upload(id, body, { upsert: true, contentType: mime });
     if (error) throw cleanErr(`upload ${bucketId}/${id}`, error);
     return { $id: id, name, bucketId };

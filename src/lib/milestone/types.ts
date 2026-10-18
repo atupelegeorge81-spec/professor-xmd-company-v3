@@ -244,7 +244,7 @@ export interface EvidenceScreenshot {
   url: string;
 }
 /** TASK-19: kosa la runner (server haikuanza, route 404, state action, crash) — linakuwa defect baadaye. */
-export const EVIDENCE_ERROR_KINDS = ["server", "http", "page", "state", "viewport", "crash", "upload", "harness"] as const;
+export const EVIDENCE_ERROR_KINDS = ["server", "http", "page", "state", "viewport", "crash", "upload", "harness", "dom"] as const;
 export type EvidenceErrorKind = (typeof EVIDENCE_ERROR_KINDS)[number];
 export interface EvidenceError {
   kind: EvidenceErrorKind;
@@ -254,9 +254,24 @@ export interface EvidenceError {
   state?: string;
   status?: number;
 }
+/** TASK-20: muhtasari wa `S-nnn.dom.json` (faili kamili liko kwenye path/url). */
+export interface EvidenceDomSummary {
+  elements: number;
+  totalCandidates: number;
+  truncated: boolean;
+  hasHorizontalOverflow: boolean;
+  overflowPx: number;
+  tooSmall: number;
+  lowContrast: number;
+  imagesWithoutAlt: number;
+  headingOrderProblems: number;
+}
 export interface EvidenceDomMetrics {
   screenshotId: string;
   path: string;
+  /** TASK-20: URL ya storage ya dom.json ("" hadi harness ipakie) */
+  url?: string;
+  summary?: EvidenceDomSummary;
 }
 export interface EvidenceCheckResult {
   id: string;

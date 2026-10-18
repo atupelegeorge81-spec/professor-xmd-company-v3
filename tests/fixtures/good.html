@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- TASK 20 (maelezo20) T2: ukurasa safi — hakuna overflow, hakuna tooSmall, contrast ≥ 4.5 kwa maandishi -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xmdtest good fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #ffffff; color: #1f2937; font-family: Arial, sans-serif; }
+  header { background: #0a2540; color: #ffffff; padding: 8px 16px; }
+  nav a { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; min-height: 48px; padding: 0 12px; color: #ffffff; text-decoration: none; }
+  main { padding: 16px; max-width: 100%; }
+  .btn { min-width: 48px; min-height: 48px; padding: 0 16px; border: 0; border-radius: 8px; background: #1d4ed8; color: #ffffff; font-size: 16px; }
+  input { width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid #6b7280; color: #111827; background: #ffffff; font-size: 16px; }
+  img { max-width: 100%; height: auto; display: block; }
+  footer { background: #f3f4f6; color: #374151; padding: 16px; }
+</style>
+</head>
+<body>
+  <header>
+    <nav><a href="#a">Home</a><a href="#b">About</a><a href="#c">Contact</a></nav>
+  </header>
+  <main>
+    <h1>Good page</h1>
+    <h2>Section</h2>
+    <h3>Subsection</h3>
+    <p>Readable text with strong contrast.</p>
+    <img alt="Green square" width="120" height="80" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='80'%3E%3Crect width='120' height='80' fill='%23047857'/%3E%3C/svg%3E">
+    <p><input type="email" placeholder="you@example.com" aria-label="Email"></p>
+    <button class="btn">Subscribe</button>
+  </main>
+  <footer><h2>Footer</h2></footer>
+</body>
+</html>
