@@ -120,6 +120,41 @@ describe("maybeCloseMilestones", () => {
   });
 });
 
+describe("TASK-15: hatua ya plan kupitia hooks.plan", () => {
+  const res = (executable: boolean) => ({
+    milestoneId: "M1", status: executable ? "active" : "guard_failed", executable, reasons: executable ? [] : ["status guard_failed — Data Guard bado inaona tofauti za DATA RASMI"],
+    markdown: "# MILESTONE PLAN — x", steps: 3, checks: 4, routes: 1, problems: [], warnings: [], guardHits: [], repairs: { structure: 0, guard: 0 },
+  }) as any;
+
+  it("plan active → plan DONE (si stub), build stub, SIGNED_OFF, event milestonePlan, store plan:M1", async () => {
+    const t = setup([1, 2]);
+    let calls = 0;
+    t.hooks.plan = async () => { calls++; return res(true); };
+    expect(await maybeCloseMilestones(t.runner, t.hooks)).toEqual(["M1"]);
+    const st = db.get(`${SID}|${stateKey("M1")}`)!.data;
+    expect(st.status).toBe("SIGNED_OFF");
+    expect(st.steps.map((s: any) => [s.stepId, s.status, !!s.stub])).toEqual([["M1.R0.plan", "DONE", false], ["M1.R0.build", "DONE", true]]);
+    expect(t.events.filter((e) => e.type === "milestonePlan").map((e) => [e.id, e.status, e.executable])).toEqual([["M1", "active", true]]);
+    expect(db.get(`${SID}|plan:M1`)!.data.steps).toBe(3);
+    expect(t.chips.some((c) => c.startsWith("🗺️ Plan ya Milestone M1 iko tayari"))).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  it("plan haitekelezeki → plan FAILED, M1 BLOCKED (resumeTo PLANNING), build HAIENDESHWI, wito unaofuata hauirudii", async () => {
+    const t = setup([1, 2]);
+    let calls = 0;
+    t.hooks.plan = async () => { calls++; return res(false); };
+    expect(await maybeCloseMilestones(t.runner, t.hooks)).toEqual(["M1"]);
+    const st = db.get(`${SID}|${stateKey("M1")}`)!.data;
+    expect([st.status, st.resumeTo]).toEqual(["BLOCKED", "PLANNING"]);
+    expect(st.steps.map((s: any) => [s.stepId, s.status])).toEqual([["M1.R0.plan", "FAILED"], ["M1.R0.build", "PENDING"]]);
+    expect(t.chips.some((c) => c.includes("XMD Computer HAIANZI"))).toBe(true);
+    expect(validateMilestoneState(st).ok).toBe(true);
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(calls).toBe(1);
+  });
+});
+
 describe("testHooks", () => {
   it("inert bila XMD_TEST_HOOKS=1", () => {
     expect(captureTarget({ XMD_TEST_CAPTURE_PROMPTS: "/tmp/x.jsonl" } as any)).toBeNull();

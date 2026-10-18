@@ -3,7 +3,8 @@
 // runMilestoneBuild ni STUB kwa sasa (tasks 15+ zinabadilisha mwili wake). Inatumika TU XMD_MILESTONES=1.
 
 import { milestonesEnabled } from "./flag";
-import { newMilestoneState, planSteps, setStep, stepIdOf, transition, TERMINAL_STATUSES } from "./state";
+import { HOLD_STATUSES, newMilestoneState, planSteps, setStep, stepIdOf, transition, TERMINAL_STATUSES } from "./state";
+import type { MilestonePlanResult } from "./plan";
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
 import type { Milestone, MilestoneMap, MilestoneState, MilestoneStatus } from "./types";
 
@@ -21,6 +22,8 @@ export interface LoopHooks {
   persist: () => Promise<void>;
   /** agenda zilizofungwa kwenye Ledger (chanzo cha ukweli) */
   resolvedAgendas: () => Promise<Set<number>>;
+  /** TASK-15: Optimus anaandika plan ya milestone (bila hook → stub ya task 14) */
+  plan?: (m: Milestone) => Promise<MilestonePlanResult>;
 }
 
 /** Mfuatano wa forward edges hadi SIGNED_OFF (njia ya stub — hakuna mzunguko wa marekebisho bado). */
@@ -67,6 +70,7 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
     const cur = (await getRecord<MilestoneState>(runner.sessionId, stateKey(m.id)))?.data ?? null;
     const status = cur?.status ?? "DISCUSSING";
     if (TERMINAL_STATUSES.includes(status)) continue;
+    if (HOLD_STATUSES.includes(status)) continue; // TASK-15: BLOCKED (plan haitekelezeki) / PAUSED — hairudiwi yenyewe
     const lockKey = `${runner.sessionId}:${m.id}`;
     if (running.has(lockKey)) continue;
     running.add(lockKey);
@@ -109,6 +113,13 @@ export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks:
   let rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(planSteps(s ?? newMilestoneState(m.id), steps)));
   for (const id of steps) {
     if ((rec.data.steps || []).find((x) => x.stepId === id)?.status === "DONE") continue;
+    if (id.endsWith(".plan") && hooks.plan) {
+      // TASK-15: plan halisi ya milestone (build inabaki stub hadi task 16)
+      const r = await runPlanStep(runner, m, hooks, id);
+      if (!r.ok) return r.state;
+      rec = { ...rec, data: r.state };
+      continue;
+    }
     rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
       const st = must(setStep(s as MilestoneState, id, "DONE"));
       return { ...st, steps: (st.steps || []).map((x) => (x.stepId === id ? { ...x, stub: true } : x)) };
@@ -123,6 +134,29 @@ export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks:
   hooks.blog("success", `✅ Milestone ${m.id} → ${rec.data.status} (stub).`);
   await hooks.persist();
   return rec.data;
+}
+
+export const planKey = (milestoneId: string) => `plan:${milestoneId}`;
+
+/** TASK-15: hatua ya plan — RUNNING → Optimus anaandika → store `plan:Mk` + event `milestonePlan` → DONE au FAILED + BLOCKED. */
+async function runPlanStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, id: string): Promise<{ ok: boolean; state: MilestoneState }> {
+  await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "RUNNING")));
+  await hooks.persist();
+  const res = await (hooks.plan as NonNullable<LoopHooks["plan"]>)(m);
+  await msUpdate(runner, planKey(m.id), () => ({ ...res, version: 1, generatedAt: new Date().toISOString() }));
+  hooks.bcast({ type: "milestonePlan", id: m.id, status: res.status, executable: res.executable, steps: res.steps, checks: res.checks, routes: res.routes, reasons: res.reasons, warnings: res.warnings, markdown: res.markdown });
+  if (!res.executable) {
+    const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "FAILED")), { type: "GOTO", to: "BLOCKED" })));
+    hooks.addChip(`⛔ Plan ya Milestone ${m.id} haitekelezeki (${res.status}) — XMD Computer HAIANZI. ${res.reasons.slice(0, 2).join(" · ").slice(0, 220)}`);
+    hooks.blog("error", `⛔ Plan ya ${m.id}: ${res.status} — ${res.reasons.join(" · ").slice(0, 400)} → ${m.id} BLOCKED (Computer haianzi).`);
+    await hooks.persist();
+    return { ok: false, state: rec.data };
+  }
+  const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "DONE")));
+  hooks.addChip(`🗺️ Plan ya Milestone ${m.id} iko tayari — hatua ${res.steps} · checks ${res.checks}${res.routes ? ` · routes ${res.routes}` : ""}${res.warnings.length ? ` · onyo ${res.warnings.length}` : ""}`);
+  hooks.blog("success", `🗺️ Plan ya ${m.id}: active · hatua ${res.steps} · checks ${res.checks} · routes ${res.routes} · marekebisho muundo ${res.repairs.structure}/data ${res.repairs.guard}.`);
+  await hooks.persist();
+  return { ok: true, state: rec.data };
 }
 
 /** Hali ya milestones kutoka chips za runner (kwa OCB counts) — bila kugusa DB. */
