@@ -24,15 +24,16 @@ export const CHECK_SHAPES = `Allowed check objects (exact field names; "id" uniq
 {"id":"…","type":"file_exists","path":"index.html"}
 {"id":"…","type":"file_contains","path":"index.html","text":"<form"}
 {"id":"…","type":"grep","pattern":"messages\\\\.json","path":"server.js","expect":"present"}        (expect: "present" | "absent")
+{"id":"…","type":"grep","pattern":"console\\\\.log","paths":["src"],"count":0,"op":"eq"}             (count of matching lines; op: eq | lt | gt; node_modules/.next/dist skipped)
 {"id":"…","type":"command","cmd":"node --check server.js","expectExit":0}                           (run from the workspace root)
-{"id":"…","type":"http","url":"http://localhost:3000/","method":"GET","expectStatus":200}
+{"id":"…","type":"http","url":"http://localhost:3000/","method":"GET","expectStatus":200,"bodyContains":"<h1"}   (bodyContains optional)
 {"id":"…","type":"dom_exists","route":"/","selector":"form#contact","viewport":"375x667"}           (viewport optional)
-{"id":"…","type":"computed_style","route":"/","selector":"h1","property":"font-size","expected":"32px"}
-{"id":"…","type":"no_horizontal_overflow","route":"/","viewport":"375x667"}
+{"id":"…","type":"computed_style","route":"/","selector":"h1","property":"font-size","expected":"32px"}   (or "forbidden":"…" instead of "expected")
+{"id":"…","type":"no_horizontal_overflow","route":"/","viewport":"375x667"}                              (or "routes":[…] / "viewports":[…]; default: all 3 viewports)
 {"id":"…","type":"console_clean","route":"/"}
 {"id":"…","type":"contrast_min","route":"/","selector":"button","min":4.5}
 {"id":"…","type":"touch_target_min","route":"/","selector":"button","minPx":44}
-{"id":"…","type":"screenshot_taken","route":"/","viewport":"1280x800"}`;
+{"id":"…","type":"screenshot_taken","route":"/","viewport":"1280x800","state":"default"}                 (state optional)`;
 
 export const MS_STEP_TEMPLATE = `${PLAN_STEP_TEMPLATE}
 - **Checks:** REQUIRED for every step that creates or edits files — machine-readable acceptance checks, as ONE fenced block:

@@ -1,0 +1,8 @@
+<!doctype html>
+<!-- TASK 21 fixture: console_clean FAIL — console.error + pageerror + picha 404 -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>xmdtest noisy</title></head>
+<body>
+  <h1>Noisy page</h1>
+  <img alt="missing" src="/does-not-exist-xmdtest.png" width="10" height="10">
+  <script>console.error("xmdtest: deliberate console error"); setTimeout(function () { throw new Error("xmdtest: deliberate page error"); }, 0);</script>
+</body></html>

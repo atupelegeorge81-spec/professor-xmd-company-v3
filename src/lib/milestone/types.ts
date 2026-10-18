@@ -149,18 +149,31 @@ interface RouteCheck extends CheckBase {
   viewport?: string;
 }
 
+/** TASK-21: checks za kurasa nyingi (routes × viewports) — `route` AU `routes`. */
+interface MultiRouteCheck extends CheckBase {
+  route?: string;
+  routes?: string[];
+  viewport?: string;
+  viewports?: string[];
+}
+export type GrepOp = "eq" | "lt" | "gt";
+
 export interface CommandCheck extends CheckBase { type: "command"; cmd: string; expectExit?: number }
-export interface GrepCheck extends CheckBase { type: "grep"; pattern: string; path: string; expect: "present" | "absent" }
+/** TASK-21: `count`+`op` (idadi ya mistari inayolingana) AU `expect` ya zamani (present = gt 0, absent = eq 0); `path` AU `paths`. */
+export interface GrepCheck extends CheckBase { type: "grep"; pattern: string; path?: string; paths?: string[]; expect?: "present" | "absent"; count?: number; op?: GrepOp }
 export interface DomExistsCheck extends RouteCheck { type: "dom_exists"; selector: string }
-export interface ComputedStyleCheck extends RouteCheck { type: "computed_style"; selector: string; property: string; expected: string }
-export interface NoHorizontalOverflowCheck extends RouteCheck { type: "no_horizontal_overflow" }
-export interface ConsoleCleanCheck extends RouteCheck { type: "console_clean" }
+/** TASK-21: `expected` AU `forbidden`. */
+export interface ComputedStyleCheck extends RouteCheck { type: "computed_style"; selector: string; property: string; expected?: string; forbidden?: string }
+export interface NoHorizontalOverflowCheck extends MultiRouteCheck { type: "no_horizontal_overflow" }
+export interface ConsoleCleanCheck extends MultiRouteCheck { type: "console_clean" }
 export interface ContrastMinCheck extends RouteCheck { type: "contrast_min"; selector: string; min: number }
-export interface TouchTargetMinCheck extends RouteCheck { type: "touch_target_min"; selector: string; minPx: number }
-export interface HttpCheck extends CheckBase { type: "http"; url: string; method?: string; expectStatus: number }
+/** TASK-21: `minPx` (Task 9) au `px` (maelezo21). */
+export interface TouchTargetMinCheck extends RouteCheck { type: "touch_target_min"; selector: string; minPx?: number; px?: number }
+/** TASK-21: `expectStatus` (Task 9) au `status` (maelezo21); `bodyContains` hiari. */
+export interface HttpCheck extends CheckBase { type: "http"; url: string; method?: string; expectStatus?: number; status?: number; bodyContains?: string }
 export interface FileExistsCheck extends CheckBase { type: "file_exists"; path: string }
 export interface FileContainsCheck extends CheckBase { type: "file_contains"; path: string; text: string }
-export interface ScreenshotTakenCheck extends RouteCheck { type: "screenshot_taken" }
+export interface ScreenshotTakenCheck extends RouteCheck { type: "screenshot_taken"; state?: string }
 
 export type Check =
   | CommandCheck
