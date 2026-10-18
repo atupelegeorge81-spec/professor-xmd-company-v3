@@ -1,0 +1,117 @@
+{
+ "version": 1,
+ "decisions": [
+  {
+   "id": "R-M1-0/P-01",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-01",
+   "title": "Widen desktop agent cards in 'Your board' section",
+   "detail": "On desktop (1280x800), give the 'Your board' agent cards their own dedicated full-width grid row (e.g. 5 columns at ~180px each) rather than squeezing all 5 cards into a narrow 440px container beside 'Latest report'.",
+   "proposedBy": "designer",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:02:21.379Z"
+  },
+  {
+   "id": "R-M1-0/P-02",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-02",
+   "title": "Hide or dock floating bottom nav on tablet viewport (768px)",
+   "detail": "Hide `body > nav` on tablet viewports (e.g. `md:hidden`), or constrain its width to max-w-md and ensure the page body has adequate bottom padding (`pb-24`) so it does not float directly on top of data graphics.",
+   "proposedBy": "designer",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:02:21.379Z"
+  },
+  {
+   "id": "R-M1-0/P-03",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-03",
+   "title": "Refine Board Room agent node layout to prevent text clipping on mobile",
+   "detail": "Adjust the grid or card padding for Megatron and Cybertron in the Board Room view so the agent title fits without mid-word truncation ('Backend & DB En...', 'QA & DevOps Eng...'), either by stacking the avatar and label vertically or using two-line text wrapping with an 11px font size.",
+   "proposedBy": "designer",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:02:21.379Z"
+  },
+  {
+   "id": "R-M1-0/P-04",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-04",
+   "title": "Increase mobile hero bottom clearance to prevent floating navigation overlap",
+   "detail": "Add `pb-20` to the mobile hero section so the prompt container and 'Convene board' button do not sit immediately behind the floating bottom navigation bar when scrolled to the initial fold.",
+   "proposedBy": "designer",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:02:21.379Z"
+  },
+  {
+   "id": "R-M1-0/P-05",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-05",
+   "title": "Enlarge secondary tap targets ('All', 'Read', 'All sessions') with touch padding",
+   "detail": "Apply `min-h-[44px] flex items-center` or transparent hit-area padding (`py-2.5`) to secondary links such as 'All', 'Read', and 'All sessions'.",
+   "proposedBy": "designer",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:02:21.379Z"
+  },
+  {
+   "id": "R-M1-0/P-07",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-07",
+   "title": "Increase sidebar link padding to 44px on desktop",
+   "detail": "In the desktop sidebar (<aside>), navigation links (height=36px) and agent links (height=40.75px) as well as the 'System' button (32x32px) are under 44px. Increasing vertical padding (e.g. py-2.5 / min-h-[44px]) will satisfy touch guidelines for touch-enabled laptops.",
+   "proposedBy": "frontend",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:02:21.379Z"
+  },
+  {
+   "id": "R-M1-0/P-08",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-08",
+   "title": "Add active indicator pill or top illumination pip to mobile bottom navigation",
+   "detail": "While the active tab has high text contrast (16.82:1), adding an accent glow pill or subtle indicator bar above the active tab icon will make the active route stand out more clearly on mobile OLED screens.",
+   "proposedBy": "frontend",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:02:21.379Z"
+  }
+ ]
+}

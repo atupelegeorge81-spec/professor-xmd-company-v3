@@ -1,0 +1,37 @@
+{
+ "version": 1,
+ "decisions": [
+  {
+   "id": "R-M1-0/P-03",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-03",
+   "title": "Sticky mobile WhatsApp order bar",
+   "detail": "At 375px add a fixed bottom bar with one primary CTA 'Agiza kwa WhatsApp' (height ≥48px, accent #E11D48 as a primary CTA button, Inter, sentence case) that opens wa.me with the product name; hidden at ≥768px where the card buttons are visible.",
+   "proposedBy": "designer",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:21:14.011Z"
+  },
+  {
+   "id": "R-M1-0/P-T1",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-T1",
+   "title": "P-05",
+   "detail": "Strict Grid Implementation: Enforce 4-column layout at 1280px (A3) using `grid-template-columns: repeat(4, minmax(0, 1fr))` to fix the current 5-column error.",
+   "proposedBy": "team",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:21:14.011Z"
+  }
+ ]
+}

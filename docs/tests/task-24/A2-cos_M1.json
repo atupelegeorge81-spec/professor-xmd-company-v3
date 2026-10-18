@@ -1,0 +1,209 @@
+{
+ "version": 1,
+ "changeOrders": [
+  {
+   "id": "CO-001",
+   "defectIds": [
+    "D-001",
+    "D-004"
+   ],
+   "decisionIds": [
+    "R-M1-0/P-04"
+   ],
+   "attempt": 1,
+   "priority": 1,
+   "location": {
+    "route": "/board",
+    "selector": "body",
+    "files": [
+     "app/layout.tsx",
+     "app/board/page.tsx"
+    ]
+   },
+   "current": "On route /board at 375x667 (S-004), no bottom navigation bar is present in the DOM. The main content area also lacks bottom padding to clear the floating navigation bar on mobile.",
+   "desired": "Ensure the <BottomNav /> component is rendered within the global layout shell so it persists on the /board route. Apply 'pb-24' to the main content wrapper on mobile viewports (375px) to provide clearance for the fixed navigation bar.",
+   "visionNote": "Ensures persistent navigation and prevents UI overlap, maintaining the 'Control Dashboard' utility across all primary screens.",
+   "acceptance": [
+    {
+     "id": "check-nav-exists-board",
+     "type": "dom_exists",
+     "route": "/board",
+     "selector": "body > nav",
+     "viewport": "375x667"
+    },
+    {
+     "id": "check-main-padding-mobile",
+     "type": "computed_style",
+     "route": "/",
+     "selector": "main",
+     "property": "padding-bottom",
+     "expected": "96px",
+     "viewport": "375x667"
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-002",
+   "defectIds": [
+    "D-002",
+    "D-006"
+   ],
+   "decisionIds": [
+    "R-M1-0/P-02",
+    "R-M1-0/P-08"
+   ],
+   "attempt": 1,
+   "priority": 2,
+   "location": {
+    "route": "/",
+    "selector": "body > nav",
+    "files": [
+     "components/BottomNav.tsx"
+    ]
+   },
+   "current": "Inactive nav items use rgb(86, 92, 108) on rgb(11, 12, 17) (2.92:1 contrast). Nav is visible on tablet (768px) and lacks an active state indicator.",
+   "desired": "Update inactive nav link color to #9CA3AF to meet WCAG AA contrast (6.1:1). Apply 'md:hidden' to the nav bar to hide it on tablet/desktop viewports. Add a top accent indicator bar (h-0.5 bg-emerald-500) to the active navigation tab.",
+   "visionNote": "Improves accessibility and visual hierarchy, ensuring the active route is clear and the UI remains clean on larger viewports.",
+   "acceptance": [
+    {
+     "id": "check-nav-contrast",
+     "type": "contrast_min",
+     "route": "/",
+     "selector": "body > nav a:nth-of-type(2)",
+     "min": 4.5,
+     "viewport": "375x667"
+    },
+    {
+     "id": "check-nav-hidden-tablet",
+     "type": "computed_style",
+     "route": "/",
+     "selector": "body > nav",
+     "property": "display",
+     "expected": "none",
+     "viewport": "768x1024"
+    },
+    {
+     "id": "check-active-indicator",
+     "type": "dom_exists",
+     "route": "/",
+     "selector": "body > nav a[aria-current='page'] div.bg-emerald-500"
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-003",
+   "defectIds": [
+    "D-003",
+    "D-005"
+   ],
+   "decisionIds": [
+    "R-M1-0/P-05",
+    "R-M1-0/P-07"
+   ],
+   "attempt": 1,
+   "priority": 2,
+   "location": {
+    "route": "/",
+    "selector": "button, a",
+    "files": [
+     "components/ui/button.tsx",
+     "components/Sidebar.tsx"
+    ]
+   },
+   "current": "Header menu toggle (36x36px), 'Convene board' (height 36px), and secondary links like 'All' (27.25px) fail the 44px touch target requirement.",
+   "desired": "Enforce min-h-[44px] on all buttons and sidebar links. For inline links ('All', 'Read', 'All sessions'), apply transparent hit-area padding (py-2.5) to satisfy touch requirements without increasing visual font size.",
+   "visionNote": "Guarantees the interface is accessible for touch users on mobile and laptops, adhering to professional usability standards.",
+   "acceptance": [
+    {
+     "id": "check-touch-header",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "body > div:nth-of-type(3) > div > header > button",
+     "minPx": 44,
+     "viewport": "375x667"
+    },
+    {
+     "id": "check-touch-convene",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(2) > div > div > button",
+     "minPx": 44,
+     "viewport": "375x667"
+    },
+    {
+     "id": "check-touch-sidebar",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "body > div:nth-of-type(3) > aside > div > div > nav > a:nth-of-type(1)",
+     "minPx": 44,
+     "viewport": "1280x800"
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-004",
+   "defectIds": [],
+   "decisionIds": [
+    "R-M1-0/P-01"
+   ],
+   "attempt": 1,
+   "priority": 3,
+   "location": {
+    "route": "/",
+    "selector": "body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(3) > div:nth-of-type(2)",
+    "files": [
+     "app/page.tsx"
+    ]
+   },
+   "current": "Agent cards are squeezed into a narrow flex column on desktop, causing severe text truncation.",
+   "desired": "Re-architect the 'Your board' section on desktop (1280px) to use a full-width grid row with 'grid-cols-5 gap-3', allowing cards to expand to ~180px width.",
+   "visionNote": "Optimizes desktop real estate to present the agent team clearly without aggressive text clipping.",
+   "acceptance": [
+    {
+     "id": "check-desktop-grid",
+     "type": "computed_style",
+     "route": "/",
+     "selector": "body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(3) > div:nth-of-type(2)",
+     "property": "grid-template-columns",
+     "expected": "repeat(5, minmax(0, 1fr))",
+     "viewport": "1280x800"
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-005",
+   "defectIds": [],
+   "decisionIds": [
+    "R-M1-0/P-03"
+   ],
+   "attempt": 1,
+   "priority": 3,
+   "location": {
+    "route": "/board",
+    "selector": "body > div:nth-of-type(3) > div > main > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(4) > div > button",
+    "files": [
+     "app/board/page.tsx"
+    ]
+   },
+   "current": "Agent titles in the Board Room are truncated on mobile (e.g., 'Backend & DB En...').",
+   "desired": "Adjust agent node labels on mobile (375px) to use text-[11px] and allow two-line text wrapping (remove whitespace-nowrap) to prevent clipping.",
+   "visionNote": "Ensures agent roles are fully legible in the conversation view on small screens.",
+   "acceptance": [
+    {
+     "id": "check-node-text-wrap",
+     "type": "computed_style",
+     "route": "/board",
+     "selector": "body > div:nth-of-type(3) > div > main > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(4) > div > button span",
+     "property": "white-space",
+     "expected": "normal",
+     "viewport": "375x667"
+    }
+   ],
+   "mode": "standard"
+  }
+ ]
+}

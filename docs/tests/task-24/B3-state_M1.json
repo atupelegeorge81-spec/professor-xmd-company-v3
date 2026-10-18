@@ -1,0 +1,30 @@
+{
+ "id": "M1",
+ "status": "FIXING",
+ "round": 1,
+ "maxRounds": 10,
+ "currentStepId": "M1.R0.review",
+ "startedAt": "2026-10-18T21:19:42.089Z",
+ "updatedAt": "2026-10-18T21:21:58.060Z",
+ "lanesUsed": [],
+ "steps": [
+  {
+   "stepId": "M1.R0.plan",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-18T21:19:44.585Z"
+  },
+  {
+   "stepId": "M1.R0.build",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-18T21:19:48.717Z"
+  },
+  {
+   "stepId": "M1.R0.review",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-18T21:21:58.060Z"
+  }
+ ]
+}

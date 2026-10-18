@@ -1,0 +1,97 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "id": "D-001",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "typography",
+   "severity": "major",
+   "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+   "evidence": [
+    "S-001",
+    "S-001 dom: body > header > div fontFamily=Courier New",
+    "S-001 dom: body > header > nav > a:nth-of-type(1) fontFamily=Courier New",
+    "S-001 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+    "S-001 dom: #shop > article:nth-of-type(1) > p fontFamily=Courier New",
+    "S-001 dom: body > footer fontFamily=Courier New",
+    "S-002 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+    "S-003 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New"
+   ],
+   "expected": "Typography must be Inter or system sans-serif ONLY. Monospace fonts are explicitly prohibited (A1: 'tech-startup look, not fashion').",
+   "actual": "Logo, navigation links, hero heading h1, card prices, and footer are rendered with fontFamily=Courier New.",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "header",
+   "severity": "blocker",
+   "title": "SW/EN language toggle (button#lang-toggle) is missing from header",
+   "evidence": [
+    "check:M1-S1-a",
+    "S-001",
+    "S-002",
+    "S-003"
+   ],
+   "expected": "Header must include a SW/EN language toggle on the right (button#lang-toggle), visible across 375, 768, and 1280 viewports (A2).",
+   "actual": "check:M1-S1-a failed (0 matches for button#lang-toggle). The header contains only nav links 'WANAUME', 'WANAWAKE', and 'MPYA'.",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-003",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "header",
+   "severity": "minor",
+   "title": "Header navigation links touch targets are under 44px minimum height",
+   "evidence": [
+    "S-001",
+    "S-001 dom: body > header > nav > a:nth-of-type(1) height=15",
+    "S-001 dom: body > header > nav > a:nth-of-type(2) height=15",
+    "S-001 dom: body > header > nav > a:nth-of-type(3) height=15"
+   ],
+   "expected": "Touch targets for interactive navigation elements must be ≥ 44×44 px.",
+   "actual": "Nav link anchors have a rendered height of only 15px (touch 68.06x15, 77.78x15, 38.89x15 TOO-SMALL).",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-005",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "accessibility",
+   "severity": "major",
+   "title": "Text contrast ratio fails WCAG AA minimum 4.5:1",
+   "evidence": [
+    "check:M1-S1-b",
+    "S-001 dom: #shop > article:nth-of-type(1) > p contrastRatio=3.92 LOW-CONTRAST",
+    "S-001 dom: #shop > article:nth-of-type(1) > h3 contrastRatio=3.92 LOW-CONTRAST",
+    "S-001 dom: body > header contrastRatio=4.31 LOW-CONTRAST"
+   ],
+   "expected": "WCAG AA standard and milestone design tokens require text contrast >= 4.5:1 on background.",
+   "actual": "check:M1-S1-b failed with 13 text elements below 4.5:1 (crimson rgb(225, 29, 72) text against dark surface rgb(20, 20, 22) yields 3.92:1 contrast ratio; header text yields 4.31:1).",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  }
+ ]
+}

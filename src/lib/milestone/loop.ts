@@ -9,6 +9,9 @@ import { BUILD_REPORT_INLINE_MAX, buildReportPath, crossCheckBuildReport, parseB
 import { evidenceKey } from "./evidence"; // TASK-19
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
 import type { EvidencePack, Milestone, MilestoneMap, MilestoneState, MilestoneStatus } from "./types";
+import { reviewRound0, type ReviewContext, type ReviewDeps } from "./review"; // TASK-24 (T23 analyses)
+import { consolidate, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
+import { brokerComplete } from "../broker/broker"; // TASK-24: Optimus consolidate
 
 export interface LoopRunner {
   id: string;
@@ -28,6 +31,15 @@ export interface LoopHooks {
   plan?: (m: Milestone) => Promise<MilestonePlanResult>;
   /** TASK-16: XMD Computer anajenga milestone MOJA kutoka plan yake (bila hook → stub) */
   build?: (m: Milestone, planMarkdown: string) => Promise<BuildOutcome>;
+  /** TASK-24: REVIEW (R-Mk-0) baada ya evidence — context ya reviewers + mjadala kupitia mashine ya agenda ya Board.
+   *  run() ya boardRunner ni closure moja: hook hii inajengwa ndani yake (msHooks) na `discuss` = `discussAgenda(item)`. */
+  review?: {
+    context: (m: Milestone, pack: EvidencePack) => Promise<{ analyseCtx: Omit<ReviewContext, "pack">; ledgerLines: string[]; extraParticipants?: string[] }>;
+    discuss: (item: ReviewAgendaItem) => Promise<DiscussionOutcome>;
+    /** majaribio tu: badala ya LLM halisi */
+    analyseDeps?: ReviewDeps;
+    consolidate?: (i: ConsolidateInput) => Promise<ConsolidateResult>;
+  };
 }
 
 /** TASK-16: matokeo ya awamu ya Computer (engine.MilestoneBuildOutcome — bila ku-import engine hapa). */
@@ -137,6 +149,7 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
     const status = cur?.status ?? "DISCUSSING";
     if (TERMINAL_STATUSES.includes(status)) continue;
     if (HOLD_STATUSES.includes(status)) continue; // TASK-15: BLOCKED (plan haitekelezeki) / PAUSED — hairudiwi yenyewe
+    if (status === "FIXING" || status === "VERIFYING") continue; // TASK-24: COs zinasubiri raundi za marekebisho (tasks 25+)
     const lockKey = `${runner.sessionId}:${m.id}`;
     if (running.has(lockKey)) continue;
     running.add(lockKey);
@@ -175,7 +188,7 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
  * Kila hatua inaruka ikiwa tayari DONE (resume haiendeshi kitu mara mbili).
  */
 export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks: LoopHooks): Promise<MilestoneState> {
-  const steps = ["plan", "build"].map((s) => stepIdOf(m.id, 0, s));
+  const steps = ["plan", "build", ...(hooks.review ? ["review"] : [])].map((s) => stepIdOf(m.id, 0, s)); // TASK-24: review baada ya evidence
   let rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(planSteps(s ?? newMilestoneState(m.id), steps)));
   for (const id of steps) {
     if ((rec.data.steps || []).find((x) => x.stepId === id)?.status === "DONE") continue;
@@ -189,6 +202,13 @@ export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks:
     if (id.endsWith(".build") && hooks.build) {
       // TASK-16: XMD Computer halisi (awamu moja kwa milestone hii)
       const r = await runBuildStep(runner, m, hooks, id);
+      if (!r.ok) return r.state;
+      rec = { ...rec, data: r.state };
+      continue;
+    }
+    if (id.endsWith(".review") && hooks.review) {
+      // TASK-24: R0 — findings huru (T23) → mjadala wa timu (R-Mk-0) → Optimus COs. CHANGES → FIXING (inasimama hapa).
+      const r = await runReviewStep(runner, m, hooks, id);
       if (!r.ok) return r.state;
       rec = { ...rec, data: r.state };
       continue;
@@ -276,6 +296,78 @@ async function runBuildStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, 
   hooks.blog("success", `🧱 Build ya ${m.id}: ${out.finalState} — hatua DONE.`);
   await hooks.persist();
   return { ok: true, state: rec.data };
+}
+
+/** TASK-24: Optimus anaunganisha REVIEW kuwa Change Orders (lanes za kawaida za Optimus; stall default 90s). */
+export async function defaultConsolidate(i: ConsolidateInput, log?: LoopHooks["blog"]): Promise<ConsolidateResult> {
+  return consolidate(i, {
+    complete: async (messages, attempt) => (await brokerComplete({
+      agentId: "pm", purpose: `review-consolidate:${i.milestoneId}:R${i.round}:a${attempt}`, messages: messages as never,
+      maxOut: 16_000, cls: "heavy", temperature: 0.2, priority: "background", waitMs: 120_000, critical: true,
+    })).text,
+    log: log ? (lvl, t) => log(lvl, t) : undefined,
+  });
+}
+
+/** TASK-24: hatua ya review — EVIDENCE → REVIEW_R0 → runReviewRound → NO_CHANGES (SIGNED_OFF kwa njia ya kawaida) |
+ *  CHANGES (COs zimehifadhiwa → FIXING, round 1; raundi za marekebisho ni tasks 25+) | FAILED (CO haikuthibitika → BLOCKED). */
+async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, id: string): Promise<{ ok: boolean; state: MilestoneState; result?: ReviewRoundResult }> {
+  const rh = hooks.review as NonNullable<LoopHooks["review"]>;
+  const sid = runner.sessionId as string;
+  const ev = sid ? (await getRecord<EvidencePack>(sid, evidenceKey(m.id, 0)))?.data : null;
+  if (!ev || !(ev.screenshots || []).length) {
+    // technical / bila UI → hakuna evidence ya kuona: review ya R0 inarukwa (njia ya zamani)
+    const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
+      const st = must(setStep(s as MilestoneState, id, "DONE"));
+      return { ...st, steps: (st.steps || []).map((x) => (x.stepId === id ? { ...x, stub: true } : x)) };
+    });
+    hooks.blog("info", `🧑‍⚖️ ${m.id}: hakuna evidence ya screenshots (${m.reviewMode}) — REVIEW R0 imerukwa.`);
+    return { ok: true, state: rec.data };
+  }
+  await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
+    let st = must(setStep(s as MilestoneState, id, "RUNNING"));
+    for (const to of ["EVIDENCE", "REVIEW_R0"] as MilestoneStatus[]) {
+      const order = ["BUILDING", "EVIDENCE", "REVIEW_R0"];
+      if (order.indexOf(st.status) >= 0 && order.indexOf(st.status) < order.indexOf(to)) st = must(transition(st, { type: "GOTO", to }));
+    }
+    return st;
+  });
+  await hooks.persist();
+  const ctx = await rh.context(m, ev);
+  const result = await runReviewRound({
+    milestoneId: m.id, milestoneTitle: m.title, round: 0, reviewMode: m.reviewMode, pack: ev, ledgerLines: ctx.ledgerLines, domHints: [],
+    participants: reviewParticipants(ctx.extraParticipants),
+  }, {
+    analyse: async () => {
+      const r = await reviewRound0(ev, ctx.analyseCtx, { log: (lvl, t) => hooks.blog(lvl, t), ...(rh.analyseDeps || {}) });
+      return {
+        designer: r.designer.findings, frontend: r.frontend.findings,
+        meta: { independence: { ok: r.independence.ok, hashesDiffer: r.independence.hashesDiffer, leaks: [r.independence.designerLeakIntoFrontend.length, r.independence.frontendLeakIntoDesigner.length] }, designer: r.designer.meta, frontend: r.frontend.meta },
+      };
+    },
+    discuss: rh.discuss,
+    consolidate: rh.consolidate || ((i) => defaultConsolidate(i, hooks.blog)),
+    store: {
+      get: async <T,>(key: string) => ((await getRecord<T>(sid, key))?.data ?? null),
+      update: async <T,>(key: string, mutate: (cur: T | null) => T) => (await msUpdate<T>(runner, key, mutate)).data,
+    },
+    bcast: hooks.bcast, blog: hooks.blog, addChip: hooks.addChip,
+  });
+  if (result.status === "FAILED") {
+    const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "FAILED")), { type: "GOTO", to: "BLOCKED" })));
+    hooks.blog("error", `⛔ ${result.reviewId}: ${result.reason} → ${m.id} BLOCKED (defect bila CO ni kosa).`);
+    await hooks.persist();
+    return { ok: false, state: rec.data, result };
+  }
+  if (result.status === "CHANGES") {
+    const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "DONE")), { type: "GOTO", to: "FIXING" })));
+    hooks.blog("info", `🔧 ${m.id} → FIXING (round ${rec.data.round}) — COs ${result.changeOrders.length} zinasubiri raundi za marekebisho (tasks 25+).`);
+    await hooks.persist();
+    return { ok: false, state: rec.data, result };
+  }
+  const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "DONE")));
+  await hooks.persist();
+  return { ok: true, state: rec.data, result };
 }
 
 /** Hali ya milestones kutoka chips za runner (kwa OCB counts) — bila kugusa DB. */

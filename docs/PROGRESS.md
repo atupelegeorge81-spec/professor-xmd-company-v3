@@ -308,3 +308,37 @@ $ npm run cu:test        → Ran 186 tests — OK
   - T5 frontend 10/10 nukuu za DOM = JSON.
 - Haijaunganishwa na loop/boardRunner bado (library). Hakuna web-search tool kwenye lane (prompt inasema "if available").
 - Baselines: tsc 0 · vitest 564 + 2 skipped (+12) · pytest 330 + 3 skipped · unittest 263 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-23.md + docs/tests/task-23/.
+
+## Task 23 — marekebisho (maoni ya CEO, kabla ya T24)
+- **Broker, timeout ya kila wito:** `CompleteSpec.stallFirstMs?` (hiari) → `collect` → `idleGuard(parent, firstMs)`. Ni `review.ts` PEKEE inayoipitisha (`REVIEW_STALL_FIRST_MS` = 300s). Waitaji wengine wote (board turns, plans, mini-reports, map, consolidate…) hawapitishi kitu, kwa hiyo wanabaki na **default 90s** (`BROKER_STALL_FIRST_MS`), bila mabadiliko. Test: `src/lib/broker/stall.test.ts` (fake timers: bila stallFirstMs bado hai kwenye 89.999s na imekatwa kwenye 90.001s; reviewer 300s; grep ya `src/` = review.ts pekee). Sababu: Gemini haitumi thinking kwenye stream → kimya > 90s → reroute ×4 + 503 (T23 T1 run 1).
+- Raw `.log` zimeondolewa kwenye `docs/tests/task-23/`; vipande (≤ 40 mistari kwa kila test) viko ndani ya `task-23.md`.
+- Picha 4 (T1) dhidi ya 3 (T4): runs tofauti. T1 = site ya CEO (`/` ×3 + `/board`); T4 = fixture ya kivuli (`/` ×3). Jedwali liko kwenye task-23.md.
+- Deploy ya T23: Koyeb `4e0b3213` HEALTHY (main `cb347e7`).
+
+## Task 24 — Mjadala wa timu (REVIEW) + Change Orders za Optimus
+- Branch `task/24-review-discussion`, nyuma ya `XMD_MILESTONES` (OFF kwa default), na T23 ndani.
+- **REVIEW = aina maalum ya agenda yenye id `R-Mk-n`, bila namba ya agenda.** Ramani inabaki 1..N.
+  - Mwili wa loop ya agenda sasa ni closure `discussAgenda(item)` ndani ya `run()`.
+  - `runMilestoneBuild` → hatua `Mk.R0.review` → `msHooks.review.discuss` → `discussAgenda`.
+  - REVIEW inatumia mashine ileile (gate ya search, zamu, AGREE, consensus).
+  - REVIEW inarudi KABLA ya R37, Ledger ya Board, mini-report, code na pingamizi.
+  - Zamu za REVIEW ni maneno 600–900; agenda za kawaida zinabaki "under 180 words". FLOW-MAP B.10.
+- `src/lib/milestone/reviewAgenda.ts`:
+  - `numberFindings` → D-/P-ids
+  - `parseReviewDecision`
+  - `applyReviewRules`:
+    - proposals zinakubaliwa TU kwa consensus ya Ultron + Vextron + Optimus; vinginevyo REJECTED kwa default;
+    - defect inabaki isipokuwa wote wanaibatilisha, pamoja na sababu;
+    - mgongano na ledger/brief → CR.
+  - `consolidate`: Optimus → `ChangeOrder[]` → `validateChangeOrder` + ukaguzi wa coverage, mara 3 zaidi; ikishindikana → FAILED/BLOCKED.
+  - `runReviewRound`: store `findings`, `review`, `defects`, `decisions`, `changeRequests`, `cos`; events `reviewFindings`, `reviewDecision`, `changeOrders`.
+  - Matokeo: NO_CHANGES → SIGNED_OFF, au FIXING round 1.
+- REAL:
+  - T1 (A2): COs 5 valid kwenye jaribio la 1; defects 6/6 + maamuzi 7/7 zina CO.
+  - T2 (B1/B3): P-02 (reviewer mmoja) REJECTED; P-03 ACCEPTED → `decisions` + CO-005.
+  - T3 (B3): serif ↔ A1 → `CR-M1-0-01`; COs 0 za serif.
+  - T4: checks 10 kwa E2B dhidi ya site hai: FAIL 10, ERROR 0.
+  - T5: nukuu 3.
+  - CEO #3: searches 3 kwa kila run (SearXNG halisi + READ_SOURCE).
+- Kasoro 5 zilizopatikana kwenye runs halisi zimerekebishwa: CAS ya hook, `[Condition added by`, CR ya fallback, id ndani ya mabano, kichwa "P-05". Maelezo yako task-24.md.
+- Baselines: tsc 0 · vitest 594 + 2 skipped (+30) · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-24.md + docs/tests/task-24/ (bila `.log`).

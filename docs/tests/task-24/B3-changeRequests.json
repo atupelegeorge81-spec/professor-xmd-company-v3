@@ -1,0 +1,20 @@
+{
+ "version": 1,
+ "changeRequests": [
+  {
+   "id": "CR-M1-0-01",
+   "reviewId": "R-M1-0",
+   "proposalId": "P-01",
+   "title": "Serif display headings",
+   "detail": "Replace Inter on h1/h2 and product names with the serif display font Playfair Display (Google Fonts) for a luxury editorial feel; keep Inter for body text.",
+   "conflictsWith": "A1",
+   "reason": "conflicts with A1 (A1 specifies Inter/system sans-serif ONLY — no serif fonts permitted without CEO override",
+   "status": "OPEN",
+   "raisedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ]
+  }
+ ]
+}
