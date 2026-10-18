@@ -215,3 +215,44 @@ describe("TASK-16: hatua ya build kupitia hooks.build (XMD Computer kwa kila mil
     expect(st.steps.find((s: any) => s.stepId === "M1.R0.build")).toMatchObject({ status: "DONE", attempts: 2 });
   });
 });
+
+describe("TASK-17: Build Report baada ya awamu (report:Mk + event buildReport)", () => {
+  const plan = { milestoneId: "M1", status: "active", executable: true, reasons: [], markdown: "# MILESTONE PLAN — M1", steps: 1, checks: 1, routes: 0, problems: [], warnings: [], guardHits: [], repairs: { structure: 0, guard: 0, data: 0 } } as any;
+  const md = (files: string) => [
+    "# M1 Build Report", "## 1 Summary", "Title.", "## 2 Files created or changed", files,
+    "## 3 Commands run and results", "- `head -1 README.md` — exit 0 — ok", "## 4 Tests run", "- title — PASS",
+    "## 5 Decisions and deviations from the plan", "- none — plan followed", "## 6 Security notes", "- None — no secrets",
+    "## 7 Known problems / technical debt", "- None", "## 8 Risks for the next milestone", "- append only",
+  ].join("\n");
+  const run = async (buildReport: any, finalState = "COMPLETED_UNVERIFIED") => {
+    const t = setup([1, 2]);
+    t.hooks.plan = async () => plan;
+    t.hooks.build = async () => ({ ok: finalState !== "STUCK", finalState, reason: "", buildReport });
+    await maybeCloseMilestones(t.runner, t.hooks);
+    return { ...t, rec: db.get(`${SID}|report:M1`)?.data, ev: t.events.filter((e) => e.type === "buildReport") };
+  };
+
+  it("ripoti sahihi + git diff inalingana → ok, fake 0, event buildReport, milestone SIGNED_OFF", async () => {
+    const t = await run({ found: true, path: ".xmd/reports/M1-build-report.md", markdown: md("- `README.md` — created"), changed: ["README.md", ".xmd/reports/M1-build-report.md"] });
+    expect(t.rec).toMatchObject({ id: "M1", found: true, ok: true, errors: [], paths: ["README.md"], fake: [], unreported: [] });
+    expect(t.ev).toHaveLength(1);
+    expect(t.ev[0]).toMatchObject({ id: "M1", ok: true, sections: 8, commands: 1, fake: [] });
+    expect(db.get(`${SID}|${stateKey("M1")}`)!.data.status).toBe("SIGNED_OFF");
+  });
+  it("path iliyopandikizwa → fake inaripotiwa (hali ya milestone haibadilishwi — task 18 ndiyo lango)", async () => {
+    const t = await run({ found: true, path: ".xmd/reports/M1-build-report.md", markdown: md("- `README.md` — created\n- `src/ghost.ts` — created"), changed: ["README.md"] });
+    expect(t.rec.fake).toEqual(["src/ghost.ts"]);
+    expect(t.ev[0].fake).toEqual(["src/ghost.ts"]);
+    expect(t.chips.some((c: string) => c.startsWith("📑 Build Report ya M1:") && c.includes("hazipo kwenye git diff"))).toBe(true);
+  });
+  it("ripoti haipo → found:false, kosa 'report file missing'; awamu iliyokwama bado inaandika rekodi", async () => {
+    const t = await run({ found: false, path: ".xmd/reports/M1-build-report.md", markdown: "", changed: [] }, "STUCK");
+    expect(t.rec).toMatchObject({ found: false, ok: false, errors: ["report file missing: .xmd/reports/M1-build-report.md"] });
+    expect(db.get(`${SID}|${stateKey("M1")}`)!.data.status).toBe("BLOCKED");
+  });
+  it("PAUSED → hakuna rekodi ya ripoti wala event", async () => {
+    const t = await run(undefined, "PAUSED");
+    expect(t.rec).toBeUndefined();
+    expect(t.ev).toHaveLength(0);
+  });
+});

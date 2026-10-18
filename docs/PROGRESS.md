@@ -204,3 +204,14 @@ $ npm run cu:test        → Ran 186 tests — OK
   chat ya M1 haipo (think 0/126) · T3 sandbox imeuawa → M2 sandbox mpya, faili 6 + git zimerejeshwa (`2616771` → `e6e995e`) ·
   T4 bridge kimya → STUCK baada ya 60.05s → M1 BLOCKED · T5 flag OFF: milestone 0, CU ya zamani ×1.
 - Baselines: tsc 0 · vitest 489 + 2 skipped · pytest 308 · unittest 238 · eslint 0. Ushahidi: docs/tests/task-16.md.
+
+## Task 17 (maelezo17): Build Report contract (2026-10-18), branch task/17-build-report
+- Mpya: `src/lib/milestone/buildReport.ts` (`parseBuildReport`: headings 8 kwa mpangilio, sehemu zisizo tupu, exit codes za sehemu 3,
+  paths za sehemu 2; `crossCheckBuildReport` ↔ git diff → fake/unreported). bridge.py: `build_report_contract` + block ya CLAUDE.md
+  + `--milestone`; oh_bridge (backend halisi) inaweka mkataba kwenye ujumbe wa kwanza. engine: HEAD ya mwanzo + kusoma ripoti na
+  `git diff` baada ya commit (>16KB → storage). loop: `report:Mk` + event `buildReport` + chip 📑.
+- Maamuzi yangu (7, kwenye task-17.md): backends zote mbili; milestone tu (legacy haiguswi); ripoti mbaya haibadilishi hali (task 18
+  ndiyo lango); diff = HEAD ya mwanzo → HEAD (= HEAD~1, na inafanya kazi M1); directory inafunika faili; ripoti iko ndani ya git; inline 16KB.
+- T1 parser (accept + 4 rejects) · T2 ripoti halisi ya M1 (sehemu 8, amri 4 = vipande halisi vya exec_start, fake 0) na M2 ·
+  T3 snapshot halisi `git diff HEAD~1`: path iliyopandikizwa → fake, README iliyoondolewa → unreported · T4 pytest 311, unittest 241.
+- Baselines: tsc 0 · vitest 506 + 2 skipped · pytest 311 · unittest 241 · eslint 0. Ushahidi: docs/tests/task-17.md.
