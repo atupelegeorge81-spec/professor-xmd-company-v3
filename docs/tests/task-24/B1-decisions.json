@@ -1,0 +1,53 @@
+{
+ "version": 1,
+ "decisions": [
+  {
+   "id": "R-M1-0/P-03",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-03",
+   "title": "Sticky mobile WhatsApp order bar",
+   "detail": "At 375px add a fixed bottom bar with one primary CTA 'Agiza kwa WhatsApp' (height ≥48px, accent #E11D48 as a primary CTA button, Inter, sentence case) that opens wa.me with the product name; hidden at ≥768px where the card buttons are visible.",
+   "proposedBy": "designer",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:06:54.788Z"
+  },
+  {
+   "id": "R-M1-0/P-04",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-04",
+   "title": "Sticky mobile WhatsApp order bar",
+   "detail": "At 375px add a fixed bottom bar with one primary CTA 'Agiza kwa WhatsApp' (height ≥48px, accent #E11D48 as a primary CTA button, Inter, sentence case) that opens wa.me with the product name; hidden at ≥768px where the card buttons are visible.",
+   "proposedBy": "frontend",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:06:54.788Z"
+  },
+  {
+   "id": "R-M1-0/P-T1",
+   "reviewId": "R-M1-0",
+   "milestoneId": "M1",
+   "round": 0,
+   "proposalId": "P-T1",
+   "title": "D-007 (Grid Correction)",
+   "detail": "Update the 1280px grid from 5 columns to 4 columns to align with locked decision A3.",
+   "proposedBy": "team",
+   "agreedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-18T21:06:54.788Z"
+  }
+ ]
+}

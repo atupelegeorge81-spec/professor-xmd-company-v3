@@ -1,0 +1,62 @@
+[
+ {
+  "id": "CO-001/check-nav-exists-board",
+  "type": "dom_exists",
+  "result": "FAIL",
+  "detail": "/board @375x667: \"body > nav\" matched 0"
+ },
+ {
+  "id": "CO-001/check-main-padding-mobile",
+  "type": "computed_style",
+  "result": "FAIL",
+  "detail": "/ @375x667: padding-bottom of \"main\" = 0px (expected 96px; 1/1 differ)"
+ },
+ {
+  "id": "CO-002/check-nav-contrast",
+  "type": "contrast_min",
+  "result": "FAIL",
+  "detail": "/ @375x667: \"body > nav a:nth-of-type(2)\" 1 text elements, min contrast 2.92 (rgb(86, 92, 108) on rgb(11, 12, 17)) vs required 4.5; 1 below"
+ },
+ {
+  "id": "CO-002/check-nav-hidden-tablet",
+  "type": "computed_style",
+  "result": "FAIL",
+  "detail": "/ @768x1024: display of \"body > nav\" = flex (expected none; 1/1 differ)"
+ },
+ {
+  "id": "CO-002/check-active-indicator",
+  "type": "dom_exists",
+  "result": "FAIL",
+  "detail": "/ @375x667: \"body > nav a[aria-current='page'] div.bg-emerald-500\" matched 0"
+ },
+ {
+  "id": "CO-003/check-touch-header",
+  "type": "touch_target_min",
+  "result": "FAIL",
+  "detail": "/ @375x667: \"body > div:nth-of-type(3) > div > header > button\" 1 visible, smallest 36×36 vs required 44×44; 1 too small"
+ },
+ {
+  "id": "CO-003/check-touch-convene",
+  "type": "touch_target_min",
+  "result": "FAIL",
+  "detail": "/ @375x667: \"body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(2) > div > div > button\" 1 visible, smallest 142×36 vs required 44×44; 1 too small"
+ },
+ {
+  "id": "CO-003/check-touch-sidebar",
+  "type": "touch_target_min",
+  "result": "FAIL",
+  "detail": "/ @1280x800: \"body > div:nth-of-type(3) > aside > div > div > nav > a:nth-of-type(1)\" 1 visible, smallest 227×36 vs required 44×44; 1 too small"
+ },
+ {
+  "id": "CO-004/check-desktop-grid",
+  "type": "computed_style",
+  "result": "FAIL",
+  "detail": "/ @1280x800: grid-template-columns of \"body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(3) > div:nth-of-type(2)\" = 80px 80px 80px 80px 80px (expected repeat(5, minmax(0, 1fr)); 1/1 differ)"
+ },
+ {
+  "id": "CO-005/check-node-text-wrap",
+  "type": "computed_style",
+  "result": "FAIL",
+  "detail": "/board @375x667: white-space of \"body > div:nth-of-type(3) > div > main > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(4) > div > button span\" = normal | nowrap (expected normal; 8/16 differ)"
+ }
+]

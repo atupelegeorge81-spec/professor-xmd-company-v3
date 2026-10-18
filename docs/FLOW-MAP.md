@@ -45,6 +45,14 @@
 7. **Awamu ya plan inaanzia wapi:** baada ya Board idhini — `mode==="plan" ? planModeRun` `:640` + `computerPlanned` ikishawa inawekwa mwanzoni kama plan-mode+CU (`:282`); Mpango Kazi inaandikwa mwishoni (comment `:639`).
 8. **Computer inaanza:** `startComputerPhase(runner, hooks)` — `cu/engine.ts:418` (kuanzia resume: `boardRunner.ts:1157`; kutoka finale path: `runner.cu?.pausedOnce` gating `:1152`).
 9. **Computer inamalizika:** CU events (`cu.*`) huingia `handleCuEvent` → items za ripoti/finale; `CU_HARD_CAP_MS` default 30*60*1000 (`cu/engine.ts:38`) — safety cap kubwa.
+10. **TASK-24 · REVIEW (R-Mk-n, `XMD_MILESTONES=1` pekee):**
+    - REVIEW SI agenda yenye namba. Ramani inabaki agenda 1..N; REVIEW ina id yake (`R-M1-0`, index 0) na haiandikwi kama `agenda_index`.
+    - Mwili wa loop ya agenda sasa ni closure `discussAgenda(item)` ndani ya `run()`. `for (const item of agenda)` inaiita kwa agenda 1..N.
+    - `msHooks.review.discuss` inaiita kwa REVIEW. `runMilestoneBuild` (`milestone/loop.ts`) inaendesha hatua `Mk.R0.review` baada ya build yenye evidence: `runReviewRound` (`milestone/reviewAgenda.ts`) → findings (T23) → `discuss(item)` → `applyReviewRules` → Optimus `consolidate` → store.
+    - Kwa REVIEW, mashine ileile inatumika (evidence/search gate, zamu, AGREE, consensus), isipokuwa: zamu za maneno 600–900, transcript 60k, max tokens 9000, na OCB `REVIEW_DISCUSS`.
+    - REVIEW inarudi KABLA ya R37 (rough/fallback/defer), Ledger ya Board, mini-report na pingamizi. Bila consensus, proposals zote ni REJECTED.
+    - Store ya milestone: `findings:Mk:R0`, `review:Mk:R0`, `defects`, `decisions`, `changeRequests`, `cos:Mk`. Events: `reviewFindings`, `reviewDecision`, `changeOrders`.
+    - Matokeo ya hatua: CHANGES → FIXING (round 1); NO_CHANGES → SIGNED_OFF; consolidate batili ×3 → BLOCKED.
 
 ## C. Computer flow (`src/lib/cu/*`)
 1. **start:** `startComputerPhase(runner, hooks)` — `cu/engine.ts:418`. Ndiyo inachofanya: events zilizohifadhiwa zinareplay (`:575` `resumeNote = resume ? buildResumeNote(runner) : ""`), sandbox ikipatikana hai → attach tu (`:515` pgrep ya bridge), vinginevyo bridge mpya inaandikwa (`:598-601` background, timeout 3600s) na mirror-restore + replay (`mirror.ts`).

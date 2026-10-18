@@ -191,7 +191,7 @@ ${p.evidenceRefs.join("\n") || "- (none)"}
 DEFECTS (from both reviews). A defect ENTERS THE DEFECT LEDGER unless BOTH reviewers agree it is invalid (give the reason):
 ${defects}
 
-PROPOSALS (from both reviews). A proposal is REJECTED by default. It becomes a decision ONLY if Ultron AND Vextron AND Optimus all agree AND it does not contradict a locked ledger decision or the CEO brief. A proposal that contradicts a locked decision can NEVER be accepted — if the team still wants it, list it under CHANGE REQUESTS (the CEO decides; nothing is silently edited):
+PROPOSALS (from both reviews). A proposal is REJECTED by default. It becomes a decision ONLY if Ultron AND Vextron AND Optimus all agree AND it does not contradict a locked ledger decision or the CEO brief. A proposal that contradicts a locked ledger decision or the CEO brief can NEVER be accepted and is NEVER silently dropped: list it under CHANGE REQUESTS with the decision id (e.g. "P-04 conflicts with A2 (reason)") — the CEO decides; nothing is silently edited:
 ${props}
 
 REVIEWER NOTES:
@@ -226,19 +226,42 @@ function sectionOf(text: string, label: string): string | null {
   if (!m) return null;
   const rest = t.slice(m.index + m[0].length);
   const next = new RegExp(`\\n\\s*[-*]?\\s*(?:${LABELS.filter((l) => l !== label).map((l) => l.replace(/[-]/g, "\\-")).join("|")}|PROPOSED DECISION|UPDATED DECISION)\\s*:`, "i").exec(rest);
-  return (next ? rest.slice(0, next.index) : rest).trim();
+  // sehemu inaishia kwenye lebo inayofuata, mstari mtupu, au "[Condition added by …]" ya mashine ya Board (AGREE yenye masharti)
+  const body = next ? rest.slice(0, next.index) : rest;
+  return body.split(/\n\s*\n|\n?\s*\[Condition added by/i)[0].trim();
 }
+const LEDGER_CONFLICT = /\b(contradict|conflict|violat|locked|against)\w*/i;
+const conflictRefOf = (reason: string): string => (reason.match(/\bA\d+\b/) || [/\bbrief\b/i.test(reason) ? "CEO brief" : ""])[0] || "";
 const isNone = (s: string | null) => !s || /^(none|n\/a|-|—|nil|hakuna)\.?$/i.test(s.trim());
-/** "P-01 (reason); P-03 (reason)" → [{id, reason}] — sababu = maandishi baada ya id hadi id inayofuata. */
+/** Vipengele vya sehemu: vinatenganishwa kwa mstari mpya, ";" au ", <id>" NJE ya mabano — id ndani ya mabano ni sehemu ya sababu
+ *  (run B2 halisi: "D-004 (Duplicate of D-002; merged into D-002)" ilibatilisha D-002 kimakosa). */
+function splitEntries(s: string, kind: "P" | "D"): string[] {
+  const out: string[] = [];
+  let depth = 0, cur = "";
+  const t = String(s).replace(/\*\*/g, "");
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (ch === "(" || ch === "[") depth++;
+    else if ((ch === ")" || ch === "]") && depth > 0) depth--;
+    const split = depth === 0 && (ch === "\n" || ch === ";" || (ch === "," && new RegExp(`^\\s*${kind}-\\d`, "i").test(t.slice(i + 1))));
+    if (split) { out.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((x) => x.replace(/^[\s*\-•\d.)]+(?=[A-Za-z])/, "").trim()).filter(Boolean);
+}
+/** "P-01 (reason); P-03, P-04 — reason" → [{id, reason}] — id za MWANZO wa kipengele tu; zinazotajwa ndani ya sababu hazihesabiwi. */
 function idsWithReasons(s: string | null, kind: "P" | "D"): { id: string; reason: string }[] {
   if (isNone(s)) return [];
-  const re = new RegExp(`\\b${kind}-\\d+\\b`, "g");
-  const hits = [...String(s).matchAll(re)];
-  return hits.map((h, i) => {
-    const end = i + 1 < hits.length ? hits[i + 1].index! : String(s).length;
-    const reason = String(s).slice(h.index! + h[0].length, end).replace(/^[\s:—–-]*\(?/, "").replace(/\)?[\s;,.]*$/, "").trim();
-    return { id: normId(h[0]), reason };
-  });
+  const lead = new RegExp(`^(${kind}-\\d+(?:\\s*(?:,|/|&|and)\\s*${kind}-\\d+)*)\\b`, "i");
+  const res: { id: string; reason: string }[] = [];
+  for (const e of splitEntries(String(s), kind)) {
+    const m = lead.exec(e);
+    if (!m) continue;
+    const reason = e.slice(m[0].length).replace(/^[\s:—–-]*\(?/, "").replace(/\)?[\s;,.]*$/, "").trim();
+    for (const id of m[1].match(new RegExp(`${kind}-\\d+`, "gi")) || []) res.push({ id: normId(id), reason });
+  }
+  return res;
 }
 const normId = (id: string) => { const [k, n] = id.toUpperCase().split("-"); return `${k}-${String(Number(n)).padStart(k === "D" ? 3 : 2, "0")}`; };
 
@@ -250,12 +273,13 @@ export function parseReviewDecision(text: string): ParsedReviewDecision {
   const np = sectionOf(text, "NEW PROPOSALS");
   const found = (["ACCEPTED PROPOSALS", "REJECTED PROPOSALS", "INVALID DEFECTS", "CHANGE REQUESTS", "NEW PROPOSALS"] as const).filter((l) => sectionOf(text, l) !== null);
   return {
-    accepted: isNone(acc) ? [] : [...new Set([...String(acc).matchAll(/\bP-\d+\b/gi)].map((m) => normId(m[0])))],
+    accepted: [...new Set(idsWithReasons(acc, "P").map((x) => x.id))],
     rejected: idsWithReasons(rej, "P"),
     invalid: idsWithReasons(inv, "D"),
-    changeRequests: idsWithReasons(cr, "P").map((x) => ({ id: x.id, conflictsWith: (x.reason.match(/\bA\d+\b/) || [/brief/i.test(x.reason) ? "CEO brief" : ""])[0] || "", reason: x.reason })),
+    changeRequests: idsWithReasons(cr, "P").map((x) => ({ id: x.id, conflictsWith: conflictRefOf(x.reason), reason: x.reason })),
     newProposals: isNone(np) ? [] : String(np).split(/\n|;\s*(?=[A-Z])/).map((l) => l.replace(/^[\s*\-•\d.)]+/, "").trim()).filter((l) => l && !isNone(l)).map((l) => {
-      const [title, ...rest] = l.split(/\s+[—–-]\s+/);
+      // run B3 halisi: "P-05 — Strict Grid: …" → kichwa si "P-05" (id hutolewa na code: P-T1…)
+      const [title, ...rest] = l.replace(/^P-\d+\s*[—–:-]\s*/i, "").split(/\s+[—–-]\s+|:\s+/);
       return { title: clip(title, 160), detail: rest.join(" — ").trim() || title };
     }),
     found,
@@ -284,7 +308,12 @@ export function applyReviewRules(t: ReviewTable, d: { consensus: boolean; decisi
   for (const id of [...pd.accepted, ...pd.changeRequests.map((x) => x.id), ...pd.rejected.map((x) => x.id)]) if (!pIds.has(id)) warnings.push(`unknown proposal id ${id} in decision — ignored`);
   for (const x of pd.invalid) if (!dIds.has(x.id)) warnings.push(`unknown defect id ${x.id} in decision — ignored`);
 
-  const crs = pd.changeRequests.filter((x) => pIds.has(x.id));
+  // maelezo24 #2: mgongano na Ledger/brief = CR (CEO anaamua) — hata kama timu iliuandika chini ya REJECTED
+  const autoCr = pd.rejected
+    .filter((x) => pIds.has(x.id) && !pd.changeRequests.some((c) => c.id === x.id) && LEDGER_CONFLICT.test(x.reason) && !!conflictRefOf(x.reason))
+    .map((x) => ({ id: x.id, conflictsWith: conflictRefOf(x.reason), reason: x.reason }));
+  for (const x of autoCr) warnings.push(`${x.id} was rejected for contradicting ${x.conflictsWith} — recorded as a change request for the CEO (not silently dropped)`);
+  const crs = [...pd.changeRequests.filter((x) => pIds.has(x.id)), ...autoCr];
   const crIds = new Set(crs.map((x) => x.id));
   const props: ReviewProposal[] = [...t.proposals];
   let tn = 1;

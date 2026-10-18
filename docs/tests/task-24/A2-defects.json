@@ -1,0 +1,137 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "id": "D-001",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "mobile navigation / board view",
+   "severity": "blocker",
+   "title": "Mobile bottom navigation bar missing on /board route",
+   "evidence": [
+    "S-004",
+    "S-004 dom: body > div:nth-of-type(3) > div > header · <header> \"Board Room\" · x=0 y=0 width=375 height=56",
+    "S-004 dom: body > div:nth-of-type(3) > div > main · <main> \"CEO request Professor Optimus \" · x=0 y=56 width=375 height=724.55"
+   ],
+   "expected": "Locked decision A1 specifies: 'Header on top; conversation/board in the main area; on mobile a bottom navigation bar.' The bottom navigation bar must be persistently present on mobile viewports (375x667) across all primary screens, including the Board Room.",
+   "actual": "On route /board at 375x667 (S-004), no bottom navigation bar (`body > nav`) is present in the DOM or viewport. The user cannot navigate back to Overview, Agents, or Reports from the board screen.",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "mobile navigation / accessibility",
+   "severity": "major",
+   "title": "Low text contrast on inactive mobile bottom navigation items",
+   "evidence": [
+    "S-001 dom: body > nav > a:nth-of-type(2) · <a> \"Board\" · x=102.25 y=594 width=85.25 height=60 · fontSize=10.5px fontWeight=500 fontFamily=GeistSans · color=rgb(86, 92, 108) backgroundColor=rgb(11, 12, 17) contrastRatio=2.92 LOW-CONTRAST · touch 85.25x60",
+    "S-001 dom: body > nav > a:nth-of-type(3) · <a> \"Agents\" · x=187.5 y=594 width=85.25 height=60 · fontSize=10.5px fontWeight=500 fontFamily=GeistSans · color=rgb(86, 92, 108) backgroundColor=rgb(11, 12, 17) contrastRatio=2.92 LOW-CONTRAST · touch 85.25x60",
+    "S-001 dom: body > nav > a:nth-of-type(4) · <a> \"Reports\" · x=272.75 y=594 width=85.25 height=60 · fontSize=10.5px fontWeight=500 fontFamily=GeistSans · color=rgb(86, 92, 108) backgroundColor=rgb(11, 12, 17) contrastRatio=2.92 LOW-CONTRAST · touch 85.25x60",
+    "S-002 dom: body > nav > a:nth-of-type(2) · <a> \"Board\" · x=200.5 y=951 width=183.5 height=60 · fontSize=10.5px fontWeight=500 fontFamily=GeistSans · color=rgb(86, 92, 108) backgroundColor=rgb(11, 12, 17) contrastRatio=2.92 LOW-CONTRAST · touch 183.5x60"
+   ],
+   "expected": "Locked decision A1 specifies: 'Text contrast ≥4.5:1 (WCAG AA).'",
+   "actual": "Inactive navigation items ('Board', 'Agents', 'Reports') in the mobile navigation bar use color rgb(86, 92, 108) on rgb(11, 12, 17) background, resulting in a contrast ratio of only 2.92:1, failing WCAG AA requirements.",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-003",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "touch targets / accessibility",
+   "severity": "major",
+   "title": "Interactive controls fail minimum touch target requirement of 44x44px",
+   "evidence": [
+    "check:T23-touch-mobile",
+    "S-001 dom: body > div:nth-of-type(3) > div > header > button · <button> \"Open menu\" · x=13 y=10 width=36 height=36 · fontSize=16px fontWeight=400 fontFamily=GeistSans · color=rgb(133, 139, 155) backgroundColor=rgb(11, 12, 17) contrastRatio=5.73 · touch 36x36 TOO-SMALL",
+    "S-001 dom: body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(2) > div > div > button · <button> \"Convene board\" · x=205 y=659.14 width=142 height=36 · fontSize=12.5px fontWeight=600 fontFamily=GeistSans · color=rgb(255, 255, 255) backgroundColor=rgb(11, 13, 18) contrastRatio=19.42 · touch 142x36 TOO-SMALL",
+    "S-001 dom: body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(5) > div > button · <button> \"Open\" · x=282 y=2366.84 width=61 height=26.5 · fontSize=11px fontWeight=400 fontFamily=GeistSans · color=rgb(180, 185, 198) backgroundColor=rgb(7, 8, 11) contrastRatio=10.2 · touch 61x26.5 TOO-SMALL",
+    "S-004 dom: body > div:nth-of-type(3) > div > header > button · <button> \"Open menu\" · x=13 y=10 width=36 height=36 · fontSize=16px fontWeight=400 fontFamily=GeistSans · color=rgb(133, 139, 155) backgroundColor=rgb(11, 12, 17) contrastRatio=5.73 · touch 36x36 TOO-SMALL",
+    "S-004 dom: body > div:nth-of-type(3) > div > main > div > div:nth-of-type(3) > div > button · <button> \"Convene board\" · x=205 y=696.55 width=142 height=36 · fontSize=12.5px fontWeight=600 fontFamily=GeistSans · color=rgb(255, 255, 255) backgroundColor=rgb(11, 13, 18) contrastRatio=19.42 · touch 142x36 TOO-SMALL"
+   ],
+   "expected": "Locked decision A1 specifies: 'Every interactive control ≥44×44 px.' Check check:T23-touch-mobile requires all buttons and links to be at least 44×44px.",
+   "actual": "Key interactive controls fail the 44px threshold: header menu toggle buttons measure 36×36px, primary CTA 'Convene board' buttons measure 142×36px (height 36px), and secondary action 'Open' measures 61×26.5px (height 26.5px).",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-004",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "navigation / mobile shell",
+   "severity": "blocker",
+   "title": "Mobile bottom navigation bar is completely missing on /board route",
+   "evidence": [
+    "S-004",
+    "check:T23-live"
+   ],
+   "expected": "Locked decision A1 requires: 'Header on top; conversation/board in the main area; on mobile a bottom navigation bar.' The bottom navigation bar must persist across primary mobile routes including /board.",
+   "actual": "On route /board at 375x667 (S-004), there is no bottom navigation bar in the DOM (body > nav is missing), trapping mobile users on the board view with no tab access back to Overview, Agents, or Reports.",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-005",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "accessibility / touch targets",
+   "severity": "blocker",
+   "title": "Interactive buttons and link controls violate minimum 44x44px touch target size",
+   "evidence": [
+    "S-001",
+    "S-001 dom: body > div:nth-of-type(3) > div > header > button height=36",
+    "S-001 dom: body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(2) > div > div > button height=36",
+    "S-001 dom: body > div:nth-of-type(3) > div > main > div > div:nth-of-type(1) > section:nth-of-type(5) > div > button height=26.5",
+    "check:T23-touch-mobile"
+   ],
+   "expected": "Locked decision A1 requires: 'Every interactive control ≥44×44 px.'",
+   "actual": "check:T23-touch-mobile fails with 3 buttons too small on mobile. Header menu button is 36x36px, 'Convene board' button is 142x36px (height 36px < 44px), 'Open' button is 61x26.5px (height 26.5px < 44px), and additional anchor buttons such as 'All' (52x27.25px), 'Read' (70x32px), and 'All sessions' (118x36px) fail the 44px height threshold.",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-006",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "navigation / typography & contrast",
+   "severity": "major",
+   "title": "Inactive mobile bottom navigation links fail WCAG AA 4.5:1 text contrast ratio",
+   "evidence": [
+    "S-001",
+    "S-001 dom: body > nav > a:nth-of-type(2) contrastRatio=2.92",
+    "S-001 dom: body > nav > a:nth-of-type(3) contrastRatio=2.92",
+    "S-001 dom: body > nav > a:nth-of-type(4) contrastRatio=2.92"
+   ],
+   "expected": "Locked decision A1 requires: 'Text contrast ≥4.5:1 (WCAG AA).'",
+   "actual": "The inactive bottom nav items ('Board', 'Agents', 'Reports') use color rgb(86, 92, 108) on rgb(11, 12, 17) background, yielding a contrast ratio of only 2.92:1, failing the WCAG AA 4.5:1 threshold.",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  }
+ ]
+}

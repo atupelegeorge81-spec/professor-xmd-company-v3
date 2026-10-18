@@ -1,0 +1,231 @@
+{
+ "version": 1,
+ "changeOrders": [
+  {
+   "id": "CO-001",
+   "defectIds": [
+    "D-002"
+   ],
+   "decisionIds": [],
+   "attempt": 1,
+   "priority": 1,
+   "location": {
+    "route": "/",
+    "selector": "header"
+   },
+   "current": "Language toggle is missing from header (0 matches for button#lang-toggle). Header contains only nav links 'WANAUME', 'WANAWAKE', and 'MPYA'.",
+   "desired": "Header must include a SW/EN language toggle on the right side using <button id=\"lang-toggle\">SW | EN</button> with touch target dimensions ≥ 44×44 px, visible across 375px, 768px, and 1280px viewports.",
+   "visionNote": "Bilingual support (Swahili/English) is crucial for local market trust and usability in Dar es Salaam.",
+   "acceptance": [
+    {
+     "id": "check-lang-toggle-exists",
+     "type": "dom_exists",
+     "route": "/",
+     "selector": "header button#lang-toggle"
+    },
+    {
+     "id": "check-lang-toggle-touch",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "button#lang-toggle",
+     "minPx": 44
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-002",
+   "defectIds": [
+    "D-001"
+   ],
+   "decisionIds": [],
+   "attempt": 1,
+   "priority": 2,
+   "location": {
+    "route": "/",
+    "selector": "body"
+   },
+   "current": "Logo, header navigation, hero heading h1, card prices, and footer are rendered with fontFamily=Courier New.",
+   "desired": "Global typography must use Inter or system sans-serif ONLY. Remove Courier New and all monospace font declarations completely from header, hero, price tags, cards, and footer.",
+   "visionNote": "A clean sans-serif stack preserves the night-time premium streetwear tone without defaulting to a code-editor aesthetic.",
+   "acceptance": [
+    {
+     "id": "check-body-font",
+     "type": "computed_style",
+     "route": "/",
+     "selector": "body",
+     "property": "font-family",
+     "forbidden": "Courier New"
+    },
+    {
+     "id": "check-header-font",
+     "type": "computed_style",
+     "route": "/",
+     "selector": "header",
+     "property": "font-family",
+     "forbidden": "Courier New"
+    },
+    {
+     "id": "check-h1-font",
+     "type": "computed_style",
+     "route": "/",
+     "selector": "h1",
+     "property": "font-family",
+     "forbidden": "Courier New"
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-003",
+   "defectIds": [
+    "D-005"
+   ],
+   "decisionIds": [],
+   "attempt": 1,
+   "priority": 2,
+   "location": {
+    "route": "/",
+    "selector": "#shop article"
+   },
+   "current": "Crimson text rgb(225, 29, 72) (#E11D48) on surface rgb(20, 20, 22) (#141416) yields a contrast ratio of 3.92:1, failing WCAG AA 4.5:1 minimum.",
+   "desired": "Restrict #E11D48 strictly to primary CTA button backgrounds (with white text #FFFFFF). Set card titles and primary body text to #F5F5F5 and secondary metadata/prices to high-contrast colors (e.g., #F5F5F5 or #A1A1AA) on surface #141416, ensuring contrast ratio ≥ 4.5:1.",
+   "visionNote": "Ensures WCAG AA compliance while maintaining a high-contrast, calm night-time aesthetic.",
+   "acceptance": [
+    {
+     "id": "check-card-title-contrast",
+     "type": "contrast_min",
+     "route": "/",
+     "selector": "#shop article h3",
+     "min": 4.5
+    },
+    {
+     "id": "check-card-price-contrast",
+     "type": "contrast_min",
+     "route": "/",
+     "selector": "#shop article p",
+     "min": 4.5
+    },
+    {
+     "id": "check-header-contrast",
+     "type": "contrast_min",
+     "route": "/",
+     "selector": "header",
+     "min": 4.5
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-004",
+   "defectIds": [
+    "D-003"
+   ],
+   "decisionIds": [],
+   "attempt": 1,
+   "priority": 3,
+   "location": {
+    "route": "/",
+    "selector": "header nav a"
+   },
+   "current": "Nav link anchors have a rendered height of only 15px (68.06x15, 77.78x15, 38.89x15).",
+   "desired": "Increase header nav link touch targets to achieve computed touch dimensions of min-height ≥ 44px and min-width ≥ 44px (e.g., via inline-flex and vertical padding within 64px header).",
+   "visionNote": "Guarantees reliable, effortless tapping across desktop and mobile devices.",
+   "acceptance": [
+    {
+     "id": "check-nav-touch-1",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "header nav a:nth-of-type(1)",
+     "minPx": 44
+    },
+    {
+     "id": "check-nav-touch-2",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "header nav a:nth-of-type(2)",
+     "minPx": 44
+    },
+    {
+     "id": "check-nav-touch-3",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "header nav a:nth-of-type(3)",
+     "minPx": 44
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-005",
+   "defectIds": [],
+   "decisionIds": [
+    "R-M1-0/P-03"
+   ],
+   "attempt": 1,
+   "priority": 3,
+   "location": {
+    "route": "/",
+    "selector": "#whatsapp-sticky-bar"
+   },
+   "current": "No fixed mobile order bar exists at viewport width 375px.",
+   "desired": "Implement a fixed bottom bar at viewport width <768px (e.g., id=\"whatsapp-sticky-bar\") containing one primary CTA 'Agiza kwa WhatsApp' (height ≥48px, background #E11D48, text #FFFFFF, Inter, sentence case) opening wa.me with product details; hidden at ≥768px.",
+   "visionNote": "Drives mobile conversion on WhatsApp, the primary order mechanism in Dar es Salaam.",
+   "acceptance": [
+    {
+     "id": "check-whatsapp-bar-exists",
+     "type": "dom_exists",
+     "route": "/",
+     "selector": "#whatsapp-sticky-bar",
+     "viewport": "375x667"
+    },
+    {
+     "id": "check-whatsapp-cta-touch",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "#whatsapp-sticky-bar a, #whatsapp-sticky-bar button",
+     "minPx": 44,
+     "viewport": "375x667"
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-006",
+   "defectIds": [],
+   "decisionIds": [
+    "R-M1-0/P-T1"
+   ],
+   "attempt": 1,
+   "priority": 3,
+   "location": {
+    "route": "/",
+    "selector": "#shop"
+   },
+   "current": "Product grid renders 5 columns at 1280px viewport.",
+   "desired": "Enforce a strict 4-column product grid at 1280px desktop breakpoint using grid-template-columns: repeat(4, minmax(0, 1fr)) (or lg:grid-cols-4).",
+   "visionNote": "Maintains the premium spacing and rhythmic grid layout defined in A3.",
+   "acceptance": [
+    {
+     "id": "check-grid-exists",
+     "type": "dom_exists",
+     "route": "/",
+     "selector": "#shop"
+    },
+    {
+     "id": "check-no-overflow",
+     "type": "no_horizontal_overflow",
+     "routes": [
+      "/"
+     ],
+     "viewports": [
+      "375x667",
+      "768x1024",
+      "1280x800"
+     ]
+    }
+   ],
+   "mode": "standard"
+  }
+ ]
+}

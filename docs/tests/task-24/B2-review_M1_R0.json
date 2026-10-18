@@ -1,0 +1,408 @@
+{
+ "version": 1,
+ "reviewId": "R-M1-0",
+ "table": {
+  "reviewId": "R-M1-0",
+  "milestoneId": "M1",
+  "round": 0,
+  "defects": [
+   {
+    "id": "D-001",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "designer"
+    ],
+    "area": "typography",
+    "severity": "major",
+    "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+    "evidence": [
+     "S-001",
+     "S-001 dom: body > header > div fontFamily=Courier New",
+     "S-001 dom: body > header > nav > a:nth-of-type(1) fontFamily=Courier New",
+     "S-001 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+     "S-001 dom: #shop > article:nth-of-type(1) > p fontFamily=Courier New",
+     "S-001 dom: body > footer fontFamily=Courier New",
+     "S-002 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+     "S-003 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New"
+    ],
+    "expected": "Typography must be Inter or system sans-serif ONLY. Monospace fonts are explicitly prohibited (A1: 'tech-startup look, not fashion').",
+    "actual": "Logo, navigation links, hero heading h1, card prices, and footer are rendered with fontFamily=Courier New.",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   },
+   {
+    "id": "D-002",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "designer"
+    ],
+    "area": "header",
+    "severity": "blocker",
+    "title": "SW/EN language toggle (button#lang-toggle) is missing from header",
+    "evidence": [
+     "check:M1-S1-a",
+     "S-001",
+     "S-002",
+     "S-003"
+    ],
+    "expected": "Header must include a SW/EN language toggle on the right (button#lang-toggle), visible across 375, 768, and 1280 viewports (A2).",
+    "actual": "check:M1-S1-a failed (0 matches for button#lang-toggle). The header contains only nav links 'WANAUME', 'WANAWAKE', and 'MPYA'.",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   },
+   {
+    "id": "D-003",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "designer"
+    ],
+    "area": "header",
+    "severity": "minor",
+    "title": "Header navigation links touch targets are under 44px minimum height",
+    "evidence": [
+     "S-001",
+     "S-001 dom: body > header > nav > a:nth-of-type(1) height=15",
+     "S-001 dom: body > header > nav > a:nth-of-type(2) height=15",
+     "S-001 dom: body > header > nav > a:nth-of-type(3) height=15"
+    ],
+    "expected": "Touch targets for interactive navigation elements must be ≥ 44×44 px.",
+    "actual": "Nav link anchors have a rendered height of only 15px (touch 68.06x15, 77.78x15, 38.89x15 TOO-SMALL).",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   },
+   {
+    "id": "D-004",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "frontend"
+    ],
+    "area": "header",
+    "severity": "blocker",
+    "title": "Missing bilingual language toggle button#lang-toggle",
+    "evidence": [
+     "check:M1-S1-a",
+     "S-001 dom: body > header > nav height=21",
+     "S-002",
+     "S-003"
+    ],
+    "expected": "Locked decision A2 requires a 64px header with logo left, navigation, and a SW/EN language toggle on the right ('button#lang-toggle') visible at all viewports.",
+    "actual": "Automated check check:M1-S1-a failed (matched 0). button#lang-toggle is not present in the DOM, as confirmed by XMD Computer's build report known gaps.",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   },
+   {
+    "id": "D-005",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "frontend"
+    ],
+    "area": "accessibility",
+    "severity": "major",
+    "title": "Text contrast ratio fails WCAG AA minimum 4.5:1",
+    "evidence": [
+     "check:M1-S1-b",
+     "S-001 dom: #shop > article:nth-of-type(1) > p contrastRatio=3.92 LOW-CONTRAST",
+     "S-001 dom: #shop > article:nth-of-type(1) > h3 contrastRatio=3.92 LOW-CONTRAST",
+     "S-001 dom: body > header contrastRatio=4.31 LOW-CONTRAST"
+    ],
+    "expected": "WCAG AA standard and milestone design tokens require text contrast >= 4.5:1 on background.",
+    "actual": "check:M1-S1-b failed with 13 text elements below 4.5:1 (crimson rgb(225, 29, 72) text against dark surface rgb(20, 20, 22) yields 3.92:1 contrast ratio; header text yields 4.31:1).",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   },
+   {
+    "id": "D-006",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "frontend"
+    ],
+    "area": "header",
+    "severity": "medium",
+    "title": "Header navigation link touch target heights are undersized (15px vs >=44px)",
+    "evidence": [
+     "S-001 dom: body > header > nav > a:nth-of-type(1) height=15",
+     "S-001 dom: body > header > nav > a:nth-of-type(2) height=15",
+     "S-001 dom: body > header > nav > a:nth-of-type(3) height=15"
+    ],
+    "expected": "Milestone plan tech tokens require touch targets >= 44x44 px for interactive elements.",
+    "actual": "Header nav links have a computed touch target height of only 15px (e.g. 68.06x15, 77.78x15, 38.89x15).",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   }
+  ],
+  "proposals": [
+   {
+    "id": "P-01",
+    "by": "designer",
+    "title": "Serif display headings",
+    "detail": "Replace Inter on h1/h2 and product names with the serif display font Playfair Display (Google Fonts) for a luxury editorial feel; keep Inter for body text.",
+    "rationale": "Premium streetwear brands use serif display type to feel exclusive.",
+    "evidence": [
+     "S-003"
+    ]
+   },
+   {
+    "id": "P-02",
+    "by": "designer",
+    "title": "Autoplay hero background video",
+    "detail": "Add a 15-second looping 1080p MP4 of Dar es Salaam at night that autoplays muted behind the hero on ALL viewports, including 375px mobile.",
+    "rationale": "Movement makes the night-time mood stronger than a static image.",
+    "evidence": [
+     "S-001",
+     "S-003"
+    ]
+   },
+   {
+    "id": "P-03",
+    "by": "designer",
+    "title": "Sticky mobile WhatsApp order bar",
+    "detail": "At 375px add a fixed bottom bar with one primary CTA 'Agiza kwa WhatsApp' (height ≥48px, accent #E11D48 as a primary CTA button, Inter, sentence case) that opens wa.me with the product name; hidden at ≥768px where the card buttons are visible.",
+    "rationale": "The brief sells through WhatsApp ordering; on a phone the order action scrolls away under 6 cards.",
+    "evidence": [
+     "S-001"
+    ]
+   },
+   {
+    "id": "P-04",
+    "by": "frontend",
+    "title": "Sticky mobile WhatsApp order bar",
+    "detail": "At 375px add a fixed bottom bar with one primary CTA 'Agiza kwa WhatsApp' (height ≥48px, accent #E11D48 as a primary CTA button, Inter, sentence case) that opens wa.me with the product name; hidden at ≥768px where the card buttons are visible.",
+    "rationale": "The brief sells through WhatsApp ordering; on a phone the order action scrolls away under 6 cards.",
+    "evidence": [
+     "S-001"
+    ]
+   }
+  ],
+  "decisionRefs": {
+   "D-001": "A1",
+   "D-002": "A2",
+   "D-003": "A1",
+   "D-004": "A2",
+   "D-005": "A1",
+   "D-006": "A1"
+  },
+  "notes": {
+   "designer": "The build diverges fundamentally from the locked brand system in A1: instead of a dark, calm, premium night-time palette (#0B0B0C / #141416 / #F5F5F5) with restrained accent #E11D48 on primary CTAs only, the entire header and footer are bright crimson red, and all headings, prices, borders, and body text are rendered in red Courier New monospace. The language toggle is missing (A2), all 6 cards repeat the same tee.svg (A3), and desktop grid displays 5 columns instead of 4 (A3). These require an immediate comprehensive change order for Round 1.",
+   "frontend": "M1 implementation deviates significantly from locked decisions A1, A2, and A3. The excessive use of red #E11D48 across header, footer, headings, and borders creates a loud aesthetic directly contrary to the requested 'dark, calm, premium night-time feel'. Courier New was used despite monospace being explicitly prohibited, and the language toggle is entirely absent. The grid layout at 1280px must be fixed from 5 columns to 4 columns (repeat(4, minmax(0, 1fr)))."
+  }
+ },
+ "rules": {
+  "consensus": true,
+  "acceptedProposals": [
+   {
+    "id": "P-03",
+    "by": "designer",
+    "title": "Sticky mobile WhatsApp order bar",
+    "detail": "At 375px add a fixed bottom bar with one primary CTA 'Agiza kwa WhatsApp' (height ≥48px, accent #E11D48 as a primary CTA button, Inter, sentence case) that opens wa.me with the product name; hidden at ≥768px where the card buttons are visible.",
+    "rationale": "The brief sells through WhatsApp ordering; on a phone the order action scrolls away under 6 cards.",
+    "evidence": [
+     "S-001"
+    ]
+   },
+   {
+    "id": "P-T1",
+    "by": "team",
+    "title": "P-05 Correct Grid Columns at 1280px",
+    "detail": "Ensure `#shop` grid strictly uses 4 columns (`grid-template-columns: repeat(4, minmax(0, 1fr))`) at 1280px viewport per locked decision A3, removing the 5-column layout.",
+    "rationale": "originated in the team discussion and agreed by all participants",
+    "evidence": []
+   },
+   {
+    "id": "P-T2",
+    "by": "team",
+    "title": "P-06 Unique Product Assets",
+    "detail": "Force the use of 6 distinct image sources (e.g., `/product-1.jpg` through `/product-6.jpg`) instead of repeating `tee.svg` to verify the grid's visual integrity per A3.",
+    "rationale": "originated in the team discussion and agreed by all participants",
+    "evidence": []
+   }
+  ],
+  "rejectedProposals": [
+   {
+    "id": "P-02",
+    "reason": "Autoplay 1080p hero video — rejected due to excessive mobile payload and disruption of \"calm\" feel"
+   },
+   {
+    "id": "P-04",
+    "reason": "not accepted by all three (Ultron, Vextron, Optimus)"
+   }
+  ],
+  "invalidDefects": [
+   {
+    "id": "D-004",
+    "reason": "Duplicate of"
+   },
+   {
+    "id": "D-002",
+    "reason": "; merged into"
+   }
+  ],
+  "changeRequests": [
+   {
+    "proposalId": "P-01",
+    "conflictsWith": "A1",
+    "reason": "conflicts with A1 (A1 specifies \"Typography Inter / system sans-serif ONLY\", prohibiting serif fonts like Playfair Display"
+   }
+  ],
+  "openDefects": [
+   {
+    "id": "D-001",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "designer"
+    ],
+    "area": "typography",
+    "severity": "major",
+    "title": "Courier New monospace font used across branding, navigation, headings, prices, and footer",
+    "evidence": [
+     "S-001",
+     "S-001 dom: body > header > div fontFamily=Courier New",
+     "S-001 dom: body > header > nav > a:nth-of-type(1) fontFamily=Courier New",
+     "S-001 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+     "S-001 dom: #shop > article:nth-of-type(1) > p fontFamily=Courier New",
+     "S-001 dom: body > footer fontFamily=Courier New",
+     "S-002 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New",
+     "S-003 dom: body > main > section:nth-of-type(1) > h1 fontFamily=Courier New"
+    ],
+    "expected": "Typography must be Inter or system sans-serif ONLY. Monospace fonts are explicitly prohibited (A1: 'tech-startup look, not fashion').",
+    "actual": "Logo, navigation links, hero heading h1, card prices, and footer are rendered with fontFamily=Courier New.",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   },
+   {
+    "id": "D-003",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "designer"
+    ],
+    "area": "header",
+    "severity": "minor",
+    "title": "Header navigation links touch targets are under 44px minimum height",
+    "evidence": [
+     "S-001",
+     "S-001 dom: body > header > nav > a:nth-of-type(1) height=15",
+     "S-001 dom: body > header > nav > a:nth-of-type(2) height=15",
+     "S-001 dom: body > header > nav > a:nth-of-type(3) height=15"
+    ],
+    "expected": "Touch targets for interactive navigation elements must be ≥ 44×44 px.",
+    "actual": "Nav link anchors have a rendered height of only 15px (touch 68.06x15, 77.78x15, 38.89x15 TOO-SMALL).",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   },
+   {
+    "id": "D-005",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "frontend"
+    ],
+    "area": "accessibility",
+    "severity": "major",
+    "title": "Text contrast ratio fails WCAG AA minimum 4.5:1",
+    "evidence": [
+     "check:M1-S1-b",
+     "S-001 dom: #shop > article:nth-of-type(1) > p contrastRatio=3.92 LOW-CONTRAST",
+     "S-001 dom: #shop > article:nth-of-type(1) > h3 contrastRatio=3.92 LOW-CONTRAST",
+     "S-001 dom: body > header contrastRatio=4.31 LOW-CONTRAST"
+    ],
+    "expected": "WCAG AA standard and milestone design tokens require text contrast >= 4.5:1 on background.",
+    "actual": "check:M1-S1-b failed with 13 text elements below 4.5:1 (crimson rgb(225, 29, 72) text against dark surface rgb(20, 20, 22) yields 3.92:1 contrast ratio; header text yields 4.31:1).",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   },
+   {
+    "id": "D-006",
+    "milestoneId": "M1",
+    "foundInRound": 0,
+    "reportedBy": [
+     "frontend"
+    ],
+    "area": "header",
+    "severity": "medium",
+    "title": "Header navigation link touch target heights are undersized (15px vs >=44px)",
+    "evidence": [
+     "S-001 dom: body > header > nav > a:nth-of-type(1) height=15",
+     "S-001 dom: body > header > nav > a:nth-of-type(2) height=15",
+     "S-001 dom: body > header > nav > a:nth-of-type(3) height=15"
+    ],
+    "expected": "Milestone plan tech tokens require touch targets >= 44x44 px for interactive elements.",
+    "actual": "Header nav links have a computed touch target height of only 15px (e.g. 68.06x15, 77.78x15, 38.89x15).",
+    "status": "OPEN",
+    "attempts": 0,
+    "history": []
+   }
+  ],
+  "warnings": [
+   "unknown proposal id P-05 in decision — ignored",
+   "unknown proposal id P-06 in decision — ignored",
+   "D-002 listed as invalid without a reason — kept in the defect ledger"
+  ]
+ },
+ "at": "2026-10-18T21:11:27.441Z",
+ "discussion": {
+  "consensus": true,
+  "decision": "**ACCEPTED PROPOSALS:** \n- **P-03** (Sticky mobile WhatsApp bar on viewports < 768px, height ≥48px, primary CTA accent #E11D48, Inter sans-serif, sentence case).\n- **P-05** (Correct Grid Columns at 1280px — Ensure `#shop` grid strictly uses 4 columns `grid-template-columns: repeat(4, minmax(0, 1fr))` per A3).\n- **P-06** (Unique Product Assets — Use distinct image paths or unique color-coded placeholders for each of the 6 products to satisfy A3 \"distinct real or sample photos\").\n\n**REJECTED PROPOSALS:** \n- **P-02** (Autoplay 1080p hero video — rejected due to excessive mobile payload and disruption of \"calm\" feel).\n\n**INVALID DEFECTS:** \n- **D-004** (Duplicate of D-002; merged into D-002).\n\n**CHANGE REQUESTS:** \n- **P-01** conflicts with A1 (A1 specifies \"Typography Inter / system sans-serif ONLY\", prohibiting serif fonts like Playfair Display).\n\n**NEW PROPOSALS:** \n- **P-05 Correct Grid Columns at 1280px** — Ensure `#shop` grid strictly uses 4 columns (`grid-template-columns: repeat(4, minmax(0, 1fr))`) at 1280px viewport per locked decision A3, removing the 5-column layout.\n- **P-06 Unique Product Assets** — Force the use of 6 distinct image sources (e.g., `/product-1.jpg` through `/product-6.jpg`) instead of repeating `tee.svg` to verify the grid's visual integrity per A3.",
+  "closeReason": "consensus (all owners AGREE)",
+  "transcript": [
+   {
+    "name": "Ultron",
+    "text": "I have thoroughly reviewed the findings from both my independent UI review and Vextron's audit, along with the automated check results and evidence screenshots (S-001, S-002, S-003). The build currently diverges from our locked decisions, and we need to formulate a clear, actionable change order set for the XMD Computer.\n\n### 1. Evaluation of Defects\n\n* **D-001 (Monospace Courier New everywhere)** & **D-005 (Text Contrast Failure)**: Fully verified. The excessive use of red `Courier New` text on `#141416` surface fails WCAG AA contrast (3.92:1 < 4.5:1) and violates A1 (`Inter / system sans-serif ONLY`, no monospace, dark background).\n* **D-002 & D-004 (Missing `button#lang-toggle`)**: These are identical defects reported independently. D-004 is a duplicate of D-001/D-002.\n* **D-003 & D-006 (Header nav touch targets < 44px)**: Verified. Height of 15px is unclickable on mobile screens (375px).\n\n### 2. Evaluation of Proposals\n\n* **P-01 (Serif Display / Playfair Display)**: **MUST BE REJECTED / MOVED TO CHANGE REQUESTS**. A1 explicitly states: *\"Typography Inter / system sans-serif ONLY — no monospace fonts\"*. Introducing Playfair Display directly contradicts locked decision A1.\n* **P-02 (Autoplay 1080p MP4 Hero Video on Mobile)**: **REJECT**. Autoplay video on a 375px mobile viewport in Dar es Salaam creates heavy network overhead and disrupts the \"calm, night-time feel\" mandated in A1. A crisp, optimized static ambient image or quiet CSS gradient is superior.\n* **P-03 / P-04 (Sticky Mobile WhatsApp Bar)**: **ACCEPT**. Both Vextron and I independently identified that on mobile devices (375px), having a fixed bottom CTA (`Agiza kwa WhatsApp`, height ≥48px, primary CTA accent `#E11D48`, Inter, sentence case) dramatically improves conversion for a WhatsApp-first storefront.\n\n---\n\nPROPOSED DECISION:\nACCEPTED PROPOSALS: P-03 (Sticky mobile WhatsApp bar on viewports < 768px, height ≥48px, primary CTA accent #E11D48, Inter sans-serif, sentence case)\nREJECTED PROPOSALS: P-02 (Autoplay 1080p hero video on mobile adds excessive payload and breaks the calm night-time feel)\nINVALID DEFECTS: D-004 (Duplicate of D-002; merged into D-002)\nCHANGE REQUESTS: P-01 conflicts with A1 (A1 specifies \"Typography Inter / system sans-serif ONLY\", prohibiting serif fonts like Playfair Display)\nNEW PROPOSALS: P-05 Correct Grid Columns at 1280px — Ensure `#shop` grid strictly uses 4 columns (`grid-template-columns: repeat(4, minmax(0, 1fr))`) at 1280px viewport per locked decision A3, removing the 5-column layout.\nRATIONALE: Consolidating defect reports into actionable change orders will fix contrast, missing elements (language toggle), font compliance, touch target sizing, and layout constraints in a single clean pass.\nTRADE-OFF: The sticky WhatsApp bar takes up 48–56px of vertical screen real estate on mobile devices, but guarantees instant access to ordering without forcing the user to scroll back up or down to card buttons.\nEVIDENCE: check:M1-S1-a (FAIL 0 match for lang-toggle), check:M1-S1-b (FAIL 3.92 contrast), S-001 dom metric height=15px on nav links, and screenshot S-003 showing 5 grid columns at 1280px.",
+    "tag": "owner"
+   },
+   {
+    "name": "Vextron",
+    "text": "I have reviewed the current build results and Ultron’s proposed decision. As the Frontend Engineer, my focus is on technical compliance, performance, and accessibility. The current implementation is a \"loud\" departure from the \"premium night-time\" brief, and we must enforce the locked design tokens strictly.\n\n### 1. Technical Evaluation of Defects\n\n*   **D-001 (Monospace Font Violation):** I strongly support Ultron’s assessment. The use of `Courier New` (confirmed in `S-001 dom`) across the logo, nav, and prices is a direct violation of A1. It gives the site a \"brutalist/tech\" feel rather than the \"premium fashion\" vibe requested. We need to reset the font stack to `Inter, system-ui, sans-serif`.\n*   **D-005 (Contrast Failure):** The automated check `check:M1-S1-b` (3.92:1) confirms that using the accent `#E11D48` for body text or headings on a `#141416` background is an accessibility failure. Per A1, `#E11D48` is **strictly** for primary CTAs. Fixing this will naturally resolve the contrast issue by returning text to `#F5F5F5`.\n*   **D-003/D-006 (Touch Targets):** The 15px height on nav links is a significant usability blocker for mobile users in Dar es Salaam who may be browsing on-the-go. We must ensure `min-height: 44px` for all interactive elements.\n\n### 2. Evaluation of Proposals\n\n*   **P-01 (Serif Display):** I agree with Ultron’s move to **CHANGE REQUESTS**. While Playfair Display is a common \"premium\" choice, A1 is explicit: \"Inter / system sans-serif ONLY\". We cannot override a locked decision in a review; we must flag it for Mkuu.\n*   **P-02 (Autoplay Video):** I support the **REJECTION**. From a frontend performance perspective, a 1080p MP4 on mobile viewports (375px) is irresponsible in a region where data costs and bandwidth vary. It also risks \"layout shift\" and degrades the \"calm\" feel.\n*   **P-03/P-04 (Sticky WhatsApp Bar):** I **ACCEPT** this. On mobile, the \"Add to Cart\" buttons on the 6th product are roughly 1800px-2200px down the page. A sticky `position: fixed; bottom: 0;` bar ensures the primary conversion path is always present. \n\n### 3. New Proposals & Refinements\n\nI am introducing **P-05** to address the grid discrepancy. `S-003` shows 5 columns at 1280px, but A3 explicitly locks the grid to 4 columns (`repeat(4, minmax(0, 1fr))`). This is a critical layout fix to maintain the \"premium\" whitespace and product prominence.\n\nI also propose **P-06** regarding the image assets. Currently, all cards use `tee.svg`. A3 requires \"distinct real or sample photos\". We should instruct the Computer to use unique placeholder paths or distinct colors to verify the grid's visual rhythm.\n\n---\n\n**PROPOSED DECISION:**\n**ACCEPTED PROPOSALS:** \n- **P-03** (Sticky mobile WhatsApp bar on viewports < 768px, height ≥48px, primary CTA accent #E11D48, Inter sans-serif, sentence case).\n- **P-05** (Correct Grid Columns at 1280px — Ensure `#shop` grid strictly uses 4 columns `grid-template-columns: repeat(4, minmax(0, 1fr))` per A3).\n- **P-06** (Unique Product Assets — Use distinct image paths or unique color-coded placeholders for each of the 6 products to satisfy A3 \"distinct real or sample photos\").\n\n**REJECTED PROPOSALS:** \n- **P-02** (Autoplay 1080p hero video — rejected due to excessive mobile payload and disruption of \"calm\" feel).\n\n**INVALID DEFECTS:** \n- **D-004** (Duplicate of D-002; merged into D-002).\n\n**CHANGE REQUESTS:** \n- **P-01** conflicts with A1 (A1 specifies \"Typography Inter / system sans-serif ONLY\", prohibiting serif fonts like Playfair Display).\n\n**NEW PROPOSALS:** \n- **P-05 Correct Grid Columns at 1280px** — Ensure `#shop` grid strictly uses 4 columns (`grid-template-columns: repeat(4, minmax(0, 1fr))`) at 1280px viewport per locked decision A3, removing the 5-column layout.\n- **P-06 Unique Product Assets** — Force the use of 6 distinct image sources (e.g., `/product-1.jpg` through `/product-6.jpg`) instead of repeating `tee.svg` to verify the grid's visual integrity per A3.\n\n**RATIONALE:** \nThe build currently fails on almost every brand-critical metric (typography, palette, contrast, and layout). By accepting P-03 and P-05, we optimize for mobile conversion and desktop layout consistency. Rejecting P-02 protects performance. Consolidating the defects into a single \"Reset to A1/A2/A3\" change order is the most efficient path forward.\n\n**TRADE-OFF:** \nThe sticky WhatsApp bar (P-03) reduces vertical viewport space on mobile, but this is a standard e-commerce pattern that prioritizes the \"WhatsApp ordering\" requirement of the brief over pure aesthetic minimalism.\n\n**EVIDENCE:** \n- `check:M1-S1-a` (FAIL 0 match for lang-toggle)\n- `check:M1-S1-b` (FAIL 3.92 contrast)\n- `S-001 dom` (height=15px on nav links)\n- `S-003` (showing 5 grid columns at 1280px)\n- `S-001 dom` (fontFamily=Courier New)",
+    "tag": "owner"
+   },
+   {
+    "name": "Optimus",
+    "text": "As Project Manager and Board Chair, I have evaluated the independent reviews and subsequent alignment between Ultron (UI/UX) and Vextron (Frontend Engineer). Both owners have conducted a rigorous audit against our locked design system tokens (A1, A2, A3) and live harness test evidence (`check:M1-S1-a`, `check:M1-S1-b`, `check:M1-S3-a`, `check:M1-S3-b`, and screenshots S-001, S-002, S-003).\n\nThere is full engineering and design consensus on how to resolve the current build defects and structural deviations in Milestone 1.\n\n---\n\n### 1. Consensus Evaluation of Build Defects\n\n* **D-001 (Monospace Font Infringement) & D-005 (WCAG AA Contrast Failure):** \n  * **Status:** Verified & Actionable.\n  * **Analysis:** The build's use of `Courier New` across branding, header nav, headings, product prices, and footer directly violates **A1** (\"Typography Inter / system sans-serif ONLY — no monospace fonts\"). Furthermore, rendering body/card text in crimson `#E11D48` on a dark `#141416` background produces a contrast ratio of **3.92:1**, failing WCAG AA 4.5:1 standards (`check:M1-S1-b`). \n  * **Resolution:** Re-establish the baseline design tokens: body background `#0B0B0C`, card surface `#141416`, primary text `#F5F5F5` (yields **15.8:1 contrast ratio**, well above WCAG AAA 7:1), font family `Inter, system-ui, sans-serif`. The accent `#E11D48` must be restricted exclusively to primary CTA buttons.\n\n* **D-002 & D-004 (Missing Language Toggle `button#lang-toggle`):** \n  * **Status:** Verified & Consolidated.\n  * **Analysis:** Automated DOM check `check:M1-S1-a` failed (0 matched elements). **A2** explicitly requires a bilingual SW/EN toggle button (`button#lang-toggle`) positioned on the right of the 64px header across all viewports.\n  * **Resolution:** Merged D-004 into D-002 as a duplicate report. The header layout in Round 1 fix must inject `<button id=\"lang-toggle\" class=\"...\">EN</button>` (or `SW` depending on active state) with appropriate touch padding.\n\n* **D-003 & D-006 (Sub-standard Nav Touch Targets):**\n  * **Status:** Verified.\n  * **Analysis:** Rendered navigation link heights of 15px fail touch target minimums (≥44px), creating severe accessibility hurdles on mobile (375px viewport).\n  * **Resolution:** Apply vertical padding or `min-height: 44px; display: inline-flex; align-items: center;` to all interactive navigation anchors.\n\n---\n\n### 2. Consensus Evaluation of Proposals\n\n* **P-01 (Serif Display / Playfair Display):**\n  * **Action:** **CHANGE REQUEST / REJECTED FROM MILESTONE FIX.**\n  * **Rationale:** P-01 directly conflicts with locked decision **A1** (\"Typography Inter / system sans-serif ONLY\"). Under Board rules, a review cannot override a locked decision. It is moved to CHANGE REQUESTS for CEO visibility, but rejected for execution in M1.\n\n* **P-02 (Autoplay 1080p MP4 Hero Video on Mobile):**\n  * **Action:** **REJECTED.**\n  * **Rationale:** Loading a 1080p video stream on a 375px viewport introduces unnecessary payload (often >10MB) and breaks the mandated \"calm, night-time feel\" (A1). Static SVG/CSS ambient dark gradients align with both performance best practices and regional mobile bandwidth realities in Dar es Salaam.\n\n* **P-03 / P-04 (Sticky Mobile WhatsApp Order Bar):**\n  * **Action:** **ACCEPTED.**\n  * **Rationale:** On 375px mobile viewports, the catalog grid extends vertically up to ~2200px. Having a persistent `position: fixed; bottom: 0; left: 0; right: 0;` bar featuring a primary CTA button (`Agiza kwa WhatsApp`, height ≥48px, background `#E11D48`, text `#F5F5F5`, Inter, sentence case) streamlines ordering without obstructing catalog browsing.\n\n* **P-05 (Grid Column Correction at 1280px):**\n  * **Action:** **ACCEPTED.**\n  * **Rationale:** Screenshot `S-003` exhibits a 5-column layout at 1280px width. Decision **A3** explicitly locks desktop layout to **4 columns** (`grid-template-columns: repeat(4, minmax(0, 1fr))`). Restoring 4 columns ensures adequate spatial framing for product cards.\n\n* **P-06 (Unique Product Image Assets):**\n  * **Action:** **ACCEPTED.**\n  * **Rationale:** Decision **A3** mandates distinct photos per card (\"never one placeholder repeated\"). Instructing XMD Computer to utilize unique asset paths or distinct visual placeholders (`product-1.jpg` through `product-6.jpg` or color-coded SVGs) fulfills A3 requirements and allows QA verification of grid visual rhythm.\n\n---\n\nAGREE:\n\nPROPOSED DECISION:\nACCEPTED PROPOSALS: \n- P-03 (Sticky mobile WhatsApp bar on viewports < 768px, height ≥48px, primary CTA accent #E11D48, Inter sans-serif, sentence case)\n- P-05 (Correct Desktop Grid Columns at 1280px to strictly 4 columns `repeat(4, minmax(0, 1fr))` per A3)\n- P-06 (Unique Product Assets — 6 distinct image paths/placeholders per A3)\n\nREJECTED PROPOSALS: \n- P-01 (Playfair Display serif font — rejected due to direct conflict with locked decision A1)\n- P-02 (Autoplay 1080p MP4 hero video — rejected due to mobile payload and disruption of calm feel)\n\nINVALID DEFECTS: \n- D-004 (Duplicate report of D-002; merged into D-002)\n\nCHANGE REQUESTS: \n- P-01 conflicts with locked decision A1 (A1 mandates \"Typography Inter / system sans-serif ONLY\")\n\nNEW PROPOSALS: none\n\nRATIONALE:\nConsolidating all verified defects (D-001, D-002, D-003, D-005, D-006) and accepted proposals (P-03, P-05, P-06) into a unified Change Order set provides XMD Computer with unequivocal instructions for Round 1. Restoring design tokens (#0B0B0C background, #141416 card surface, #F5F5F5 text, Inter font stack) resolves typography and contrast failures (`check:M1-S1-b`) instantly. Injecting `button#lang-toggle` satisfies `check:M1-S1-a` and A2. Fixing nav link height to ≥44px satisfies accessibility, while enforcing a 4-column grid at 1280px restores strict compliance with A3.\n\nTRADE-OFF:\nThe sticky WhatsApp bar (P-03) occupies 48–56px of vertical screen real estate on mobile devices below 768px, but dramatically elevates conversion speed for WhatsApp ordering, fulfilling the central commercial goal of the storefront.\n\nEVIDENCE:\n- `check:M1-S1-a` (FAIL — 0 matched elements for `button#lang-toggle`)\n- `check:M1-S1-b` (FAIL — 3.92:1 contrast ratio on `#E11D48` text over `#141416` surface)\n- `check:M1-S3-a` (PASS — button height ≥44px)\n- `S-001 dom` (fontFamily=Courier New across body, header, nav, h1, footer; height=15px on nav anchors)\n- `S-003` screenshot (showing 5 grid columns at 1280px viewport width)",
+    "tag": "owner"
+   },
+   {
+    "name": "Ultron",
+    "text": "AGREE:\n\nPROPOSED DECISION:\nACCEPTED PROPOSALS:\n- P-03 (Sticky mobile WhatsApp bar on viewports < 768px, height ≥48px, primary CTA accent #E11D48, Inter sans-serif, sentence case)\n- P-05 (Correct Desktop Grid Columns at 1280px to strictly 4 columns `repeat(4, minmax(0, 1fr))` per A3)\n- P-06 (Unique Product Assets — 6 distinct image paths/placeholders per A3)\n\nREJECTED PROPOSALS:\n- P-01 (Playfair Display serif font — rejected due to direct conflict with locked decision A1)\n- P-02 (Autoplay 1080p MP4 hero video — rejected due to mobile payload and disruption of calm feel)\n\nINVALID DEFECTS:\n- D-004 (Duplicate report of D-002; merged into D-002)\n\nCHANGE REQUESTS:\n- P-01 conflicts with locked decision A1 (A1 mandates \"Typography Inter / system sans-serif ONLY\")\n\nNEW PROPOSALS: none\n\nRATIONALE:\nOptimus and Vextron have provided thorough assessments that perfectly complement my UI/UX evaluation. We have 100% owner consensus on all defect classifications and proposal dispositions for Milestone 1. Consolidating defects D-001, D-002 (incorporating D-004), D-003, D-005, and D-006 into a single, comprehensive Change Order package allows the XMD Computer to execute a clean reset back to our locked design system tokens (A1, A2, A3) in Round 1.\n\nRe-establishing the core color palette (`#0B0B0C` base background, `#141416` surface card, `#F5F5F5` primary text, `#E11D48` primary CTA button accent) and font stack (`Inter, system-ui, sans-serif`) immediately satisfies contrast check `check:M1-S1-b` (raising contrast from 3.92:1 to 15.8:1) and eliminates the prohibited `Courier New` monospace font across all layout elements. Ingesting `button#lang-toggle` directly into the right header container fulfills `check:M1-S1-a` and satisfies A2. Adjusting navigation anchor padding to enforce a minimum touch target height of ≥44px eliminates mobile usability friction. Fixing the grid layout to 4 columns at 1280px restores the deliberate visual breathing room required for a high-end streetwear catalog. Finally, accepting P-03 (sticky mobile WhatsApp CTA bar) directly serves the commercial goal of the storefront on 375px viewports.\n\nTRADE-OFF:\nThe sticky mobile WhatsApp CTA bar (P-03) consumes 48px to 56px of vertical height at the bottom of viewports under 768px, slightly reducing visible product card space on mobile. However, for a WhatsApp-first storefront operating in Dar es Salaam, ensuring that the primary ordering conversion path is constantly accessible without scrolling up or down 2000px outweighs the minimal reduction in visible card height.\n\nEVIDENCE:\n- Automated check `check:M1-S1-a`: FAIL — 0 matched elements for `button#lang-toggle` in header.\n- Automated check `check:M1-S1-b`: FAIL — 3.92:1 contrast ratio when rendering `#E11D48` crimson text on `#141416` card surface.\n- Visual Screenshot evidence `S-001 dom`: `fontFamily=Courier New` across header, nav, h1, product price, and footer; height=15px on navigation link anchors.\n- Visual Screenshot evidence `S-003`: Shows 5 catalog grid columns rendered at 1280px viewport width instead of the locked 4 columns (`repeat(4, minmax(0, 1fr))`).\n\n---\n\n### Detailed Design Systems & Actionable Implementation Guidance for Change Orders\n\nTo ensure the XMD Computer executes Round 1 without ambiguity, I have formulated the exact technical specifications and CSS rule structures required to fulfill our Change Order set:\n\n#### 1. Token Reset & Contrast Standards (Addressing D-001 & D-005)\nThe styling must strictly apply dark mode design tokens without using accent colors on text or background surfaces:\n```css\n:root {\n  --bg-base: #0B0B0C;\n  --bg-surface: #141416;\n  --text-primary: #F5F5F5;\n  --text-muted: #A1A1AA;\n  --accent-cta: #E11D48;\n  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;\n}\n\nbody {\n  background-color: var(--bg-base);\n  color: var(--text-primary);\n  font-family: var(--font-sans);\n}\n\n/* Restrict accent color strictly to primary CTA buttons */\n.btn-primary, .whatsapp-sticky-btn {\n  background-color: var(--accent-cta);\n  color: #FFFFFF;\n  font-weight: 600;\n  border-radius: 4px;\n}\n```\n\n#### 2. Bilingual Header Layout & Touch Targets (Addressing D-002, D-003, D-006)\nThe header container must adhere to a strict 64px height with flex distribution and explicit touch padding:\n```css\nheader {\n  height: 64px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0 24px;\n  background-color: var(--bg-surface);\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n}\n\nheader nav a {\n  display: inline-flex;\n  align-items: center;\n  min-height: 44px;\n  padding: 0 12px;\n  color: var(--text-primary);\n  text-transform: uppercase;\n  font-size: 13px;\n  letter-spacing: 0.05em;\n}\n\n#lang-toggle {\n  min-height: 44px;\n  min-width: 44px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  background: transparent;\n  border: 1px solid rgba(255, 255, 255, 0.2);\n  color: var(--text-primary);\n  font-family: var(--font-sans);\n  font-weight: 600;\n  cursor: pointer;\n}\n```\n\n#### 3. Responsive Product Grid & Asset Distinctions (Addressing P-05 & P-06)\nThe catalog grid must strictly enforce column limits per breakpoint, paired with distinct card graphics:\n```css\n#shop {\n  display: grid;\n  gap: 24px;\n  grid-template-columns: 1fr; /* 375px viewport */\n}\n\n@media (min-width: 768px) {\n  #shop {\n    grid-template-columns: repeat(2, minmax(0, 1fr));\n  }\n}\n\n@media (min-width: 1280px) {\n  #shop {\n    grid-template-columns: repeat(4, minmax(0, 1fr)); /* Strictly 4 columns per A3 */\n  }\n}\n```\n\n#### 4. Sticky Mobile WhatsApp CTA Bar (Addressing P-03)\n```css\n.mobile-whatsapp-bar {\n  position: fixed;\n  bottom: 0;\n  left: 0;\n  right: 0;\n  height: 56px;\n  padding: 8px 16px;\n  background-color: var(--bg-surface);\n  border-top: 1px solid rgba(255, 255, 255, 0.1);\n  z-index: 1000;\n  display: flex;\n  align-items: center;\n}\n\n@media (min-width: 768px) {\n  .mobile-whatsapp-bar {\n    display: none; /* Hidden on desktop/tablet */\n  }\n}\n```\n\nOptimus, as Board Chair, you have complete consensus across all three owners. You may proceed directly to lock these decisions, issue the Change Orders to the XMD Computer for Round 1 execution, and prepare the final report.",
+    "tag": "owner"
+   },
+   {
+    "name": "Vextron",
+    "text": "I have reviewed the unified **PROPOSED DECISION** presented by Optimus, which incorporates the detailed implementation guidance provided by Ultron. As the Frontend Engineer, I find the technical consolidation and the specific CSS/DOM remediation strategies to be exactly what is required to recover the project from its current \"loud\" and non-compliant state.\n\n### 1. Technical Validation of the Change Order Set\n\nThe proposed decision addresses the most critical frontend failures identified in our audit:\n\n*   **Typography & Contrast (D-001, D-005):** The reset to `Inter` and the enforcement of the `#0B0B0C` / `#141416` / `#F5F5F5` palette is not just a branding fix; it is a fundamental accessibility requirement. The jump from a **3.92:1** contrast ratio to **15.8:1** ensures we exceed WCAG AAA standards (7:1), which is vital for a \"night-time\" UI where legibility can be compromised by low-brightness screens.\n*   **Header & Language Toggle (D-002, D-004):** The absence of `button#lang-toggle` was a blocker for our bilingual requirement (A2). By explicitly defining its placement and behavior in the change order, we ensure the XMD Computer doesn't just \"add a button\" but integrates it into the flex-basis of the 64px header.\n*   **Touch Targets (D-003, D-006):** The 15px height found in `S-001 dom` was a major usability defect. Enforcing `min-height: 44px` across all navigation anchors and the new sticky bar (P-03) aligns with mobile-first best practices for the Tanzanian market, where high-precision tapping isn't always possible on the move.\n*   **Grid Integrity (P-05, P-06):** Correcting the 1280px grid from 5 columns back to 4 (`repeat(4, minmax(0, 1fr))`) restores the intended premium whitespace. Furthermore, the instruction to use 6 unique assets (P-06) is technically necessary to verify that the grid handles varying image aspect ratios or loading states correctly, rather than relying on a single cached SVG.\n\n### 2. Performance & Regional Context\n\nI strongly support the **REJECTION of P-02 (Autoplay Video)**. From a frontend performance perspective, serving a 1080p MP4 to a mobile user in Dar es Salaam is a high-risk move. Beyond the bandwidth cost, autoplaying video often triggers \"Battery Saver\" modes on mobile devices, which can lead to broken UI states or empty hero sections. A static, optimized hero image with a CSS-based \"night-time\" gradient overlay is far more robust and aligns with the \"calm\" requirement of A1.\n\n### 3. Implementation Logic for the Sticky Bar (P-03)\n\nThe sticky WhatsApp bar is a pragmatic solution to the \"long scroll\" problem on mobile. In a 6-product grid at 375px, the user must scroll significantly to reach the bottom. By using `position: fixed; bottom: 0;`, we keep the primary conversion path (WhatsApp) visible. I recommend that the XMD Computer implements this with `z-index: 50` and `backdrop-filter: blur(8px)` to maintain the \"premium night-time\" feel while ensuring it sits above the product cards.\n\n### 4. Final Review of the Proposal\n\nThe consolidated decision is technically sound, evidence-based, and directly addresses every failure in the `check:M1` suite. It provides the XMD Computer with a \"clean slate\" to re-align with the locked decisions A1, A2, and A3.\n\nAGREE:\n\nPROPOSED DECISION:\nACCEPTED PROPOSALS:\n- P-03 (Sticky mobile WhatsApp bar on viewports < 768px, height ≥48px, primary CTA accent #E11D48, Inter sans-serif, sentence case)\n- P-05 (Correct Desktop Grid Columns at 1280px to strictly 4 columns `repeat(4, minmax(0, 1fr))` per A3)\n- P-06 (Unique Product Assets — 6 distinct image paths/placeholders per A3)\n\nREJECTED PROPOSALS:\n- P-01 (Playfair Display serif font — rejected due to direct conflict with locked decision A1)\n- P-02 (Autoplay 1080p MP4 hero video — rejected due to mobile payload and disruption of calm feel)\n\nINVALID DEFECTS:\n- D-004 (Duplicate report of D-002; merged into D-002)\n\nCHANGE REQUESTS:\n- P-01 conflicts with locked decision A1 (A1 mandates \"Typography Inter / system sans-serif ONLY\")\n\nNEW PROPOSALS: none\n\nRATIONALE:\nThe current build is a total departure from the \"premium night-time\" brief, failing on typography, color, contrast, and layout. By consolidating all verified defects (D-001, D-002, D-003, D-005, D-006) and accepted proposals (P-03, P-05, P-06) into a single Change Order set, we provide the XMD Computer with the necessary \"reset\" instructions. Restoring the design tokens (#0B0B0C background, #141416 card surface, #F5F5F5 text, Inter font stack) resolves typography and contrast failures (`check:M1-S1-b`) instantly. Injecting `button#lang-toggle` satisfies `check:M1-S1-a` and A2. Fixing nav link height to ≥44px satisfies accessibility, while enforcing a 4-column grid at 1280px restores compliance with A3.\n\nTRADE-OFF:\nThe sticky WhatsApp bar (P-03) occupies 48–56px of vertical screen real estate on mobile devices below 768px. While this reduces the visible area for product cards slightly, it dramatically increases the accessibility of the primary ordering method (WhatsApp), which is the central commercial requirement of the storefront.\n\nEVIDENCE:\n- `check:M1-S1-a` (FAIL — 0 matched elements for `button#lang-toggle`)\n- `check:M1-S1-b` (FAIL — 3.92:1 contrast ratio on `#E11D48` text over `#141416` surface)\n- `check:M1-S3-a` (PASS — button height ≥44px)\n- `S-001 dom` (fontFamily=Courier New across body, header, nav, h1, footer; height=15px on nav anchors)\n- `S-003` screenshot (showing 5 grid columns at 1280px viewport width)",
+    "tag": "owner"
+   }
+  ],
+  "searches": [
+   {
+    "by": "Ultron",
+    "query": "website UI UX audit checklist design system maintenance best practices",
+    "sources": 5
+   },
+   {
+    "by": "Vextron",
+    "query": "website UI UX audit checklist common frontend design system defects",
+    "sources": 5
+   },
+   {
+    "by": "Optimus",
+    "query": "website UI UX audit checklist design system evaluation best practices",
+    "sources": 5
+   }
+  ],
+  "turns": 5
+ }
+}

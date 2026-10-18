@@ -92,6 +92,24 @@ describe("TASK 24 — kanuni za uamuzi (code; CEO #2)", () => {
     expect(p.changeRequests[0]).toMatchObject({ id: "P-05", conflictsWith: "A2" });
     expect(p.newProposals).toEqual([]);
   });
+  it("uamuzi halisi wa Board (R-M1-0 run A): '[Condition added by …]' baada ya NEW PROPOSALS: none HAIZAI proposals mpya", () => {
+    const d = "ACCEPTED PROPOSALS: P-01, P-02\nREJECTED PROPOSALS: none\nINVALID DEFECTS: none\nCHANGE REQUESTS: none\nNEW PROPOSALS: none\n\n[Condition added by Ultron]: I fully endorse.\n\n### Audit\n\n1. **Accessibility (`D-002`)**:\n   - Contrast\n\n[Condition added by Optimus]: As chair…";
+    const p = parseReviewDecision(d);
+    expect([p.accepted, p.newProposals, p.found.length]).toEqual([["P-01", "P-02"], [], 5]);
+    const p2 = parseReviewDecision("ACCEPTED PROPOSALS: none\nNEW PROPOSALS: Sticky CTA — keep order visible\n- Skeletons — load states\n[Condition added by Vextron]: also X — Y");
+    expect(p2.newProposals.map((x) => x.title)).toEqual(["Sticky CTA", "Skeletons"]);
+    expect(parseReviewDecision("NEW PROPOSALS: P-05 — Strict Grid Implementation: Enforce 4-column layout at 1280px (A3)").newProposals).toEqual([{ title: "Strict Grid Implementation", detail: "Enforce 4-column layout at 1280px (A3)" }]);
+  });
+  it("run B2 halisi: id ndani ya mabano ni SABABU, si kipengele (D-004 dup ya D-002 haibatilishi D-002; P-03 '(identical to P-04)' haikubali P-04)", () => {
+    const d = "**ACCEPTED PROPOSALS:** \n- **P-03** (Sticky bar; identical to P-04).\n- **P-05** (Grid — per A3).\n\n**REJECTED PROPOSALS:** \n- **P-02** (Autoplay video — payload).\n\n**INVALID DEFECTS:** \n- **D-004** (Duplicate of D-002; merged into D-002).\n\n**CHANGE REQUESTS:** \n- **P-01** conflicts with A1 (serif vs Inter).\n\n**NEW PROPOSALS:** none";
+    const p = parseReviewDecision(d);
+    expect(p.accepted).toEqual(["P-03", "P-05"]);
+    expect(p.invalid).toEqual([{ id: "D-004", reason: "Duplicate of D-002; merged into D-002" }]);
+    expect(p.rejected.map((x) => x.id)).toEqual(["P-02"]);
+    expect(p.changeRequests).toEqual([{ id: "P-01", conflictsWith: "A1", reason: "conflicts with A1 (serif vs Inter" }]);
+    expect(parseReviewDecision("ACCEPTED PROPOSALS: P-01, P-02 and P-04\nINVALID DEFECTS: D-001, D-003 (pixel noise); D-005 — duplicate").invalid.map((x) => x.id)).toEqual(["D-001", "D-003", "D-005"]);
+    expect(parseReviewDecision("ACCEPTED PROPOSALS: P-01, P-02 and P-04").accepted).toEqual(["P-01", "P-02", "P-04"]);
+  });
   it("bila consensus → proposals ZOTE REJECTED, defects ZOTE zinabaki (hakuna R37 forced closure)", () => {
     const r = applyReviewRules(tableOf(), { consensus: false, decision: DEC("P-01, P-02, P-03"), participants: P3 });
     expect([r.consensus, r.acceptedProposals.length, r.rejectedProposals.length, r.openDefects.length]).toEqual([false, 0, 3, 3]);
@@ -105,6 +123,13 @@ describe("TASK 24 — kanuni za uamuzi (code; CEO #2)", () => {
     expect(r.invalidDefects.map((d) => d.id)).toEqual(["D-002"]);
     expect(r.openDefects.map((d) => d.id)).toEqual(["D-001", "D-003"]); // D-003 bila sababu → inabaki
     expect(r.warnings.join(" ")).toMatch(/D-003 listed as invalid without a reason/);
+  });
+  it("run B halisi: proposal iliyokataliwa kwa kupingana na A1 → CR (CEO), si REJECTED kimya; sababu nyingine → REJECTED", () => {
+    const r = applyReviewRules(tableOf(), { consensus: true, participants: P3, decision: "ACCEPTED PROPOSALS: P-02\nREJECTED PROPOSALS: P-01 (contradicts locked decision A1 requiring Inter/system sans-serif ONLY); P-03 (performance risk for mobile users per Vextron)\nINVALID DEFECTS: none\nCHANGE REQUESTS: none\nNEW PROPOSALS: none" });
+    expect(r.changeRequests).toEqual([{ proposalId: "P-01", conflictsWith: "A1", reason: expect.stringMatching(/Inter/) }]);
+    expect(r.rejectedProposals.map((x) => x.id)).toEqual(["P-03"]);
+    expect(r.acceptedProposals.map((x) => x.id)).toEqual(["P-02"]);
+    expect(r.warnings.join(" ")).toMatch(/P-01 was rejected for contradicting A1/);
   });
   it("proposal ya reviewer mmoja tu: haipo kwenye ACCEPTED ya consensus → REJECTED", () => {
     const r = applyReviewRules(tableOf(), { consensus: true, participants: P3, decision: "ACCEPTED PROPOSALS: none\nREJECTED PROPOSALS: P-01 (only Ultron supports it); P-02; P-03\nINVALID DEFECTS: none\nCHANGE REQUESTS: none\nNEW PROPOSALS: none" });

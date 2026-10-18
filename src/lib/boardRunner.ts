@@ -52,7 +52,7 @@ import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
 import { putRecord, getRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13 (getRecord: TASK-16)
 import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
-import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, runMilestoneBuild, type LoopHooks } from "./milestone/loop"; // TASK-24: msUpdate/planKey/runMilestoneBuild // TASK-14 (buildKey: TASK-16)
+import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16)
 import { buildOCB, buildOCBForComputer, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14 (Computer OCB: TASK-16)
 import { buildStartPack, type PrevBuild } from "./milestone/startpack"; // TASK-16
 import { maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks";
@@ -3329,12 +3329,15 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
         const lr = runner as unknown as Parameters<typeof msUpdate>[0];
         await msUpdate(lr, findingsKey(m.id, 0), () => ({ version: 1, designer: tr.findings.designer, frontend: tr.findings.frontend, meta: { source: "XMD_TEST_REVIEW_INPUT" }, at: new Date().toISOString() }));
         blog("warning", `🧪 XMD_TEST_REVIEW_INPUT: REVIEW ya ${m.id} (plan/evidence/findings kutoka faili; mjadala + Optimus HALISI)`);
-        const st = await runMilestoneBuild(lr, m, {
-          ...msHooks("test_review"),
+        // njia halisi: maybeCloseMilestones (CAS DISCUSSING→PLANNING) → runMilestoneBuild → plan → build → review
+        const range = new Set(Array.from({ length: m.agendas.to - m.agendas.from + 1 }, (_, k) => m.agendas.from + k));
+        await maybeCloseMilestones(lr, {
+          ...msHooks("test_review"), resolvedAgendas: async () => range,
           plan: async () => ({ milestoneId: m.id, status: "active", executable: true, reasons: [], markdown: tr.planMarkdown || "# xmdtest plan", steps: 1, checks: 0, routes: 0, problems: [], warnings: [], guardHits: [], repairs: { structure: 0, guard: 0 } }),
           build: async () => ({ ok: true, finalState: "DONE", reason: "xmdtest (XMD_TEST_REVIEW_INPUT)", report: tr.buildReport || "", evidence: { pack: tr.pack, exit: 0, invalid: [], uploaded: tr.pack.screenshots.length, ms: 0 } }),
         });
-        blog("system", `🧪 XMD_TEST_REVIEW_INPUT: ${m.id} → ${st.status} (round ${st.round})`);
+        const st = (await getRecord<{ status: string; round: number }>(runner.sessionId, `state:${m.id}`))?.data;
+        blog("system", `🧪 XMD_TEST_REVIEW_INPUT: ${m.id} → ${st?.status} (round ${st?.round})`);
         await persist("completed", conversationTitle);
         runner.status = "completed";
         bcast({ type: "done" });
