@@ -24,7 +24,25 @@ export interface LoopHooks {
   resolvedAgendas: () => Promise<Set<number>>;
   /** TASK-15: Optimus anaandika plan ya milestone (bila hook → stub ya task 14) */
   plan?: (m: Milestone) => Promise<MilestonePlanResult>;
+  /** TASK-16: XMD Computer anajenga milestone MOJA kutoka plan yake (bila hook → stub) */
+  build?: (m: Milestone, planMarkdown: string) => Promise<BuildOutcome>;
 }
+
+/** TASK-16: matokeo ya awamu ya Computer (engine.MilestoneBuildOutcome — bila ku-import engine hapa). */
+export interface BuildOutcome {
+  ok: boolean;
+  /** CuFinalState (task 3) au "PAUSED" (Board ilipumzishwa katikati — hatua inarudiwa ikiresume) */
+  finalState: string;
+  reason: string;
+  report?: string;
+  sandboxId?: string;
+  freshSandbox?: boolean;
+  restored?: number;
+  gitLog?: string;
+  ms?: number;
+}
+
+export const buildKey = (milestoneId: string) => `build:${milestoneId}`;
 
 /** Mfuatano wa forward edges hadi SIGNED_OFF (njia ya stub — hakuna mzunguko wa marekebisho bado). */
 const STUB_PATH: MilestoneStatus[] = ["PLANNING", "BUILDING", "EVIDENCE", "REVIEW_R0", "SIGNED_OFF"];
@@ -120,6 +138,13 @@ export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks:
       rec = { ...rec, data: r.state };
       continue;
     }
+    if (id.endsWith(".build") && hooks.build) {
+      // TASK-16: XMD Computer halisi (awamu moja kwa milestone hii)
+      const r = await runBuildStep(runner, m, hooks, id);
+      if (!r.ok) return r.state;
+      rec = { ...rec, data: r.state };
+      continue;
+    }
     rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
       const st = must(setStep(s as MilestoneState, id, "DONE"));
       return { ...st, steps: (st.steps || []).map((x) => (x.stepId === id ? { ...x, stub: true } : x)) };
@@ -131,7 +156,7 @@ export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks:
     for (let i = STUB_PATH.indexOf(st.status) + 1; i > 0 && i < STUB_PATH.length; i++) st = must(transition(st, { type: "GOTO", to: STUB_PATH[i] }));
     return st;
   });
-  hooks.blog("success", `✅ Milestone ${m.id} → ${rec.data.status} (stub).`);
+  hooks.blog("success", `✅ Milestone ${m.id} → ${rec.data.status}${hooks.build ? " (evidence/review bado stub — tasks 17+)" : " (stub)"}.`);
   await hooks.persist();
   return rec.data;
 }
@@ -155,6 +180,44 @@ async function runPlanStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, i
   const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "DONE")));
   hooks.addChip(`🗺️ Plan ya Milestone ${m.id} iko tayari — hatua ${res.steps} · checks ${res.checks}${res.routes ? ` · routes ${res.routes}` : ""}${res.warnings.length ? ` · onyo ${res.warnings.length}` : ""}`);
   hooks.blog("success", `🗺️ Plan ya ${m.id}: active · hatua ${res.steps} · checks ${res.checks} · routes ${res.routes} · marekebisho muundo ${res.repairs.structure}/data ${res.repairs.guard}.`);
+  await hooks.persist();
+  return { ok: true, state: rec.data };
+}
+
+/** TASK-16: hatua ya build — PLANNING → BUILDING, Computer (StartPack, bridge mpya) → store `build:Mk` + event `milestoneBuild`.
+ *  STUCK/BLOCKED/ERROR → FAILED + BLOCKED · PAUSED_QUOTA → FAILED + PAUSED_QUOTA · PAUSED (Board pause) → hatua inabaki RUNNING (resume inairudia). */
+async function runBuildStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, id: string): Promise<{ ok: boolean; state: MilestoneState }> {
+  const plan = runner.sessionId ? (await getRecord<{ markdown?: string; executable?: boolean }>(runner.sessionId, planKey(m.id)))?.data : null;
+  const fail = async (to: MilestoneStatus, why: string) => {
+    const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "FAILED")), { type: "GOTO", to })));
+    hooks.addChip(`⛔ Build ya Milestone ${m.id}: ${why.slice(0, 240)}`);
+    hooks.blog("error", `⛔ Build ya ${m.id}: ${why.slice(0, 400)} → ${m.id} ${to}.`);
+    await hooks.persist();
+    return { ok: false, state: rec.data };
+  };
+  if (!plan?.markdown || plan.executable === false) return fail("BLOCKED", `plan:${m.id} haipo au haitekelezeki — Computer haianzi`);
+  await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
+    let st = must(setStep(s as MilestoneState, id, "RUNNING"));
+    if (st.status === "PLANNING") st = must(transition(st, { type: "GOTO", to: "BUILDING" }));
+    return st;
+  });
+  await hooks.persist();
+  const out = await (hooks.build as NonNullable<LoopHooks["build"]>)(m, plan.markdown);
+  await msUpdate(runner, buildKey(m.id), () => ({
+    version: 1, id: m.id, title: m.title, ok: out.ok, finalState: out.finalState, reason: out.reason,
+    report: String(out.report || "").slice(0, 12_000), sandboxId: out.sandboxId, freshSandbox: out.freshSandbox,
+    restored: out.restored, gitLog: out.gitLog, ms: out.ms, at: new Date().toISOString(),
+  }));
+  hooks.bcast({ type: "milestoneBuild", id: m.id, ok: out.ok, finalState: out.finalState, reason: out.reason, restored: out.restored ?? 0, freshSandbox: !!out.freshSandbox });
+  if (out.finalState === "PAUSED") {
+    hooks.blog("warning", `⏸️ Build ya ${m.id} imesimama (Board pause) — itarudiwa Board ikiresume.`);
+    const cur = runner.sessionId ? (await getRecord<MilestoneState>(runner.sessionId, stateKey(m.id)))?.data : null;
+    return { ok: false, state: (cur ?? newMilestoneState(m.id)) as MilestoneState };
+  }
+  if (!out.ok) return fail(out.finalState === "PAUSED_QUOTA" ? "PAUSED_QUOTA" : "BLOCKED", `${out.finalState}${out.reason ? ` — ${out.reason}` : ""} (XMD Computer)`);
+  const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "DONE")));
+  hooks.addChip(`🧱 Build ya Milestone ${m.id}: ${out.finalState}${out.restored ? ` · faili ${out.restored} zimerejeshwa` : ""}`);
+  hooks.blog("success", `🧱 Build ya ${m.id}: ${out.finalState} — hatua DONE.`);
   await hooks.persist();
   return { ok: true, state: rec.data };
 }

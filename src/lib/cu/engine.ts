@@ -32,12 +32,16 @@ import { GEM_ACCOUNTS, type GemAccountId } from "@/lib/usage/accounts";
 import type { ProviderUsage, UsageMap } from "@/lib/usageChip";
 import type { Runner, PauseOrigin } from "@/lib/boardRunner";
 import type { BoardEvent, LogEntry } from "@/lib/types";
+import { parseRepoSummary, renderStartPack, REPO_SUMMARY_CMD, type MilestoneStartPack } from "@/lib/milestone/startpack"; // TASK-16
+import { cuSilentBridge, maybeCapturePrompt } from "@/lib/milestone/testHooks"; // TASK-16
 
 /* ============================ env ============================ */
 
 export const CU_TEMPLATE = process.env.CU_E2B_TEMPLATE || "professor-xmd-browser-v3";
 /** R31-G: kikomo cha ku-subiri awamu ya CU (run() haiachi stream open milele). */
 const CU_HARD_CAP_MS = Number(process.env.CU_HARD_CAP_MS) || 30 * 60 * 1000;
+/** TASK-16: njia ya milestone (flag ON) haina cap ya wall-clock — inaachishwa TU ikiwa HAKUNA tukio jipya la bridge kwa muda huu. */
+export const CU_LIVENESS_MS = Number(process.env.CU_LIVENESS_MS) || 15 * 60 * 1000;
 // R51-Awamu 1: backend ya CU agent — "openhands" (default: SDK native + lanes.py policy + judge)
 // au "claude" (legacy Gemini Swap Brain). Mabadiliko ni env tu — contract ya events haigezuki.
 const CU_AGENT_BACKEND = (process.env.CU_AGENT_BACKEND || "openhands").toLowerCase() === "claude" ? "claude" : "openhands";
@@ -420,7 +424,7 @@ async function getSandbox(cu: CuRunState): Promise<any> {
 }
 
 function bridgeCommand(o: {
-  title: string; session: string; token: string; startI: number; resumeNote: string; restoreUrl?: string;
+  title: string; session: string; token: string; startI: number; resumeNote: string; restoreUrl?: string; taskFile?: string;
 }): string {
   const common = [
     `cd /home/user && bash /home/user/cu_setup.sh;`,
@@ -439,7 +443,7 @@ function bridgeCommand(o: {
     `VERCEL_TOKEN=${q(process.env.CU_VERCEL_TOKEN || process.env.VERCEL_TOKEN || "")}`,
   ];
   const sharedArgs = [
-    `--task-file /home/user/plan.md`,
+    `--task-file ${o.taskFile || "/home/user/plan.md"}`,
     `--title ${q(o.title.slice(0, 300))}`,
     `--session ${q(o.session)}`,
     `--start-i ${o.startI}`,
@@ -462,9 +466,38 @@ function bridgeCommand(o: {
   return `${env} ${VENV_PY} /home/user/cu_bridge.py ${sharedArgs.join(" ")}`;
 }
 
+/** R51: faili za engine zinazoandikwa kwenye sandbox kila run — [sandboxPath, src] (backend inaamua seti). */
+async function loadEngineFiles(): Promise<Array<[string, string]>> {
+  const pairs: Array<[string, string]> = // [sandboxPath, repoName]
+    CU_AGENT_BACKEND === "openhands"
+      ? [
+          ["/home/user/bridge.py", "bridge.py"], // oh_bridge ina-import 'bridge' (Emitter/files/snapshot)
+          ["/home/user/lanes.py", "lanes.py"],
+          ["/home/user/oh_util.py", "oh_util.py"],
+          ["/home/user/oh_router.py", "oh_router.py"],
+          ["/home/user/shotlaw.py", "shotlaw.py"],
+          ["/home/user/xmd_shot.py", "xmd_shot.py"],
+          ["/home/user/xmd-law.md", "xmd-law.md"],
+          ["/home/user/features_verify.py", "features_verify.py"], // Awamu 2: harness gate
+          ["/home/user/oh_bridge.py", "oh_bridge.py"],
+          ["/home/user/cu_setup.sh", "setup.sh"],
+        ]
+      : [
+          ["/home/user/cu_brain.py", "brain.py"],
+          ["/home/user/cu_bridge.py", "bridge.py"],
+          ["/home/user/cu_setup.sh", "setup.sh"],
+        ];
+  const srcs = await Promise.all(pairs.map(([, n]) => readCuFile(n)));
+  return pairs.map(([p], i) => [p, srcs[i]]);
+}
+
 /* ============================ PHASE: kuanza / kuendelea ============================ */
 
-export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promise<void> {
+export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promise<void>;
+export async function startComputerPhase(runner: Runner, hooks: CuHooks, phase: MilestonePhaseInput): Promise<MilestoneBuildOutcome>;
+export async function startComputerPhase(runner: Runner, hooks: CuHooks, phase?: MilestonePhaseInput): Promise<void | MilestoneBuildOutcome> {
+  // TASK-16: XMD_MILESTONES — awamu ya milestone MOJA (context mpya, bridge mpya) → inarudi kwenye kitanzi
+  if (phase) return startMilestonePhase(runner, hooks, phase);
   const cu = ensureCuState(runner);
   if (cu.done) return;
   // R38-RC5: awamu inaanza → pause ya ZAMANI inaisha (events mpya za bridge zinakubalika tena)
@@ -518,27 +551,7 @@ export async function startComputerPhase(runner: Runner, hooks: CuHooks): Promis
   // R51: file set inategemea backend (claude=brain+bridge; oh=bridge+lanes*+oh_bridge+sheria)
   let cuFiles: Array<[string, string]> = []; // [sandboxPath, src]
   try {
-    const pairs: Array<[string, string]> = // [sandboxPath, repoName]
-      CU_AGENT_BACKEND === "openhands"
-        ? [
-            ["/home/user/bridge.py", "bridge.py"], // oh_bridge ina-import 'bridge' (Emitter/files/snapshot)
-            ["/home/user/lanes.py", "lanes.py"],
-            ["/home/user/oh_util.py", "oh_util.py"],
-            ["/home/user/oh_router.py", "oh_router.py"],
-            ["/home/user/shotlaw.py", "shotlaw.py"],
-            ["/home/user/xmd_shot.py", "xmd_shot.py"],
-            ["/home/user/xmd-law.md", "xmd-law.md"],
-            ["/home/user/features_verify.py", "features_verify.py"], // Awamu 2: harness gate
-            ["/home/user/oh_bridge.py", "oh_bridge.py"],
-            ["/home/user/cu_setup.sh", "setup.sh"],
-          ]
-        : [
-            ["/home/user/cu_brain.py", "brain.py"],
-            ["/home/user/cu_bridge.py", "bridge.py"],
-            ["/home/user/cu_setup.sh", "setup.sh"],
-          ];
-    const srcs = await Promise.all(pairs.map(([, n]) => readCuFile(n)));
-    cuFiles = pairs.map(([p, ], i) => [p, srcs[i]]);
+    cuFiles = await loadEngineFiles();
   } catch (e: any) {
     cuError(runner, hooks, `Faili za engine (cu/) hazipatikani kwenye server: ${String(e?.message || e).slice(0, 140)}`);
     return;
@@ -721,6 +734,267 @@ function buildResumeNote(runner: Runner): string {
   return `A previous run stopped at internal step ${cu.step}. Recent completed commands: ${execs.join(" | ") || "(none recorded)"}. The workspace /home/user/ws may still contain that work — INSPECT it first, do not redo what is already done, then continue the plan from where it stopped.`;
 }
 
+/* ============================ TASK-16: awamu ya Computer kwa kila milestone ============================ */
+
+export interface MilestonePhaseInput {
+  milestoneId: string;
+  planMarkdown: string;
+  startPack: MilestoneStartPack;
+  title?: string;
+  /** milestone ya mwisho kwenye ramani → sandbox inauawa baada ya awamu (nyingine: inabaki kwa M inayofuata) */
+  last?: boolean;
+}
+
+/** Matokeo ya awamu moja. finalState kutoka computeFinalOutcome (task 3); "PAUSED" = Board ilipumzishwa katikati. */
+export interface MilestoneBuildOutcome {
+  ok: boolean;
+  finalState: CuFinalState | "PAUSED";
+  reason: string;
+  report?: string;
+  sandboxId?: string;
+  freshSandbox?: boolean;
+  restored?: number;
+  gitLog?: string;
+  ms: number;
+}
+
+/** Hali zinazomaliza hatua ya build kama FAILED (spec 6). PAUSED_QUOTA → milestone PAUSED_QUOTA. */
+export const MS_BUILD_FAIL_STATES: readonly string[] = ["STUCK", "BLOCKED", "ERROR", "PAUSED_QUOTA"];
+
+const MS_GIT = "git -c user.name='XMD Computer' -c user.email='computer@professor-xmd.local'";
+/** faili za harness/installs — hazi-commitiwi kwenye repo ya mradi (.git/info/exclude, si .gitignore ya mradi) */
+const MS_GIT_EXCLUDE = ["node_modules/", ".xmd/oh/", ".cache/", "plan.md", "feature_list.json", "AGENTS.md"];
+const MS_KILL_BRIDGE = "pkill -9 -f '[c]u_bridge\\.py|[o]h_bridge\\.py|[s]leep 86400' || true";
+const MS_SNAP = "/tmp/xmd-ms-ws.tar.gz";
+
+/** Snapshot ya mwisho wa awamu: tar.gz ya /home/user/ws (PAMOJA na .git — historia inaendelea) → bucket → cu.snapshot.
+ *  Kiovu (cu_files) kinanasa maandishi ya file editor tu; faili za terminal (printf/echo >>) zinaokolewa na tar hii. */
+async function msSnapshot(sbx: any, cu: CuRunState, hooks: CuHooks, id: string): Promise<number> {
+  try {
+    const r: any = await sbx.commands.run(
+      `cd /home/user/ws && tar czf ${MS_SNAP} --exclude node_modules --exclude ./.cache --exclude ./.xmd/oh --exclude ./playwright-report . 2>/dev/null; stat -c%s ${MS_SNAP} 2>/dev/null || echo 0`,
+      { timeoutMs: 120_000 });
+    const size = Number(String(r?.stdout || "").trim().split(/\s+/).pop()) || 0;
+    if (!size || size > SNAPSHOT_MAX_BYTES || !appwriteConfigured) {
+      hooks.blog("warning", `🎒 ${id}: snapshot haikuhifadhiwa (${size ? `${Math.round(size / 1024)}KB > kikomo` : "tar tupu/haipo"}) — kiovu ndicho kinga pekee.`);
+      return 0;
+    }
+    const bytes = await sbx.files.read(MS_SNAP, { format: "bytes" } as any) as Uint8Array;
+    const f: any = await storage.createFile(CU_BUCKET, "unique()", InputFile.fromBuffer(bytes, `cu-ws-${id}-${Date.now()}.tar.gz`));
+    cu.snapshot = { fileId: f.$id, bucketId: CU_BUCKET };
+    hooks.blog("info", `🎒 ${id}: snapshot ya workspace (pamoja na git) imehifadhiwa (${Math.round(bytes.length / 1024)}KB) — sandbox ikifa, milestone inayofuata inairejesha.`);
+    return bytes.length;
+  } catch (e: any) {
+    hooks.blog("warning", `🎒 ${id}: snapshot imeshindwa: ${String(e?.message || e).slice(0, 160)}`);
+    return 0;
+  }
+}
+
+/** Sandbox MPYA: rejesha tar ya snapshot (kama ipo) → idadi ya faili (bila .git), -1 ikishindwa. */
+async function msRestoreSnapshot(sbx: any, cu: CuRunState): Promise<number> {
+  if (!cu.snapshot?.fileId) return -1;
+  const url = publicFileUrl(cu.snapshot.bucketId || CU_BUCKET, cu.snapshot.fileId);
+  try {
+    const r: any = await sbx.commands.run(
+      `mkdir -p /home/user/ws && cd /home/user/ws && export XMD_URL=${q(url)} && { (curl -fsSL --max-time 180 "$XMD_URL" | tar xzf -) || python3 -c ${q(`import os,io,tarfile,urllib.request as u; tarfile.open(fileobj=io.BytesIO(u.urlopen(os.environ["XMD_URL"],timeout=180).read()),mode="r:gz").extractall(".")`)}; } && echo XMD_TAR_OK && find . -type f -not -path './.git/*' | wc -l`,
+      { timeoutMs: 200_000 });
+    const out = String(r?.stdout || "");
+    return out.includes("XMD_TAR_OK") ? Number(out.trim().split(/\s+/).pop()) || 0 : -1;
+  } catch { return -1; }
+}
+/** test-only (vitest) — helpers za snapshot ya milestone. */
+export const __t16Snapshot = { msSnapshot, msRestoreSnapshot };
+
+async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: MilestonePhaseInput): Promise<MilestoneBuildOutcome> {
+  const cu = ensureCuState(runner);
+  const t0 = Date.now();
+  const id = ph.milestoneId;
+  const out = (ok: boolean, finalState: MilestoneBuildOutcome["finalState"], reason: string, extra: Partial<MilestoneBuildOutcome> = {}): MilestoneBuildOutcome =>
+    ({ ok, finalState, reason, ms: Date.now() - t0, sandboxId: cu.sandboxId, ...extra });
+  // Mlinzi wa concurrency: awamu MOJA tu kwa runner (kosa la bridges mbili baada ya auto-resume ya quota)
+  if ((cu as any).msBusy) {
+    hooks.blog("warning", `🖥️ ${id}: awamu nyingine ya XMD Computer bado inaendelea — hii haianzishwi (bridge mbili ni sumu).`);
+    return out(false, "ERROR", "awamu nyingine ya Computer bado inaendelea (concurrency guard)");
+  }
+  (cu as any).msBusy = true;
+  (cu as any).msMode = true;
+  try {
+    // awamu MPYA: hali ya awamu iliyopita haibebwi (maxI/seen zinabaki — dedupe ya i inaendelea)
+    cu.done = false; cu.pausedNow = false; cu.finalState = undefined; cu.finalReason = undefined;
+    cu.report = undefined; cu.stallWarned = false; cu.step = 0;
+    (cu as any).msPhase = { id, startedAt: t0 };
+    cu.phaseDone = new Promise<void>((res) => { cu.phaseResolve = res; });
+
+    hooks.bcast({ type: "cu", cu: { type: "divider" } });
+    runner.items.push({ kind: "cu", id: `cu_divider_${runner.items.length}`, cu: "divider", milestone: id } as any);
+    hooks.blog("system", `🖥️ XMD Computer · Milestone ${id} inaanza — context MPYA (StartPack), bridge mpya.`);
+    hooks.addChip(`🖥️ XMD Computer · Milestone ${id} inaanza — StartPack (plan + Ledger + repo + reports), bridge mpya.`);
+
+    let files: Array<[string, string]>;
+    try { files = await loadEngineFiles(); }
+    catch (e: any) { return out(false, "ERROR", `faili za engine (cu/) hazipatikani: ${String(e?.message || e).slice(0, 140)}`); }
+
+    // (4) mwendelezo wa workspace: sandbox hai inatumika tena; vinginevyo mpya + kiovu (cu_files)
+    const sbx = await getSandbox(cu);
+    const fresh = !!(sbx as any).__xmdFresh;
+    (sbx as any).__xmdFresh = false; // awamu ijayo kwenye sandbox hii hii si "mpya"
+    try { await sbx.setTimeout(60 * 60 * 1000); } catch { /* */ }
+    let restored = 0;
+    if (fresh) {
+      // snapshot ya mwisho wa awamu iliyopita (tar + git) ndiyo hali kamili; kiovu ni kinga ikiwa snapshot haipo
+      const fromTar = await msRestoreSnapshot(sbx, cu);
+      if (fromTar >= 0) {
+        restored = fromTar;
+        hooks.blog("success", `🎒 ${id}: sandbox MPYA ${cu.sandboxId?.slice(0, 8)}… — snapshot ya milestone iliyopita imerejeshwa (faili ${fromTar} + historia ya git).`);
+      } else {
+        restored = await restoreFromMirror(runner.sessionId || runner.id, sbx);
+        hooks.blog(restored ? "success" : "info", restored
+          ? `🪞 ${id}: sandbox MPYA ${cu.sandboxId?.slice(0, 8)}… — faili ${restored} za milestones zilizopita zimerejeshwa kutoka kiovu (cu_files).`
+          : `🆕 ${id}: sandbox mpya ${cu.sandboxId?.slice(0, 8)}… (hakuna snapshot wala kiovu — mwanzo wa mradi).`);
+      }
+    } else {
+      hooks.blog("info", `♻️ ${id}: sandbox ${cu.sandboxId?.slice(0, 8)}… iliyopo inatumika tena — workspace ya milestone iliyopita iko hai.`);
+    }
+
+    // (3) bridge MPYA kila awamu — ya zamani (kama ipo) inauawa kwanza
+    await sbx.commands.run(MS_KILL_BRIDGE, { timeoutMs: 15_000 }).catch(() => {});
+    for (const [p, src] of files) await sbx.files.write(p, src);
+    await sbx.files.write("/home/user/ws/plan.md", ph.planMarkdown); // plan ya milestone HII (bridge haiandiki juu ya iliyopo)
+    try {
+      const fl = featuresFromPlan(ph.planMarkdown, { runId: `${runner.sessionId || runner.id}:${id}` });
+      if (fl.features.length) await sbx.files.write(FEATURE_LIST_SANDBOX_PATH, featureListJson(fl));
+    } catch (e) { console.warn(`[cu] feature_list.json (${id}): ${String(e).slice(0, 140)}`); }
+    await sbx.files.write("/home/user/cu-config.json", JSON.stringify(buildCuConfig()));
+    await sbx.commands.run(
+      `mkdir -p /home/user/ws && cd /home/user/ws && (git rev-parse --git-dir >/dev/null 2>&1 || git init -q) && mkdir -p .git/info && printf '%s\\n' ${MS_GIT_EXCLUDE.map(q).join(" ")} > .git/info/exclude`,
+      { timeoutMs: 30_000 }).catch(() => {});
+
+    // (2) StartPack + muhtasari HALISI wa repo kutoka sandbox
+    let repoOut = "";
+    try { repoOut = String((await sbx.commands.run(REPO_SUMMARY_CMD, { timeoutMs: 30_000 }))?.stdout || ""); } catch { /* */ }
+    const note = fresh && restored
+      ? `IMPORTANT: this is a NEW sandbox — the workspace of earlier milestones was restored (${restored} files). Reinstall dependencies (npm install etc.) before you continue.`
+      : "";
+    const pack = renderStartPack(ph.startPack, parseRepoSummary(repoOut), note);
+    await sbx.files.write("/home/user/startpack.md", pack);
+    maybeCapturePrompt({ sessionId: runner.sessionId || runner.id, agent: "computer", agenda: 0, phase: `computer:${id}`, system: pack });
+
+    const silent = cuSilentBridge();
+    const cmd = silent
+      ? "sleep 86400"
+      : bridgeCommand({ title: `${ph.title || hooks.title || "Mradi"} · ${id}`, session: runner.sessionId || runner.id, token: cu.token, startI: cu.maxI, resumeNote: "", taskFile: "/home/user/startpack.md" });
+    if (silent) hooks.blog("warning", `🧪 XMD_TEST_CU_SILENT: bridge ya kimya (test hook) — liveness ya ${Math.round(CU_LIVENESS_MS / 1000)}s itaikata.`);
+    hooks.blog("api", `🚀 ${id}: sandbox ${cu.sandboxId?.slice(0, 8)}… — bridge mpya inaanzishwa (StartPack herufi ${pack.length}).`);
+
+    cu.startedAt = Date.now();
+    cu.lastEventAt = cu.startedAt;
+    const handle = await sbx.commands.run(`bash -lc ${q(cmd)}`, {
+      background: true, timeoutMs: 24 * 60 * 60 * 1000, // hakuna cap ya wall-clock (liveness pekee) — 0 ingekata MARA MOJA (connect-rpc: ≤0 = abort)
+      onStdout: (d: string) => { for (const l of String(d).split("\n")) if (l.startsWith("@@XMD ")) hooks.blog("info", `🖥️ ${l.slice(6, 400)}`); },
+      onStderr: (d: string) => { const s = String(d).trim(); if (s) hooks.blog("warning", `🖥️ stderr: ${s.slice(0, 300)}`); },
+    });
+    if (cu.slowHeartbeat) { clearInterval(cu.slowHeartbeat); cu.slowHeartbeat = undefined; }
+    cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
+    handle.wait().then(async (r: any) => {
+      if (!cu.done && (cu as any).msPhase?.id === id && !cu.pausedNow && !cu.pausing) {
+        hooks.blog("error", `🖥️ Bridge ya ${id} imekufa (code ${r?.exitCode ?? "?"}) bila kumaliza.`);
+        await handleCuEvent(runner, hooks, { i: cu.maxI + 1, type: "run_end", status: "error", steps: cu.step, ms: Date.now() - cu.startedAt, fatal: `bridge exit ${r?.exitCode ?? "?"}` });
+      }
+    }).catch(() => { /* imeuawa na sisi / run_end imeshakuja */ });
+
+    // (5) liveness: HAKUNA cap ya muda — inaachishwa TU bila tukio jipya kwa CU_LIVENESS_MS
+    const tick = Math.max(1_000, Math.min(30_000, Math.floor(CU_LIVENESS_MS / 6)));
+    let strikes = 0;
+    let lastPing = Date.now();
+    let paused = false;
+    for (;;) {
+      let resolved = false;
+      await Promise.race([
+        (cu.phaseDone ?? Promise.resolve()).then(() => { resolved = true; }),
+        new Promise<void>((r) => setTimeout(r, tick).unref?.()),
+      ]);
+      if (resolved || cu.done) break;
+      if (cu.pausedNow || cu.pausing) { paused = true; break; } // Board ilipumzishwa — snapshot/pause ya zamani inashughulikia
+      const idle = Date.now() - Math.max(cu.lastEventAt || 0, cu.startedAt);
+      if (idle >= CU_LIVENESS_MS) {
+        const secs = Math.round(CU_LIVENESS_MS / 1000);
+        hooks.blog("error", `⏱️ ${id}: hakuna tukio la bridge kwa ${secs}s (CU_LIVENESS_MS) — bridge inasimamishwa → STUCK.`);
+        await sbx.commands.run(MS_KILL_BRIDGE, { timeoutMs: 15_000 }).catch(() => {});
+        await handleCuEvent(runner, hooks, { i: cu.maxI + 1, type: "run_end", status: "stuck", steps: cu.step, ms: Date.now() - cu.startedAt, fatal: `liveness: no bridge event for ${secs}s` });
+        break;
+      }
+      if (Date.now() - lastPing >= 3 * 60_000) {
+        lastPing = Date.now();
+        if (await sandboxAlive(sbx)) strikes = 0;
+        else if (++strikes >= 2) {
+          hooks.blog("error", `🧊 ${id}: sandbox haipiti ping mara 2 — imekufa.`);
+          await handleCuEvent(runner, hooks, { i: cu.maxI + 1, type: "run_end", status: "error", steps: cu.step, ms: Date.now() - cu.startedAt, fatal: "sandbox ya E2B imekufa wakati wa build" });
+          break;
+        }
+      }
+    }
+    stopHeartbeat(cu);
+    if (paused) return out(false, "PAUSED", "Board ilipumzishwa wakati wa build — itarudiwa ikiresume", { freshSandbox: fresh, restored });
+
+    // commit ya harness (kazi ya milestone hii ndani ya git — mwendelezo kwa M inayofuata)
+    let gitLog = "";
+    try {
+      const r: any = await sbx.commands.run(
+        `cd /home/user/ws && ${MS_GIT} add -A && (${MS_GIT} diff --cached --quiet || ${MS_GIT} commit -qm ${q(`XMD ${id}: ${ph.startPack.title}`.slice(0, 120))}); git log --oneline -n 5 2>/dev/null || true`,
+        { timeoutMs: 60_000 });
+      gitLog = String(r?.stdout || "").trim();
+      hooks.blog("info", gitLog
+        ? `🧾 git ${id}: ${gitLog.split("\n").slice(0, 3).join(" · ").slice(0, 300)}`
+        : `🧾 git ${id}: hakuna mabadiliko ya kucommit (repo bado haina commit).`);
+    } catch (e: any) {
+      hooks.blog("warning", `🧾 git commit ya ${id} haikufanyika: ${String(e?.message || e).slice(0, 140)}`);
+    }
+    await msSnapshot(sbx, cu, hooks, id);
+    if (ph.last) setTimeout(() => sbx.kill?.().catch(() => {}), 15_000);
+    else sbx.setTimeout(30 * 60_000).catch(() => {}); // inabaki kwa milestone inayofuata (ikifa → kiovu)
+
+    const fs = (cu.finalState || "ERROR") as CuFinalState;
+    return out(!MS_BUILD_FAIL_STATES.includes(fs), fs, cu.finalReason || "", { report: cu.report, freshSandbox: fresh, restored, gitLog });
+  } catch (e: any) {
+    stopHeartbeat(cu);
+    hooks.blog("error", `❌ XMD Computer · ${id}: ${String(e?.message || e).slice(0, 200)}`);
+    return out(false, "ERROR", `Sandbox ya E2B haikuwezekana: ${String(e?.message || e).slice(0, 200)}`);
+  } finally {
+    (cu as any).msPhase = undefined;
+    (cu as any).msBusy = false;
+    writeCuChip(runner);
+  }
+}
+
+/** run_end ya awamu ya milestone: hali ya mwisho (computeFinalOutcome) — HAIMALIZI session wala kuua sandbox. */
+function finishMilestonePhase(runner: Runner, hooks: CuHooks | null, ev: CuEvent): void {
+  const cu = runner.cu!;
+  if (cu.done) return;
+  stopHeartbeat(cu);
+  if (cu.persistTimer) { clearTimeout(cu.persistTimer); cu.persistTimer = undefined; }
+  const id = String((cu as any).msPhase?.id || "");
+  const status = String(ev.status || "done");
+  const outcome = computeFinalOutcome({
+    status, hasReport: !!cu.report, paused: status === "paused_quota",
+    error: ev.fatal ? String(ev.fatal).slice(0, 200) : undefined,
+  });
+  cu.finalState = outcome.state;
+  cu.finalReason = outcome.reason;
+  cu.done = true;
+  runner.items.push({
+    kind: "cu", id: `cu_end_${runner.items.length}`, i: ev.i, cu: "run_end", status, milestone: id,
+    finalState: outcome.state, finalReason: outcome.reason, steps: ev.steps, ms: ev.ms,
+    github: cu.links.repo, live: cu.links.live, tokens: cu.usage.tokens, requests: cu.usage.requests,
+  } as any);
+  const failed = MS_BUILD_FAIL_STATES.includes(outcome.state);
+  if (hooks) {
+    hooks.blog(failed ? "error" : "success", `🖥️ XMD Computer · ${id}: ${outcome.state}${outcome.reason ? ` (${outcome.reason})` : ""} — ${cu.usage.requests} LLM calls · ${cu.usage.tokens.toLocaleString("en-US")} tokens.`);
+    hooks.bcast({ type: "cu", cu: { type: "phase_done", ok: !failed, status, finalState: outcome.state, finalReason: outcome.reason, milestone: id } });
+    schedulePersist(runner, hooks, true); // msMode → "running" (Board inaendelea)
+  }
+  cu.phaseResolve?.();
+}
+
 export function cuError(runner: Runner, hooks: CuHooks, message: string): void {
   const cu = runner.cu!;
   hooks.bcast({ type: "cu", cu: { type: "error", message } });
@@ -818,6 +1092,7 @@ function stopWatchdog(cu: CuRunState) {
 export function checkCuStall(runner: Runner, hooks: CuHooks | null): "ok" | "warned" | "paused" {
   const cu = runner.cu;
   if (!cu || cu.done || cu.pausedNow || cu.pausing) return "ok";
+  if ((cu as any).msMode) return "ok"; // TASK-16: njia ya milestone ina liveness yake (CU_LIVENESS_MS)
   const idleMs = Date.now() - ((cu as any).lastRealAt || cu.lastEventAt || cu.startedAt); // R44-E: kelele za quota hazihesabiwi
   if (idleMs > CU_STALL_PAUSE_MS) {
     hooks?.blog("error", `🖥️ XMD Computer: hakuna tukio kwa ${Math.round(idleMs / 60000)} dk (stream ya LLM imekwama) — inapumzishwa; itajaring tena baada ya dakika 10.`);
@@ -858,7 +1133,10 @@ function schedulePersist(runner: Runner, hooks: CuHooks, force = false) {
   // R31-G4: status halisi ya runner — "paused" ikirudi kutoka pause haivurugwi na "running"
   // TASK-6: CU ikishamaliza (finalState imewekwa na finishComputer/blocked) — tukio lolote linalochelewa
   // HALIANDIKI "running" juu ya status ya mwisho (smoke 2 ya Task 5: session ilibaki "running").
-  const st = cu.finalState ? (cu.done ? "completed" : "finale_incomplete")
+  const st = (cu as any).msMode
+    // TASK-16: awamu ya milestone ikiisha Board bado inaendelea — kamwe "completed"/"finale_incomplete" kutoka hapa
+    ? (runner.status === "paused" || ((cu.pausedNow || cu.pausing) && !cu.done) ? "paused" : "running")
+    : cu.finalState ? (cu.done ? "completed" : "finale_incomplete")
     // TASK-8: "paused" = pause ya SASA tu (pausedNow/pausing). Zamani pausedOnce (historia) iliacha run iliyoresumiwa
     // ionekane "paused" kwenye DB hadi mwisho. pausedNow inafutwa startComputerPhase ikianza (resume).
     : runner.status === "paused" ? "paused" : (cu.pausedNow || cu.pausing) && !cu.done ? "paused" : "running";
@@ -1112,6 +1390,11 @@ export async function handleCuEvent(runner: Runner, hooks: CuHooks | null, ev: C
       break;
     }
     case "run_end": {
+      // TASK-16: njia ya milestone — run_end inamaliza AWAMU (si session); nje ya awamu inapuuzwa
+      if ((cu as any).msMode) {
+        if ((cu as any).msPhase) finishMilestonePhase(runner, hooks, ev);
+        break;
+      }
       if (String(ev.status) === "paused_quota") {
         pauseComputer(runner, hooks, ev);
         break;

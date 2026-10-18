@@ -165,3 +165,53 @@ describe("testHooks", () => {
     expect(testMaxAgendas({ XMD_TEST_HOOKS: "1", XMD_TEST_MAX_AGENDAS: "0" } as any)).toBeNull();
   });
 });
+
+describe("TASK-16: hatua ya build kupitia hooks.build (XMD Computer kwa kila milestone)", () => {
+  const plan = { milestoneId: "M1", status: "active", executable: true, reasons: [], markdown: "# MILESTONE PLAN — M1", steps: 1, checks: 1, routes: 0, problems: [], warnings: [], guardHits: [], repairs: { structure: 0, guard: 0 } } as any;
+  const run = async (outcome: any) => {
+    const t = setup([1, 2]);
+    const seen: string[] = [];
+    let calls = 0;
+    t.hooks.plan = async () => plan;
+    t.hooks.build = async (m, md) => { calls++; seen.push(`${m.id}:${md}`); return outcome; };
+    await maybeCloseMilestones(t.runner, t.hooks);
+    return { ...t, seen, calls: () => calls, st: db.get(`${SID}|${stateKey("M1")}`)!.data };
+  };
+
+  it("COMPLETED_UNVERIFIED → build DONE (si stub), plan inapokelewa, store build:M1, event milestoneBuild, SIGNED_OFF", async () => {
+    const t = await run({ ok: true, finalState: "COMPLETED_UNVERIFIED", reason: "", report: "ripoti", restored: 0, freshSandbox: true });
+    expect(t.seen).toEqual(["M1:# MILESTONE PLAN — M1"]);
+    expect(t.st.status).toBe("SIGNED_OFF");
+    expect(t.st.steps.map((s: any) => [s.stepId, s.status, !!s.stub])).toEqual([["M1.R0.plan", "DONE", false], ["M1.R0.build", "DONE", false]]);
+    expect(db.get(`${SID}|build:M1`)!.data).toMatchObject({ id: "M1", ok: true, finalState: "COMPLETED_UNVERIFIED", report: "ripoti" });
+    expect(t.events.filter((e) => e.type === "milestoneBuild").map((e) => [e.id, e.ok, e.finalState])).toEqual([["M1", true, "COMPLETED_UNVERIFIED"]]);
+    expect(validateMilestoneState(t.st).ok).toBe(true);
+  });
+
+  for (const fs of ["STUCK", "BLOCKED", "ERROR"]) {
+    it(`${fs} → build FAILED, M1 BLOCKED (resumeTo BUILDING), sababu wazi, hairudiwi yenyewe`, async () => {
+      const t = await run({ ok: false, finalState: fs, reason: "liveness: no bridge event for 60s" });
+      expect([t.st.status, t.st.resumeTo]).toEqual(["BLOCKED", "BUILDING"]);
+      expect(t.st.steps.map((s: any) => [s.stepId, s.status])).toEqual([["M1.R0.plan", "DONE"], ["M1.R0.build", "FAILED"]]);
+      expect(t.chips.some((c) => c.startsWith(`⛔ Build ya Milestone M1: ${fs} — liveness`))).toBe(true);
+      await maybeCloseMilestones(t.runner, t.hooks);
+      expect(t.calls()).toBe(1);
+    });
+  }
+
+  it("PAUSED_QUOTA → M1 PAUSED_QUOTA (HOLD)", async () => {
+    const t = await run({ ok: false, finalState: "PAUSED_QUOTA", reason: "quota" });
+    expect([t.st.status, t.st.resumeTo]).toEqual(["PAUSED_QUOTA", "BUILDING"]);
+  });
+
+  it("PAUSED (Board pause) → hatua inabaki RUNNING, M1 BUILDING; wito unaofuata unairudia build", async () => {
+    const t = await run({ ok: false, finalState: "PAUSED", reason: "pause" });
+    expect(t.st.status).toBe("BUILDING");
+    expect(t.st.steps.find((s: any) => s.stepId === "M1.R0.build").status).toBe("RUNNING");
+    t.hooks.build = async () => ({ ok: true, finalState: "COMPLETED_UNVERIFIED", reason: "" });
+    await maybeCloseMilestones(t.runner, t.hooks);
+    const st = db.get(`${SID}|${stateKey("M1")}`)!.data;
+    expect(st.status).toBe("SIGNED_OFF");
+    expect(st.steps.find((s: any) => s.stepId === "M1.R0.build")).toMatchObject({ status: "DONE", attempts: 2 });
+  });
+});

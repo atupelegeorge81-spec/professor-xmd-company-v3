@@ -48,10 +48,11 @@ import { saveProjectPlan, getPlanBySession } from "./server/plans";
 import { serialQueue } from "./serialQueue"; // TASK-6
 import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES, default OFF)
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
-import { putRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13
+import { putRecord, getRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13 (getRecord: TASK-16)
 import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
-import { maybeCloseMilestones, milestonesDoneFromChips, type LoopHooks } from "./milestone/loop"; // TASK-14
-import { buildOCB, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14
+import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, type LoopHooks } from "./milestone/loop"; // TASK-14 (buildKey: TASK-16)
+import { buildOCB, buildOCBForComputer, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14 (Computer OCB: TASK-16)
+import { buildStartPack, type PrevBuild } from "./milestone/startpack"; // TASK-16
 import { maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks";
 import { generateMilestonePlan } from "./milestone/plan"; // TASK-15 // TASK-14 (XMD_TEST_HOOKS=1 pekee)
 import type { MilestoneMap } from "./milestone/types";
@@ -1177,7 +1178,8 @@ async function run(runner: Runner) {
       // resume ingawa CU ina snapshot yake ya workspace + chip yake ya hali).
       // (Kosa la 6ac3ce60: rebuilt runner hana `cu` bado — ensureCuState hapa, si baadaye)
       if (runner.computerPlanned && !runner.finale?.computer) ensureCuState(runner);
-      if (runner.cu?.pausedOnce && !runner.cu?.done && runner.computerPlanned && cuEnabled()) {
+      // TASK-16: XMD_MILESTONES — Computer inaendeshwa na kitanzi cha milestones (build step), si njia ya zamani
+      if (runner.cu?.pausedOnce && !runner.cu?.done && runner.computerPlanned && cuEnabled() && !(milestonesEnabled() && runner.msMap)) {
         blog("system", "♻️ Quota ilirudi — XMD Computer inaendelea moja kwa moja (snapshot inarejesha workspace).");
         addChip("▶️ Quota ilirudi — XMD Computer inaendelea moja kwa moja kutoka pale ilipoishia.");
         void persist("running"); // doc ionekane YA SASA (si kwa tukio la kwanza la CU)
@@ -1594,6 +1596,27 @@ async function run(runner: Runner) {
           maxSteps: planStepsMaxFor(runner.project, PLAN_STEPS_MAX), prevReports: [], repoState: "", defects: [],
           log: (lvl, t) => blog(lvl, t),
         });
+      },
+      // TASK-16: XMD Computer — awamu MOJA kwa milestone hii (StartPack, bridge mpya, workspace inaendelea)
+      build: async (m, planMarkdown) => {
+        if (!cuEnabled()) return { ok: false, finalState: "BLOCKED", reason: "XMD Computer imezimwa (CU_ENABLED=off au E2B_API_KEY haipo)" };
+        runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle };
+        const map = runner.msMap!;
+        const idx = map.milestones.findIndex((x) => x.id === m.id);
+        const sid = sessionId || runner.id;
+        const prevBuilds = (await Promise.all(map.milestones.slice(0, Math.max(0, idx)).map(async (x): Promise<PrevBuild | null> => {
+          const r = (await getRecord<{ finalState?: string; reason?: string; report?: string }>(sid, buildKey(x.id)))?.data;
+          return r ? { id: x.id, title: x.title, finalState: String(r.finalState || "?"), reason: r.reason, report: r.report } : null;
+        }))).filter((x): x is PrevBuild => !!x);
+        const ocb = buildOCBForComputer({
+          project: { name: conversationTitle, summary: runner.project }, map, stage: "BUILD", self: "computer", milestoneId: m.id, round: null,
+          counts: {
+            lockedDecisions: runner.items.filter((it) => it.kind === "chip" && /^\s*🔒 LOCKED/.test(String((it as { text?: string }).text || ""))).length,
+            milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects: 0, waivers: 0,
+          },
+        });
+        const startPack = buildStartPack({ m, planMarkdown, ledger: await finalBoardResolution(runner.id), prevBuilds, defects: [], ocb });
+        return startComputerPhase(runner, runner.cuHooks, { milestoneId: m.id, planMarkdown, startPack, title: conversationTitle, last: idx === map.milestones.length - 1 });
       },
     });
     const closeMilestones = async (status: string) => {
