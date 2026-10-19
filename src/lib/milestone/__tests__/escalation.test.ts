@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyEscalationToDefects, diffMissedTarget, enforceDetector, escalateChangeOrders, escalationChip, findCoConflicts, isOneSentence, mergeConflictFallback, modeForAttempt,
-  validateConcrete, validateDiagnosis, validatePatch, validateRedecide, validateSplit, REDECIDE_MAX_TURNS, type PrevAttemptFact, type RedecideVote,
+  requirementDrift, restoreRequirement, validateConcrete, validateDiagnosis, validatePatch, validateRedecide, validateSplit, REDECIDE_MAX_TURNS, type PrevAttemptFact, type RedecideVote,
 } from "../escalation";
 import { escalationLines, reproducedMap } from "../fixRound";
 import type { ChangeOrder, Defect } from "../types";
@@ -151,6 +151,39 @@ describe("escalateChangeOrders (LLM stub)", () => {
       [CO("CO-002", ["D-001"], { attempt: 2 })], { "D-001": [fact({ verdict: "NOT_ATTEMPTED", touched: [] })] }, 3, { complete: async () => "not json" });
     expect(r.events[0]).toMatchObject({ valid: false, tries: 3, diagnosis: { cause: "NOT_ATTEMPTED" } });
     expect(r.changeOrders[0]).toMatchObject({ id: "CO-002", mode: "concrete", diagnosis: { cause: "NOT_ATTEMPTED" } });
+  });
+});
+
+describe("kinga ya hitaji (real run T1): hitaji haliwezi kubadilika kimya kimya kabla ya redecide MODIFY", () => {
+  const up = { id: "up", type: "computed_style" as const, route: "/", selector: ".site-nav a", property: "text-transform", expected: "uppercase" };
+  const navUp = (extra: Partial<ChangeOrder> = {}) => CO("CO-002", ["D-001"], { attempt: 2, location: { files: ["src/styles.css"], route: "/", selector: ".site-nav a" }, acceptance: [up], ...extra });
+  const flipped = { ...concrete, location: { ...concrete.location, selector: ".site-nav a" }, acceptance: [{ ...up, id: "none", expected: "none" }] };
+  it("drift: thamani tofauti → kosa; selector iliyoboreshwa na property+thamani ileile → sawa", () => {
+    expect(requirementDrift([{ acceptance: flipped.acceptance as ChangeOrder["acceptance"] }], [up])[0]).toMatch(/requirement changed: .*text-transform: uppercase.*redecide MODIFY/);
+    expect(requirementDrift([{ acceptance: [{ ...up, selector: "header .site-nav a" }] }], [up])).toEqual([]);
+  });
+  it("validateConcrete / validateSplit / KEEP zinakataa kubadilisha hitaji; MODIFY inaruhusiwa", () => {
+    const c = validateConcrete(flipped, navUp(), "visual", [up]);
+    expect(c.ok).toBe(false);
+    expect(validateConcrete({ ...flipped, desired: "text-transform: uppercase", acceptance: [up] }, navUp(), "visual", [up]).ok).toBe(true);
+    expect(validateSplit({ changeOrders: [flipped] }, navUp({ attempt: 4 }), "visual", 9, [up]).ok).toBe(false);
+    const votes: RedecideVote[] = [{ reviewer: "designer", vote: "MODIFY", reason: "r" }, { reviewer: "frontend", vote: "MODIFY", reason: "r" }];
+    expect(validateRedecide({ outcome: "KEEP", reason: "r", guidance: "g", changeOrder: flipped }, votes, navUp({ attempt: 5 }), "visual", [up]).ok).toBe(false);
+    expect(validateRedecide({ outcome: "MODIFY", reason: "r", requirement: "sentence case nav", changeOrder: flipped }, votes, navUp({ attempt: 5 }), "visual", [up]).ok).toBe(true);
+  });
+  it("consolidation iliyogeuza hitaji → code inarejesha kabla ya ngazi; LLM ikishindwa mara 3 → CO iliyorejeshwa inatumwa", async () => {
+    const prompts: string[] = [];
+    const r = await escalateChangeOrders({ milestoneId: "M1", round: 3, reviewMode: "visual", defects: [D("D-001")], ledgerLines: [], roundHeader: "H", requirements: { "D-001": [up] } },
+      [navUp({ acceptance: flipped.acceptance as ChangeOrder["acceptance"], desired: "keep text-transform: none" })], { "D-001": [fact()] }, 3,
+      { complete: async (_a, _p, m) => { prompts.push(m.map((x) => x.content).join("\n")); return JSON.stringify({ diagnosis: { cause: "CONFLICT_WITH_DECISION", reason: "A1 forbids it." }, changeOrder: flipped }); } });
+    expect(prompts[0]).toMatch(/REQUIREMENT \(fixed[^\n]*\n- \.site-nav a \{ text-transform: uppercase \}/);
+    expect(r.events[0]).toMatchObject({ valid: false, tries: 3, requirementRestored: 1 });
+    expect(r.events[0].errors.join(" ")).toMatch(/requirement changed/);
+    const co = r.changeOrders[0];
+    expect(co.acceptance.filter((x) => x.type === "computed_style").map((x) => (x as typeof up).expected)).toEqual(["uppercase"]);
+    expect(co.desired).toMatch(/^REQUIREMENT \(unchanged until a redecide MODIFY\)/);
+    expect(applyEscalationToDefects([D("D-001")], r, 3)[0].history!.at(-1)!.cause).toMatch(/requirement restored \(1 check\(s\)\)/);
+    expect(restoreRequirement(navUp(), [up])).toEqual(navUp()); // hakuna drift → haiguswi
   });
 });
 

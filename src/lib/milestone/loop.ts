@@ -24,7 +24,7 @@ import {
 } from "./verify"; // TASK-26
 import { buildOCB } from "./ocb";
 import { maybeCapturePrompt } from "./testHooks";
-import { amendmentLine, applyEscalationToDefects, escalateChangeOrders, escalationChip, type Amendment, type EscalateDeps, type EscalateResult, type Msg as EscMsg, type PrevAttemptFact, type Waiver } from "./escalation"; // TASK-27
+import { amendmentLine, applyEscalationToDefects, escalateChangeOrders, escalationChip, requirementChecksOf, type Amendment, type EscalateDeps, type EscalateResult, type Msg as EscMsg, type PrevAttemptFact, type Waiver } from "./escalation"; // TASK-27
 
 export interface LoopRunner {
   id: string;
@@ -670,6 +670,18 @@ export async function escalationFacts(sid: string, m: Milestone, upTo: number): 
   return out;
 }
 
+/** Hitaji la asili kwa kila defect: computed_style checks za CO ya KWANZA iliyoilenga (cos:Mk ina COs zote). Defect iliyo-AMEND (redecide MODIFY) haina kinga tena. */
+export async function escalationRequirements(sid: string, m: Milestone, amends: Amendment[]): Promise<Record<string, ReturnType<typeof requirementChecksOf>>> {
+  const all = ((await getRecord<{ changeOrders?: ChangeOrder[] }>(sid, cosKey(m.id)))?.data?.changeOrders || []).slice().sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+  const out: Record<string, ReturnType<typeof requirementChecksOf>> = {};
+  for (const co of all) for (const d of co.defectIds) {
+    if (out[d] || amends.some((a) => a.defectId === d)) continue;
+    const req = requirementChecksOf(co);
+    if (req.length) out[d] = req;
+  }
+  return out;
+}
+
 /** Inahifadhi matokeo ya escalation (idempotent kwa kitambulisho): history, WAIVED, amendments (ledger), waivers (state + ripoti), chips. */
 export async function applyEscalation(runner: LoopRunner, m: Milestone, round: number, hooks: LoopHooks, ex: Pick<EscalateResult, "events" | "waivers" | "amendments" | "conflicts">): Promise<Defect[]> {
   const sid = runner.sessionId as string;
@@ -861,6 +873,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
         const ex = await escalateChangeOrders({
           milestoneId: m.id, round: round + 1, reviewMode: m.reviewMode, defects: res.defects, ledgerLines: [...base.ledgerLines, ...amends.map(amendmentLine)],
           roundHeader: formatRoundHeader(nowHeader), planGoal: planGoalOf(plan), notes: reverted ? [reverted] : [],
+          requirements: await escalationRequirements(sid, m, amends),
         }, cons.changeOrders, facts, Math.max(nextCoNumber(prevAll), nextCoNumber(cons.changeOrders)), {
           complete: vh.escalateComplete || ((agent, purpose, messages) => escalateLlm(sid, agent, purpose, messages)),
           readFiles: vh.readFiles ? (paths) => vh.readFiles!(m, paths) : undefined, log: hooks.blog,

@@ -64,7 +64,7 @@ import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
 import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace, captureRoundEvidence, milestoneGit, milestonePatch, milestoneReadFiles } from "./cu/engine"; // TASK-25/26
 import { testStopAfterRound, testVerifyInput, type TestVerifyInput, nextAttempt, planGoalOf } from "./milestone/verify"; // TASK-26 test hooks
-import { escalateChangeOrders } from "./milestone/escalation"; // TASK-27
+import { escalateChangeOrders, requirementChecksOf } from "./milestone/escalation"; // TASK-27
 import { formatRoundHeader } from "./milestone/review"; // TASK-27
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
 import {
@@ -3465,6 +3465,7 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
                 milestoneId: m.id, round: sr, reviewMode: m.reviewMode, defects: defs, planGoal: planGoalOf(tv.planMarkdown),
                 ledgerLines: (tv.ledger || []).map((e) => `- A${e.agenda_index} [LOCKED] ${e.agenda_item}: ${String(e.decision_summary || "").replace(/\s+/g, " ").slice(0, 420)}`),
                 roundHeader: formatRoundHeader(fixRoundHeader(m, Math.max(1, sr - 1), MAX_ROUNDS, defs)),
+                requirements: Object.fromEntries(cos1.flatMap((c) => c.defectIds.map((d) => [d, requirementChecksOf(c)] as const)).filter(([, r]) => r.length)),
               }, cos1, {}, nextCoNumber(cos1), { complete: (a, pp, msgs) => escalateLlm(runner.sessionId!, a, pp, msgs), readFiles: (paths) => milestoneReadFiles(runner as Runner, paths), log: blog });
               seedCos = seedEx.changeOrders;
               blog("info", `🪜 XMD_TEST_VERIFY_INPUT escalate: ${seedEx.events.map((e) => `${e.coId} attempt ${e.attempt} → ${e.mode}${e.redecide ? ` ${e.redecide.outcome}` : ""}${e.valid ? "" : " (fallback)"}`).join(" · ")}`);

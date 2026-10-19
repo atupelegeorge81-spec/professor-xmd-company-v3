@@ -102,8 +102,32 @@ function sharpCheck(c: Check): boolean {
 }
 function sameIds(a: string[], b: string[]) { return a.length === b.length && a.every((x) => b.includes(x)); }
 
+/* ── kinga ya hitaji (real run T1): hadi redecide MODIFY, hitaji la defect haliwezi kubadilika kimya kimya ── */
+type StyleCheck = Extract<Check, { type: "computed_style" }>;
+const lc = (x: unknown) => String(x ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+/** checks za hitaji = computed_style zenye expected/forbidden (selector inaweza kuboreshwa, property+thamani haziwezi). */
+export function requirementChecksOf(co: Pick<ChangeOrder, "acceptance">): StyleCheck[] {
+  return co.acceptance.filter((c): c is StyleCheck => c.type === "computed_style" && !!((c as StyleCheck).expected || (c as StyleCheck).forbidden));
+}
+const keeps = (cs: Check[], r: StyleCheck) => cs.some((c) => c.type === "computed_style" && lc(c.property) === lc(r.property) && (r.expected ? lc(c.expected) === lc(r.expected) : lc(c.forbidden) === lc(r.forbidden)));
+const reqText = (r: StyleCheck) => `${r.selector} { ${r.property}${r.expected ? `: ${r.expected}` : ` ≠ ${r.forbidden}`} }`;
+/** makosa kama COs (pamoja) hazihifadhi kila check ya hitaji */
+export function requirementDrift(cos: Pick<ChangeOrder, "acceptance">[], req: StyleCheck[]): string[] {
+  const all = cos.flatMap((c) => c.acceptance);
+  return req.filter((r) => !keeps(all, r)).map((r) => `requirement changed: the defect still requires ${reqText(r)} — keep that exact property and value in acceptance; only a redecide MODIFY (attempt ≥5) may change a requirement`);
+}
+/** fallback ya code: inarejesha checks za hitaji kwenye CO iliyobadilisha hitaji */
+export function restoreRequirement(co: ChangeOrder, req: StyleCheck[]): ChangeOrder {
+  const lost = req.filter((r) => !keeps(co.acceptance, r));
+  if (!lost.length) return co;
+  const drop = (c: Check) => c.type === "computed_style" && lost.some((r) => lc(r.property) === lc(c.property));
+  return { ...co, acceptance: [...co.acceptance.filter((c) => !drop(c)), ...lost.map((r) => ({ ...r, id: `${r.id}#req` }))],
+    desired: `REQUIREMENT (unchanged until a redecide MODIFY): ${lost.map(reqText).join("; ")}. ${co.desired}`.slice(0, 2000) };
+}
+export const requirementLines = (req: StyleCheck[]) => req.length ? ["", "REQUIREMENT (fixed — only a redecide MODIFY at attempt ≥5 may change it; your order MUST keep these exact checks):", ...req.map((r) => `- ${reqText(r)}`)] : [];
+
 /** attempt 2: CO kamili. */
-export function validateConcrete(raw: unknown, base: ChangeOrder, reviewMode: ReviewMode): V<ChangeOrder> {
+export function validateConcrete(raw: unknown, base: ChangeOrder, reviewMode: ReviewMode, req: StyleCheck[] = []): V<ChangeOrder> {
   const v = validateChangeOrder({ ...(raw as object), id: base.id, attempt: base.attempt, mode: "concrete" }, reviewMode);
   if (!v.ok) return { ok: false, errors: v.errors.map((x) => `changeOrder: ${x}`) };
   const co = v.value, e: string[] = [];
@@ -113,6 +137,7 @@ export function validateConcrete(raw: unknown, base: ChangeOrder, reviewMode: Re
   if (!PROP_VALUE_RE.test(co.desired)) e.push("changeOrder.desired: AFTER state with the exact property and value (e.g. \"text-transform: none\")");
   if (!co.acceptance.some(sharpCheck)) e.push("changeOrder.acceptance: add a SHARPER check that measures the exact value (computed_style with expected/forbidden, grep, file_contains, contrast_min, touch_target_min…)");
   if (!sameIds(co.defectIds, base.defectIds)) e.push(`changeOrder.defectIds: must stay exactly [${base.defectIds.join(", ")}]`);
+  requirementDrift([co], req).forEach((x) => e.push(`changeOrder.acceptance: ${x}`));
   return e.length ? { ok: false, errors: e } : { ok: true, value: { ...co, priority: base.priority, decisionIds: base.decisionIds, mode: "concrete" } };
 }
 
@@ -143,7 +168,7 @@ export function validatePatch(raw: unknown): V<PairPatch> {
 export function computedProps(co: Pick<ChangeOrder, "acceptance">): string[] {
   return [...new Set(co.acceptance.filter((c) => c.type === "computed_style").map((c) => String((c as { property: string }).property).trim().toLowerCase()))];
 }
-export function validateSplit(raw: unknown, base: ChangeOrder, reviewMode: ReviewMode, nextCoNo: number): V<ChangeOrder[]> {
+export function validateSplit(raw: unknown, base: ChangeOrder, reviewMode: ReviewMode, nextCoNo: number, req: StyleCheck[] = []): V<ChangeOrder[]> {
   const list = (raw && typeof raw === "object" && Array.isArray((raw as { changeOrders?: unknown }).changeOrders)) ? (raw as { changeOrders: unknown[] }).changeOrders : null;
   if (!list || !list.length) return { ok: false, errors: ["output must be {\"changeOrders\":[…]} with ≥1 smaller order"] };
   const e: string[] = [], out: ChangeOrder[] = [];
@@ -159,6 +184,7 @@ export function validateSplit(raw: unknown, base: ChangeOrder, reviewMode: Revie
   });
   const cov = new Set(out.flatMap((c) => c.defectIds));
   for (const d of base.defectIds) if (!cov.has(d)) e.push(`defect ${d} lost in the split — every defect needs ≥1 order`);
+  if (out.length) requirementDrift(out, req).forEach((x) => e.push(`split: ${x}`));
   return e.length ? { ok: false, errors: e } : { ok: true, value: out };
 }
 
@@ -173,7 +199,7 @@ export function validateVote(raw: unknown, reviewer: RedecideVote["reviewer"]): 
 }
 export interface RedecideDecision { outcome: RedecideOutcome; reason: string; guidance?: string; requirement?: string; changeOrder?: ChangeOrder; approvedBy: string[] }
 /** WAIVE: reviewers WOTE + Optimus; sababu ni lazima. KEEP/MODIFY: CO mpya (KEEP = guidance, MODIFY = requirement mpya). */
-export function validateRedecide(raw: unknown, votes: RedecideVote[], base: ChangeOrder, reviewMode: ReviewMode): V<RedecideDecision> {
+export function validateRedecide(raw: unknown, votes: RedecideVote[], base: ChangeOrder, reviewMode: ReviewMode, req: StyleCheck[] = []): V<RedecideDecision> {
   const o = (raw && typeof raw === "object" ? raw : {}) as { outcome?: unknown; reason?: unknown; guidance?: unknown; requirement?: unknown; changeOrder?: unknown };
   const e: string[] = [];
   const outcome = String(o.outcome) as RedecideOutcome;
@@ -189,6 +215,7 @@ export function validateRedecide(raw: unknown, votes: RedecideVote[], base: Chan
     const v = validateChangeOrder({ ...(o.changeOrder as object), id: base.id, attempt: base.attempt, mode: "redecide" }, reviewMode);
     if (!v.ok) v.errors.forEach((x) => e.push(`changeOrder: ${x}`));
     else if (!sameIds(v.value.defectIds, base.defectIds)) e.push(`changeOrder.defectIds: must stay exactly [${base.defectIds.join(", ")}]`);
+    else if (outcome === "KEEP" && requirementDrift([v.value], req).length) requirementDrift([v.value], req).forEach((x) => e.push(`changeOrder.acceptance (KEEP): ${x} — or choose MODIFY`));
     else co = { ...v.value, priority: base.priority, mode: "redecide" };
   }
   if (e.length) return { ok: false, errors: e };
@@ -242,6 +269,7 @@ const CO_SHAPE = `{"defectIds":["D-001"],"priority":1,"location":{"files":["src/
 function head(i: EscalateCtx): string[] {
   return [i.roundHeader, "", "LOCKED LEDGER (binding):", ...(i.ledgerLines.length ? i.ledgerLines : ["(none)"]), ...(i.planGoal ? ["", `PLAN GOAL: ${i.planGoal}`] : []), ...(i.notes?.length ? ["", "HARNESS NOTES:", ...i.notes.map((n) => `- ${n}`)] : [])];
 }
+export const reqOf = (i: EscalateCtx, co: Pick<ChangeOrder, "defectIds">): StyleCheck[] => co.defectIds.flatMap((d) => i.requirements?.[d] || []);
 function defectBlock(co: ChangeOrder, defects: Defect[]): string[] {
   return defects.filter((d) => co.defectIds.includes(d.id)).map((d) => `- ${d.id} [${d.severity}] ${d.title} · expected: ${d.expected} · actual: ${d.actual} · attempts so far: ${d.attempts}\n  history: ${(d.history || []).slice(-6).map((h) => `R${h.round} ${h.result} (${String(h.cause).slice(0, 160)})`).join(" | ")}`);
 }
@@ -251,7 +279,7 @@ export function concretePrompt(i: EscalateCtx, co: ChangeOrder, facts: PrevAttem
     { role: "user", content: [...head(i), "",
       `ESCALATION: attempt ${co.attempt} → mode "concrete".`, "DEFECT(S):", ...defectBlock(co, i.defects), "",
       "PREVIOUS ATTEMPTS (measured by the harness — the NO-OP detector compares the git diff with the target files):", ...(facts.length ? factLines(facts) : ["(no harness record)"]), "",
-      "CURRENT ORDER:", JSON.stringify(co), "",
+      "CURRENT ORDER:", JSON.stringify(co), "", ...requirementLines(reqOf(i, co)), "",
       `diagnosis.cause ∈ ${DIAGNOSIS_CAUSES.join(" | ")}. If the detector says the diff did not touch the target, the cause IS NOT_ATTEMPTED. If the order contradicts a LOCKED ledger decision, the cause is CONFLICT_WITH_DECISION. reason = ONE sentence.`,
       `changeOrder: exact file(s) in location.files, exact selector, "current" = BEFORE with exact property: value, "desired" = AFTER with exact property: value, and a SHARPER acceptance check measuring that exact value. Keep defectIds unchanged.`,
       `Reply: {"diagnosis":{"cause":"…","reason":"one sentence"},"changeOrder":${CO_SHAPE}}`].join("\n") },
@@ -261,7 +289,7 @@ export function patchPrompt(i: EscalateCtx, co: ChangeOrder, files: Record<strin
   const fileBlocks = Object.entries(files).map(([p, c]) => `=== FILE ${p} (current, exact) ===\n${c.slice(0, PATCH_FILE_MAX_CHARS)}${c.length > PATCH_FILE_MAX_CHARS ? "\n…(truncated)" : ""}`);
   return [
     { role: "system", content: "You are Vextron, the Frontend Engineer. The Computer failed to fix this defect twice. Write the EXACT fix yourself as a minimal unified diff against the files shown (or one complete file). Reply with ONE JSON object only." },
-    { role: "user", content: [...head(i), "", `ESCALATION: attempt ${co.attempt} → mode "pair_patch".`, "DEFECT(S):", ...defectBlock(co, i.defects), "", "ORDER:", JSON.stringify(co), "",
+    { role: "user", content: [...head(i), "", `ESCALATION: attempt ${co.attempt} → mode "pair_patch".`, "DEFECT(S):", ...defectBlock(co, i.defects), "", "ORDER:", JSON.stringify(co), "", ...requirementLines(reqOf(i, co)), "",
       ...(fileBlocks.length ? fileBlocks : ["(target files could not be read — write a complete file)"]), "",
       "Rules: change ONLY what the order needs; respect every LOCKED decision; context lines must match the current file EXACTLY (the harness runs `git apply --check`); paths repo-relative.",
       `Reply: {"patch":"--- a/<path>\\n+++ b/<path>\\n@@ -l,n +l,n @@\\n …"}  OR  {"file":"<path>","content":"<complete new file>"}`].join("\n") },
@@ -271,7 +299,7 @@ export function splitPrompt(i: EscalateCtx, co: ChangeOrder, facts: PrevAttemptF
   return [
     { role: "system", content: "You are Optimus (PM). This defect failed three times. SPLIT the order into the smallest independent orders: ONE file and ONE property each. Reply with ONE JSON object only." },
     { role: "user", content: [...head(i), "", `ESCALATION: attempt ${co.attempt} → mode "split". The Computer must REPRODUCE (measure the current state) before fixing each one.`, "DEFECT(S):", ...defectBlock(co, i.defects), "",
-      "PREVIOUS ATTEMPTS:", ...(facts.length ? factLines(facts) : ["(none)"]), "", "ORDER TO SPLIT:", JSON.stringify(co), "",
+      "PREVIOUS ATTEMPTS:", ...(facts.length ? factLines(facts) : ["(none)"]), "", "ORDER TO SPLIT:", JSON.stringify(co), "", ...requirementLines(reqOf(i, co)), "",
       `Each order: exactly one file in location.files, at most one computed_style property, defectIds ⊂ [${co.defectIds.join(", ")}], "current" = what to MEASURE first (e.g. "measure getComputedStyle(.x).width at 375px — expected currently > 375px").`,
       `Reply: {"changeOrders":[${CO_SHAPE}, …]}`].join("\n") },
   ];
@@ -280,7 +308,7 @@ export function votePrompt(i: EscalateCtx, co: ChangeOrder, facts: PrevAttemptFa
   const who = reviewer === "designer" ? "Ultron (Designer, reviewer)" : "Vextron (Frontend Engineer, reviewer)";
   return [
     { role: "system", content: `You are ${who}. A defect has failed ${co.attempt - 1} fix attempts (concrete order, exact patch and split were all tried). The team must RE-DECIDE. Reply with ONE JSON object only.` },
-    { role: "user", content: [...head(i), "", "DEFECT(S):", ...defectBlock(co, i.defects), "", "ATTEMPTS:", ...factLines(facts), "", "LAST ORDER:", JSON.stringify(co), "",
+    { role: "user", content: [...head(i), "", "DEFECT(S):", ...defectBlock(co, i.defects), "", "ATTEMPTS:", ...factLines(facts), "", "LAST ORDER:", JSON.stringify(co), "", ...requirementLines(reqOf(i, co)), "",
       ...(prior.length ? ["EARLIER TURNS:", ...prior.map((v) => `- ${v.reviewer}: ${v.vote} — ${v.reason}`), ""] : []),
       "Vote KEEP (try again with new guidance — say what), MODIFY (the requirement itself must change — say how; it becomes a ledger decision) or WAIVE (accept the deviation; only if it is harmless/blocked by a locked decision and fixing it is not worth more rounds).",
       `Reply: {"vote":"KEEP|MODIFY|WAIVE","reason":"…"}`].join("\n") },
@@ -289,7 +317,7 @@ export function votePrompt(i: EscalateCtx, co: ChangeOrder, facts: PrevAttemptFa
 export function decidePrompt(i: EscalateCtx, co: ChangeOrder, facts: PrevAttemptFact[], votes: RedecideVote[]): Msg[] {
   return [
     { role: "system", content: "You are Optimus (PM). Close the re-decision for this defect. Reply with ONE JSON object only." },
-    { role: "user", content: [...head(i), "", "DEFECT(S):", ...defectBlock(co, i.defects), "", "ATTEMPTS:", ...factLines(facts), "", "LAST ORDER:", JSON.stringify(co), "",
+    { role: "user", content: [...head(i), "", "DEFECT(S):", ...defectBlock(co, i.defects), "", "ATTEMPTS:", ...factLines(facts), "", "LAST ORDER:", JSON.stringify(co), "", ...requirementLines(reqOf(i, co)), "",
       "REVIEWER VOTES:", ...votes.map((v) => `- ${v.reviewer}: ${v.vote} — ${v.reason}`), "",
       "Rules: WAIVE is allowed ONLY if BOTH reviewers voted WAIVE; reason is mandatory and goes into the final report. KEEP → new guidance + a new changeOrder. MODIFY → the new requirement (recorded as a ledger decision) + a changeOrder implementing it. Keep defectIds unchanged.",
       `Reply: {"outcome":"KEEP|MODIFY|WAIVE","reason":"…","guidance":"(KEEP)","requirement":"(MODIFY)","changeOrder":${CO_SHAPE} (omit for WAIVE)}`].join("\n") },
@@ -316,6 +344,8 @@ export interface EscalateCtx {
   roundHeader: string;
   planGoal?: string;
   notes?: string[];
+  /** hitaji la asili kwa kila defect (computed_style checks za CO ya kwanza) — hakuna kwa defect iliyo-AMEND */
+  requirements?: Record<string, StyleCheck[]>;
 }
 export interface EscalateDeps {
   complete: (agent: "pm" | "designer" | "frontend", purpose: string, messages: Msg[]) => Promise<string>;
@@ -334,6 +364,8 @@ export interface EscalationEvent {
   diagnosis?: Diagnosis;
   patch?: { kind: PairPatch["kind"]; files: string[]; chars: number };
   laneSwitch?: string;
+  /** idadi ya checks za hitaji zilizorejeshwa (consolidation ilikuwa imezibadilisha) */
+  requirementRestored?: number;
   redecide?: { outcome: RedecideOutcome; reason: string; votes: RedecideVote[]; turns: number; guidance?: string; requirement?: string; approvedBy: string[] };
 }
 export interface Waiver { defectId: string; title: string; severity: string; round: number; reason: string; approvedBy: string[]; votes: RedecideVote[]; at: string }
@@ -365,16 +397,21 @@ export async function escalateChangeOrders(ctx: EscalateCtx, cos: ChangeOrder[],
   const out: ChangeOrder[] = [], events: EscalationEvent[] = [], waivers: Waiver[] = [], amendments: Amendment[] = [];
   let no = nextCoNo;
   const now = () => new Date().toISOString();
-  for (const co0 of cos) {
-    const mode = modeForAttempt(co0.attempt);
+  for (const coIn of cos) {
+    const mode = modeForAttempt(coIn.attempt);
+    const req = reqOf(ctx, coIn);
+    // consolidation ilibadilisha hitaji kimya kimya (real run T1: uppercase → none) → code inarejesha hitaji kabla ya ngazi yoyote
+    const drift = mode === "standard" ? [] : requirementDrift([coIn], req);
+    const co0 = drift.length ? restoreRequirement(coIn, req) : coIn;
+    if (drift.length) deps.log?.("warning", `🪜 ${ctx.milestoneId} R${ctx.round} ${coIn.id}: consolidated order changed the requirement — restored (${drift.length} check(s)); only redecide MODIFY may change it`);
     const f = co0.defectIds.flatMap((d) => facts[d] || []).filter((x, k, a) => a.findIndex((y) => y.round === x.round && y.orderId === x.orderId) === k);
     const P = `escalate:${ctx.milestoneId}:R${ctx.round}:${co0.id}`;
-    const ev: EscalationEvent = { coId: co0.id, resultIds: [co0.id], defectIds: co0.defectIds, attempt: co0.attempt, mode, valid: true, tries: 0, errors: [] };
+    const ev: EscalationEvent = { coId: co0.id, resultIds: [co0.id], defectIds: co0.defectIds, attempt: co0.attempt, mode, valid: true, tries: 0, errors: [], ...(drift.length ? { requirementRestored: drift.length } : {}) };
     if (mode === "standard") { out.push({ ...co0, mode: "standard" }); continue; }
     if (mode === "concrete") {
       const r = await tryJson(deps, "pm", `${P}:concrete`, concretePrompt(ctx, co0, f), (raw) => {
         const o = (raw && typeof raw === "object" ? raw : {}) as { diagnosis?: unknown; changeOrder?: unknown };
-        const d = validateDiagnosis(o.diagnosis, f), c = validateConcrete(o.changeOrder, co0, ctx.reviewMode);
+        const d = validateDiagnosis(o.diagnosis, f), c = validateConcrete(o.changeOrder, co0, ctx.reviewMode, req);
         if (!d.ok || !c.ok) return { ok: false, errors: [...(d.ok ? [] : d.errors), ...(c.ok ? [] : c.errors)] };
         return { ok: true, value: { d: d.value, c: c.value } };
       });
@@ -391,7 +428,7 @@ export async function escalateChangeOrders(ctx: EscalateCtx, cos: ChangeOrder[],
       else { ev.valid = false; ev.errors = r.errors; out.push({ ...co0, mode: "pair_patch" }); }
     } else if (mode === "split") {
       ev.laneSwitch = LANE_SWITCH_SKIPPED;
-      const r = await tryJson(deps, "pm", `${P}:split`, splitPrompt(ctx, co0, f), (raw) => validateSplit(raw, co0, ctx.reviewMode, no));
+      const r = await tryJson(deps, "pm", `${P}:split`, splitPrompt(ctx, co0, f), (raw) => validateSplit(raw, co0, ctx.reviewMode, no, req));
       ev.tries = r.tries;
       if (r.value) { no += r.value.length; ev.resultIds = r.value.map((c) => c.id); out.push(...r.value); }
       else { ev.valid = false; ev.errors = r.errors; out.push({ ...co0, mode: "split" }); }
@@ -403,7 +440,7 @@ export async function escalateChangeOrders(ctx: EscalateCtx, cos: ChangeOrder[],
         turns++;
         if (r.value) votes.push(r.value); else ev.errors.push(...r.errors.map((x) => `${who}: ${x}`));
       }
-      const r = await tryJson(deps, "pm", `${P}:decide`, decidePrompt(ctx, co0, f, votes), (raw) => validateRedecide(raw, votes, co0, ctx.reviewMode));
+      const r = await tryJson(deps, "pm", `${P}:decide`, decidePrompt(ctx, co0, f, votes), (raw) => validateRedecide(raw, votes, co0, ctx.reviewMode, req));
       turns++;
       ev.tries = r.tries;
       const dec: RedecideDecision = r.value || { outcome: "KEEP", reason: `fallback KEEP — Optimus decision invalid: ${r.errors.slice(0, 2).join("; ").slice(0, 300)}`, guidance: "retry the last order unchanged", changeOrder: { ...co0, mode: "redecide" }, approvedBy: [] };
@@ -455,7 +492,7 @@ export function applyEscalationToDefects(defects: Defect[], r: Pick<EscalateResu
     if (!evs.length && !w0 && !a0) return d;
     const entries = evs.map((e) => ({
       round, result: `ESCALATED attempt ${e.attempt} (${MODE_LABEL[e.mode]})${e.redecide ? ` → ${e.redecide.outcome}` : ""} → ${e.resultIds.join(", ") || "no order"}${e.valid ? "" : " [escalation output invalid — fallback]"}`,
-      cause: [e.diagnosis ? `diagnosis ${e.diagnosis.cause}: ${e.diagnosis.reason}${e.diagnosis.overriddenBy ? " (forced by NO-OP detector)" : ""}` : "", e.patch ? `patch ${e.patch.kind} ${e.patch.files.join(", ")}` : "", e.laneSwitch || "", e.redecide ? `${e.redecide.outcome}: ${e.redecide.reason}` : ""].filter(Boolean).join(" · "),
+      cause: [e.diagnosis ? `diagnosis ${e.diagnosis.cause}: ${e.diagnosis.reason}${e.diagnosis.overriddenBy ? " (forced by NO-OP detector)" : ""}` : "", e.patch ? `patch ${e.patch.kind} ${e.patch.files.join(", ")}` : "", e.laneSwitch || "", e.requirementRestored ? `requirement restored (${e.requirementRestored} check(s)) — the consolidated order had changed it` : "", e.redecide ? `${e.redecide.outcome}: ${e.redecide.reason}` : ""].filter(Boolean).join(" · "),
       mode: e.mode, ...(e.diagnosis ? { diagnosis: e.diagnosis } : {}), ...(e.redecide ? { outcome: e.redecide.outcome } : {}), ...(e.laneSwitch ? { laneSwitch: e.laneSwitch } : {}),
     }));
     const w = r.waivers.find((x) => x.defectId === d.id);
