@@ -155,7 +155,7 @@ export function reviewParticipants(extra: string[] = [], cast?: Partial<ReviewCa
 export function makeReviewAgendaItem(p: ReviewAgendaPayload): ReviewAgendaItem {
   return {
     index: REVIEW_NO_INDEX,
-    item: `${p.reviewId} — team review of milestone ${p.milestoneId} "${p.milestoneTitle}": website UI/UX defects and improvement proposals`,
+    item: `${p.reviewId} — team review of milestone ${p.milestoneId} "${p.milestoneTitle}": ${p.reviewMode === "technical" ? "backend / security / API defects and improvement proposals (technical review — no screenshots)" : "website UI/UX defects and improvement proposals"}`,
     owners: p.participants,
     requiresCode: false,
     kind: REVIEW_KIND,
@@ -190,7 +190,7 @@ ${p.ledgerLines.join("\n") || "- (none)"}
 CHECK RESULTS (decided by code — an LLM can never turn FAIL into PASS):
 ${p.checkLines.join("\n") || "- (none)"}
 
-EVIDENCE REFERENCES (screenshots / DOM metrics of the evidence pack):
+EVIDENCE REFERENCES (${p.reviewMode === "technical" ? "technical evidence: check:<id> results, secrets scan, command outputs, git diff" : "screenshots / DOM metrics of the evidence pack"}):
 ${p.evidenceRefs.join("\n") || "- (none)"}
 
 DEFECTS (from both reviews). A defect ENTERS THE DEFECT LEDGER unless BOTH reviewers agree it is invalid (give the reason):

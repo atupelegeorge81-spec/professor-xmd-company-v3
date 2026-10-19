@@ -65,6 +65,16 @@ describe("TASK 24 — REVIEW si agenda yenye namba (CEO #1)", () => {
     const it0 = makeReviewAgendaItem({ reviewId: "R-M1-0", milestoneId: "M1", milestoneTitle: "Shell", round: 0, reviewMode: "visual", table: tableOf(), ledgerLines: [], checkLines: [], evidenceRefs: [], participants: P3 });
     expect([it0.index, it0.owners, isReviewAgenda(it0), isReviewAgenda({ index: 1, item: "x", owners: [] })]).toEqual([0, P3, true, false]);
   });
+  it("TASK 29: technical → kichwa + EVIDENCE REFERENCES si za UI/screenshots (T4 Koyeb ilionyesha query ya UI/UX)", () => {
+    const base = { reviewId: "R-M1-0", milestoneId: "M1", milestoneTitle: "Notes API", round: 0, table: tableOf(), ledgerLines: [], checkLines: [], evidenceRefs: [], participants: P3 };
+    const tech = makeReviewAgendaItem({ ...base, reviewMode: "technical" });
+    const vis = makeReviewAgendaItem({ ...base, reviewMode: "visual" });
+    expect(tech.item).toMatch(/backend \/ security \/ API defects/);
+    expect(tech.item).not.toMatch(/UI\/UX/);
+    expect(vis.item).toMatch(/website UI\/UX defects/);
+    expect(reviewPromptBlock(tech, "pm")).toMatch(/EVIDENCE REFERENCES \(technical evidence: check:<id>/);
+    expect(reviewPromptBlock(vis, "pm")).toMatch(/EVIDENCE REFERENCES \(screenshots \/ DOM metrics/);
+  });
   it("urefu wa ujumbe: REVIEW 600–900 maneno; agenda za kawaida zinabaki 'under 180 words' (CEO #4)", () => {
     const it0 = makeReviewAgendaItem({ reviewId: "R-M1-0", milestoneId: "M1", milestoneTitle: "Shell", round: 0, reviewMode: "visual", table: tableOf(), ledgerLines: [], checkLines: [], evidenceRefs: [], participants: P3 });
     expect(turnWordRule(it0)).toMatch(/600-900 words/);
