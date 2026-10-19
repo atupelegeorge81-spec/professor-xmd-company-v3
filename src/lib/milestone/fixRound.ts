@@ -104,6 +104,7 @@ export function receiptsContract(milestoneId: string, round: number, orderIds: s
     `   {"orderId":"CO-001","status":"DONE|PARTIAL|BLOCKED|CANNOT","filesChanged":[{"path":"src/x.css","summary":"what changed"}],"commandsRun":["..."],"notes":"...","blockedReason":"required when BLOCKED|CANNOT"}`,
     `   filesChanged lists ONLY files you really changed for that order (the harness compares it with git diff). If an order conflicts with a locked ledger decision or cannot be done, do NOT apply it: status BLOCKED (or CANNOT) with the reason, filesChanged [].`,
     `   Do NOT create report/notes files in the repo (RIPOTI.md, report.md, NOTES.md…): your summary goes in your final message only — any changed file missing from the receipts is flagged UNLISTED_CHANGE and blocks sign-off.`,
+    `   If you start the app to test it, send its output OUTSIDE the repo (e.g. \`node server.js > /tmp/app.log 2>&1 &\`) and stop it before you finish — never leave log files in the repo and never edit .gitignore unless an order asks for it (Koyeb T29: a server.log + .gitignore edit was flagged UNLISTED_CHANGE and blocked sign-off).`,
     `3. Commit your work AND the receipts file yourself: \`git add -A && git commit -m "${commitMessage(milestoneId, round, orderIds)}"\`.`,
     `You cannot finish until the receipts file is valid, every order has a receipt, the tree is committed and the build passes. Do not grade yourself; the harness measures.`,
   ].join("\n");

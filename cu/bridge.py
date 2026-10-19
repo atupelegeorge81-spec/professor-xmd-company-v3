@@ -510,6 +510,8 @@ def receipts_contract(milestone: str, receipts: dict) -> str:
         "unchanged files is rejected, and changed files that no receipt lists are flagged UNLISTED_CHANGE. "
         "If an order contradicts a locked ledger decision (see LOCKED LEDGER in the task file) or cannot be done, "
         "do NOT apply it: status BLOCKED (or CANNOT) with blockedReason, filesChanged [].\n"
+        "If you start the app to test it, send its output OUTSIDE the repo (e.g. `node server.js > /tmp/app.log 2>&1 &`) "
+        "and stop it before you finish — never leave log files in the repo and never edit .gitignore unless an order asks for it.\n"
         f'Then commit everything yourself: `git add -A && git commit -m "{msg}"`.\n'
         "You cannot finish without a valid receipts file for every order. Do not grade yourself; the harness measures.\n"
     )
