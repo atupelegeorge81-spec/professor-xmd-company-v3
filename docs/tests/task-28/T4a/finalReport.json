@@ -1,0 +1,24 @@
+{
+ "version": 1,
+ "milestones": [
+  {
+   "milestoneId": "M1",
+   "title": "Shop page",
+   "status": "SIGNED_OFF",
+   "round": 1,
+   "tag": "milestone-M1",
+   "clean": false,
+   "waivers": [],
+   "backlog": [
+    {
+     "id": "D-003",
+     "title": "Footer copyright line missing",
+     "severity": "minor"
+    }
+   ],
+   "inherited": [],
+   "closed": 1,
+   "at": "2026-10-19T17:12:10.385Z"
+  }
+ ]
+}

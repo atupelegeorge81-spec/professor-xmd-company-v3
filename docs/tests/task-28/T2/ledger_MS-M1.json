@@ -1,0 +1,21 @@
+{
+ "id": "MS-M1",
+ "source": "milestone",
+ "milestoneId": "M1",
+ "title": "Shop page",
+ "status": "CAP_REACHED",
+ "round": 2,
+ "reason": "round 2/2 \u2014 COs not PASS: CO-002 \u00b7 checks 4 FAIL / 0 ERROR \u00b7 open defects \u2265 medium: D-001 (medium)",
+ "closedDefects": [],
+ "waivers": [],
+ "backlog": [],
+ "inherited": [
+  {
+   "id": "D-001",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP \u00b7 STORY \u00b7 CONTACT')",
+   "severity": "medium"
+  }
+ ],
+ "acceptedProposals": [],
+ "at": "2026-10-19T13:09:34.474Z"
+}

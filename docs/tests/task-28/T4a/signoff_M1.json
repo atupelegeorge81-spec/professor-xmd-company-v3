@@ -1,0 +1,31 @@
+{
+ "version": 1,
+ "id": "M1",
+ "status": "SIGNED_OFF",
+ "round": 1,
+ "ledger": {
+  "id": "MS-M1",
+  "at": "2026-10-19T17:12:10.385Z"
+ },
+ "git": {
+  "ok": true,
+  "sha": "db2cb80173828af72b5a2e7bcd41dd07dd0397db",
+  "tag": "milestone-M1",
+  "detail": "milestone-M1: committed · tagged · no remote",
+  "at": "2026-10-19T17:12:13.350Z"
+ },
+ "baselines": {
+  "uploaded": 4,
+  "entries": 3,
+  "errors": [],
+  "manifestUrl": "https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/a647be78-3f25-4c03-9207-14235bfc7ddd",
+  "fromRound": 1,
+  "at": "2026-10-19T17:12:16.971Z"
+ },
+ "report": {
+  "at": "2026-10-19T17:12:17.829Z"
+ },
+ "event": {
+  "at": "2026-10-19T17:12:18.093Z"
+ }
+}

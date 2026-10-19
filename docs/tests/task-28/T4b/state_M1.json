@@ -1,0 +1,57 @@
+{
+ "id": "M1",
+ "status": "CAP_REACHED",
+ "round": 1,
+ "maxRounds": 1,
+ "currentStepId": "M1.R1.decide",
+ "startedAt": "2026-10-19T17:17:10.553Z",
+ "updatedAt": "2026-10-19T17:25:40.853Z",
+ "lanesUsed": [],
+ "steps": [
+  {
+   "stepId": "M1.R0.plan",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T17:17:10.553Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.build",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T17:17:10.553Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.review",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T17:17:10.553Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T17:24:23.649Z"
+  },
+  {
+   "stepId": "M1.R1.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T17:24:33.845Z"
+  },
+  {
+   "stepId": "M1.R1.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T17:25:30.193Z"
+  },
+  {
+   "stepId": "M1.R1.decide",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T17:25:40.853Z"
+  }
+ ]
+}

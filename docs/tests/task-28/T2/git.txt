@@ -1,0 +1,6 @@
+tags:
+4762bc4 M1 R2: CO-002
+dfce5e5 M1 R1: add screenshots and shots registry
+77257a0 M1 R1: CO-001
+de7aed5 xmdtest-site: seed
+

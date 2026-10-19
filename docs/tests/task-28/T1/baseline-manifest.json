@@ -1,0 +1,46 @@
+{
+  "milestoneId": "M1",
+  "round": 1,
+  "savedAt": "2026-10-19T12:43:50.518Z",
+  "entries": [
+    {
+      "key": "/|375x667|default",
+      "route": "/",
+      "viewport": "375x667",
+      "state": "default",
+      "file": ".xmd/baselines/M1/root-375x667-default.png",
+      "sourceId": "S-001",
+      "sourcePath": ".xmd/evidence/M1/R1/S-001.png",
+      "width": 375,
+      "height": 950,
+      "bytes": 44363,
+      "url": "https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/951719dc-2c9b-46ba-a583-d4856f406ff2"
+    },
+    {
+      "key": "/|768x1024|default",
+      "route": "/",
+      "viewport": "768x1024",
+      "state": "default",
+      "file": ".xmd/baselines/M1/root-768x1024-default.png",
+      "sourceId": "S-002",
+      "sourcePath": ".xmd/evidence/M1/R1/S-002.png",
+      "width": 768,
+      "height": 1024,
+      "bytes": 45051,
+      "url": "https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/55edaac3-8976-4150-94a2-8cec16a31b6c"
+    },
+    {
+      "key": "/|1280x800|default",
+      "route": "/",
+      "viewport": "1280x800",
+      "state": "default",
+      "file": ".xmd/baselines/M1/root-1280x800-default.png",
+      "sourceId": "S-003",
+      "sourcePath": ".xmd/evidence/M1/R1/S-003.png",
+      "width": 1280,
+      "height": 800,
+      "bytes": 46627,
+      "url": "https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/706a7a41-e163-4e4c-86c3-3449b00cdedf"
+    }
+  ]
+}

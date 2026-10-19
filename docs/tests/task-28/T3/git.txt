@@ -1,0 +1,7 @@
+milestone-M1
+82c1459 xmd: sign-off M1 (SIGNED_OFF_WITH_WAIVERS, round 4)
+2925b43 xmd: revert M1 R4 — made things worse (open defects 1 → 2)
+4136a1d M1 R4: Update R4 receipts with measured computed style proof
+1bbaa87 M1: Add screenshots and finalize
+milestone-M1    xmd: sign-off M1 (SIGNED_OFF_WITH_WAIVERS, round 4)
+

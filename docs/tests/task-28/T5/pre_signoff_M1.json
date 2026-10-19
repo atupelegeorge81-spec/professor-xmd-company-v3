@@ -1,0 +1,10 @@
+{
+ "version": 1,
+ "id": "M1",
+ "status": "SIGNED_OFF",
+ "round": 1,
+ "ledger": {
+  "id": "MS-M1",
+  "at": "2026-10-19T17:42:08.542Z"
+ }
+}

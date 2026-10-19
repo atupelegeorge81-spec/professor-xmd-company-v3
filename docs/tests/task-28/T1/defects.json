@@ -1,0 +1,68 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth 640 > 375"
+   ],
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-001 PASS (designer PASS, frontend PASS, checks 1P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ],
+   "id": "D-001",
+   "area": "layout",
+   "severity": "medium",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "expected": "A3: no horizontal scroll at 375px",
+   "actual": ".promo-strip width: 640px"
+  },
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001"
+   ],
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-002: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-002 PASS (designer PASS, frontend PASS, checks 1P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ],
+   "id": "D-002",
+   "area": "palette",
+   "severity": "medium",
+   "title": "Hero lead paragraph uses dim grey #4B5563 instead of the palette text colour",
+   "expected": "A4: text #E5E7EB — .lead computed color rgb(229, 231, 235)",
+   "actual": ".lead color #4B5563 (low contrast)"
+  }
+ ]
+}

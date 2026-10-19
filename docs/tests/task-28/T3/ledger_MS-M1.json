@@ -1,0 +1,33 @@
+{
+ "id": "MS-M1",
+ "source": "milestone",
+ "milestoneId": "M1",
+ "title": "Shop page",
+ "status": "SIGNED_OFF_WITH_WAIVERS",
+ "round": 4,
+ "reason": "all remaining defects waived by redecide (D-001)",
+ "closedDefects": [],
+ "waivers": [
+  {
+   "defectId": "D-001",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP \u00b7 STORY \u00b7 CONTACT')",
+   "severity": "medium",
+   "round": 4,
+   "reason": "Both reviewers voted WAIVE. Locked Ledger A1 explicitly forbids all-caps text and text-transform: uppercase on every element. The CEO brand sheet requirement for uppercase nav links directly contradicts this binding decision. After 4 failed attempts and a reverted round that worsened the defect count, further engineering effort cannot resolve a stakeholder-level conflict. The current implementation (sentence case, text-transform: none) complies with the locked ledger. Stakeholders must reconcile the brand sheet with the ledger; the codebase must not violate A1.",
+   "approvedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-19T13:52:30.223Z"
+  }
+ ],
+ "backlog": [],
+ "inherited": [],
+ "acceptedProposals": [],
+ "at": "2026-10-19T13:52:40.009Z",
+ "tag": "milestone-M1",
+ "sha": "82c145957075ce154eb4326d65166a62dcb839f8",
+ "git": "milestone-M1: committed \u00b7 tagged \u00b7 no remote",
+ "baselines": "3 baseline(s), uploaded 4, manifest https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/11d8df52-ea30-458e-939b-6fb2acd6248d"
+}

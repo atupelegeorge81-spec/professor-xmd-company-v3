@@ -1,0 +1,23 @@
+{
+ "version": 1,
+ "milestones": [
+  {
+   "milestoneId": "M1",
+   "title": "Shop page",
+   "status": "CAP_REACHED",
+   "round": 1,
+   "clean": false,
+   "waivers": [],
+   "backlog": [],
+   "inherited": [
+    {
+     "id": "D-004",
+     "title": "Product cards have no visible keyboard focus state",
+     "severity": "medium"
+    }
+   ],
+   "closed": 1,
+   "at": "2026-10-19T17:25:38.249Z"
+  }
+ ]
+}

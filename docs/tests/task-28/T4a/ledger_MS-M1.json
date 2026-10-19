@@ -1,0 +1,31 @@
+{
+ "id": "MS-M1",
+ "source": "milestone",
+ "milestoneId": "M1",
+ "title": "Shop page",
+ "status": "SIGNED_OFF",
+ "round": 1,
+ "reason": "all 1 CO(s) PASS \u00b7 checks 4 PASS \u00b7 no open defect \u2265 medium \u00b7 receipts match \u00b7 listed minor left: D-003",
+ "closedDefects": [
+  {
+   "id": "D-001",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "severity": "medium"
+  }
+ ],
+ "waivers": [],
+ "backlog": [
+  {
+   "id": "D-003",
+   "title": "Footer copyright line missing",
+   "severity": "minor"
+  }
+ ],
+ "inherited": [],
+ "acceptedProposals": [],
+ "at": "2026-10-19T17:12:10.385Z",
+ "tag": "milestone-M1",
+ "sha": "db2cb80173828af72b5a2e7bcd41dd07dd0397db",
+ "git": "milestone-M1: committed \u00b7 tagged \u00b7 no remote",
+ "baselines": "3 baseline(s), uploaded 4, manifest https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/a647be78-3f25-4c03-9207-14235bfc7ddd"
+}

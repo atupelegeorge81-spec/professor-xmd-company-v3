@@ -1,0 +1,23 @@
+milestone-M1
+xmd-best-M1
+---
+6827177 xmd: sign-off M1 (SIGNED_OFF, round 1)
+f88b715 M1 R1: CO-001, CO-002
+93e581c xmdtest-site: seed
+---
+tag
+milestone-M1    xmd: sign-off M1 (SIGNED_OFF, round 1)
+6827177a731abb278e1f4125d134c992dd538ae0
+6827177 xmd: sign-off M1 (SIGNED_OFF, round 1)
+
+ .xmd/checks/M1-fix/manifest.json | 47 ++++++++++++++++++++++++++++++++++++++++
+ .xmd/checks/M1-fix/server.log    | 10 +++++++++
+ 2 files changed, 57 insertions(+)
+---
+remotes-end
+manifest.json
+root-1280x800-default.png
+root-375x667-default.png
+root-768x1024-default.png
+save-result.json
+

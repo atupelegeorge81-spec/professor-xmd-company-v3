@@ -1,0 +1,40 @@
+17:41:05 [info] 🧾 git M1: 90603fb M1 R1: CO-001, CO-002 · 05fbff3 xmdtest-site: seed
+17:41:09 [info] 🎒 M1-R1: snapshot ya workspace (pamoja na git) imehifadhiwa (231KB) — sandbox ikifa, milestone inayofuata inairejesha.
+17:41:09 [success] 🧾 M1 R1 attempt 1 (COMPLETED_VERIFIED): APPLIED 2 · NOT_ATTEMPTED 0 · BLOCKED 0
+CHIP 🧾 M1 R1: APPLIED 2 · NOT_ATTEMPTED 0 · BLOCKED 0 · checks 5P/0F/0E
+17:41:19 [success] 🧾 M1 R1 imekamilika: APPLIED 2 · NOT_ATTEMPTED 0 · BLOCKED 0 · checks PASS 5 · FAIL 0 · ERROR 0 → VERIFYING (verify ya reviewers = task 26).
+CHIP 📸 M1 R1: harness inakusanya evidence upya (uthibitisho)
+17:41:31 [info] 🔍 M1 R1 regression: compared 0 · regressions 0 · expected 0 · threshold 2% · errors 0
+CHIP 📸 Evidence ya M1 R1: 3 screenshots · errors 0 · console 0
+17:41:32 [success] 📸 Evidence ya M1 R1: 3 screenshots (uploaded 6) · errors 0.
+CHIP 🔍 M1 R1: Ultron + Vextron wanathibitisha COs CO-001, CO-002 (peke yao)
+17:41:34 [system] 🔍 ROUND 1/10 (M1) — closed defects: 0 · open: 2 (D-001 attempt 1, D-002 attempt 1) · waivers: 0 · rounds left: 9 — reviewers 2 wanathibitisha (REVIEW_VERIFY).
+17:41:52 [success] 🔍 designer verify R1: CO-001 PASS · CO-002 PASS · regressions 0 · new 0 · 18s
+17:41:54 [success] 🔍 frontend verify R1: CO-001 PASS · CO-002 PASS · regressions 0 · new 0 · 21s
+17:42:05 [success] 🏷️ M1 R1: open defects 2 → 0 → best mpya (tag xmd-best-M1 @ 90603fb)
+17:42:11 [info] 🎒 milestone-M1: snapshot ya workspace (pamoja na git) imehifadhiwa (356KB) — sandbox ikifa, milestone inayofuata inairejesha.
+17:42:12 [warning] 🧪 XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_M1: kill -9 baada ya commit/tag (kabla ya rekodi)
+CHIP 🧪 test profile inputT5: XMD_TEST_VERIFY_INPUT, XMD_MILESTONES, XMD_TEST_MAX_AGENDAS, XMD_TEST_MAP_FORCE, XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_M1
+CHIP 🏛️ Board Room — "xmdtest-site — tiny static shop page 'Kivuli': header with logo, nav and theme t…"
+CHIP 📋 Optimus anaunda agenda ya mradi...
+CHIP 🧭 Optimus ameelewa: The CEO wants a tiny static shop page named 'Kivuli' featuring a header with logo, navigation, and theme toggle, a hero section, a promo strip, a product grid, and dark theme support. The workflow is bounded, strictly following a two-item agenda: (1) typography, and (2) head
+CHIP 📋 Agenda (2 vipengele): Define typography scale, font families, and global text styles for Kivuli shop · Establish color palette and CSS variables for dark theme support
+CHIP 🔧 M1 R1: XMD Computer anatekeleza COs 2 (CO-001, CO-002)
+CHIP 🧾 M1 R1: APPLIED 2 · NOT_ATTEMPTED 0 · BLOCKED 0 · checks 5P/0F/0E
+CHIP 📸 M1 R1: harness inakusanya evidence upya (uthibitisho)
+CHIP 📸 Evidence ya M1 R1: 3 screenshots · errors 0 · console 0
+CHIP 🔍 M1 R1: Ultron + Vextron wanathibitisha COs CO-001, CO-002 (peke yao)
+CHIP ♻️ Conversation imerejeshwa kutoka Appwrite. Inaendelea na agenda na Ledger ile ile kutoka checkpoint ya mwisho...
+CHIP 🧪 test profile inputT5: XMD_TEST_VERIFY_INPUT, XMD_MILESTONES, XMD_TEST_MAX_AGENDAS, XMD_TEST_MAP_FORCE, XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_M1
+CHIP ♻️ Board Room imeendelea — "xmdtest-site — tiny static shop page 'Kivuli': header with logo, nav and theme t…"
+17:42:58 [system] ♻️ Mjadala umeendelea kutoka pale ulipoishia (2 vipengele).
+17:42:59 [warning] 🧪 XMD_TEST_VERIFY_INPUT: resume ya M1 (VERIFYING R1) — haipandi upya; inaendelea pale ilipoachwa.
+17:42:59 [info] ♻️ Milestone M1 iko VERIFYING — inaendelea pale ilipoachwa (resume).
+17:43:06 [success] 🏷️ M1 R1: open defects 2 → 0 → best mpya (tag xmd-best-M1 @ 90603fb)
+17:43:10 [info] 🎒 milestone-M1: snapshot ya workspace (pamoja na git) imehifadhiwa (356KB) — sandbox ikifa, milestone inayofuata inairejesha.
+17:43:11 [success] 🏷️ M1 sign-off: tag milestone-M1 @ 10c7aad — milestone-M1: tag exists · no remote
+17:43:16 [success] 🖼️ M1 baselines: 3 saved · uploaded 4
+CHIP 🏁 M1 SIGNED_OFF · tag milestone-M1
+CHIP ✅ M1 R1 verify: CO-001 PASS · CO-002 PASS → SIGN_OFF
+17:43:18 [success] ✅ M1 R1 → SIGNED_OFF: all 2 CO(s) PASS · checks 5 PASS · no open defect ≥ medium · receipts match · defects fixed 2 · reopened 0 · new 0 · BEST (open defects 2 → 0).
+17:43:19 [system] 🧪 XMD_TEST_VERIFY_INPUT: M1 → SIGNED_OFF (round 1) · sandbox ij385xu9…

@@ -1,0 +1,57 @@
+{
+ "id": "M1",
+ "status": "SIGNED_OFF",
+ "round": 1,
+ "maxRounds": 10,
+ "currentStepId": "M1.R1.decide",
+ "startedAt": "2026-10-19T17:06:22.286Z",
+ "updatedAt": "2026-10-19T17:12:18.838Z",
+ "lanesUsed": [],
+ "steps": [
+  {
+   "stepId": "M1.R0.plan",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T17:06:22.286Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.build",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T17:06:22.286Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.review",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T17:06:22.287Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T17:11:12.011Z"
+  },
+  {
+   "stepId": "M1.R1.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T17:11:26.453Z"
+  },
+  {
+   "stepId": "M1.R1.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T17:12:02.135Z"
+  },
+  {
+   "stepId": "M1.R1.decide",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T17:12:18.838Z"
+  }
+ ]
+}

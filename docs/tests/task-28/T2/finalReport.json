@@ -1,0 +1,23 @@
+{
+ "version": 1,
+ "milestones": [
+  {
+   "milestoneId": "M1",
+   "title": "Shop page",
+   "status": "CAP_REACHED",
+   "round": 2,
+   "clean": false,
+   "waivers": [],
+   "backlog": [],
+   "inherited": [
+    {
+     "id": "D-001",
+     "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+     "severity": "medium"
+    }
+   ],
+   "closed": 0,
+   "at": "2026-10-19T13:09:34.474Z"
+  }
+ ]
+}

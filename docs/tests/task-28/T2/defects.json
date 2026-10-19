@@ -1,0 +1,109 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 dom: .site-nav a textTransform=none"
+   ],
+   "status": "INHERITED",
+   "attempts": 2,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts Locked Ledger A1: sentence case everywhere, text-transform: uppercase is forbidden on every element."
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-001 FAIL (designer FAIL, frontend FAIL, checks 0P/1F/0E)",
+     "cause": "acceptance checks 1 FAIL / 0 ERROR"
+    },
+    {
+     "round": 2,
+     "result": "ESCALATED attempt 2 (concrete) → CO-002",
+     "cause": "diagnosis CONFLICT_WITH_DECISION: The defect requires .site-nav a { text-transform: uppercase } but locked ledger A1 forbids text-transform: uppercase on every element, creating an irreconcilable conflict between the fixed requirement and the binding design system rule. · requirement restored (1 check(s)) — the consolidated order had changed it",
+     "mode": "concrete",
+     "diagnosis": {
+      "cause": "CONFLICT_WITH_DECISION",
+      "reason": "The defect requires .site-nav a { text-transform: uppercase } but locked ledger A1 forbids text-transform: uppercase on every element, creating an irreconcilable conflict between the fixed requirement and the binding design system rule."
+     }
+    },
+    {
+     "round": 2,
+     "result": "CO-002: BLOCKED · checks 2P/4F/0E",
+     "cause": "BLOCKED: Contradicts Locked Ledger A1: sentence case everywhere, text-transform: uppercase is forbidden on every element."
+    },
+    {
+     "round": 2,
+     "result": "verify: CO-002 FAIL (designer FAIL, frontend FAIL, checks 2P/4F/0E)",
+     "cause": "acceptance checks 4 FAIL / 0 ERROR"
+    },
+    {
+     "round": 2,
+     "result": "INHERITED by the next milestone (M1 CAP_REACHED at round 2)",
+     "cause": "still REOPENED after 2 attempt(s)"
+    }
+   ],
+   "id": "D-001",
+   "area": "navigation",
+   "severity": "medium",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "expected": "CEO brand sheet: the three nav links render in capitals — .site-nav a computed text-transform: uppercase",
+   "actual": ".site-nav a text-transform: none (sentence case)",
+   "inheritedFrom": "M1",
+   "inheritedChecks": [
+    {
+     "id": "inherited/D-001/check-nav-text-uppercase-shop",
+     "type": "file_contains",
+     "path": "index.html",
+     "text": "SHOP"
+    },
+    {
+     "id": "inherited/D-001/check-nav-text-uppercase-story",
+     "type": "file_contains",
+     "path": "index.html",
+     "text": "STORY"
+    },
+    {
+     "id": "inherited/D-001/check-nav-text-uppercase-contact",
+     "type": "file_contains",
+     "path": "index.html",
+     "text": "CONTACT"
+    },
+    {
+     "id": "inherited/D-001/check-no-horizontal-overflow",
+     "type": "no_horizontal_overflow",
+     "routes": [
+      "/"
+     ],
+     "viewports": [
+      "375x667",
+      "768x1024",
+      "1280x800"
+     ]
+    },
+    {
+     "id": "inherited/D-001/check-console-clean",
+     "type": "console_clean",
+     "route": "/"
+    },
+    {
+     "id": "inherited/D-001/nav-caps#req",
+     "type": "computed_style",
+     "route": "/",
+     "viewport": "1280x800",
+     "selector": ".site-nav a",
+     "property": "text-transform",
+     "expected": "uppercase"
+    }
+   ]
+  }
+ ]
+}

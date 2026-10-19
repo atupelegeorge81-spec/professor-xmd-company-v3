@@ -1,0 +1,30 @@
+{
+ "version": 1,
+ "waivers": [
+  {
+   "defectId": "D-001",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "severity": "medium",
+   "round": 4,
+   "reason": "Both reviewers voted WAIVE. Locked Ledger A1 explicitly forbids all-caps text and text-transform: uppercase on every element. The CEO brand sheet requirement for uppercase nav links directly contradicts this binding decision. After 4 failed attempts and a reverted round that worsened the defect count, further engineering effort cannot resolve a stakeholder-level conflict. The current implementation (sentence case, text-transform: none) complies with the locked ledger. Stakeholders must reconcile the brand sheet with the ledger; the codebase must not violate A1.",
+   "approvedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "votes": [
+    {
+     "reviewer": "designer",
+     "vote": "WAIVE",
+     "reason": "The defect D-001 requires text-transform: uppercase on nav links per CEO brand sheet, but Locked Ledger A1 explicitly forbids all-caps text and text-transform: uppercase on every element. This is a direct conflict between a binding locked decision and a business requirement. After 4 attempts (including a reverted round that made things worse), the only compliant path forward is to adhere to the locked ledger. The deviation is blocked by a locked decision, fixing it would violate A1, and further rounds risk more regressions. Stakeholders must resolve the brand sheet vs. ledger conflict; the cur"
+    },
+    {
+     "reviewer": "frontend",
+     "vote": "WAIVE",
+     "reason": "Locked Ledger A1 explicitly forbids text-transform: uppercase on every element. The CEO brand sheet requirement for uppercase nav links directly contradicts this binding decision. After 4 failed attempts and a reverted round that worsened the defect count, further engineering effort cannot resolve a stakeholder-level conflict. The current implementation (sentence case, text-transform: none) complies with the locked ledger. Stakeholders must reconcile the brand sheet with the ledger; the codebase must not violate A1."
+    }
+   ],
+   "at": "2026-10-19T13:52:30.223Z"
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "version": 1,
+ "milestones": [
+  {
+   "milestoneId": "M1",
+   "title": "Shop page",
+   "status": "SIGNED_OFF_WITH_WAIVERS",
+   "round": 4,
+   "tag": "milestone-M1",
+   "clean": false,
+   "waivers": [
+    {
+     "defectId": "D-001",
+     "reason": "Both reviewers voted WAIVE. Locked Ledger A1 explicitly forbids all-caps text and text-transform: uppercase on every element. The CEO brand sheet requirement for uppercase nav links directly contradicts this binding decision. After 4 failed attempts and a reverted round that worsened the defect count, further engineering effort cannot resolve a stakeholder-level conflict. The current implementation (sentence case, text-transform: none) complies with the locked ledger. Stakeholders must reconcile the brand sheet with the ledger; the codebase must not violate A1."
+    }
+   ],
+   "backlog": [],
+   "inherited": [],
+   "closed": 0,
+   "at": "2026-10-19T13:52:40.009Z"
+  }
+ ]
+}

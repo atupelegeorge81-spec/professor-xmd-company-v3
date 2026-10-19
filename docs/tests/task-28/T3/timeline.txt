@@ -1,0 +1,40 @@
+13:29:39 [info] 🔍 M1 R0 regression: compared 0 · regressions 0 · expected 0 · threshold 2% · errors 0
+13:29:41 [info] 📸 XMD_TEST_VERIFY_INPUT: baseline R0 — screenshots 3 · errors 0
+13:31:03 [info] 🪜 XMD_TEST_VERIFY_INPUT escalate: CO-004 attempt 4 → split
+CHIP 🪜 D-001 escalated to attempt 4 (split)
+13:31:09 [info] 🪜 M1 R4 CO-004 attempt 4 (split) → CO-005, CO-006 · lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched
+13:31:10 [info] ♻️ Milestone M1 iko FIXING — inaendelea pale ilipoachwa (resume).
+CHIP 🔧 M1 R4: XMD Computer anatekeleza COs 2 (CO-005, CO-006)
+13:31:13 [system] 🔧 M1 R4: raundi ya marekebisho — COs CO-005, CO-006 · 1 defects wazi.
+13:31:13 [info] ♻️ M1: sandbox ievsk5xo… iliyopo inatumika tena — workspace ya milestone iliyopita iko hai.
+13:31:14 [info] 🚦 M1 R4 (attempt 1) · receipts .xmd/receipts/R4.json: lango la kumaliza — build `npm run build` · base 36d7e14.
+13:31:14 [api] 🚀 M1: sandbox ievsk5xo… — bridge mpya inaanzishwa (StartPack herufi 7780).
+13:46:49 [info] 🧾 git M1: 4136a1d M1 R4: Update R4 receipts with measured computed style proof · 1bbaa87 M1: Add screenshots and finalize · 4da229b M1 R4: CO-005, CO-006
+13:46:50 [info] 🎒 M1-R4: snapshot ya workspace (pamoja na git) imehifadhiwa (390KB) — sandbox ikifa, milestone inayofuata inairejesha.
+13:46:51 [success] 🧾 M1 R4 attempt 1 (COMPLETED_VERIFIED): APPLIED 1 · NOT_ATTEMPTED 0 · BLOCKED 1
+CHIP 🧾 M1 R4: APPLIED 1 · NOT_ATTEMPTED 0 · BLOCKED 1 · checks 3P/2F/0E
+13:46:59 [success] 🧾 M1 R4 imekamilika: APPLIED 1 · NOT_ATTEMPTED 0 · BLOCKED 1 · checks PASS 3 · FAIL 2 · ERROR 0 → VERIFYING (verify ya reviewers = task 26).
+CHIP 📸 M1 R4: harness inakusanya evidence upya (uthibitisho)
+13:47:09 [info] 🔍 M1 R4 regression: compared 0 · regressions 0 · expected 0 · threshold 2% · errors 0
+CHIP 📸 Evidence ya M1 R4: 3 screenshots · errors 0 · console 0
+13:47:10 [success] 📸 Evidence ya M1 R4: 3 screenshots (uploaded 6) · errors 0.
+CHIP 🔍 M1 R4: Ultron + Vextron wanathibitisha COs CO-005, CO-006 (peke yao)
+13:47:16 [system] 🔍 ROUND 4/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 4) · waivers: 0 · rounds left: 6 — reviewers 2 wanathibitisha (REVIEW_VERIFY).
+13:47:29 [success] 🔍 designer verify R4: CO-005 FAIL · CO-006 PASS · regressions 0 · new 1 · 13s
+13:47:30 [success] 🔍 frontend verify R4: CO-005 FAIL · CO-006 PASS · regressions 0 · new 0 · 14s
+13:47:44 [info] 🎒 M1-R4-revert: snapshot ya workspace (pamoja na git) imehifadhiwa (403KB) — sandbox ikifa, milestone inayofuata inairejesha.
+CHIP ⏪ M1 R4: round 4 reverted: made things worse (open defects 1 → 2) · reverted 3 commit(s) since 36d7e14 (uncommitted changes stashed first)
+13:47:47 [warning] ⏪ M1 R4: round 4 reverted: made things worse (open defects 1 → 2) — reverted 3 commit(s) since 36d7e14 (uncommitted changes stashed first) (HEAD 2925b43). Optimus ataambiwa.
+13:49:20 [warning] 🧾 consolidate R-M1-4 attempt 1: 1 error(s) — ledgerConflicts: unknown decisionId "D-001"
+13:49:46 [success] 🧾 Optimus: COs 1 · ledger conflicts 0 (attempt 2)
+13:49:50 [warning] 🪜 M1 R5 CO-007: consolidated order changed the requirement — restored (1 check(s)); only redecide MODIFY may change it
+CHIP 🪜 D-001 escalated to attempt 5 (redecide) → WAIVE
+13:52:34 [info] 🪜 M1 R5 CO-007 attempt 5 (redecide) → no order · WAIVE (3 turns): Both reviewers voted WAIVE. Locked Ledger A1 explicitly forbids all-caps text and text-transform: uppercase on every element. The CEO brand sheet requirement for uppercase nav links directly contradic
+CHIP 🏳️ WAIVE D-001 (M1 R4): Both reviewers voted WAIVE. Locked Ledger A1 explicitly forbids all-caps text and text-transform: uppercase on every element. The CEO brand sheet requirement for uppercase nav links directly contradic — approved by designer + frontend + pm
+13:52:43 [info] 🎒 milestone-M1: snapshot ya workspace (pamoja na git) imehifadhiwa (404KB) — sandbox ikifa, milestone inayofuata inairejesha.
+13:52:45 [success] 🏷️ M1 sign-off: tag milestone-M1 @ 82c1459 — milestone-M1: committed · tagged · no remote
+13:52:49 [success] 🖼️ M1 baselines: 3 saved · uploaded 4
+CHIP 🏁 M1 SIGNED_OFF_WITH_WAIVERS · tag milestone-M1 · waivers D-001
+CHIP ✅ M1 R4 verify: CO-005 FAIL · CO-006 FAIL → SIGN_OFF
+13:52:56 [success] ✅ M1 R4 → SIGNED_OFF_WITH_WAIVERS: all remaining defects waived by redecide (D-001) · defects fixed 0 · reopened 1 · new 0 · REVERT (open defects 1 → 2).
+13:52:57 [system] 🧪 XMD_TEST_VERIFY_INPUT: M1 → SIGNED_OFF_WITH_WAIVERS (round 4) · sandbox ievsk5xo…

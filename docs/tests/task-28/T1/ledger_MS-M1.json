@@ -1,0 +1,30 @@
+{
+ "id": "MS-M1",
+ "source": "milestone",
+ "milestoneId": "M1",
+ "title": "Shop page",
+ "status": "SIGNED_OFF",
+ "round": 1,
+ "reason": "all 2 CO(s) PASS \u00b7 checks 5 PASS \u00b7 no open defect \u2265 medium \u00b7 receipts match",
+ "closedDefects": [
+  {
+   "id": "D-001",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "severity": "medium"
+  },
+  {
+   "id": "D-002",
+   "title": "Hero lead paragraph uses dim grey #4B5563 instead of the palette text colour",
+   "severity": "medium"
+  }
+ ],
+ "waivers": [],
+ "backlog": [],
+ "inherited": [],
+ "acceptedProposals": [],
+ "at": "2026-10-19T12:43:45.822Z",
+ "tag": "milestone-M1",
+ "sha": "6827177a731abb278e1f4125d134c992dd538ae0",
+ "git": "milestone-M1: committed \u00b7 tagged \u00b7 no remote",
+ "baselines": "3 baseline(s), uploaded 4, manifest https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/0f539eac-6cee-4613-85dc-49534b0690bf"
+}

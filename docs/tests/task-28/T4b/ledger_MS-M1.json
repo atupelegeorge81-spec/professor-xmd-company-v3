@@ -1,0 +1,27 @@
+{
+ "id": "MS-M1",
+ "source": "milestone",
+ "milestoneId": "M1",
+ "title": "Shop page",
+ "status": "CAP_REACHED",
+ "round": 1,
+ "reason": "round 1/1 \u2014 open defects \u2265 medium: D-004 (medium)",
+ "closedDefects": [
+  {
+   "id": "D-001",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "severity": "medium"
+  }
+ ],
+ "waivers": [],
+ "backlog": [],
+ "inherited": [
+  {
+   "id": "D-004",
+   "title": "Product cards have no visible keyboard focus state",
+   "severity": "medium"
+  }
+ ],
+ "acceptedProposals": [],
+ "at": "2026-10-19T17:25:38.249Z"
+}

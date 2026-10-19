@@ -422,3 +422,21 @@ $ npm run cu:test        → Ran 186 tests — OK
   - Computer kuandika `RIPOTI.md` kwenye repo.
 - Hatari kwa CEO: kinga ya hitaji inashughulikia checks za computed_style tu; split inaweza kuongeza kazi isiyohusiana chini ya defect ileile.
 - Baselines: tsc 0 · vitest 683 + 2 skipped (+22) · pytest 338 + 3 · unittest 271 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-27.md + docs/tests/task-27/ (bila `.log`).
+
+## Task 28 — Kikomo cha raundi, sign-off, commit/tag, defects zilizorithiwa
+
+- Branch `task/28-signoff`, nyuma ya `XMD_MILESTONES` (OFF kwa default). Inategemea T27 (main `31650ed`).
+- `milestone/signoff.ts` (ina unit tests): `closeOutMilestone` — ledger `MS-Mk` → commit + annotated tag `milestone-Mk` (+ push ikiwa remote ipo, idempotent) → baselines (task 22, raundi ya mwisho isiyo-REVERT) → `finalReport` → event `milestoneSignedOff` / `milestoneCapReached`; kila hatua inarekodiwa `signoff:Mk` (resume bila kurudia).
+- Cap: defects wazi → `INHERITED` (`inheritedFrom`, `inheritedChecks`) → ledger + plan (§10) + StartPack "(e)" ya milestone inayofuata + ripoti ya mwisho; checks zake zinaendeshwa kila raundi ya milestones zinazofuata. Cap haionyeshwi kamwe kama "clean".
+- `SIGNOFF_MAX_OPEN_SEVERITY = "minor"`: minor wazi zinaruhusiwa TU zikiwa kwenye `backlog` ya ledger + ripoti; medium+ → hakuna sign-off (`closeoutProblems`).
+- Test hooks: `XMD_TEST_MAX_ROUNDS`, `XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_<Mk>`, `nextMilestone`, na **test profiles** (`XMD_TEST_PROFILE_DIR` + `[xmdtest:<jina>]`) kwa majaribio kwenye Koyeb.
+- REAL (E2B + OpenHands + Supabase + LLMs; T4a/T4b/T5 **kwenye Koyeb** kwa agizo la CEO):
+  - T1: defects 2 → `SIGNED_OFF`, `git tag -l` → `milestone-M1`, baselines 3, ledger `MS-M1`;
+  - T2: `XMD_TEST_MAX_ROUNDS=2` → `CAP_REACHED`, D-001 `INHERITED`, iko kwenye plan:M2 na StartPack:M2 (grep);
+  - T3: WAIVE → `SIGNED_OFF_WITH_WAIVERS`, sababu kwenye ledger;
+  - T4: minor wazi → `SIGNED_OFF` + backlog; medium wazi → hakuna sign-off (`CAP_REACHED`);
+  - T5: `kill -9` baada ya commit/tag (Koyeb) → resume: `tag exists`, tag 1, commit 1, ledger 1, event 1.
+- Kasoro 3 zilizopatikana kwenye runs halisi zimerekebishwa: `.xmd/checks` kwenye commit ya sign-off; baselines kutoka raundi iliyorudishwa; alama ya crash `/tmp` haidumu kwenye restart ya Koyeb.
+- Koyeb: env mpya `XMD_TEST_PROFILE_DIR=docs/tests/task-28/inputs` (haina athari bila tag). Sheria ya CEO S1 (majaribio kwenye Koyeb) imehifadhiwa `task-docs/SHERIA-ZA-CEO.md`.
+- Hatari kwa CEO: kanuni ya T26 "defects ziliongezeka → REVERT" inahesabu kasoro mpya zilizokuwepo tangu mwanzo; push ya tag haijajaribiwa na remote halisi.
+- Baselines: tsc 0 · vitest 699 + 2 skipped (+16) · pytest 338 + 3 · unittest OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-28.md + docs/tests/task-28/ (bila `.log`).

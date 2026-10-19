@@ -1,0 +1,56 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 dom: .site-nav a textTransform=none"
+   ],
+   "status": "WAIVED",
+   "attempts": 4,
+   "history": [
+    {
+     "round": 4,
+     "result": "ESCALATED attempt 4 (split) → CO-005, CO-006",
+     "cause": "lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched",
+     "mode": "split",
+     "laneSwitch": "lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched"
+    },
+    {
+     "round": 4,
+     "result": "CO-005: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts Locked Ledger A1"
+    },
+    {
+     "round": 4,
+     "result": "CO-006: APPLIED · checks 0P/1F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 4,
+     "result": "verify: CO-005 FAIL (designer FAIL, frontend FAIL, checks 0P/1F/0E); CO-006 FAIL (designer PASS, frontend PASS, checks 0P/1F/0E) · round 4 reverted: made things worse (open defects 1 → 2)",
+     "cause": "REVERTED"
+    },
+    {
+     "round": 5,
+     "result": "ESCALATED attempt 5 (redecide) → WAIVE → no order",
+     "cause": "requirement restored (1 check(s)) — the consolidated order had changed it · WAIVE: Both reviewers voted WAIVE. Locked Ledger A1 explicitly forbids all-caps text and text-transform: uppercase on every element. The CEO brand sheet requirement for uppercase nav links directly contradicts this binding decision. After 4 failed attempts and a reverted round that worsened the defect count, further engineering effort cannot resolve a stakeholder-level conflict. The current implementation (sentence case, text-transform: none) complies with the locked ledger. Stakeholders must reconcile the brand sheet with the ledger; the codebase must not violate A1.",
+     "mode": "redecide",
+     "outcome": "WAIVE"
+    }
+   ],
+   "id": "D-001",
+   "area": "navigation",
+   "severity": "medium",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "expected": "CEO brand sheet: the three nav links render in capitals — .site-nav a computed text-transform: uppercase",
+   "actual": ".site-nav a text-transform: none (sentence case)"
+  }
+ ]
+}

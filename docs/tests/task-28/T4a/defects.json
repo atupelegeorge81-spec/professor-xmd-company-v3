@@ -1,0 +1,57 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth 640 > 375"
+   ],
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-001 PASS (designer PASS, frontend PASS, checks 1P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ],
+   "id": "D-001",
+   "area": "layout",
+   "severity": "medium",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "expected": "A3: no horizontal scroll at 375px",
+   "actual": ".promo-strip width: 640px"
+  },
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001"
+   ],
+   "status": "OPEN",
+   "attempts": 0,
+   "history": [],
+   "id": "D-003",
+   "area": "content",
+   "severity": "minor",
+   "title": "Footer copyright line missing",
+   "expected": "a small footer with '© Kivuli' under the grid",
+   "actual": "page has no footer"
+  }
+ ]
+}
