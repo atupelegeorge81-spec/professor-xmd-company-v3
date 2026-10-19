@@ -1,7 +1,8 @@
 // src/lib/milestone/testHooks.ts — TASK 14: hooks za majaribio PEKEE (maelezo0: inert bila XMD_TEST_HOOKS=1).
 // XMD_TEST_CAPTURE_PROMPTS=<file.jsonl> → system prompt halisi ya kila zamu ya mjadala inaandikwa (kwa T3/T4).
 
-import { appendFileSync, existsSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 export function captureTarget(env: NodeJS.ProcessEnv = process.env): string | null {
   if (env.XMD_TEST_HOOKS !== "1") return null;
@@ -72,14 +73,36 @@ export function testMaxRounds(env: Record<string, string | undefined> = process.
   return Number.isInteger(n) && n >= 1 && n <= 10 ? n : null;
 }
 
-/** TASK 28 (T5): `XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_<Mk>=1` → process inajiua (SIGKILL) MARA MOJA baada ya commit + tag ya sign-off,
- *  KABLA rekodi haijahifadhiwa — kill -9 halisi. Mara moja tu kwa session (alama /tmp), resume haijiui tena. Inert bila XMD_TEST_HOOKS=1. */
-export function testCrashAfterSignoffGit(milestoneId: string, sessionId: string, env: Record<string, string | undefined> = process.env): boolean {
-  if (env.XMD_TEST_HOOKS !== "1" || env[`XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_${milestoneId}`] !== "1") return false;
-  const mark = `/tmp/xmd-crash-signoff-${String(sessionId).replace(/[^\w-]/g, "_")}-${milestoneId}`;
-  try {
-    if (existsSync(mark)) return false;
-    writeFileSync(mark, new Date().toISOString());
-    return true;
-  } catch { return false; }
+/** TASK 28 (T5): `XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_<Mk>=1` → process inajiua (SIGKILL) baada ya commit + tag ya sign-off, KABLA rekodi
+ *  haijahifadhiwa — kill -9 halisi. "Mara moja tu" inalindwa na alama kwenye STORE (inadumu hata container ya Koyeb ikianzishwa upya). */
+export function testCrashAfterSignoffGit(milestoneId: string, env: Record<string, string | undefined> = process.env): boolean {
+  return env.XMD_TEST_HOOKS === "1" && env[`XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_${milestoneId}`] === "1";
+}
+
+/* ─────────── TASK 28: test profiles — majaribio halisi kwenye app iliyo-deploy (Koyeb) bila kubadilisha env kwa kila jaribio ─────────── */
+
+export const TEST_PROFILE_TAG = /\[xmdtest:([A-Za-z0-9_-]{1,40})\]/;
+const PROFILE_KEY = /^XMD_(MILESTONES|TEST_[A-Z0-9_]+)$/;
+const PROFILE_DENY = new Set(["XMD_TEST_HOOKS", "XMD_TEST_SECRET", "XMD_TEST_PROFILE_DIR"]);
+let profileKeys: string[] = [];
+
+/**
+ * `XMD_TEST_PROFILE_DIR=<folda>` + tag `[xmdtest:<jina>]` kwenye brief → `<folda>/<jina>.json` (input ya XMD_TEST_VERIFY_INPUT) inatumika,
+ * na `env` yake (XMD_MILESTONES / XMD_TEST_* tu) inawekwa kwa run hii. Kila run (mpya au resume) inaanza kwa KUONDOA env za profile iliyopita:
+ * conversation isiyo na tag = production kama kawaida. Inert bila XMD_TEST_HOOKS=1.
+ */
+export function applyTestProfile(project: string, env: Record<string, string | undefined> = process.env, read: (p: string) => string = (p) => readFileSync(p, "utf8")): { name: string; keys: string[] } | { error: string } | null {
+  for (const k of profileKeys) delete env[k];
+  profileKeys = [];
+  if (env.XMD_TEST_HOOKS !== "1" || !env.XMD_TEST_PROFILE_DIR) return null;
+  const name = TEST_PROFILE_TAG.exec(String(project || ""))?.[1];
+  if (!name) return null;
+  const file = resolve(env.XMD_TEST_PROFILE_DIR, `${name}.json`);
+  let j: { env?: Record<string, unknown> };
+  try { j = JSON.parse(read(file)); } catch (e: any) { return { error: `profile ${name}: ${String(e?.message || e).slice(0, 160)}` }; }
+  const set: Record<string, string> = { XMD_TEST_VERIFY_INPUT: file };
+  for (const [k, v] of Object.entries(j.env || {})) if (PROFILE_KEY.test(k) && !PROFILE_DENY.has(k)) set[k] = typeof v === "string" ? v : JSON.stringify(v);
+  for (const [k, v] of Object.entries(set)) env[k] = v;
+  profileKeys = Object.keys(set);
+  return { name, keys: profileKeys };
 }

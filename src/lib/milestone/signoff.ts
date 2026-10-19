@@ -170,7 +170,7 @@ export interface CloseoutDeps {
   /** task 22: screenshots zilizoidhinishwa (evidence ya raundi hii) → baselines */
   saveBaselines?: (round: number) => Promise<{ uploaded: number; entries: number; errors: string[]; manifestUrl?: string; fromRound?: number }>;
   /** test hook (T5): kill -9 baada ya git, kabla ya rekodi */
-  crashAfterGit?: () => void;
+  crashAfterGit?: () => void | Promise<void>;
   bcast: (e: unknown) => void;
   addChip: (t: string) => void;
   blog: (level: "info" | "success" | "warning" | "error" | "system", text: string) => void;
@@ -222,7 +222,7 @@ export async function closeOutMilestone(m: Milestone, round: number, status: Mil
       const msg = `xmd: sign-off ${m.id} (${status}, round ${round})`;
       let g: SignoffGitResult;
       try { g = await d.git(tag, msg); } catch (e: any) { g = { ok: false, sha: "", detail: String(e?.message || e).slice(0, 240) }; }
-      d.crashAfterGit?.();
+      await d.crashAfterGit?.();
       await save({ git: { ok: g.ok, sha: g.sha, tag, detail: g.detail, at: now() } });
       d.blog(g.ok ? "success" : "warning", `🏷️ ${m.id} sign-off: ${g.ok ? `tag ${tag} @ ${g.sha.slice(0, 7)}` : "git haikufanikiwa"} — ${g.detail}`);
       entry = { ...entry, tag: g.ok ? tag : undefined, sha: g.sha || undefined, git: g.detail };

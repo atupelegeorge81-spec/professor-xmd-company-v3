@@ -55,7 +55,7 @@ import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./
 import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks, applyEscalation, escalateLlm, fixRoundHeader, freshMilestoneState } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16)
 import { buildOCB, buildOCBForComputer, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14 (Computer OCB: TASK-16)
 import { buildStartPack, renderStartPack, type PrevBuild } from "./milestone/startpack"; // TASK-16
-import { maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks";
+import { applyTestProfile, maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks";
 import { EVIDENCE_PORT, generateMilestonePlan } from "./milestone/plan"; // TASK-15 (EVIDENCE_PORT: TASK-25)
 import { runChecks } from "./milestone/checks"; // TASK-25: acceptance + global checks za raundi ya marekebisho
 import { testFixInput, type TestFixInput } from "./milestone/fixRound"; // TASK-25 test hook (XMD_TEST_FIX_INPUT)
@@ -449,6 +449,9 @@ export async function resumeRun(id: string, by: PauseOrigin = "user"): Promise<R
 }
 
 function startLoop(runner: Runner) {
+  // TASK-28: test profile (tag `[xmdtest:<jina>]` kwenye brief + XMD_TEST_PROFILE_DIR) — majaribio halisi kwenye Koyeb; bila tag → env za majaribio zinaondolewa
+  const prof = applyTestProfile(runner.project);
+  if (prof) chip(runner, "error" in prof ? `🧪 test profile: ${prof.error}` : `🧪 test profile ${prof.name}: ${prof.keys.join(", ")}`);
   // R20: mtandao ukikatika — chip moja inaonekana (na kupona kunatangazwa); zamu/kazi zinasubiri ndani ya broker
   const offNet = onNetState((offline) => {
     if (runner.status !== "running") return;

@@ -1,12 +1,11 @@
 // TASK 28 — sheria safi za kufunga milestone: hali ya sign-off, INHERITED (cap), checks za defects zilizorithiwa,
 // entry ya ledger, matatizo ya kufunga (medium+ wazi / minor bila backlog / waivers), ripoti ya mwisho, test hooks.
-import { rmSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   allowedOpenAtSignoff, applyInheritedResults, baselineRound, closeoutProblems, finalReportLine, finalReportRow, inheritedChecks, inheritedFor, inheritedLine,
   inheritedSection, inheritOpenDefects, isInheritedCheck, milestoneLedgerEntry, milestoneTag, signoffStatus,
 } from "../signoff";
-import { testCrashAfterSignoffGit, testMaxRounds } from "../testHooks";
+import { applyTestProfile, testCrashAfterSignoffGit, testMaxRounds } from "../testHooks";
 import type { ChangeOrder, Defect, Milestone } from "../types";
 
 const D = (id: string, extra: Partial<Defect> = {}): Defect => ({ id, milestoneId: "M1", foundInRound: 0, reportedBy: ["designer"], area: "type", severity: "major", title: `t ${id}`, evidence: ["S-001"], expected: "h1 uppercase", actual: "h1 lowercase", status: "OPEN", attempts: 2, history: [], ...extra });
@@ -102,13 +101,22 @@ describe("test hooks za TASK-28", () => {
     expect(testMaxRounds({ XMD_TEST_HOOKS: "1", XMD_TEST_MAX_ROUNDS: "0" })).toBeNull();
     expect(testMaxRounds({ XMD_TEST_HOOKS: "1", XMD_TEST_MAX_ROUNDS: "11" })).toBeNull();
   });
-  it("XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_<Mk>: mara moja tu (marker)", () => {
-    const sid = `xmdtest-${Date.now()}`;
+  it("XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_<Mk>: kwa milestone hiyo tu, na TU na XMD_TEST_HOOKS=1 (mara-moja = alama ya store, loop)", () => {
     const env = { XMD_TEST_HOOKS: "1", XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_M1: "1" };
-    expect(testCrashAfterSignoffGit("M1", sid, env)).toBe(true);
-    expect(testCrashAfterSignoffGit("M1", sid, env)).toBe(false);
-    expect(testCrashAfterSignoffGit("M2", sid, env)).toBe(false);
-    expect(testCrashAfterSignoffGit("M1", `${sid}x`, { XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_M1: "1" })).toBe(false); // bila XMD_TEST_HOOKS
-    rmSync(`/tmp/xmd-crash-signoff-${sid}-M1`, { force: true });
+    expect(testCrashAfterSignoffGit("M1", env)).toBe(true);
+    expect(testCrashAfterSignoffGit("M2", env)).toBe(false);
+    expect(testCrashAfterSignoffGit("M1", { XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_M1: "1" })).toBe(false);
+  });
+  it("applyTestProfile: tag → env ya profile (XMD_MILESTONES/XMD_TEST_* tu); run isiyo na tag → zinaondolewa; inert bila hooks", () => {
+    const files: Record<string, string> = { "/p/inputT4a.json": JSON.stringify({ files: {}, env: { XMD_MILESTONES: "1", XMD_TEST_MAX_ROUNDS: "1", XMD_TEST_MAP_FORCE: [{ to: 1 }], XMD_TEST_SECRET: "x", E2B_API_KEY: "x" } }) };
+    const read = (p: string) => { if (!(p in files)) throw new Error("ENOENT"); return files[p]; };
+    const env: Record<string, string | undefined> = { XMD_TEST_HOOKS: "1", XMD_TEST_PROFILE_DIR: "/p", XMD_TEST_SECRET: "s" };
+    expect(applyTestProfile("xmdtest-site [xmdtest:inputT4a] page", env, read)).toEqual({ name: "inputT4a", keys: ["XMD_TEST_VERIFY_INPUT", "XMD_MILESTONES", "XMD_TEST_MAX_ROUNDS", "XMD_TEST_MAP_FORCE"] });
+    expect(env).toMatchObject({ XMD_TEST_VERIFY_INPUT: "/p/inputT4a.json", XMD_MILESTONES: "1", XMD_TEST_MAX_ROUNDS: "1", XMD_TEST_MAP_FORCE: '[{"to":1}]', XMD_TEST_SECRET: "s" });
+    expect(env.E2B_API_KEY).toBeUndefined();
+    expect(applyTestProfile("Real CEO project, no tag", env, read)).toBeNull();
+    expect(env.XMD_MILESTONES).toBeUndefined(); expect(env.XMD_TEST_VERIFY_INPUT).toBeUndefined(); expect(env.XMD_TEST_SECRET).toBe("s");
+    expect(applyTestProfile("[xmdtest:nope]", env, read)).toMatchObject({ error: expect.stringMatching(/profile nope/) });
+    expect(applyTestProfile("[xmdtest:inputT4a]", { XMD_TEST_PROFILE_DIR: "/p" }, read)).toBeNull();
   });
 });

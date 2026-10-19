@@ -202,7 +202,15 @@ export function closeoutDeps(runner: LoopRunner, m: Milestone, hooks: LoopHooks)
       if (br === null) return { uploaded: 0, entries: 0, errors: [`skipped: R${round} was reverted and no earlier round has evidence that matches HEAD`] };
       return { ...(await vh.saveBaselines!(m, br)), fromRound: br };
     } : undefined,
-    crashAfterGit: () => { if (testCrashAfterSignoffGit(m.id, sid)) { hooks.blog("warning", `🧪 XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_${m.id}: kill -9 baada ya commit/tag (kabla ya rekodi)`); process.kill(process.pid, "SIGKILL"); } },
+    crashAfterGit: async () => {
+      if (!testCrashAfterSignoffGit(m.id)) return;
+      const mark = `xmdtest-crash:${m.id}`; // mara moja tu — alama kwenye store (inadumu baada ya restart ya container)
+      if ((await getRecord(sid, mark))?.data) return;
+      await msUpdate(runner, mark, () => ({ version: 1, at: new Date().toISOString() }));
+      hooks.blog("warning", `🧪 XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_${m.id}: kill -9 baada ya commit/tag (kabla ya rekodi)`);
+      await hooks.persist().catch(() => {});
+      process.kill(process.pid, "SIGKILL");
+    },
     bcast: hooks.bcast, addChip: hooks.addChip, blog: hooks.blog,
   };
 }
