@@ -13,7 +13,7 @@ import { saveReport, saveSession, updateSessionItems, getConversation, lastSaveE
 import { saveLedgerEntry, finalBoardResolution, markSuperseded, type LedgerObjection } from "./ledger";
 import { generateAgenda, type AgendaItem } from "./agenda";
 import { MAX_ROUNDS, type Defect } from "./milestone/types"; // TASK-24
-import { findingsKey, isReviewAgenda, reviewPromptBlock, testReviewInput, type TestReviewInput, turnWordRule, REVIEW_TRANSCRIPT_CHARS, REVIEW_TURN_MAX_TOKENS, type DiscussionOutcome } from "./milestone/reviewAgenda"; // TASK-24
+import { nextCoNumber, findingsKey, isReviewAgenda, reviewPromptBlock, testReviewInput, type TestReviewInput, turnWordRule, REVIEW_TRANSCRIPT_CHARS, REVIEW_TURN_MAX_TOKENS, type DiscussionOutcome } from "./milestone/reviewAgenda"; // TASK-24
 import type { BoardEvent } from "./types";
 import { readUsage, createLiveMeter, type ExactUsage } from "./tokenMeter";
 import { writeMiniReport as writeMiniReportCore, provisionalMini, miniDecisionSection, miniContext, needsMiniRedo, miniTries, cleanDecision, type MiniReport, type MiniInput } from "./miniReport";
@@ -52,7 +52,7 @@ import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
 import { putRecord, getRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13 (getRecord: TASK-16)
 import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
-import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16)
+import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks, applyEscalation, escalateLlm, fixRoundHeader } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16)
 import { buildOCB, buildOCBForComputer, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14 (Computer OCB: TASK-16)
 import { buildStartPack, type PrevBuild } from "./milestone/startpack"; // TASK-16
 import { maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks";
@@ -62,8 +62,10 @@ import { testFixInput, type TestFixInput } from "./milestone/fixRound"; // TASK-
 import { newMilestoneState, planSteps, setStep, stepIdOf, transition } from "./milestone/state"; // TASK-25 test hook // TASK-14 (XMD_TEST_HOOKS=1 pekee)
 import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
-import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace, captureRoundEvidence, milestoneGit } from "./cu/engine"; // TASK-25/26
-import { testStopAfterRound, testVerifyInput, type TestVerifyInput } from "./milestone/verify"; // TASK-26 test hooks
+import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace, captureRoundEvidence, milestoneGit, milestonePatch, milestoneReadFiles } from "./cu/engine"; // TASK-25/26
+import { testStopAfterRound, testVerifyInput, type TestVerifyInput, nextAttempt, planGoalOf } from "./milestone/verify"; // TASK-26 test hooks
+import { escalateChangeOrders } from "./milestone/escalation"; // TASK-27
+import { formatRoundHeader } from "./milestone/review"; // TASK-27
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
 import {
   PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
@@ -1669,6 +1671,7 @@ async function run(runner: Runner) {
           // fix → sandbox haiuawi (raundi zinazofuata + checks zinaihitaji)
           return startComputerPhase(runner, runner.cuHooks, { milestoneId: m.id, planMarkdown, startPack, title: conversationTitle, last: false, reviewMode: m.reviewMode, fix });
         },
+        applyPatch: async (m, round, co) => milestonePatch(runner as Runner, { orderId: co.id, patch: String(co.patch || ""), message: `${m.id} R${round}: ${co.id} pair patch (harness git apply)` }),
         checks: async (m, rc) => runOnMilestoneSandbox(runner as Runner, async (sbx) => runChecks(rc.checks, {
           sbx, ws: "/home/user/ws", script: await readEngineScript("xmd-evidence.mjs"), startCommand: rc.startCommand, port: EVIDENCE_PORT, tag: `${m.id}-fix`,
         })),
@@ -1690,6 +1693,7 @@ async function run(runner: Runner) {
           };
         },
         git: async (_m, op) => { runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle }; return milestoneGit(runner as Runner, op); },
+        readFiles: async (_m, paths) => milestoneReadFiles(runner as Runner, paths),
         stopAfterRound: testStopAfterRound(),
       },
     });
@@ -3450,7 +3454,22 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
             const ev0 = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round: 0, planMarkdown: tv.planMarkdown, changeOrders: [] });
             await msUpdate(lr, `evidence:${m.id}:R0`, () => ({ version: 1, ...ev0.pack, exit: ev0.exit, invalid: ev0.invalid.slice(0, 20), uploaded: ev0.uploaded, ms: ev0.ms, at: new Date().toISOString() }));
             blog("info", `📸 XMD_TEST_VERIFY_INPUT: baseline R0 — screenshots ${ev0.pack.screenshots.length} · errors ${ev0.pack.errors.length}`);
-            await msUpdate(lr, `cos:${m.id}`, () => ({ version: 1, changeOrders: tv.changeOrders }));
+            // TASK-27 (T2/T4): COs zilizopandwa → escalation ladder halisi (Frontend patch / redecide n.k.) kabla ya raundi ya kwanza
+            let seedCos = tv.changeOrders;
+            let seedEx: Awaited<ReturnType<typeof escalateChangeOrders>> | null = null;
+            if (tv.escalate) {
+              const defs = tv.defects || [];
+              const sr = tv.startRound || 1;
+              const cos1 = seedCos.map((c) => ({ ...c, attempt: nextAttempt(c, defs) }));
+              seedEx = await escalateChangeOrders({
+                milestoneId: m.id, round: sr, reviewMode: m.reviewMode, defects: defs, planGoal: planGoalOf(tv.planMarkdown),
+                ledgerLines: (tv.ledger || []).map((e) => `- A${e.agenda_index} [LOCKED] ${e.agenda_item}: ${String(e.decision_summary || "").replace(/\s+/g, " ").slice(0, 420)}`),
+                roundHeader: formatRoundHeader(fixRoundHeader(m, Math.max(1, sr - 1), MAX_ROUNDS, defs)),
+              }, cos1, {}, nextCoNumber(cos1), { complete: (a, pp, msgs) => escalateLlm(runner.sessionId!, a, pp, msgs), readFiles: (paths) => milestoneReadFiles(runner as Runner, paths), log: blog });
+              seedCos = seedEx.changeOrders;
+              blog("info", `🪜 XMD_TEST_VERIFY_INPUT escalate: ${seedEx.events.map((e) => `${e.coId} attempt ${e.attempt} → ${e.mode}${e.redecide ? ` ${e.redecide.outcome}` : ""}${e.valid ? "" : " (fallback)"}`).join(" · ")}`);
+            }
+            await msUpdate(lr, `cos:${m.id}`, () => ({ version: 1, changeOrders: seedCos }));
             await msUpdate(lr, "defects", () => ({ version: 1, defects: tv.defects || [] }));
             await msUpdate(lr, `state:${m.id}`, () => {
               let st = newMilestoneState(m.id);
@@ -3469,7 +3488,8 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
               }
               return st;
             });
-            if ((tv.startRound || 1) > 1) await msUpdate(lr, `cos:${m.id}:R${tv.startRound}`, () => ({ version: 1, round: tv.startRound, changeOrders: tv.changeOrders }));
+            if ((tv.startRound || 1) > 1) await msUpdate(lr, `cos:${m.id}:R${tv.startRound}`, () => ({ version: 1, round: tv.startRound, changeOrders: seedCos }));
+            if (seedEx) await applyEscalation(lr, m, (tv.startRound || 1) - 1, msHooks("running"), seedEx);
           }
         }
         await maybeCloseMilestones(lr, {

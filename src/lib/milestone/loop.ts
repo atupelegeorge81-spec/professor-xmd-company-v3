@@ -9,12 +9,12 @@ import { BUILD_REPORT_INLINE_MAX, buildReportPath, crossCheckBuildReport, parseB
 import { evidenceKey } from "./evidence"; // TASK-19
 import type { DomJson } from "./review"; // TASK-26 (occlusion)
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
-import { MAX_ROUNDS, type ChangeOrder, type Defect, type EvidenceCheckResult, type EvidencePack, type Milestone, type MilestoneMap, type MilestoneState, type MilestoneStatus, type RoundHeaderData } from "./types";
+import { MAX_ROUNDS, type ChangeOrder, type Defect, type EvidenceCheckResult, type EvidencePack, type Milestone, type MilestoneMap, type MilestoneState, type MilestoneStatus, type RoundHeaderData, type WaiverEntry } from "./types";
 import { formatRoundHeader, reviewRound0, REVIEWERS, type ReviewContext, type ReviewDeps, type ReviewerId } from "./review"; // TASK-24 (T23 analyses)
-import { consolidate, cosKey, makeReviewAgendaItem, nextCoNumber, reviewAgendaId, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
+import { consolidate, cosKey, DECISIONS_KEY, makeReviewAgendaItem, nextCoNumber, reviewAgendaId, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
 import { brokerComplete } from "../broker/broker"; // TASK-24: Optimus consolidate
 import {
-  applyRoundToDefects, fixChecksKey, fixKey, mergeAttempts, noOpReminder, parseNumstat, parseReceipts, prevChangesLines, renderFixPack, roundChecks,
+  applyRoundToDefects, fixChecksKey, fixKey, mergeAttempts, noOpReminder, parseNumstat, parseReceipts, prevChangesLines, renderFixPack, roundChecks, escalationLines, reproducedMap, type PatchApply,
   summarizeChecks, verifyReceipts, type CoVerification, type FixPhaseInput, type FixRaw, type RoundChecks, type RoundVerification,
 } from "./fixRound"; // TASK-25
 import {
@@ -24,6 +24,7 @@ import {
 } from "./verify"; // TASK-26
 import { buildOCB } from "./ocb";
 import { maybeCapturePrompt } from "./testHooks";
+import { amendmentLine, applyEscalationToDefects, escalateChangeOrders, escalationChip, type Amendment, type EscalateDeps, type EscalateResult, type Msg as EscMsg, type PrevAttemptFact, type Waiver } from "./escalation"; // TASK-27
 
 export interface LoopRunner {
   id: string;
@@ -60,6 +61,8 @@ export interface LoopHooks {
     run: (m: Milestone, planMarkdown: string, fix: FixPhaseInput) => Promise<BuildOutcome>;
     /** acceptance + global checks (task 21 runChecks) kwenye sandbox ya milestone */
     checks: (m: Milestone, rc: RoundChecks) => Promise<{ results: EvidenceCheckResult[]; ms: number }>;
+    /** TASK-27 (pair_patch): harness `git apply --check` → `git apply` + commit kwenye sandbox */
+    applyPatch?: (m: Milestone, round: number, co: ChangeOrder) => Promise<PatchApply>;
   };
   /** TASK-26: raundi ya uthibitisho — evidence upya (tasks 19–22) → reviewers 2 → decide → git → Optimus COs. */
   verify?: {
@@ -70,6 +73,9 @@ export interface LoopHooks {
     /** majaribio tu: badala ya LLM halisi */
     deps?: VerifyDeps;
     consolidate?: (i: ConsolidateInput) => Promise<ConsolidateResult>;
+    /** TASK-27: LLM ya escalation (majaribio: stub) + kusoma faili za sandbox (pair patch) */
+    escalateComplete?: EscalateDeps["complete"];
+    readFiles?: (m: Milestone, paths: string[]) => Promise<Record<string, string>>;
     /** test hook (XMD_TEST_STOP_AFTER_ROUND): simama baada ya uthibitisho wa raundi hii */
     stopAfterRound?: number;
   };
@@ -468,11 +474,33 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
     const r = (await getRecord<{ verification?: RoundVerification }>(sid, fixKey(m.id, k)))?.data;
     if (r?.verification) prev.push({ round: k, cos: r.verification.cos });
   }
-  const ocb = await fh.ocb(m, round, header.open.length);
+  const amends = (await getRecord<{ amendments?: Amendment[] }>(sid, amendmentsKey(m.id)))?.data?.amendments || [];
+  const ocb = (await fh.ocb(m, round, header.open.length)) + (amends.length ? `\n\nAMENDED REQUIREMENTS (redecide MODIFY — binding, they replace the original requirement):\n${amends.map(amendmentLine).join("\n")}` : "");
+  // TASK-27: pair patch — harness inajaribu `git apply --check` → `git apply` KABLA ya Computer (idempotent: patch:Mk:Rn)
+  let patchRec = (await getRecord<{ results: PatchApply[]; base: string }>(sid, patchKey(m.id, round)))?.data || null;
+  const pp = cos.filter((c) => c.mode === "pair_patch" && c.patch);
+  if (pp.length && !patchRec && fh.applyPatch) {
+    const results: PatchApply[] = [];
+    for (const co of pp) {
+      try { results.push(await fh.applyPatch(m, round, co)); }
+      catch (e: any) { results.push({ orderId: co.id, applied: false, method: "none", base: "", sha: "", detail: String(e?.message || e).slice(0, 300) }); }
+    }
+    patchRec = { results, base: results.find((r) => r.base)?.base || "" };
+    await msUpdate(runner, patchKey(m.id, round), () => ({ version: 1, id: m.id, round, ...patchRec, at: new Date().toISOString() }));
+    for (const r of results) {
+      hooks.addChip(`🩹 ${m.id} R${round} ${r.orderId}: pair patch ${r.applied ? `applied by harness (${r.method}, ${r.sha.slice(0, 7)})` : `did NOT apply (${r.detail.slice(0, 120)}) → Computer applies it verbatim`}`);
+      hooks.blog(r.applied ? "success" : "warning", `🩹 ${m.id} R${round} ${r.orderId}: ${r.method} · ${r.applied ? `commit ${r.sha.slice(0, 12)}` : "not applied"} · ${r.detail.slice(0, 300)}`);
+    }
+  }
+  const patchNotes = Object.fromEntries((patchRec?.results || []).map((r) => [r.orderId, r.applied
+    ? `the HARNESS ALREADY APPLIED this patch (${r.method}, commit ${r.sha.slice(0, 7)}) — do NOT re-apply or edit those lines; verify the file, then write the receipt status DONE listing the patched file(s).`
+    : `the harness could NOT apply it (${r.detail.slice(0, 160)}) — apply the patch VERBATIM (exactly these lines, nothing else), then write the receipt.`]));
+  const diffBase0 = /^[0-9a-f]{7,40}$/.test(patchRec?.base || "") ? patchRec!.base : undefined;
+  const escLines = escalationLines(cos, patchNotes);
   const orderIds = cos.map((c) => c.id);
   let captured = false;
   const render = (repo: { tree: string; gitLog: string }) => {
-    const pack = renderFixPack({ roundHeader: header, ocb, changeOrders: cos, repo, prevChanges: prevChangesLines(prev), milestoneId: m.id, round });
+    const pack = renderFixPack({ roundHeader: header, ocb, changeOrders: cos, repo, prevChanges: prevChangesLines(prev), milestoneId: m.id, round, escalation: escLines });
     if (!captured) { captured = true; maybeCapturePrompt({ sessionId: sid, agent: "computer", agenda: 0, phase: `fix:${m.id}:R${round}`, system: pack }); } // TASK-26 T3
     return pack;
   };
@@ -484,7 +512,7 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
   hooks.bcast({ type: "fixRound", id: m.id, round, phase: "start", orderIds });
 
   const t0 = Date.now();
-  let out = await fh.run(m, plan, { round, attempt: 1, orderIds, render });
+  let out = await fh.run(m, plan, { round, attempt: 1, orderIds, render, ...(diffBase0 ? { diffBase: diffBase0 } : {}) });
   if (out.finalState === "PAUSED") {
     hooks.blog("warning", `⏸️ ${m.id} R${round}: Computer imesimama (Board pause) — raundi itarudiwa Board ikiresume.`);
     return ((await getRecord<MilestoneState>(sid, stateKey(m.id)))?.data ?? rec.data) as MilestoneState;
@@ -500,7 +528,7 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
     hooks.addChip(`🔁 ${m.id} R${round}: NO-OP ${v1.notAttempted.join(", ")} — Computer anarudishiwa agizo (mara moja)`);
     hooks.blog("warning", `🔁 ${m.id} R${round}: NOT_ATTEMPTED ${v1.notAttempted.join(", ")} → ujumbe kwa Computer: ${reminder.replace(/\n/g, " | ").slice(0, 400)}`);
     hooks.bcast({ type: "fixReminder", id: m.id, round, orderIds: v1.notAttempted, message: reminder });
-    out = await fh.run(m, plan, { round, attempt: 2, orderIds, render, reminder, diffBase: out.fix?.headBefore || out.fix?.diffBase });
+    out = await fh.run(m, plan, { round, attempt: 2, orderIds, render, reminder, diffBase: out.fix?.diffBase || out.fix?.headBefore });
     if (out.finalState === "PAUSED") {
       hooks.blog("warning", `⏸️ ${m.id} R${round}: rerun imesimama (Board pause).`);
       return ((await getRecord<MilestoneState>(sid, stateKey(m.id)))?.data ?? rec.data) as MilestoneState;
@@ -530,6 +558,7 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
     attempts: attempts.map((a) => ({ attempt: a.attempt, finalState: a.finalState, reason: a.reason, flags: a.verification.flags, notAttempted: a.verification.notAttempted,
       headBefore: a.fix?.headBefore, head: a.fix?.head, diffBase: a.fix?.diffBase, changed: (a.fix?.changed || []).slice(0, 200), receiptsRaw: String(a.fix?.receiptsRaw ?? "").slice(0, 20_000) || null, sabotaged: !!a.fix?.sabotaged })),
     global: perCo.global || { pass: 0, fail: 0, error: 0 }, at: now,
+    patches: patchRec?.results, reproduced: reproducedMap(cos, parseReceipts(out.fix?.receiptsRaw)), modes: Object.fromEntries(cos.map((c) => [c.id, c.mode || "standard"])),
   }));
   await msUpdate<{ version: number; defects: Defect[] }>(runner, "defects", (cur) => ({ version: 1, ...(cur || {}), defects: applyRoundToDefects(cur?.defects || defects0, cos, v, round, perCo) }));
   const ck = perCo.global || { pass: 0, fail: 0, error: 0 };
@@ -585,7 +614,7 @@ interface VerifyRecord {
   git?: { op: "tag" | "revert" | "none"; ok: boolean; sha: string; detail: string };
   decision?: Decision;
   next?: NextDecision;
-  consolidation?: { valid: boolean; attempts: number; errors: string[]; changeOrders: ChangeOrder[]; discussed: boolean };
+  consolidation?: { valid: boolean; attempts: number; errors: string[]; changeOrders: ChangeOrder[]; discussed: boolean; escalation?: Pick<EscalateResult, "events" | "waivers" | "amendments" | "conflicts"> };
   added?: string[];
   duplicates?: { title: string; of: string }[];
   harnessRegressions?: OcclusionRegression[];
@@ -608,6 +637,65 @@ async function occlusionRegressions(sid: string, m: Milestone, round: number, af
     return { meta: { route: sh.route, viewport: sh.viewport, state: sh.state, screenshotId: sh.id }, dom: dm ? await load(dm).catch(() => null) : null };
   }));
   return newlyOccluded(await side(before), await side(after));
+}
+
+/* ============================ TASK-27: escalation ladder ============================ */
+
+export const amendmentsKey = (milestoneId: string) => `amendments:${milestoneId}`;
+export const waiversKey = (milestoneId: string) => `waivers:${milestoneId}`;
+export const patchKey = (milestoneId: string, round: number) => `patch:${milestoneId}:R${round}`;
+
+export async function escalateLlm(sid: string, agent: "pm" | "designer" | "frontend", purpose: string, messages: EscMsg[]): Promise<string> {
+  if (/:a1$/.test(purpose)) maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase: purpose.replace(/:a1$/, ""), system: messages.map((x) => x.content).join("\n\n") });
+  return (await brokerComplete({ agentId: agent, purpose, messages: messages as never, maxOut: 12_000, cls: "heavy", temperature: 0.2, priority: "background", waitMs: 120_000, critical: true })).text;
+}
+
+/** Majaribio yaliyopita kwa kila defect, kama yalivyopimwa na harness (fix:Mk:Rk + NO-OP detector + reviewers). */
+export async function escalationFacts(sid: string, m: Milestone, upTo: number): Promise<Record<string, PrevAttemptFact[]>> {
+  const out: Record<string, PrevAttemptFact[]> = {};
+  for (let k = 1; k <= upTo; k++) {
+    const fr = (await getRecord<{ verification?: RoundVerification; perCo?: { orderId: string; checks?: { pass: number; fail: number; error: number } }[] }>(sid, fixKey(m.id, k)))?.data;
+    if (!fr?.verification) continue;
+    const kc = (await getRecord<{ changeOrders?: ChangeOrder[] }>(sid, cosRoundKey(m.id, k)))?.data?.changeOrders || (k === 1 ? (await getRecord<{ changeOrders?: ChangeOrder[] }>(sid, cosKey(m.id)))?.data?.changeOrders : undefined) || [];
+    const vr = (await getRecord<VerifyRecord>(sid, verifyKey(m.id, k)))?.data;
+    for (const c of fr.verification.cos) {
+      const co = kc.find((x) => x.id === c.orderId);
+      if (!co) continue;
+      const notes = (["designer", "frontend"] as const).map((r) => vr?.runs?.[r]?.findings?.cos.find((x) => x.orderId === c.orderId)).filter(Boolean).map((x) => `${x!.verdict}: ${x!.note.slice(0, 160)}`);
+      const fact: PrevAttemptFact = { round: k, orderId: c.orderId, verdict: c.verdict, receiptStatus: String(c.receiptStatus), targets: c.targets, touched: c.touched, blockedReason: c.blockedReason,
+        checks: fr.perCo?.find((x) => x.orderId === c.orderId)?.checks || { pass: 0, fail: 0, error: 0 }, reviewerNotes: notes, reverted: vr?.git?.op === "revert" && vr.git.ok };
+      for (const d of co.defectIds) (out[d] ||= []).push(fact);
+    }
+  }
+  return out;
+}
+
+/** Inahifadhi matokeo ya escalation (idempotent kwa kitambulisho): history, WAIVED, amendments (ledger), waivers (state + ripoti), chips. */
+export async function applyEscalation(runner: LoopRunner, m: Milestone, round: number, hooks: LoopHooks, ex: Pick<EscalateResult, "events" | "waivers" | "amendments" | "conflicts">): Promise<Defect[]> {
+  const sid = runner.sessionId as string;
+  const marker = `R${round + 1}`;
+  const rec = await msUpdate<{ version: number; defects: Defect[] }>(runner, "defects", (cur) => {
+    const ds = cur?.defects || [];
+    const already = ds.some((d) => (d.history || []).some((h) => h.round === round + 1 && /^ESCALATED/.test(h.result))); // resume → si mara mbili
+    return { version: 1, defects: already ? ds : applyEscalationToDefects(ds, ex, round + 1) };
+  });
+  if (ex.amendments.length) {
+    await msUpdate<{ version: number; amendments: Amendment[] }>(runner, amendmentsKey(m.id), (cur) => ({ version: 1, amendments: [...(cur?.amendments || []).filter((a) => !ex.amendments.some((x) => x.id === a.id)), ...ex.amendments] }));
+    await msUpdate<{ version: number; decisions: unknown[] }>(runner, DECISIONS_KEY, (cur) => ({ version: 1, ...(cur || {}), decisions: [...((cur?.decisions || []) as { id?: string }[]).filter((d) => !ex.amendments.some((x) => x.id === d.id)), ...ex.amendments.map((a) => ({ id: a.id, milestoneId: m.id, round: a.round, source: "redecide", decision: "MODIFY", defectId: a.defectId, text: a.requirement, reason: a.reason, at: a.at }))] }));
+  }
+  if (ex.waivers.length) {
+    const ws: WaiverEntry[] = ex.waivers.map((w) => ({ defectId: w.defectId, title: w.title, severity: w.severity, round: w.round, reason: w.reason, approvedBy: w.approvedBy, at: w.at }));
+    await msUpdate<{ version: number; waivers: Waiver[] }>(runner, waiversKey(m.id), (cur) => ({ version: 1, waivers: [...(cur?.waivers || []).filter((x) => !ex.waivers.some((w) => w.defectId === x.defectId)), ...ex.waivers] }));
+    await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => ({ ...(s as MilestoneState), waivers: [...((s as MilestoneState).waivers || []).filter((x) => !ws.some((w) => w.defectId === x.defectId)), ...ws] }));
+  }
+  for (const e of ex.events) {
+    for (const d of e.defectIds) hooks.addChip(`🪜 ${escalationChip(d, e.attempt, e.mode)}${e.diagnosis ? ` · diagnosis ${e.diagnosis.cause}` : ""}${e.redecide ? ` → ${e.redecide.outcome}` : ""}${e.valid ? "" : " (fallback)"}`);
+    hooks.blog(e.valid ? "info" : "warning", `🪜 ${m.id} ${marker} ${e.coId} attempt ${e.attempt} (${e.mode}) → ${e.resultIds.join(", ") || "no order"}${e.diagnosis ? ` · ${e.diagnosis.cause}: ${e.diagnosis.reason}` : ""}${e.patch ? ` · patch ${e.patch.kind} (${e.patch.files.join(", ")})` : ""}${e.laneSwitch ? ` · ${e.laneSwitch}` : ""}${e.redecide ? ` · ${e.redecide.outcome} (${e.redecide.turns} turns): ${e.redecide.reason.slice(0, 200)}` : ""}${e.errors.length ? ` · errors: ${e.errors.slice(0, 2).join("; ").slice(0, 200)}` : ""}`);
+  }
+  for (const w of ex.waivers) hooks.addChip(`🏳️ WAIVE ${w.defectId} (${m.id} R${w.round}): ${w.reason.slice(0, 200)} — approved by ${w.approvedBy.join(" + ")}`);
+  for (const a of ex.amendments) hooks.addChip(`📜 MODIFY ${a.defectId} → ledger ${a.id}: ${a.requirement.slice(0, 200)}`);
+  hooks.bcast({ type: "escalation", id: m.id, round: round + 1, events: ex.events.map((e) => ({ coId: e.coId, attempt: e.attempt, mode: e.mode, resultIds: e.resultIds, diagnosis: e.diagnosis, outcome: e.redecide?.outcome, valid: e.valid })), waivers: ex.waivers.map((w) => w.defectId), amendments: ex.amendments.map((a) => a.id), conflicts: ex.conflicts.found.length });
+  return rec.data.defects.filter((d) => d.milestoneId === m.id);
 }
 
 export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: number, hooks: LoopHooks): Promise<MilestoneState> {
@@ -704,7 +792,8 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
   if (!git) {
     const safe = async (op: Parameters<NonNullable<LoopHooks["verify"]>["git"]>[1]) => { try { return await vh.git(m, op); } catch (e: any) { return { ok: false, sha: "", detail: String(e?.message || e).slice(0, 200) }; } };
     if (outcome.outcome === "REVERT") {
-      const from = fixRec?.attempts?.[0]?.headBefore || fixRec?.attempts?.[0]?.diffBase || "";
+      const patchBase = (await getRecord<{ base?: string }>(sid, patchKey(m.id, round)))?.data?.base || ""; // TASK-27: kabla ya pair patch ya harness
+      const from = patchBase || fixRec?.attempts?.[0]?.headBefore || fixRec?.attempts?.[0]?.diffBase || "";
       git = from ? { op: "revert", ...(await safe({ kind: "revert", from, message: `xmd: revert ${m.id} R${round} — made things worse (${outcome.reason})`, label: `${m.id}-R${round}-revert` })) } : { op: "revert", ok: false, sha: "", detail: "round base commit unknown" };
     } else if (outcome.outcome === "BEST") git = { op: "tag", ...(await safe({ kind: "tag", name: `xmd-best-${m.id}` })) };
     else git = { op: "none", ok: true, sha: "", detail: outcome.reason };
@@ -765,16 +854,34 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
         nextCoNo: nextCoNumber(prevAll), roundHeader: formatRoundHeader(nowHeader), notes: reverted ? [reverted] : [],
       });
       cons = { valid: r.valid, attempts: r.attempts, errors: r.errors, discussed, changeOrders: r.valid ? r.changeOrders.map((c) => ({ ...c, attempt: nextAttempt(c, res.defects) })) : [] };
+      // TASK-27: escalation ladder — attempt ≥2 inabadilisha mbinu (concrete → pair_patch → split → redecide) + conflicting COs
+      if (cons.valid) {
+        const facts = await escalationFacts(sid, m, round);
+        const amends = (await getRecord<{ amendments?: Amendment[] }>(sid, amendmentsKey(m.id)))?.data?.amendments || [];
+        const ex = await escalateChangeOrders({
+          milestoneId: m.id, round: round + 1, reviewMode: m.reviewMode, defects: res.defects, ledgerLines: [...base.ledgerLines, ...amends.map(amendmentLine)],
+          roundHeader: formatRoundHeader(nowHeader), planGoal: planGoalOf(plan), notes: reverted ? [reverted] : [],
+        }, cons.changeOrders, facts, Math.max(nextCoNumber(prevAll), nextCoNumber(cons.changeOrders)), {
+          complete: vh.escalateComplete || ((agent, purpose, messages) => escalateLlm(sid, agent, purpose, messages)),
+          readFiles: vh.readFiles ? (paths) => vh.readFiles!(m, paths) : undefined, log: hooks.blog,
+        });
+        cons = { ...cons, changeOrders: ex.changeOrders, escalation: { events: ex.events, waivers: ex.waivers, amendments: ex.amendments, conflicts: ex.conflicts } };
+      }
       vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), consolidation: cons }))).data;
     }
     if (!cons.valid) nd = { ...nd, next: "BLOCKED", reason: `consolidation invalid after ${cons.attempts} attempt(s): ${cons.errors.slice(0, 3).join("; ")}` };
     else {
       newCos = cons.changeOrders;
+      if (cons.escalation) {
+        const esc = await applyEscalation(runner, m, round, hooks, cons.escalation);
+        if (!newCos.length && !mineOpen(esc).length) nd = { ...nd, next: "SIGN_OFF", reason: `all remaining defects waived by redecide (${cons.escalation.waivers.map((w) => w.defectId).join(", ")})` };
+      }
       await msUpdate<{ version: number; changeOrders: ChangeOrder[] }>(runner, cosKey(m.id), (cur) => ({ version: 1, changeOrders: [...(cur?.changeOrders || []).filter((c) => !newCos.some((x) => x.id === c.id)), ...newCos] }));
       await msUpdate(runner, cosRoundKey(m.id, round + 1), () => ({ version: 1, round: round + 1, changeOrders: newCos }));
     }
   }
-  const to: MilestoneStatus = nd.next === "SIGN_OFF" ? (nd.leftoverMinor.length ? "SIGNED_OFF_WITH_WAIVERS" : "SIGNED_OFF") : nd.next === "CONTINUE" ? "FIXING" : nd.next === "CAP_REACHED" ? "CAP_REACHED" : "BLOCKED";
+  const waivedAny = ((await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || []).some((d) => d.milestoneId === m.id && d.status === "WAIVED");
+  const to: MilestoneStatus = nd.next === "SIGN_OFF" ? (nd.leftoverMinor.length || waivedAny ? "SIGNED_OFF_WITH_WAIVERS" : "SIGNED_OFF") : nd.next === "CONTINUE" ? "FIXING" : nd.next === "CAP_REACHED" ? "CAP_REACHED" : "BLOCKED";
   await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), decision, next: nd, added: res.added.map((d) => d.id), duplicates: trial.duplicates, at: now() }));
   rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, dId, to === "BLOCKED" ? "FAILED" : "DONE")), { type: "GOTO", to })));
   hooks.bcast({

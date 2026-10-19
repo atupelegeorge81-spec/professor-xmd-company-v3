@@ -985,6 +985,45 @@ export async function milestoneGit(runner: Runner, op: { kind: "tag"; name: stri
   });
 }
 
+/** TASK-27 (pair_patch): harness — `git apply --check` → `git apply` (kisha `--recount`) + commit ya faili za patch tu.
+ *  Patch iliyokwisha ingia (`git apply -R --check`) = applied (resume baada ya crash). Faili kamili (si diff) → haiingii → Computer verbatim. */
+export async function milestonePatch(runner: Runner, o: { orderId: string; patch: string; message: string }): Promise<{ orderId: string; applied: boolean; method: "git apply" | "git apply --recount" | "already applied" | "none"; base: string; sha: string; detail: string }> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    const run = async (c: string) => { const r: any = await sbx.commands.run(`${c}; echo __XMD_RC=$?`, { timeoutMs: 60_000 }).catch((e: any) => ({ stdout: `__XMD_RC=1`, stderr: String(e?.message || e) })); const out = String(r?.stdout || ""); return { rc: Number(/__XMD_RC=(\d+)/.exec(out)?.[1] ?? 1), out: out.replace(/__XMD_RC=\d+\s*$/, "").trim(), err: String(r?.stderr || "").trim() }; };
+    const base = (await run("cd /home/user/ws && git rev-parse HEAD")).out.split("\n").pop() || "";
+    const res = { orderId: o.orderId, base: /^[0-9a-f]{40}$/.test(base) ? base : "", sha: "", applied: false, method: "none" as "git apply" | "git apply --recount" | "already applied" | "none", detail: "" };
+    if (o.patch.startsWith("*** COMPLETE FILE: ")) return { ...res, detail: "complete file (not a unified diff) — git apply not possible; Computer applies it verbatim" };
+    const pf = `/tmp/xmd-${o.orderId}.patch`;
+    await sbx.files.write(pf, o.patch);
+    const files = [...o.patch.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)].map((m) => m[1]).filter((f) => f !== "/dev/null");
+    const add = files.map((f) => q(f)).join(" ");
+    for (const [method, flags] of [["git apply", ""], ["git apply --recount", "--recount"]] as const) {
+      const chk = await run(`cd /home/user/ws && git apply --check ${flags} --whitespace=nowarn ${pf}`);
+      if (chk.rc !== 0) { res.detail = `${method} --check: ${(chk.err || chk.out).slice(-240)}`; continue; }
+      const ap = await run(`cd /home/user/ws && git apply ${flags} --whitespace=nowarn ${pf} && git add -- ${add} && ${MS_GIT} commit -qm ${q(o.message)} && git rev-parse HEAD`);
+      const sha = ap.out.split("\n").pop() || "";
+      if (ap.rc === 0 && /^[0-9a-f]{40}$/.test(sha)) return { ...res, applied: true, method, sha, detail: `${method}: ${files.join(", ")}` };
+      res.detail = `${method}: ${(ap.err || ap.out).slice(-240)}`;
+    }
+    const rev = await run(`cd /home/user/ws && git apply -R --check --whitespace=nowarn ${pf}`);
+    if (rev.rc === 0) return { ...res, applied: true, method: "already applied", sha: res.base, detail: "patch already present (reverse applies cleanly)" };
+    return res;
+  });
+}
+
+/** TASK-27 (pair_patch): maudhui halisi ya faili lengwa kwa Frontend Engineer (≤3 faili, ≤40K kila moja). */
+export async function milestoneReadFiles(runner: Runner, paths: string[]): Promise<Record<string, string>> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    const out: Record<string, string> = {};
+    for (const p of paths.slice(0, 3)) {
+      const rel = String(p).replace(/^\/home\/user\/ws\//, "").replace(/^\.\//, "");
+      if (!rel || rel.includes("..")) continue;
+      try { const t = await sbx.files.read(`/home/user/ws/${rel}`); out[rel] = String(t).slice(0, 40_000); } catch { /* faili haipo */ }
+    }
+    return out;
+  });
+}
+
 /** test-only (vitest) — helpers za snapshot ya milestone. */
 export const __t16Snapshot = { msSnapshot, msRestoreSnapshot, msReadBuildReport };
 

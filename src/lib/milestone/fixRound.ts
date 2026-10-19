@@ -39,6 +39,28 @@ export interface FixPackInput {
   prevChanges: string[];
   milestoneId: string;
   round: number;
+  /** TASK-27: maagizo ya ngazi za escalation (concrete/pair_patch/split/redecide) */
+  escalation?: string[];
+}
+
+/** TASK-27: matokeo ya harness kujaribu pair patch (`git apply --check` → `git apply`). */
+export interface PatchApply { orderId: string; applied: boolean; method: "git apply" | "git apply --recount" | "already applied" | "none"; base: string; sha: string; detail: string }
+
+/** TASK-27: jinsi Computer anavyotekeleza kila ngazi ya ladder. */
+export function escalationLines(cos: ChangeOrder[], patchNotes: Record<string, string> = {}): string[] {
+  const out: string[] = [];
+  for (const c of cos) {
+    if (c.mode === "concrete") out.push(`- ${c.id} (CONCRETE — attempt ${c.attempt}; the previous attempt failed${c.diagnosis ? `, diagnosis ${c.diagnosis.cause}: ${c.diagnosis.note}` : ""}): apply EXACTLY the file, selector, property and values in "current" → "desired"; nothing else.`);
+    else if (c.mode === "pair_patch") out.push(`- ${c.id} (PAIR PATCH — attempt ${c.attempt}; the Frontend Engineer wrote the exact fix in the field "patch"${c.patch?.startsWith("*** COMPLETE FILE: ") ? " as a COMPLETE FILE: replace that whole file with the content after the first line" : " as a unified diff"}): ${patchNotes[c.id] || (c.patch ? "apply the patch VERBATIM (exactly these lines, nothing else), then write the receipt." : "no patch could be written — implement the order exactly.")}`);
+    else if (c.mode === "split") out.push(`- ${c.id} (SPLIT — attempt ${c.attempt}; one file / one property): FIRST REPRODUCE — measure the current state (computed value, px, contrast…) and write it in this order's receipt "notes" as "REPRODUCED: <measurement>" — THEN fix only this file/property.`);
+    else if (c.mode === "redecide") out.push(`- ${c.id} (RE-DECIDED by the reviewers + Optimus — attempt ${c.attempt}): follow "desired" exactly; it replaces the earlier instruction.`);
+  }
+  return out.length ? ["## ESCALATED ORDERS — these failed before; execute them exactly as described", ...out] : [];
+}
+
+/** TASK-27: split → receipt lazima iwe na "REPRODUCED: …" (kipimo kabla ya fix). */
+export function reproducedMap(cos: ChangeOrder[], parsed: ParsedReceipts): Record<string, boolean> {
+  return Object.fromEntries(cos.filter((c) => c.mode === "split").map((c) => [c.id, /REPRODUCED\s*:/i.test(String(parsed.receipts.find((r) => r.orderId === c.id)?.notes || ""))]));
 }
 
 export function renderFixPack(p: FixPackInput): string {
@@ -54,6 +76,7 @@ export function renderFixPack(p: FixPackInput): string {
     JSON.stringify(p.changeOrders, null, 2),
     "```",
     "",
+    ...(p.escalation?.length ? [...p.escalation, ""] : []),
     "## REPO SUMMARY (real, from the sandbox)",
     "```",
     (p.repo.tree || "(empty)").trim(),
