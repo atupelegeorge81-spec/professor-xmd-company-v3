@@ -103,6 +103,7 @@ export function receiptsContract(milestoneId: string, round: number, orderIds: s
     `2. Write \`${receiptsPath(round)}\`: a JSON ARRAY with exactly one Receipt per order (${orderIds.join(", ")}):`,
     `   {"orderId":"CO-001","status":"DONE|PARTIAL|BLOCKED|CANNOT","filesChanged":[{"path":"src/x.css","summary":"what changed"}],"commandsRun":["..."],"notes":"...","blockedReason":"required when BLOCKED|CANNOT"}`,
     `   filesChanged lists ONLY files you really changed for that order (the harness compares it with git diff). If an order conflicts with a locked ledger decision or cannot be done, do NOT apply it: status BLOCKED (or CANNOT) with the reason, filesChanged [].`,
+    `   Do NOT create report/notes files in the repo (RIPOTI.md, report.md, NOTES.md…): your summary goes in your final message only — any changed file missing from the receipts is flagged UNLISTED_CHANGE and blocks sign-off.`,
     `3. Commit your work AND the receipts file yourself: \`git add -A && git commit -m "${commitMessage(milestoneId, round, orderIds)}"\`.`,
     `You cannot finish until the receipts file is valid, every order has a receipt, the tree is committed and the build passes. Do not grade yourself; the harness measures.`,
   ].join("\n");
