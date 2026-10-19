@@ -1,0 +1,105 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 4,
+ "finalState": "COMPLETED_VERIFIED",
+ "reason": "completed, verified by the completion gate",
+ "ok": true,
+ "ms": 174208,
+ "orderIds": [
+  "CO-004"
+ ],
+ "flags": [
+  "UNLISTED_CHANGE"
+ ],
+ "unlisted": [
+  "server.log"
+ ],
+ "verification": {
+  "cos": [
+   {
+    "orderId": "CO-004",
+    "attempt": 1,
+    "verdict": "APPLIED",
+    "receiptStatus": "DONE",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "diff": {
+     "files": 1,
+     "added": 8,
+     "deleted": 0
+    }
+   }
+  ],
+  "unlisted": [
+   "server.log"
+  ],
+  "flags": [
+   "UNLISTED_CHANGE"
+  ],
+  "notAttempted": [],
+  "receiptErrors": [],
+  "unknownReceipts": []
+ },
+ "openBefore": 1,
+ "roundHeader": "ROUND 4/10 (M1) — closed defects: 1 · open: 1 (D-002 attempt 1) · waivers: 0 · rounds left: 6",
+ "perCo": [
+  {
+   "orderId": "CO-004",
+   "attempt": 1,
+   "runs": 1,
+   "verdict": "APPLIED",
+   "receiptStatus": "DONE",
+   "receipt": "VALID",
+   "diff": {
+    "files": 1,
+    "added": 8,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 3,
+    "fail": 0,
+    "error": 0
+   }
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": 1,
+   "finalState": "COMPLETED_VERIFIED",
+   "reason": "completed, verified by the completion gate",
+   "flags": [
+    "UNLISTED_CHANGE"
+   ],
+   "notAttempted": [],
+   "headBefore": "e761f241c2d0e3f0d75bb35f482ae3b97a2a739b",
+   "head": "c75294cfb5cb3ca96dc4d7d6cf39019f7672bb81",
+   "diffBase": "e761f241c2d0e3f0d75bb35f482ae3b97a2a739b",
+   "changed": [
+    ".xmd/checks/M1-fix/manifest.json",
+    ".xmd/checks/M1-fix/server.log",
+    ".xmd/receipts/R4.json",
+    "server.log",
+    "src/styles.css"
+   ],
+   "receiptsRaw": "[\n  {\n    \"orderId\": \"CO-004\",\n    \"status\": \"DONE\",\n    \"filesChanged\": [\n      {\n        \"path\": \"src/styles.css\",\n        \"summary\": \"Added 44x44px min-width/min-height to .logo and .site-nav a for better touch targets\"\n      }\n    ],\n    \"commandsRun\": [\n      \"str_replace in src/styles.css\",\n      \"npm run build\"\n    ],\n    \"notes\": \"Verified CSS changes via curl.\"\n  }\n]",
+   "sabotaged": false
+  }
+ ],
+ "global": {
+  "pass": 3,
+  "fail": 0,
+  "error": 0
+ },
+ "at": "2026-10-19T09:55:17.357Z",
+ "reproduced": {},
+ "modes": {
+  "CO-004": "standard"
+ }
+}

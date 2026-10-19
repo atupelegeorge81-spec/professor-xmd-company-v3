@@ -67,7 +67,11 @@ export interface MilestoneState {
   resumeTo?: MilestoneStatus;
   /** TASK 10: step ledger (resume point = hatua ya kwanza isiyo DONE). */
   steps?: StepEntry[];
+  /** TASK-27: WAIVE za redecide (reviewers 2 + Optimus, sababu lazima) — zinaorodheshwa kwenye ripoti ya mwisho */
+  waivers?: WaiverEntry[];
 }
+
+export interface WaiverEntry { defectId: string; title: string; severity: string; round: number; reason: string; approvedBy: string[]; at: string }
 
 // ── TASK 10: step ledger + lane log ──────────────────────────────────────────
 export const STEP_STATUSES = ["PENDING", "RUNNING", "DONE", "FAILED"] as const;
@@ -105,6 +109,11 @@ export interface DefectHistoryEntry {
   round: number;
   result: string;
   cause: string;
+  /** TASK-27: ngazi ya escalation ladder iliyotumika + diagnosis/outcome */
+  mode?: ChangeOrderMode;
+  diagnosis?: { cause: DiagnosisCause; reason: string; overriddenBy?: string };
+  outcome?: string;
+  laneSwitch?: string;
 }
 
 export interface Defect {

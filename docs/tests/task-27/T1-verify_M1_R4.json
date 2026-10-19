@@ -1,0 +1,400 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 4,
+ "header": "ROUND 4/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 4) · waivers: 0 · rounds left: 6",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-005",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-005/nav-caps#req",
+       "S-001",
+       "S-002",
+       "S-003"
+      ],
+      "note": "The desired text-transform: uppercase was not applied to the navigation links, as confirmed by the acceptance check and visual inspection. The links 'Shop', 'Story', 'Contact' remain in sentence case. This means defect D-001 remains unfixed. This also highlights the ongoing conflict between D-001's requirement for uppercase and Ledger A1's prohibition of uppercase text."
+     },
+     {
+      "orderId": "CO-006",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-006/check-logo-touch-target",
+       "S-001 dom: body > header > a touch 44x44"
+      ],
+      "note": "The logo link's touch target has been successfully increased to 44x44px, meeting accessibility standards."
+     },
+     {
+      "orderId": "CO-007",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-007/check-nav-touch-target",
+       "S-001 dom: body > header > nav > a:nth-of-type(1) touch 51.78x44"
+      ],
+      "note": "The navigation links' touch targets have been successfully increased to a minimum of 44x44px, meeting accessibility standards."
+     },
+     {
+      "orderId": "CO-008",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-008/check-header-no-overflow",
+       "check:global/no_horizontal_overflow"
+      ],
+      "note": "The header layout remains responsive and free of horizontal overflow across all specified viewports (375px, 768px, 1280px) after increasing touch targets, which aligns with Ledger A3."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": {
+     "reason": "CO-005 failed to apply uppercase to navigation links, meaning D-001 is still open. This is a direct consequence of the conflict between D-001's requirement (nav links must be uppercase as per CEO brand sheet) and Ledger A1 (all text must be sentence case, text-transform: uppercase is forbidden). The computer is blocked from fixing D-001 without violating A1. A team discussion is urgently needed to resolve this fundamental conflict: either D-001 needs to be waived/modified, or Ledger A1 needs to be amended for this specific case."
+    },
+    "notes": "CO-005 failed, leaving D-001 unresolved due to a critical conflict between the defect's desired state and a locked Ledger decision (A1). CO-006, CO-007, and CO-008 successfully addressed touch target accessibility and header responsiveness. The primary blocker for this milestone is the D-001/A1 conflict, requiring immediate team discussion."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "7a0980ef1bf1b8caca459fa69482f7b34d9b0ce6d76b8f82016f1ed199df0f06",
+   "promptChars": 18435,
+   "imageParts": 3,
+   "model": "gemini-2.5-flash",
+   "ms": 32762,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-005\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-005/nav-caps#req\",\n        \"S-001\",\n        \"S-002\",\n        \"S-003\"\n      ],\n      \"note\": \"The desired text-transform: uppercase was not applied to the navigation links, as confirmed by the acceptance check and visual inspection. The links 'Shop', 'Story', 'Contact' remain in sentence case. This means defect D-001 remains unfixed. This also highlights the ongoing conflict between D-001's requirement for uppercase and Ledger A1's prohibition of uppercase text.\"\n    },\n    {\n      \"orderId\": \"CO-006\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-006/check-logo-touch-target\",\n        \"S-001 dom: body > header > a touch 44x44\"\n      ],\n      \"note\": \"The logo link's touch target has been successfully increased to 44x44px, meeting accessibility standards.\"\n    },\n    {\n      \"orderId\": \"CO-007\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-007/check-nav-touch-target\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(1) touch 51.78x44\"\n      ],\n      \"note\": \"The navigation links' touch targets have been successfully increased to a minimum of 44x44px, meeting accessibility standards.\"\n    },\n    {\n      \"orderId\": \"CO-008\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-008/check-header-no-overflow\",\n        \"check:global/no_horizontal_overflow\"\n      ],\n      \"note\": \"The header layout remains responsive and free of horizontal overflow across all specified viewports (375px, 768px, 1280px) after increasing touch targets, which aligns with Ledger A3.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": {\n    \"reason\": \"CO-005 failed to apply uppercase to navigation links, meaning D-001 is still open. This is a direct consequence of the conflict between D-001's requirement (nav links must be uppercase as per CEO brand sheet) and Ledger A1 (all text must be sentence case, text-transform: uppercase is forbidden). The computer is blocked from fixing D-001 without violating A1. A team discussion is urgently needed to resolve this fundamental conflict: either D-001 needs to be waived/modified, or Ledger A1 needs to be amended for this specific case.\"\n  },\n  \"notes\": \"CO-005 failed, leaving D-001 unresolved due to a critical conflict between the defect's desired state and a locked Ledger decision (A1). CO-006, CO-007, and CO-008 successfully addressed touch target accessibility and header responsiveness. The primary blocker for this milestone is the D-001/A1 conflict, requiring immediate team discussion.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-005",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-005/nav-caps#req",
+       "S-003"
+      ],
+      "note": "CO-005 receipt was BLOCKED (+0/-0) and check:CO-005/nav-caps#req failed because text-transform of .site-nav a remains 'none' (expected 'uppercase'). Nav links cannot be uppercase while locked decision A1 forbids text-transform: uppercase."
+     },
+     {
+      "orderId": "CO-006",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-006/check-logo-touch-target",
+       "S-001 dom: body > header > a width=44",
+       "S-001 dom: body > header > a height=44",
+       "S-001"
+      ],
+      "note": "Logo link meets the minimum touch target requirement at 44x44px (width=44, height=44 on S-001)."
+     },
+     {
+      "orderId": "CO-007",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-007/check-nav-touch-target",
+       "S-001 dom: body > header > nav > a:nth-of-type(1) height=44",
+       "S-001 dom: body > header > nav > a:nth-of-type(2) height=44",
+       "S-001 dom: body > header > nav > a:nth-of-type(3) height=44",
+       "S-001"
+      ],
+      "note": "All three navigation links have a height of 44px with widths of 51.78px, 51.47px, and 69.67px, meeting minimum 44x44px touch targets."
+     },
+     {
+      "orderId": "CO-008",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-008/check-header-no-overflow",
+       "check:global/no_horizontal_overflow",
+       "S-001",
+       "S-002",
+       "S-003"
+      ],
+      "note": "Header is responsive with zero horizontal overflow across 375px, 768px, and 1280px viewports (scrollWidth equals clientWidth at all viewports)."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": {
+     "reason": "CO-005 was blocked and check:CO-005/nav-caps#req failed because D-001 demands uppercase navigation links, which directly violates locked decision A1 ('Sentence case everywhere: NO all-caps text — text-transform: uppercase is forbidden on every element'). The team must discuss whether to amend decision A1 or drop/waive D-001."
+    },
+    "notes": "Touch target improvements (CO-006, CO-007) and responsiveness check (CO-008) passed without overflow or regressions. However, CO-005 failed due to the direct conflict between D-001 and locked decision A1."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "2e068be601d969f2ffe0a25987b5deb38facd5a16e4a4790c3d3e900998f968b",
+   "promptChars": 18456,
+   "imageParts": 3,
+   "model": "gemini-3.7-flash",
+   "ms": 48975,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-005\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-005/nav-caps#req\",\n        \"S-003\"\n      ],\n      \"note\": \"CO-005 receipt was BLOCKED (+0/-0) and check:CO-005/nav-caps#req failed because text-transform of .site-nav a remains 'none' (expected 'uppercase'). Nav links cannot be uppercase while locked decision A1 forbids text-transform: uppercase.\"\n    },\n    {\n      \"orderId\": \"CO-006\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-006/check-logo-touch-target\",\n        \"S-001 dom: body > header > a width=44\",\n        \"S-001 dom: body > header > a height=44\",\n        \"S-001\"\n      ],\n      \"note\": \"Logo link meets the minimum touch target requirement at 44x44px (width=44, height=44 on S-001).\"\n    },\n    {\n      \"orderId\": \"CO-007\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-007/check-nav-touch-target\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(1) height=44\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(2) height=44\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(3) height=44\",\n        \"S-001\"\n      ],\n      \"note\": \"All three navigation links have a height of 44px with widths of 51.78px, 51.47px, and 69.67px, meeting minimum 44x44px touch targets.\"\n    },\n    {\n      \"orderId\": \"CO-008\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-008/check-header-no-overflow\",\n        \"check:global/no_horizontal_overflow\",\n        \"S-001\",\n        \"S-002\",\n        \"S-003\"\n      ],\n      \"note\": \"Header is responsive with zero horizontal overflow across 375px, 768px, and 1280px viewports (scrollWidth equals clientWidth at all viewports).\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": {\n    \"reason\": \"CO-005 was blocked and check:CO-005/nav-caps#req failed because D-001 demands uppercase navigation links, which directly violates locked decision A1 ('Sentence case everywhere: NO all-caps text — text-transform: uppercase is forbidden on every element'). The team must discuss whether to amend decision A1 or drop/waive D-001.\"\n  },\n  \"notes\": \"Touch target improvements (CO-006, CO-007) and responsiveness check (CO-008) passed without overflow or regressions. However, CO-005 failed due to the direct conflict between D-001 and locked decision A1.\"\n}\n```"
+  }
+ },
+ "disputed": [],
+ "sync": null,
+ "at": "2026-10-19T11:06:37.119Z",
+ "defectsBefore": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 dom: .site-nav a textTransform=none"
+   ],
+   "status": "IN_FIX",
+   "attempts": 4,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-001 FAIL (designer FAIL, frontend FAIL, checks 0P/1F/0E)",
+     "cause": "acceptance checks 1 FAIL / 0 ERROR"
+    },
+    {
+     "round": 2,
+     "result": "ESCALATED attempt 2 (concrete) → CO-002",
+     "cause": "diagnosis CONFLICT_WITH_DECISION: The required styling of text-transform: uppercase on .site-nav a directly contradicts locked ledger decision A1 forbidding uppercase transformations on every element. · requirement restored (1 check(s)) — the consolidated order had changed it",
+     "mode": "concrete",
+     "diagnosis": {
+      "cause": "CONFLICT_WITH_DECISION",
+      "reason": "The required styling of text-transform: uppercase on .site-nav a directly contradicts locked ledger decision A1 forbidding uppercase transformations on every element."
+     }
+    },
+    {
+     "round": 2,
+     "result": "CO-002: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+    },
+    {
+     "round": 2,
+     "result": "verify: CO-002 FAIL (designer FAIL, frontend FAIL, checks 0P/1F/0E)",
+     "cause": "acceptance checks 1 FAIL / 0 ERROR"
+    },
+    {
+     "round": 3,
+     "result": "ESCALATED attempt 3 (pair patch) → CO-003",
+     "cause": "patch file index.html · requirement restored (1 check(s)) — the consolidated order had changed it",
+     "mode": "pair_patch"
+    },
+    {
+     "round": 3,
+     "result": "CO-003: BLOCKED · checks 1P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+    },
+    {
+     "round": 3,
+     "result": "verify: CO-003 FAIL (designer FAIL, frontend FAIL, checks 1P/1F/0E) · round 3 reverted: made things worse (open defects 1 → 3)",
+     "cause": "REVERTED"
+    },
+    {
+     "round": 4,
+     "result": "ESCALATED attempt 4 (split) → CO-005, CO-006, CO-007, CO-008",
+     "cause": "lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched · requirement restored (1 check(s)) — the consolidated order had changed it",
+     "mode": "split",
+     "laneSwitch": "lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched"
+    },
+    {
+     "round": 4,
+     "result": "CO-005: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+    },
+    {
+     "round": 4,
+     "result": "CO-006: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 4,
+     "result": "CO-007: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 4,
+     "result": "CO-008: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ],
+   "id": "D-001",
+   "area": "navigation",
+   "severity": "medium",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "expected": "CEO brand sheet: the three nav links render in capitals — .site-nav a computed text-transform: uppercase",
+   "actual": ".site-nav a text-transform: none (sentence case)"
+  }
+ ],
+ "harnessRegressions": [],
+ "git": {
+  "op": "none",
+  "ok": true,
+  "sha": "",
+  "detail": "open defects unchanged (1)"
+ },
+ "outcome": {
+  "outcome": "SAME",
+  "reason": "open defects unchanged (1)",
+  "openBefore": 1,
+  "openAfter": 1,
+  "regressions": 0
+ },
+ "consolidation": {
+  "valid": true,
+  "attempts": 1,
+  "errors": [],
+  "discussed": true,
+  "changeOrders": [],
+  "escalation": {
+   "events": [
+    {
+     "coId": "CO-009",
+     "resultIds": [],
+     "defectIds": [
+      "D-001"
+     ],
+     "attempt": 5,
+     "mode": "redecide",
+     "valid": true,
+     "tries": 1,
+     "errors": [],
+     "redecide": {
+      "outcome": "WAIVE",
+      "reason": "Defect D-001 (requiring uppercase nav links) directly contradicts Locked Ledger decision A1, which explicitly forbids 'text-transform: uppercase' on all elements. Since A1 is a binding constraint and both reviewers have agreed to waive the defect due to this conflict, the defect is waived.",
+      "votes": [
+       {
+        "reviewer": "designer",
+        "vote": "WAIVE",
+        "reason": "Defect D-001, requiring navigation links to be uppercase via `text-transform: uppercase`, is in direct and irreconcilable conflict with locked ledger decision A1. A1 explicitly states: 'NO all-caps text — text-transform: uppercase is forbidden on every element.' All previous attempts to fix D-001 have been blocked due to this contradiction. As A1 is a locked ledger item, it represents a higher-priority, foundational design system rule. Fixing D-001 as currently defined would necessitate violating A1, which is unacceptable. Therefore, the deviation is accepted as it is blocked by a locked decis"
+       },
+       {
+        "reviewer": "frontend",
+        "vote": "WAIVE",
+        "reason": "D-001 directly contradicts locked ledger decision A1, which strictly forbids 'text-transform: uppercase' on every element. All 4 previous fix attempts were blocked by the ledger rule. Because A1 is binding and cannot be violated, nav links must remain in sentence case, making this defect unfixable and appropriate for a waiver."
+       }
+      ],
+      "turns": 3,
+      "approvedBy": [
+       "designer",
+       "frontend",
+       "pm"
+      ]
+     }
+    }
+   ],
+   "waivers": [
+    {
+     "defectId": "D-001",
+     "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+     "severity": "medium",
+     "round": 4,
+     "reason": "Defect D-001 (requiring uppercase nav links) directly contradicts Locked Ledger decision A1, which explicitly forbids 'text-transform: uppercase' on all elements. Since A1 is a binding constraint and both reviewers have agreed to waive the defect due to this conflict, the defect is waived.",
+     "approvedBy": [
+      "designer",
+      "frontend",
+      "pm"
+     ],
+     "votes": [
+      {
+       "reviewer": "designer",
+       "vote": "WAIVE",
+       "reason": "Defect D-001, requiring navigation links to be uppercase via `text-transform: uppercase`, is in direct and irreconcilable conflict with locked ledger decision A1. A1 explicitly states: 'NO all-caps text — text-transform: uppercase is forbidden on every element.' All previous attempts to fix D-001 have been blocked due to this contradiction. As A1 is a locked ledger item, it represents a higher-priority, foundational design system rule. Fixing D-001 as currently defined would necessitate violating A1, which is unacceptable. Therefore, the deviation is accepted as it is blocked by a locked decis"
+      },
+      {
+       "reviewer": "frontend",
+       "vote": "WAIVE",
+       "reason": "D-001 directly contradicts locked ledger decision A1, which strictly forbids 'text-transform: uppercase' on every element. All 4 previous fix attempts were blocked by the ledger rule. Because A1 is binding and cannot be violated, nav links must remain in sentence case, making this defect unfixable and appropriate for a waiver."
+      }
+     ],
+     "at": "2026-10-19T11:06:25.654Z"
+    }
+   ],
+   "amendments": [],
+   "conflicts": {
+    "found": [],
+    "resolvedBy": "none",
+    "errors": []
+   }
+  }
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-005",
+    "verdict": "FAIL",
+    "reason": "acceptance checks 1 FAIL / 0 ERROR",
+    "designer": "FAIL",
+    "frontend": "FAIL",
+    "checks": {
+     "pass": 0,
+     "fail": 1,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-006",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-007",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-008",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [],
+  "newDefects": [],
+  "regressions": [],
+  "disagreements": [],
+  "allPass": false
+ },
+ "next": {
+  "next": "SIGN_OFF",
+  "reason": "all remaining defects waived by redecide (D-001)",
+  "leftoverMinor": []
+ },
+ "added": [],
+ "duplicates": []
+}

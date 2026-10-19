@@ -1,0 +1,49 @@
+{
+ "version": 1,
+ "round": 3,
+ "changeOrders": [
+  {
+   "id": "CO-003",
+   "defectIds": [
+    "D-001"
+   ],
+   "attempt": 3,
+   "priority": 1,
+   "mode": "pair_patch",
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": ".grid"
+   },
+   "current": ".grid { grid-template-columns: repeat(3, 280px) } · .card { min-width: 280px }",
+   "desired": "The product grid must never cause horizontal scrolling: 1 column at 375px, wrapping at 768px, up to 3 columns at 1280px — fix BOTH the grid track sizing and the card minimum width in src/styles.css.",
+   "visionNote": "Products sit in a calm grid that always fits the screen.",
+   "acceptance": [
+    {
+     "id": "grid-fit",
+     "type": "no_horizontal_overflow",
+     "routes": [
+      "/"
+     ],
+     "viewports": [
+      "375x667",
+      "768x1024",
+      "1280x800"
+     ]
+    },
+    {
+     "id": "grid-display",
+     "type": "computed_style",
+     "route": "/",
+     "viewport": "1280x800",
+     "selector": "#shop",
+     "property": "display",
+     "expected": "grid"
+    }
+   ],
+   "patch": "--- a/src/styles.css\n+++ b/src/styles.css\n@@ -87,11 +87,10 @@\n .grid {\n   display: grid;\n-  grid-template-columns: repeat(3, 280px);\n+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));\n   gap: 16px;\n }\n \n .card {\n-  min-width: 280px;\n   padding: 16px;\n   background: #13151B;\n }\n"
+  }
+ ]
+}

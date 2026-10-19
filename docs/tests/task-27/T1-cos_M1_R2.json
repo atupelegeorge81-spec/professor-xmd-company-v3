@@ -1,0 +1,41 @@
+{
+ "version": 1,
+ "round": 2,
+ "changeOrders": [
+  {
+   "defectIds": [
+    "D-001"
+   ],
+   "priority": 1,
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": ".site-nav a"
+   },
+   "current": ".site-nav a { text-transform: none; }",
+   "desired": ".site-nav a { text-transform: uppercase; }",
+   "visionNote": "Set uppercase text-transform on the navigation anchor tags to satisfy the CEO brand sheet specification.",
+   "acceptance": [
+    {
+     "id": "nav-caps#req",
+     "type": "computed_style",
+     "route": "/",
+     "viewport": "1280x800",
+     "selector": ".site-nav a",
+     "property": "text-transform",
+     "expected": "uppercase"
+    }
+   ],
+   "id": "CO-002",
+   "attempt": 2,
+   "mode": "concrete",
+   "decisionIds": [],
+   "diagnosis": {
+    "cause": "CONFLICT_WITH_DECISION",
+    "note": "The required styling of text-transform: uppercase on .site-nav a directly contradicts locked ledger decision A1 forbidding uppercase transformations on every element."
+   }
+  }
+ ]
+}

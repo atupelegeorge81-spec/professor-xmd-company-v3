@@ -1,0 +1,223 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 4,
+ "header": "ROUND 4/10 (M1) — closed defects: 1 · open: 1 (D-002 attempt 1) · waivers: 0 · rounds left: 6",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-004",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-004/C-001",
+       "check:CO-004/C-002",
+       "check:CO-004/C-003",
+       "S-001 dom: body > header > a width=44",
+       "S-001 dom: body > header > a height=44",
+       "S-001 dom: body > header > nav > a:nth-of-type(1) height=45",
+       "S-001 dom: body > header > nav > a:nth-of-type(3) height=45"
+      ],
+      "note": "All interactive elements in the header (logo and navigation links) now meet or exceed the 44x44px touch target requirement. The elements are well-aligned and vertically centered within the 77px header."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "The header layout is now compliant with accessibility standards (D-002 fixed). Typography follows A1 (Inter, sentence case), and the layout respects A3 (max-width 1100px in S-003) and A4 (dark palette). No regressions observed in the product grid."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "7a5f42f2d2e9d37fdac072669ed47157650e1523296d0fd11cc6cf234fb3bd5f",
+   "promptChars": 17273,
+   "imageParts": 3,
+   "model": "gemini-3-flash-preview",
+   "ms": 15350,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-004\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-004/C-001\",\n        \"check:CO-004/C-002\",\n        \"check:CO-004/C-003\",\n        \"S-001 dom: body > header > a width=44\",\n        \"S-001 dom: body > header > a height=44\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(1) height=45\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(3) height=45\"\n      ],\n      \"note\": \"All interactive elements in the header (logo and navigation links) now meet or exceed the 44x44px touch target requirement. The elements are well-aligned and vertically centered within the 77px header.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"The header layout is now compliant with accessibility standards (D-002 fixed). Typography follows A1 (Inter, sentence case), and the layout respects A3 (max-width 1100px in S-003) and A4 (dark palette). No regressions observed in the product grid.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-004",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-004/C-001",
+       "check:CO-004/C-002",
+       "check:CO-004/C-003",
+       "S-001 dom: body > header > a width=44",
+       "S-001 dom: body > header > a height=44",
+       "S-001 dom: body > header > nav > a:nth-of-type(1) height=45",
+       "S-001 dom: #theme-toggle width=44"
+      ],
+      "note": "All interactive elements in the header (logo, nav links, and theme toggle) now meet or exceed the 44x44px minimum touch target size across all viewports."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "The touch target issue (D-002) is resolved. The header remains responsive, and the product grid fix from previous rounds is stable. No horizontal overflow or console errors detected."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "668c59e384924512b70839c534f72c21bea41f6816afd1adc8819ae8e0d09fbb",
+   "promptChars": 17294,
+   "imageParts": 3,
+   "model": "gemini-3-flash-preview",
+   "ms": 9691,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-004\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-004/C-001\",\n        \"check:CO-004/C-002\",\n        \"check:CO-004/C-003\",\n        \"S-001 dom: body > header > a width=44\",\n        \"S-001 dom: body > header > a height=44\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(1) height=45\",\n        \"S-001 dom: #theme-toggle width=44\"\n      ],\n      \"note\": \"All interactive elements in the header (logo, nav links, and theme toggle) now meet or exceed the 44x44px minimum touch target size across all viewports.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"The touch target issue (D-002) is resolved. The header remains responsive, and the product grid fix from previous rounds is stable. No horizontal overflow or console errors detected.\"\n}\n```"
+  }
+ },
+ "disputed": [],
+ "sync": null,
+ "at": "2026-10-19T09:56:26.803Z",
+ "defectsBefore": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth 896 > 375",
+    "S-002 page: scrollWidth 896 > 768"
+   ],
+   "status": "VERIFIED_FIXED",
+   "attempts": 3,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 1P/1F/0E",
+     "cause": "ATTEMPTED_WRONG: changed only grid-template-columns, .card min-width still forces 280px (seeded history)"
+    },
+    {
+     "round": 2,
+     "result": "CO-002: APPLIED · checks 1P/1F/0E",
+     "cause": "ATTEMPTED_WRONG: used minmax(280px,1fr) — still 280px minimum at 375 (seeded history)"
+    },
+    {
+     "round": 3,
+     "result": "ESCALATED attempt 3 (pair patch) → CO-003",
+     "cause": "patch diff src/styles.css",
+     "mode": "pair_patch"
+    },
+    {
+     "round": 3,
+     "result": "CO-003: APPLIED · checks 2P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 3,
+     "result": "verify: CO-003 PASS (designer PASS, frontend PASS, checks 2P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ],
+   "id": "D-001",
+   "area": "layout",
+   "severity": "major",
+   "title": "Product grid overflows horizontally at 375px and 768px (fixed 3 × 280px columns + card min-width)",
+   "expected": "A3: no horizontal scrolling at 375/768/1280; the grid wraps to 1 column on phones and keeps up to 3 columns on desktop",
+   "actual": ".grid grid-template-columns: repeat(3, 280px); .card min-width: 280px"
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 3,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "area": "header",
+   "severity": "minor",
+   "title": "Navigation links touch targets are too small",
+   "evidence": [
+    "S-001 dom: body > header > a touch 37.05x21 TOO-SMALL",
+    "S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+    "S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL"
+   ],
+   "expected": "Interactive elements in the header should have a minimum touch target size of 44x44px for mobile usability, consistent with the theme toggle requirement in A2.",
+   "actual": "Logo and navigation links have heights of only 21px, failing standard accessibility checks for touch targets.",
+   "status": "IN_FIX",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 3,
+     "result": "found in verify R3",
+     "cause": "NEW_DEFECT"
+    },
+    {
+     "round": 4,
+     "result": "CO-004: APPLIED · checks 3P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ]
+  }
+ ],
+ "harnessRegressions": [],
+ "git": {
+  "op": "tag",
+  "ok": true,
+  "sha": "c75294cfb5cb3ca96dc4d7d6cf39019f7672bb81",
+  "detail": "tag xmd-best-M1"
+ },
+ "outcome": {
+  "outcome": "BEST",
+  "reason": "open defects 1 → 0",
+  "openBefore": 1,
+  "openAfter": 0,
+  "regressions": 0
+ },
+ "consolidation": {
+  "valid": true,
+  "attempts": 1,
+  "errors": [],
+  "discussed": false,
+  "changeOrders": [],
+  "escalation": {
+   "events": [],
+   "waivers": [],
+   "amendments": [],
+   "conflicts": {
+    "found": [],
+    "resolvedBy": "none",
+    "errors": []
+   }
+  }
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-004",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 3 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 3,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [],
+  "newDefects": [],
+  "regressions": [],
+  "disagreements": [],
+  "allPass": true
+ },
+ "next": {
+  "next": "SIGN_OFF",
+  "reason": "all remaining defects waived by redecide ()",
+  "leftoverMinor": []
+ },
+ "added": [],
+ "duplicates": []
+}

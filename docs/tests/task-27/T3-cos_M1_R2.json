@@ -1,0 +1,102 @@
+{
+ "version": 1,
+ "round": 2,
+ "changeOrders": [
+  {
+   "defectIds": [
+    "D-001"
+   ],
+   "priority": 1,
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": ".promo-strip"
+   },
+   "current": "width: 640px;",
+   "desired": "width: 100%; max-width: 100%; box-sizing: border-box;",
+   "visionNote": "Replacing the fixed pixel width with a fluid percentage-based width ensures the element scales down for mobile viewports, adhering to the mobile-first constraint.",
+   "acceptance": [
+    {
+     "id": "acc-d001-no-scroll",
+     "type": "no_horizontal_overflow",
+     "route": "/",
+     "viewports": [
+      "375x667"
+     ]
+    }
+   ],
+   "id": "CO-002",
+   "attempt": 2,
+   "mode": "concrete",
+   "decisionIds": [],
+   "diagnosis": {
+    "cause": "NOT_ATTEMPTED",
+    "note": "The previous change order failed to generate any file modifications, leaving the hardcoded 640px width in src/styles.css untouched."
+   }
+  },
+  {
+   "id": "CO-003",
+   "defectIds": [
+    "D-002"
+   ],
+   "decisionIds": [],
+   "attempt": 1,
+   "priority": 2,
+   "location": {
+    "route": "/",
+    "selector": "header > a, header nav a"
+   },
+   "current": "The logo (37x21px) and navigation links (approx 35x21px) have touch targets significantly smaller than the 44x44px mobile standard.",
+   "desired": "Increase the touch target size for the logo link and all navigation links in the header to at least 44x44px. Use padding or min-width/min-height to achieve this without breaking the horizontal layout.",
+   "visionNote": "Ensuring accessible touch targets is a core requirement for mobile-first design, preventing user frustration on small screens.",
+   "acceptance": [
+    {
+     "id": "acc-d002-logo-touch",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "header > a",
+     "minPx": 44,
+     "viewport": "375x667"
+    },
+    {
+     "id": "acc-d002-nav-touch",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "header nav a",
+     "minPx": 44,
+     "viewport": "375x667"
+    }
+   ],
+   "mode": "standard"
+  },
+  {
+   "id": "CO-004",
+   "defectIds": [
+    "D-003"
+   ],
+   "decisionIds": [],
+   "attempt": 1,
+   "priority": 3,
+   "location": {
+    "route": "/",
+    "selector": "#theme-toggle"
+   },
+   "current": "The theme toggle button is using Arial font instead of the required Inter/system sans-serif stack.",
+   "desired": "Update the #theme-toggle button to use font-family: Inter, system-ui, -apple-system, sans-serif; to match the rest of the application and comply with A1.",
+   "visionNote": "Consistent typography reinforces brand identity and visual hierarchy across all interactive elements.",
+   "acceptance": [
+    {
+     "id": "acc-d003-font",
+     "type": "computed_style",
+     "route": "/",
+     "selector": "#theme-toggle",
+     "property": "font-family",
+     "expected": "Inter"
+    }
+   ],
+   "mode": "standard"
+  }
+ ]
+}

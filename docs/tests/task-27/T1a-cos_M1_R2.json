@@ -1,0 +1,40 @@
+{
+ "version": 1,
+ "round": 2,
+ "changeOrders": [
+  {
+   "defectIds": [
+    "D-001"
+   ],
+   "priority": 1,
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": ".site-nav a"
+   },
+   "current": ".site-nav a has text-transform: none;",
+   "desired": ".site-nav a retains text-transform: none; to strictly uphold Locked Ledger A1 forbidding uppercase styling.",
+   "visionNote": "Maintaining sentence case on navigation links strictly preserves typographic restraint and honors Locked Decision A1.",
+   "acceptance": [
+    {
+     "id": "check:CO-002/nav-text-transform-none",
+     "type": "computed_style",
+     "route": "/",
+     "selector": ".site-nav a",
+     "property": "text-transform",
+     "expected": "none"
+    }
+   ],
+   "id": "CO-002",
+   "attempt": 2,
+   "mode": "concrete",
+   "decisionIds": [],
+   "diagnosis": {
+    "cause": "CONFLICT_WITH_DECISION",
+    "note": "The change order attempted to set text-transform: uppercase on nav links, directly violating Locked Ledger item A1 forbidding uppercase transformations on every element."
+   }
+  }
+ ]
+}

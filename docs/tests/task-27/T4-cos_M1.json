@@ -1,0 +1,36 @@
+{
+ "version": 1,
+ "changeOrders": [
+  {
+   "id": "CO-006",
+   "defectIds": [
+    "D-002"
+   ],
+   "attempt": 1,
+   "priority": 1,
+   "mode": "standard",
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": ".promo-strip"
+   },
+   "current": ".promo-strip { width: 640px }",
+   "desired": "In src/styles.css, in the .promo-strip rule, replace width: 640px with max-width: 100%.",
+   "visionNote": "The promo strip fits every screen.",
+   "acceptance": [
+    {
+     "id": "promo-fit",
+     "type": "no_horizontal_overflow",
+     "routes": [
+      "/"
+     ],
+     "viewports": [
+      "375x667"
+     ]
+    }
+   ]
+  }
+ ]
+}

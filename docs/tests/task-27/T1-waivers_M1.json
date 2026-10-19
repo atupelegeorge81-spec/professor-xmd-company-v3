@@ -1,0 +1,30 @@
+{
+ "version": 1,
+ "waivers": [
+  {
+   "defectId": "D-001",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "severity": "medium",
+   "round": 4,
+   "reason": "Defect D-001 (requiring uppercase nav links) directly contradicts Locked Ledger decision A1, which explicitly forbids 'text-transform: uppercase' on all elements. Since A1 is a binding constraint and both reviewers have agreed to waive the defect due to this conflict, the defect is waived.",
+   "approvedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "votes": [
+    {
+     "reviewer": "designer",
+     "vote": "WAIVE",
+     "reason": "Defect D-001, requiring navigation links to be uppercase via `text-transform: uppercase`, is in direct and irreconcilable conflict with locked ledger decision A1. A1 explicitly states: 'NO all-caps text — text-transform: uppercase is forbidden on every element.' All previous attempts to fix D-001 have been blocked due to this contradiction. As A1 is a locked ledger item, it represents a higher-priority, foundational design system rule. Fixing D-001 as currently defined would necessitate violating A1, which is unacceptable. Therefore, the deviation is accepted as it is blocked by a locked decis"
+    },
+    {
+     "reviewer": "frontend",
+     "vote": "WAIVE",
+     "reason": "D-001 directly contradicts locked ledger decision A1, which strictly forbids 'text-transform: uppercase' on every element. All 4 previous fix attempts were blocked by the ledger rule. Because A1 is binding and cannot be violated, nav links must remain in sentence case, making this defect unfixable and appropriate for a waiver."
+    }
+   ],
+   "at": "2026-10-19T11:06:25.654Z"
+  }
+ ]
+}

@@ -1,0 +1,404 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 3,
+ "header": "ROUND 3/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 3) · waivers: 0 · rounds left: 7",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-003",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-003/nav-caps#req",
+       "S-001 dom: body > header > nav > a:nth-of-type(1) text-transform=none",
+       "S-002 dom: body > header > nav > a:nth-of-type(1) text-transform=none",
+       "S-003 dom: body > header > nav > a:nth-of-type(1) text-transform=none"
+      ],
+      "note": "The change order's 'desired' state is contradictory. However, the acceptance check 'check:CO-003/nav-caps#req' failed because the navigation links are not uppercase (text-transform: none), which means defect D-001 (requiring uppercase) is not fixed. While the current state upholds locked ledger decision A1 (forbidding uppercase), the CO's primary goal was to address D-001, which it failed to do."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [
+     {
+      "title": "Logo touch target too small",
+      "area": "Header, Accessibility",
+      "severity": "medium",
+      "kind": "violation",
+      "evidence": [
+       "S-001 dom: body > header > a touch 37.05x21 TOO-SMALL",
+       "S-002 dom: body > header > a touch 37.05x21 TOO-SMALL",
+       "S-003 dom: body > header > a touch 37.05x21 TOO-SMALL"
+      ],
+      "expected": "Touch target for interactive elements should be at least 44x44px for accessibility.",
+      "actual": "The 'Kivuli' logo link has a touch target of approximately 37x21px."
+     },
+     {
+      "title": "Navigation link touch targets too small",
+      "area": "Header, Navigation, Accessibility",
+      "severity": "medium",
+      "kind": "violation",
+      "evidence": [
+       "S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+       "S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL",
+       "S-001 dom: body > header > nav > a:nth-of-type(3) touch 53.67x21 TOO-SMALL",
+       "S-002 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+       "S-003 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL"
+      ],
+      "expected": "Touch targets for navigation links should be at least 44x44px for accessibility.",
+      "actual": "Navigation links ('Shop', 'Story', 'Contact') have a height of 21px, which is too small for touch interaction."
+     }
+    ],
+    "requestDiscussion": {
+     "reason": "The core conflict between D-001 (brand sheet requiring uppercase navigation links) and locked ledger decision A1 (forbidding uppercase text-transform) remains unresolved. CO-003 attempted to address D-001 but was blocked and resulted in no change to the text-transform property, thus upholding A1 but failing to fix D-001. A clear decision is needed on which rule takes precedence to move forward."
+    },
+    "notes": "Fix round failed. CO-003 did not resolve D-001 due to a conflict with locked ledger decision A1, which needs team discussion. Additionally, new accessibility defects regarding touch target sizes for the logo and navigation links have been identified."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "b32858f5bce23ad433d7cc7151e535a3ea83554123eb6d37abc4a31576b9d393",
+   "promptChars": 17179,
+   "imageParts": 3,
+   "model": "gemini-2.5-flash",
+   "ms": 27935,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-003/nav-caps#req\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(1) text-transform=none\",\n        \"S-002 dom: body > header > nav > a:nth-of-type(1) text-transform=none\",\n        \"S-003 dom: body > header > nav > a:nth-of-type(1) text-transform=none\"\n      ],\n      \"note\": \"The change order's 'desired' state is contradictory. However, the acceptance check 'check:CO-003/nav-caps#req' failed because the navigation links are not uppercase (text-transform: none), which means defect D-001 (requiring uppercase) is not fixed. While the current state upholds locked ledger decision A1 (forbidding uppercase), the CO's primary goal was to address D-001, which it failed to do.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [\n    {\n      \"title\": \"Logo touch target too small\",\n      \"area\": \"Header, Accessibility\",\n      \"severity\": \"medium\",\n      \"kind\": \"violation\",\n      \"evidence\": [\n        \"S-001 dom: body > header > a touch 37.05x21 TOO-SMALL\",\n        \"S-002 dom: body > header > a touch 37.05x21 TOO-SMALL\",\n        \"S-003 dom: body > header > a touch 37.05x21 TOO-SMALL\"\n      ],\n      \"expected\": \"Touch target for interactive elements should be at least 44x44px for accessibility.\",\n      \"actual\": \"The 'Kivuli' logo link has a touch target of approximately 37x21px.\"\n    },\n    {\n      \"title\": \"Navigation link touch targets too small\",\n      \"area\": \"Header, Navigation, Accessibility\",\n      \"severity\": \"medium\",\n      \"kind\": \"violation\",\n      \"evidence\": [\n        \"S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(3) touch 53.67x21 TOO-SMALL\",\n        \"S-002 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL\",\n        \"S-003 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL\"\n      ],\n      \"expected\": \"Touch targets for navigation links should be at least 44x44px for accessibility.\",\n      \"actual\": \"Navigation links ('Shop', 'Story', 'Contact') have a height of 21px, which is too small for touch interaction.\"\n    }\n  ],\n  \"requestDiscussion\": {\n    \"reason\": \"The core conflict between D-001 (brand sheet requiring uppercase navigation links) and locked ledger decision A1 (forbidding uppercase text-transform) remains unresolved. CO-003 attempted to address D-001 but was blocked and resulted in no change to the text-transform property, thus upholding A1 but failing to fix D-001. A clear decision is needed on which rule takes precedence to move forward.\"\n  },\n  \"notes\": \"Fix round failed. CO-003 did not resolve D-001 due to a conflict with locked ledger decision A1, which needs team discussion. Additionally, new accessibility defects regarding touch target sizes for the logo and navigation links have been identified.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-003",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-003/nav-caps#req",
+       "S-003"
+      ],
+      "note": "Acceptance check check:CO-003/nav-caps#req failed with computed text-transform 'none' instead of expected 'uppercase' (3/3 differ). The fix was blocked (+0/-0) to prevent violating locked ledger decision A1 which forbids uppercase text-transform."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": {
+     "reason": "Deadlock on defect D-001 (attempt 3): automated acceptance check check:CO-003/nav-caps#req expects uppercase nav links per CEO brand sheet, but locked ledger decision A1 forbids text-transform: uppercase across all elements. The team must discuss whether to modify decision A1 or waive D-001 before round 4."
+    },
+    "notes": "CO-003 fails due to check:CO-003/nav-caps#req failure caused by an irreconcilable conflict with locked decision A1. Requested team discussion to resolve."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "28b0a3393d2a03f03be4b7c0a16d06d2c64643295aa2be10fca3053670540cf3",
+   "promptChars": 17200,
+   "imageParts": 3,
+   "model": "gemini-3.7-flash",
+   "ms": 33070,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-003/nav-caps#req\",\n        \"S-003\"\n      ],\n      \"note\": \"Acceptance check check:CO-003/nav-caps#req failed with computed text-transform 'none' instead of expected 'uppercase' (3/3 differ). The fix was blocked (+0/-0) to prevent violating locked ledger decision A1 which forbids uppercase text-transform.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": {\n    \"reason\": \"Deadlock on defect D-001 (attempt 3): automated acceptance check check:CO-003/nav-caps#req expects uppercase nav links per CEO brand sheet, but locked ledger decision A1 forbids text-transform: uppercase across all elements. The team must discuss whether to modify decision A1 or waive D-001 before round 4.\"\n  },\n  \"notes\": \"CO-003 fails due to check:CO-003/nav-caps#req failure caused by an irreconcilable conflict with locked decision A1. Requested team discussion to resolve.\"\n}\n```"
+  }
+ },
+ "disputed": [],
+ "sync": null,
+ "at": "2026-10-19T10:59:00.190Z",
+ "defectsBefore": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 dom: .site-nav a textTransform=none"
+   ],
+   "status": "REOPENED",
+   "attempts": 3,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-001 FAIL (designer FAIL, frontend FAIL, checks 0P/1F/0E)",
+     "cause": "acceptance checks 1 FAIL / 0 ERROR"
+    },
+    {
+     "round": 2,
+     "result": "ESCALATED attempt 2 (concrete) → CO-002",
+     "cause": "diagnosis CONFLICT_WITH_DECISION: The required styling of text-transform: uppercase on .site-nav a directly contradicts locked ledger decision A1 forbidding uppercase transformations on every element. · requirement restored (1 check(s)) — the consolidated order had changed it",
+     "mode": "concrete",
+     "diagnosis": {
+      "cause": "CONFLICT_WITH_DECISION",
+      "reason": "The required styling of text-transform: uppercase on .site-nav a directly contradicts locked ledger decision A1 forbidding uppercase transformations on every element."
+     }
+    },
+    {
+     "round": 2,
+     "result": "CO-002: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+    },
+    {
+     "round": 2,
+     "result": "verify: CO-002 FAIL (designer FAIL, frontend FAIL, checks 0P/1F/0E)",
+     "cause": "acceptance checks 1 FAIL / 0 ERROR"
+    },
+    {
+     "round": 3,
+     "result": "ESCALATED attempt 3 (pair patch) → CO-003",
+     "cause": "patch file index.html · requirement restored (1 check(s)) — the consolidated order had changed it",
+     "mode": "pair_patch"
+    },
+    {
+     "round": 3,
+     "result": "CO-003: BLOCKED · checks 1P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+    }
+   ],
+   "id": "D-001",
+   "area": "navigation",
+   "severity": "medium",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "expected": "CEO brand sheet: the three nav links render in capitals — .site-nav a computed text-transform: uppercase",
+   "actual": ".site-nav a text-transform: none (sentence case)"
+  }
+ ],
+ "harnessRegressions": [],
+ "git": {
+  "op": "revert",
+  "ok": true,
+  "sha": "cf3cb56279c8c745d1e0b3a3db6bfa5e7b2fb878",
+  "detail": "reverted 2 commit(s) since c5f56f4 (uncommitted changes stashed first)"
+ },
+ "outcome": {
+  "outcome": "REVERT",
+  "reason": "open defects 1 → 3",
+  "openBefore": 1,
+  "openAfter": 3,
+  "regressions": 0
+ },
+ "consolidation": {
+  "valid": true,
+  "attempts": 2,
+  "errors": [],
+  "discussed": true,
+  "changeOrders": [
+   {
+    "defectIds": [
+     "D-001"
+    ],
+    "priority": 1,
+    "location": {
+     "files": [
+      "src/styles.css"
+     ],
+     "route": "/",
+     "selector": ".site-nav a"
+    },
+    "current": "Measure getComputedStyle(.site-nav a).textTransform at 1280px — expected 'none'.",
+    "desired": "Apply text-transform: uppercase to .site-nav a to satisfy the CEO brand sheet requirement as specified in D-001.",
+    "visionNote": "Directly addresses the core brand requirement for uppercase navigation links.",
+    "acceptance": [
+     {
+      "id": "nav-caps#req",
+      "type": "computed_style",
+      "route": "/",
+      "viewport": "1280x800",
+      "selector": ".site-nav a",
+      "property": "text-transform",
+      "expected": "uppercase"
+     }
+    ],
+    "id": "CO-005",
+    "attempt": 4,
+    "mode": "split"
+   },
+   {
+    "defectIds": [
+     "D-001"
+    ],
+    "priority": 1,
+    "location": {
+     "files": [
+      "src/styles.css"
+     ],
+     "route": "/",
+     "selector": "header > a"
+    },
+    "current": "Measure the dimensions of the logo link (header > a) — expected ~37x21px.",
+    "desired": "Increase the logo link touch target to a minimum of 44x44px using padding to meet accessibility standards.",
+    "visionNote": "Ensures the logo link is easily interactable on mobile devices.",
+    "acceptance": [
+     {
+      "id": "check-logo-touch-target",
+      "type": "touch_target_min",
+      "route": "/",
+      "selector": "header > a",
+      "minPx": 44
+     }
+    ],
+    "id": "CO-006",
+    "attempt": 4,
+    "mode": "split"
+   },
+   {
+    "defectIds": [
+     "D-001"
+    ],
+    "priority": 1,
+    "location": {
+     "files": [
+      "src/styles.css"
+     ],
+     "route": "/",
+     "selector": "header nav a"
+    },
+    "current": "Measure the dimensions of the navigation links (header nav a) — expected ~35x21px.",
+    "desired": "Increase the navigation link touch targets to a minimum of 44x44px using padding to meet accessibility standards.",
+    "visionNote": "Ensures navigation links are easily interactable on mobile devices.",
+    "acceptance": [
+     {
+      "id": "check-nav-touch-target",
+      "type": "touch_target_min",
+      "route": "/",
+      "selector": "header nav a",
+      "minPx": 44
+     }
+    ],
+    "id": "CO-007",
+    "attempt": 4,
+    "mode": "split"
+   },
+   {
+    "defectIds": [
+     "D-001"
+    ],
+    "priority": 1,
+    "location": {
+     "files": [
+      "src/styles.css"
+     ],
+     "route": "/",
+     "selector": "header"
+    },
+    "current": "Check for horizontal overflow at 375px, 768px, and 1280px viewports.",
+    "desired": "Ensure the header layout remains responsive and does not cause horizontal overflow after increasing touch targets.",
+    "visionNote": "Maintains layout integrity and mobile-first compliance.",
+    "acceptance": [
+     {
+      "id": "check-header-no-overflow",
+      "type": "no_horizontal_overflow",
+      "routes": [
+       "/"
+      ],
+      "viewports": [
+       "375x667",
+       "768x1024",
+       "1280x800"
+      ]
+     }
+    ],
+    "id": "CO-008",
+    "attempt": 4,
+    "mode": "split"
+   }
+  ],
+  "escalation": {
+   "events": [
+    {
+     "coId": "CO-004",
+     "resultIds": [
+      "CO-005",
+      "CO-006",
+      "CO-007",
+      "CO-008"
+     ],
+     "defectIds": [
+      "D-001"
+     ],
+     "attempt": 4,
+     "mode": "split",
+     "valid": true,
+     "tries": 1,
+     "errors": [],
+     "requirementRestored": 1,
+     "laneSwitch": "lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched"
+    }
+   ],
+   "waivers": [],
+   "amendments": [],
+   "conflicts": {
+    "found": [],
+    "resolvedBy": "none",
+    "errors": []
+   }
+  }
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-003",
+    "verdict": "FAIL",
+    "reason": "acceptance checks 1 FAIL / 0 ERROR",
+    "designer": "FAIL",
+    "frontend": "FAIL",
+    "checks": {
+     "pass": 1,
+     "fail": 1,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [],
+  "newDefects": [
+   {
+    "title": "Logo touch target too small",
+    "area": "Header, Accessibility",
+    "severity": "medium",
+    "kind": "violation",
+    "evidence": [
+     "S-001 dom: body > header > a touch 37.05x21 TOO-SMALL",
+     "S-002 dom: body > header > a touch 37.05x21 TOO-SMALL",
+     "S-003 dom: body > header > a touch 37.05x21 TOO-SMALL"
+    ],
+    "expected": "Touch target for interactive elements should be at least 44x44px for accessibility.",
+    "actual": "The 'Kivuli' logo link has a touch target of approximately 37x21px.",
+    "by": [
+     "designer"
+    ]
+   },
+   {
+    "title": "Navigation link touch targets too small",
+    "area": "Header, Navigation, Accessibility",
+    "severity": "medium",
+    "kind": "violation",
+    "evidence": [
+     "S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+     "S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL",
+     "S-001 dom: body > header > nav > a:nth-of-type(3) touch 53.67x21 TOO-SMALL",
+     "S-002 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+     "S-003 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL"
+    ],
+    "expected": "Touch targets for navigation links should be at least 44x44px for accessibility.",
+    "actual": "Navigation links ('Shop', 'Story', 'Contact') have a height of 21px, which is too small for touch interaction.",
+    "by": [
+     "designer"
+    ]
+   }
+  ],
+  "regressions": [],
+  "disagreements": [],
+  "allPass": false
+ },
+ "next": {
+  "next": "CONTINUE",
+  "reason": "COs not PASS: CO-003 · checks 1 FAIL / 0 ERROR · open defects ≥ medium: D-001 (medium) · receipts do not match the diffs",
+  "leftoverMinor": []
+ },
+ "added": [],
+ "duplicates": []
+}

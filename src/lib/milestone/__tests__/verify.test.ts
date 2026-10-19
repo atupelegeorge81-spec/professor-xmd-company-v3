@@ -273,7 +273,21 @@ async function seed(cos: ChangeOrder[], defects: Defect[]) {
   put(stateKey("M1"), st);
 }
 type Script = Record<number, Partial<Record<"designer" | "frontend", { cos: Record<string, VerifyVerdict>; newDefects?: unknown[] }>>>;
-function harness(script: Script, opts: { consolidate?: (i: ConsolidateInput) => Promise<ConsolidateResult>; checkFail?: (id: string, round: number) => boolean } = {}) {
+// TASK-27: LLM ya escalation (stub) — concrete / patch / split / kura / uamuzi
+const escCO = (ids: string[]) => ({ defectIds: ids, priority: 1, location: { files: ["src/styles.css"], route: "/", selector: "h1" }, current: "h1 { color: #000 }", desired: "h1 { color: #F2F0EB }", visionNote: "v",
+  acceptance: [{ id: "h1-color", type: "computed_style", route: "/", selector: "h1", property: "color", expected: "#F2F0EB" }] });
+function escStub(final: "KEEP" | "MODIFY" | "WAIVE", calls: string[] = []) {
+  return async (_agent: string, purpose: string) => {
+    calls.push(purpose);
+    if (/:concrete:/.test(purpose)) return JSON.stringify({ diagnosis: { cause: "ATTEMPTED_WRONG", reason: "The colour was changed on the wrong selector." }, changeOrder: escCO(["D-001"]) });
+    if (/:patch:/.test(purpose)) return JSON.stringify({ patch: "--- a/src/styles.css\n+++ b/src/styles.css\n@@ -1,1 +1,1 @@\n-h1{color:#000}\n+h1{color:#F2F0EB}\n" });
+    if (/:split:/.test(purpose)) return JSON.stringify({ changeOrders: [escCO(["D-001"])] });
+    if (/:vote-/.test(purpose)) return JSON.stringify({ vote: final, reason: "locked decision A1 blocks it" });
+    if (/:decide:/.test(purpose)) return JSON.stringify(final === "WAIVE" ? { outcome: "WAIVE", reason: "Locked decision A1 forbids the requested value; deviation is harmless." } : { outcome: final, reason: "r", guidance: "use the token", requirement: "h1 uses the ink token", changeOrder: escCO(["D-001"]) });
+    return "{}";
+  };
+}
+function harness(script: Script, opts: { consolidate?: (i: ConsolidateInput) => Promise<ConsolidateResult>; checkFail?: (id: string, round: number) => boolean; allFail?: boolean; esc?: ReturnType<typeof escStub>; patches?: any[]; extraChanged?: string[] } = {}) {
   const events: any[] = [];
   const llm: string[] = [];
   const git: any[] = [];
@@ -290,22 +304,27 @@ function harness(script: Script, opts: { consolidate?: (i: ConsolidateInput) => 
         return { ok: true, finalState: "COMPLETED_VERIFIED", reason: "", fix: {
           headBefore: String(fix.round).repeat(40).slice(0, 40), diffBase: "a".repeat(40), head: "b".repeat(40), receiptsPath: `.xmd/receipts/R${fix.round}.json`,
           receiptsRaw: JSON.stringify(ids.map((orderId) => ({ orderId, status: "DONE", filesChanged: [{ path: "src/styles.css", summary: "c" }], commandsRun: ["true"] }))),
-          changed: ["src/styles.css", `.xmd/receipts/R${fix.round}.json`], numstat: "1\t1\tsrc/styles.css",
+          changed: ["src/styles.css", `.xmd/receipts/R${fix.round}.json`, ...(opts.extraChanged || [])], numstat: "1\t1\tsrc/styles.css",
         } };
       },
+      applyPatch: async (_m, r, co) => { opts.patches?.push({ round: r, orderId: co.id, patch: co.patch }); return { orderId: co.id, applied: true, method: "git apply" as const, base: "e".repeat(40), sha: "f".repeat(40), detail: "git apply: src/styles.css" }; },
       checks: async (_m, rc) => ({ results: rc.checks.map((c) => ({ id: c.id, type: c.type, result: opts.checkFail?.(c.id, round) ? "FAIL" as const : "PASS" as const, detail: "x" })), ms: 1 }),
     },
     verify: {
       evidence: async (_m, r) => ({ pack: { ...PACK, round: r }, exit: 0, invalid: [], uploaded: 1, ms: 1 }),
       context: async () => ({ ocb: ctxOf([]).ocb, ledger: ctxOf([]).ledger, ledgerLines: ["- A1 [LOCKED] Typography: sans only"] }),
+      escalateComplete: opts.esc || escStub("KEEP"),
+      readFiles: async (_m, paths) => Object.fromEntries(paths.map((p) => [p, "h1{color:#000}\n"])),
       git: async (_m, op) => { git.push(op); return { ok: true, sha: "c".repeat(40), detail: op.kind === "tag" ? `tag ${op.name}` : "reverted 1 commit(s)" }; },
       deps: {
         images: false,
-        complete: async ({ reviewer, purpose }) => {
+        complete: async (o) => {
+          const { reviewer, purpose } = o;
           llm.push(purpose);
           const r = Number(/:R(\d+):/.exec(purpose)?.[1]);
           if (purpose.startsWith("review-verify-sync")) return { text: JSON.stringify({ cos: Object.keys(script[r]?.[reviewer]?.cos || {}).map((orderId) => ({ orderId, verdict: "PASS", note: "agreed" })) }), usage: null };
-          const s = script[r]?.[reviewer] || { cos: {} };
+          const ids = ((db.get(`${SID}|${r === 1 ? "cos:M1" : cosRoundKey("M1", r)}`)?.data?.changeOrders || []) as ChangeOrder[]).map((c) => c.id);
+          const s = opts.allFail ? { cos: Object.fromEntries(ids.map((id) => [id, "FAIL" as VerifyVerdict])) } : script[r]?.[reviewer] || { cos: {} };
           return { text: JSON.stringify({ reviewer, cos: Object.entries(s.cos).map(([orderId, verdict]) => ({ orderId, verdict, evidence: ["S-001"], note: verdict })), regressions: [], newDefects: s.newDefects || [], requestDiscussion: null, notes: "" }), usage: null };
         },
       },
@@ -397,5 +416,54 @@ describe("runVerifyRound (loop)", () => {
     expect(db.get(`${SID}|${verifyKey("M1", 1)}`)!.version).toBeGreaterThan(v1);
     expect([...db.keys()].filter((k) => k.startsWith(`${SID}|verify:`))).toEqual([`${SID}|verify:M1:R1`]);
     expect(db.get(`${SID}|defects`)!.data.defects[0].history.filter((x: any) => /^verify:/.test(x.result))).toHaveLength(1);
+  });
+  it("TASK-27 ladder: defect inashindikana → attempt 1 standard · 2 concrete (diagnosis) · 3 pair patch (harness git apply) · 4 split · 5 redecide WAIVE → SIGNED_OFF_WITH_WAIVERS", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const calls: string[] = [], patches: any[] = [];
+    const h = harness({}, { allFail: true, checkFail: (id) => id.startsWith("CO-"), esc: escStub("WAIVE", calls), patches });
+    await maybeCloseMilestones(h.runner, h.hooks);
+    const st = db.get(`${SID}|state:M1`)!.data;
+    expect(st).toMatchObject({ status: "SIGNED_OFF_WITH_WAIVERS", round: 4 });
+    const modes = [1, 2, 3, 4].map((r) => (db.get(`${SID}|${r === 1 ? "cos:M1" : cosRoundKey("M1", r)}`)!.data.changeOrders as ChangeOrder[]).filter((c) => r > 1 || c.id === "CO-001").map((c) => `${c.attempt}:${c.mode}`));
+    expect(modes).toEqual([["1:standard"], ["2:concrete"], ["3:pair_patch"], ["4:split"]]);
+    expect(db.get(`${SID}|${cosRoundKey("M1", 2)}`)!.data.changeOrders[0].diagnosis).toEqual({ cause: "ATTEMPTED_WRONG", note: "The colour was changed on the wrong selector." });
+    expect(patches).toEqual([{ round: 3, orderId: "CO-003", patch: expect.stringContaining("+h1{color:#F2F0EB}") }]);
+    expect(db.get(`${SID}|fix:M1:R3`)!.data.attempts[0].diffBase).toBe("a".repeat(40)); // stub; diffBase ya harness imepitishwa kwa run
+    expect(calls.map((c) => c.replace(/^escalate:M1:/, "").replace(/:a\d$/, ""))).toEqual(["R2:CO-002:concrete", "R3:CO-003:patch", "R4:CO-004:split", "R5:CO-006:vote-designer", "R5:CO-006:vote-frontend", "R5:CO-006:decide"]);
+    const d = db.get(`${SID}|defects`)!.data.defects[0];
+    expect(d.status).toBe("WAIVED");
+    expect(d.history.filter((x: any) => /^ESCALATED/.test(x.result)).map((x: any) => x.mode)).toEqual(["concrete", "pair_patch", "split", "redecide"]);
+    expect(d.history.find((x: any) => x.mode === "split").laneSwitch).toMatch(/lane switch skipped/);
+    expect(st.waivers).toEqual([expect.objectContaining({ defectId: "D-001", approvedBy: ["designer", "frontend", "pm"], reason: expect.stringMatching(/A1/) })]);
+    expect(db.get(`${SID}|waivers:M1`)!.data.waivers[0]).toMatchObject({ defectId: "D-001", votes: [{ vote: "WAIVE" }, { vote: "WAIVE" }] });
+    expect(h.events.filter((e) => e.type === "escalation").map((e) => e.events[0].mode)).toEqual(["concrete", "pair_patch", "split", "redecide"]);
+    expect(db.get(`${SID}|fix:M1:R4`)!.data.reproduced).toEqual({ "CO-005": false });
+  });
+  it("TASK-27 T5 (code): redecide KEEP kila mara → hakuna kitanzi kisicho na mwisho: CAP_REACHED raundi 10", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const h = harness({}, { allFail: true, checkFail: (id) => id.startsWith("CO-"), esc: escStub("KEEP") });
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data).toMatchObject({ status: "CAP_REACHED", round: 10 });
+    expect([...db.keys()].filter((k) => /\|fix:M1:R\d+$/.test(k))).toHaveLength(10);
+    expect((db.get(`${SID}|${cosRoundKey("M1", 10)}`)!.data.changeOrders as ChangeOrder[]).map((c) => [c.attempt, c.mode])).toEqual([[10, "redecide"]]);
+    expect(db.get(`${SID}|defects`)!.data.defects[0]).toMatchObject({ status: "REOPENED", attempts: 10 });
+  });
+  it("TASK-27: redecide MODIFY → requirement mpya kwenye ledger (decisions + amendments) na defect.expected", async () => {
+    await seed([CO("CO-001", ["D-001"], { attempt: 5 })], [D("D-001", { status: "OPEN", attempts: 4 })]);
+    const h = harness({}, { allFail: true, checkFail: (id) => id.startsWith("CO-"), esc: escStub("MODIFY") });
+    h.hooks.verify!.stopAfterRound = 1;
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|amendments:M1`)!.data.amendments).toEqual([expect.objectContaining({ id: "AM-M1-R1-D-001", requirement: "h1 uses the ink token" })]);
+    expect(db.get(`${SID}|decisions`)!.data.decisions).toEqual([expect.objectContaining({ source: "redecide", decision: "MODIFY", defectId: "D-001" })]);
+    expect(db.get(`${SID}|defects`)!.data.defects[0].expected).toBe("h1 uses the ink token");
+  });
+  it("TASK-27 (T2 halisi): kila kitu PASS lakini receipts ≠ diffs na hakuna defect/CO → BLOCKED yenye sababu (si SIGN_OFF ya uongo wala raundi tupu)", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const h = harness({ 1: { designer: { cos: { "CO-001": "PASS" } }, frontend: { cos: { "CO-001": "PASS" } } } }, { extraChanged: ["README.md", "server.log"] });
+    await maybeCloseMilestones(h.runner, h.hooks);
+    const st = db.get(`${SID}|state:M1`)!.data;
+    expect(st).toMatchObject({ status: "BLOCKED", round: 1 });
+    expect(db.get(`${SID}|${verifyKey("M1", 1)}`)!.data.next.reason).toMatch(/^nothing for a fix round .* remaining blocker: receipts do not match the diffs/);
+    expect(db.get(`${SID}|fix:M1:R1`)!.data.unlisted).toEqual(["README.md"]); // server.log haihesabiwi
   });
 });

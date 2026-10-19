@@ -1,0 +1,220 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 4,
+ "finalState": "COMPLETED_VERIFIED",
+ "reason": "completed, verified by the completion gate",
+ "ok": true,
+ "ms": 222284,
+ "orderIds": [
+  "CO-005",
+  "CO-006",
+  "CO-007",
+  "CO-008"
+ ],
+ "flags": [],
+ "unlisted": [],
+ "verification": {
+  "cos": [
+   {
+    "orderId": "CO-005",
+    "attempt": 4,
+    "verdict": "BLOCKED",
+    "receiptStatus": "BLOCKED",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "blockedReason": "Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element.",
+    "diff": {
+     "files": 0,
+     "added": 0,
+     "deleted": 0
+    }
+   },
+   {
+    "orderId": "CO-006",
+    "attempt": 4,
+    "verdict": "APPLIED",
+    "receiptStatus": "DONE",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "diff": {
+     "files": 1,
+     "added": 12,
+     "deleted": 0
+    }
+   },
+   {
+    "orderId": "CO-007",
+    "attempt": 4,
+    "verdict": "APPLIED",
+    "receiptStatus": "DONE",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "diff": {
+     "files": 1,
+     "added": 12,
+     "deleted": 0
+    }
+   },
+   {
+    "orderId": "CO-008",
+    "attempt": 4,
+    "verdict": "APPLIED",
+    "receiptStatus": "DONE",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "diff": {
+     "files": 1,
+     "added": 12,
+     "deleted": 0
+    }
+   }
+  ],
+  "unlisted": [],
+  "flags": [],
+  "notAttempted": [],
+  "receiptErrors": [],
+  "unknownReceipts": []
+ },
+ "openBefore": 1,
+ "roundHeader": "ROUND 4/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 3) · waivers: 0 · rounds left: 6",
+ "perCo": [
+  {
+   "orderId": "CO-005",
+   "attempt": 4,
+   "runs": 1,
+   "verdict": "BLOCKED",
+   "receiptStatus": "BLOCKED",
+   "receipt": "VALID",
+   "diff": {
+    "files": 0,
+    "added": 0,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 0,
+    "fail": 1,
+    "error": 0
+   },
+   "blockedReason": "Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+  },
+  {
+   "orderId": "CO-006",
+   "attempt": 4,
+   "runs": 1,
+   "verdict": "APPLIED",
+   "receiptStatus": "DONE",
+   "receipt": "VALID",
+   "diff": {
+    "files": 1,
+    "added": 12,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 1,
+    "fail": 0,
+    "error": 0
+   }
+  },
+  {
+   "orderId": "CO-007",
+   "attempt": 4,
+   "runs": 1,
+   "verdict": "APPLIED",
+   "receiptStatus": "DONE",
+   "receipt": "VALID",
+   "diff": {
+    "files": 1,
+    "added": 12,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 1,
+    "fail": 0,
+    "error": 0
+   }
+  },
+  {
+   "orderId": "CO-008",
+   "attempt": 4,
+   "runs": 1,
+   "verdict": "APPLIED",
+   "receiptStatus": "DONE",
+   "receipt": "VALID",
+   "diff": {
+    "files": 1,
+    "added": 12,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 1,
+    "fail": 0,
+    "error": 0
+   }
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": 1,
+   "finalState": "COMPLETED_VERIFIED",
+   "reason": "completed, verified by the completion gate",
+   "flags": [],
+   "notAttempted": [],
+   "headBefore": "cf3cb56279c8c745d1e0b3a3db6bfa5e7b2fb878",
+   "head": "15b535b9f3c6457244f8eff94f54309c44953641",
+   "diffBase": "cf3cb56279c8c745d1e0b3a3db6bfa5e7b2fb878",
+   "changed": [
+    ".xmd/receipts/R4.json",
+    ".xmd/shots.json",
+    ".xmd/shots/localhost-3000-1280x800-v1.png",
+    ".xmd/shots/localhost-3000-375x667-v1.png",
+    ".xmd/shots/localhost-3000-768x1024-v1.png",
+    "src/styles.css"
+   ],
+   "receiptsRaw": "[\n  {\n    \"orderId\": \"CO-005\",\n    \"status\": \"BLOCKED\",\n    \"filesChanged\": [],\n    \"commandsRun\": [],\n    \"notes\": \"REPRODUCED: none\",\n    \"blockedReason\": \"Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element.\"\n  },\n  {\n    \"orderId\": \"CO-006\",\n    \"status\": \"DONE\",\n    \"filesChanged\": [{\"path\": \"src/styles.css\", \"summary\": \"Increased logo touch target to 44x44px\"}],\n    \"commandsRun\": [\"npm run build\"],\n    \"notes\": \"REPRODUCED: 37.05x21px\"\n  },\n  {\n    \"orderId\": \"CO-007\",\n    \"status\": \"DONE\",\n    \"filesChanged\": [{\"path\": \"src/styles.css\", \"summary\": \"Increased nav link touch targets to 44x44px\"}],\n    \"commandsRun\": [\"npm run build\"],\n    \"notes\": \"REPRODUCED: ~35.78x21px\"\n  },\n  {\n    \"orderId\": \"CO-008\",\n    \"status\": \"DONE\",\n    \"filesChanged\": [{\"path\": \"src/styles.css\", \"summary\": \"Maintained responsive header layout\"}],\n    \"commandsRun\": [\"npm run build\"],\n    \"notes\": \"REPRODUCED: no overflow at 375px\"\n  }\n]",
+   "sabotaged": false
+  }
+ ],
+ "global": {
+  "pass": 3,
+  "fail": 0,
+  "error": 0
+ },
+ "at": "2026-10-19T11:02:50.279Z",
+ "reproduced": {
+  "CO-005": true,
+  "CO-006": true,
+  "CO-007": true,
+  "CO-008": true
+ },
+ "modes": {
+  "CO-005": "split",
+  "CO-006": "split",
+  "CO-007": "split",
+  "CO-008": "split"
+ }
+}

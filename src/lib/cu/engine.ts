@@ -39,7 +39,7 @@ import { needsScreenshots } from "@/lib/milestone/evidence"; // TASK-19
 import { captureEvidence, evidenceSummary, type CaptureEvidenceResult, type EvidenceUploader } from "./evidence"; // TASK-19
 import { checkRegression, regressionSummary } from "@/lib/milestone/regression"; // TASK-22
 import { commitMessage, receiptsPath } from "@/lib/milestone/fixRound"; // TASK-25
-import { testFixNoop } from "@/lib/milestone/testHooks"; // TASK-25 (T2 sabotage, inert bila XMD_TEST_HOOKS=1)
+import { testFixNoop, testFixNoopAll } from "@/lib/milestone/testHooks"; // TASK-25 (T2 sabotage, inert bila XMD_TEST_HOOKS=1)
 const STARTPACK_JSON = ".xmd/startpack.json"; // TASK-18 (cu/gate.py STARTPACK_JSON)
 
 /* ============================ env ============================ */
@@ -906,10 +906,10 @@ export const __t19 = { evidenceUploader };
 async function msReadFix(sbx: any, hooks: CuHooks, id: string, fx: MilestoneFixInput, headBefore: string): Promise<MsFixRaw> {
   const base = /^[0-9a-f]{7,40}$/.test(fx.diffBase || "") ? String(fx.diffBase) : headBefore;
   const raw: MsFixRaw = { headBefore, diffBase: base, head: "", receiptsPath: receiptsPath(fx.round), receiptsRaw: null, changed: [], numstat: "" };
-  if (fx.attempt === 1 && testFixNoop(id) && /^[0-9a-f]{7,40}$/.test(headBefore)) {
-    await sbx.commands.run(`cd /home/user/ws && git reset -q --hard ${headBefore} && git clean -fdq -e .xmd/receipts`, { timeoutMs: 30_000 }).catch(() => {});
+  if ((fx.attempt === 1 || testFixNoopAll(id)) && testFixNoop(id) && /^[0-9a-f]{7,40}$/.test(headBefore)) {
+    await sbx.commands.run(`cd /home/user/ws && R=${q(receiptsPath(fx.round))}; cp "$R" /tmp/xmd-noop-receipts.json 2>/dev/null; git reset -q --hard ${headBefore} && git clean -fdq -e .xmd/receipts; if [ -f /tmp/xmd-noop-receipts.json ]; then mkdir -p "$(dirname "$R")" && cp /tmp/xmd-noop-receipts.json "$R"; fi`, { timeoutMs: 30_000 }).catch(() => {}); // receipt (dai la Computer) inabaki — diff tupu
     raw.sabotaged = true;
-    hooks.blog("warning", `🧪 XMD_TEST_FIX_NOOP_${id}: kazi ya Computer (attempt 1) imefutwa kwa \`git reset --hard ${headBefore.slice(0, 7)}\` — harness lazima iitambue kama NO-OP.`);
+    hooks.blog("warning", `🧪 XMD_TEST_FIX_NOOP_${id}: kazi ya Computer (attempt ${fx.attempt}) imefutwa kwa \`git reset --hard ${headBefore.slice(0, 7)}\` — harness lazima iitambue kama NO-OP.`);
   }
   const S1 = "@@XMD_RCPT_END@@", S2 = "@@XMD_DIFF_END@@";
   const diff = /^[0-9a-f]{7,40}$/.test(base) ? `git diff --name-only ${base} HEAD` : "git ls-tree -r --name-only HEAD";
@@ -982,6 +982,45 @@ export async function milestoneGit(runner: Runner, op: { kind: "tag"; name: stri
     if (op.kind === "revert" && rc === 0 && out.includes("XMD_REVERTED") && runner.cu && runner.cuHooks) await msSnapshot(sbx, runner.cu, runner.cuHooks, op.label);
     const detail = op.kind === "tag" ? `tag ${op.name}` : out.includes("XMD_NOTHING") ? "nothing to revert (HEAD == round base)" : out.includes("XMD_REVERTED") ? `reverted ${lines[lines.indexOf("XMD_REVERTED") + 1] || "?"} commit(s) since ${op.from.slice(0, 7)}${out.includes("XMD_STASHED") ? " (uncommitted changes stashed first)" : ""}` : `git failed: ${String(r?.stderr || out).slice(-300)}`;
     return { ok: rc === 0 && !!sha, sha, detail };
+  });
+}
+
+/** TASK-27 (pair_patch): harness — `git apply --check` → `git apply` (kisha `--recount`) + commit ya faili za patch tu.
+ *  Patch iliyokwisha ingia (`git apply -R --check`) = applied (resume baada ya crash). Faili kamili (si diff) → haiingii → Computer verbatim. */
+export async function milestonePatch(runner: Runner, o: { orderId: string; patch: string; message: string }): Promise<{ orderId: string; applied: boolean; method: "git apply" | "git apply --recount" | "already applied" | "none"; base: string; sha: string; detail: string }> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    const run = async (c: string) => { const r: any = await sbx.commands.run(`${c}; echo __XMD_RC=$?`, { timeoutMs: 60_000 }).catch((e: any) => ({ stdout: `__XMD_RC=1`, stderr: String(e?.message || e) })); const out = String(r?.stdout || ""); return { rc: Number(/__XMD_RC=(\d+)/.exec(out)?.[1] ?? 1), out: out.replace(/__XMD_RC=\d+\s*$/, "").trim(), err: String(r?.stderr || "").trim() }; };
+    const base = (await run("cd /home/user/ws && git rev-parse HEAD")).out.split("\n").pop() || "";
+    const res = { orderId: o.orderId, base: /^[0-9a-f]{40}$/.test(base) ? base : "", sha: "", applied: false, method: "none" as "git apply" | "git apply --recount" | "already applied" | "none", detail: "" };
+    if (o.patch.startsWith("*** COMPLETE FILE: ")) return { ...res, detail: "complete file (not a unified diff) — git apply not possible; Computer applies it verbatim" };
+    const pf = `/tmp/xmd-${o.orderId}.patch`;
+    await sbx.files.write(pf, o.patch);
+    const files = [...o.patch.matchAll(/^\+\+\+ (?:b\/)?(\S+)/gm)].map((m) => m[1]).filter((f) => f !== "/dev/null");
+    const add = files.map((f) => q(f)).join(" ");
+    for (const [method, flags] of [["git apply", ""], ["git apply --recount", "--recount"]] as const) {
+      const chk = await run(`cd /home/user/ws && git apply --check ${flags} --whitespace=nowarn ${pf}`);
+      if (chk.rc !== 0) { res.detail = `${method} --check: ${(chk.err || chk.out).slice(-240)}`; continue; }
+      const ap = await run(`cd /home/user/ws && git apply ${flags} --whitespace=nowarn ${pf} && git add -- ${add} && ${MS_GIT} commit -qm ${q(o.message)} && git rev-parse HEAD`);
+      const sha = ap.out.split("\n").pop() || "";
+      if (ap.rc === 0 && /^[0-9a-f]{40}$/.test(sha)) return { ...res, applied: true, method, sha, detail: `${method}: ${files.join(", ")}` };
+      res.detail = `${method}: ${(ap.err || ap.out).slice(-240)}`;
+    }
+    const rev = await run(`cd /home/user/ws && git apply -R --check --whitespace=nowarn ${pf}`);
+    if (rev.rc === 0) return { ...res, applied: true, method: "already applied", sha: res.base, detail: "patch already present (reverse applies cleanly)" };
+    return res;
+  });
+}
+
+/** TASK-27 (pair_patch): maudhui halisi ya faili lengwa kwa Frontend Engineer (≤3 faili, ≤40K kila moja). */
+export async function milestoneReadFiles(runner: Runner, paths: string[]): Promise<Record<string, string>> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    const out: Record<string, string> = {};
+    for (const p of paths.slice(0, 3)) {
+      const rel = String(p).replace(/^\/home\/user\/ws\//, "").replace(/^\.\//, "");
+      if (!rel || rel.includes("..")) continue;
+      try { const t = await sbx.files.read(`/home/user/ws/${rel}`); out[rel] = String(t).slice(0, 40_000); } catch { /* faili haipo */ }
+    }
+    return out;
   });
 }
 
@@ -1110,6 +1149,8 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
 
     cu.startedAt = Date.now();
     cu.lastEventAt = cu.startedAt;
+    // TASK-27 (T3 halisi): kizazi cha bridge — `wait()` ya bridge ILIYOPITA (rerun ya NO-OP, id ileile) isiue awamu mpya
+    const gen = ((cu as any).msBridgeGen = ((cu as any).msBridgeGen || 0) + 1);
     const handle = await sbx.commands.run(`bash -lc ${q(cmd)}`, {
       background: true, timeoutMs: 24 * 60 * 60 * 1000, // hakuna cap ya wall-clock (liveness pekee) — 0 ingekata MARA MOJA (connect-rpc: ≤0 = abort)
       onStdout: (d: string) => { for (const l of String(d).split("\n")) if (l.startsWith("@@XMD ")) hooks.blog("info", `🖥️ ${l.slice(6, 400)}`); },
@@ -1118,7 +1159,7 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
     if (cu.slowHeartbeat) { clearInterval(cu.slowHeartbeat); cu.slowHeartbeat = undefined; }
     cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
     handle.wait().then(async (r: any) => {
-      if (!cu.done && (cu as any).msPhase?.id === id && !cu.pausedNow && !cu.pausing) {
+      if (!cu.done && (cu as any).msPhase?.id === id && (cu as any).msBridgeGen === gen && !cu.pausedNow && !cu.pausing) {
         hooks.blog("error", `🖥️ Bridge ya ${id} imekufa (code ${r?.exitCode ?? "?"}) bila kumaliza.`);
         await handleCuEvent(runner, hooks, { i: cu.maxI + 1, type: "run_end", status: "error", steps: cu.step, ms: Date.now() - cu.startedAt, fatal: `bridge exit ${r?.exitCode ?? "?"}` });
       }

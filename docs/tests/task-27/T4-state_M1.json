@@ -1,0 +1,185 @@
+{
+ "id": "M1",
+ "status": "BLOCKED",
+ "round": 5,
+ "maxRounds": 10,
+ "currentStepId": "M1.R5.decide",
+ "startedAt": "2026-10-19T11:21:24.342Z",
+ "updatedAt": "2026-10-19T11:34:30.362Z",
+ "lanesUsed": [],
+ "steps": [
+  {
+   "stepId": "M1.R0.plan",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.build",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.review",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R3.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R3.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R3.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R3.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R4.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R4.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R4.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R4.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:21:24.343Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R5.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:29:49.661Z"
+  },
+  {
+   "stepId": "M1.R5.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:30:19.945Z"
+  },
+  {
+   "stepId": "M1.R5.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:31:23.023Z"
+  },
+  {
+   "stepId": "M1.R5.decide",
+   "status": "FAILED",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:34:30.362Z"
+  }
+ ],
+ "waivers": [
+  {
+   "defectId": "D-001",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "severity": "minor",
+   "round": 4,
+   "reason": "D-001 directly conflicts with the locked ledger decision A1, which strictly forbids uppercase text and text-transform: uppercase on all elements. Since A1 is locked and the build system rejects uppercase styling, the defect is waived to maintain consistency with the project's binding typography rules.",
+   "approvedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-19T11:21:22.121Z"
+  }
+ ],
+ "resumeTo": "VERIFYING"
+}

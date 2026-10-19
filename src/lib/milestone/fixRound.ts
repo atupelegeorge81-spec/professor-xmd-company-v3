@@ -18,6 +18,8 @@ export const fixChecksKey = (milestoneId: string, round: number) => `checks:${mi
 export const PREV_CHANGES_MAX_LINES = 40;
 /** faili za harness — si kazi ya Computer (hazihesabiwi kama UNLISTED_CHANGE) */
 export const HARNESS_PATH_RE = /^\.xmd\//;
+/** TASK-27 (T2 halisi, pia T26 T4e): log za runtime za Computer (mf. `server.log` ya dev server) si kazi ya CO — hazihesabiwi kama UNLISTED */
+export const RUNTIME_LOG_RE = /(^|\/)[^/]+\.log$/;
 
 /** Ujumbe WA KUDUMU wa NO-OP (maelezo25 §3) — neno kwa neno. */
 export function noOpMessage(orderId: string, files: string[]): string {
@@ -39,6 +41,28 @@ export interface FixPackInput {
   prevChanges: string[];
   milestoneId: string;
   round: number;
+  /** TASK-27: maagizo ya ngazi za escalation (concrete/pair_patch/split/redecide) */
+  escalation?: string[];
+}
+
+/** TASK-27: matokeo ya harness kujaribu pair patch (`git apply --check` → `git apply`). */
+export interface PatchApply { orderId: string; applied: boolean; method: "git apply" | "git apply --recount" | "already applied" | "none"; base: string; sha: string; detail: string }
+
+/** TASK-27: jinsi Computer anavyotekeleza kila ngazi ya ladder. */
+export function escalationLines(cos: ChangeOrder[], patchNotes: Record<string, string> = {}): string[] {
+  const out: string[] = [];
+  for (const c of cos) {
+    if (c.mode === "concrete") out.push(`- ${c.id} (CONCRETE — attempt ${c.attempt}; the previous attempt failed${c.diagnosis ? `, diagnosis ${c.diagnosis.cause}: ${c.diagnosis.note}` : ""}): apply EXACTLY the file, selector, property and values in "current" → "desired"; nothing else.`);
+    else if (c.mode === "pair_patch") out.push(`- ${c.id} (PAIR PATCH — attempt ${c.attempt}; the Frontend Engineer wrote the exact fix in the field "patch"${c.patch?.startsWith("*** COMPLETE FILE: ") ? " as a COMPLETE FILE: replace that whole file with the content after the first line" : " as a unified diff"}): ${patchNotes[c.id] || (c.patch ? "apply the patch VERBATIM (exactly these lines, nothing else), then write the receipt." : "no patch could be written — implement the order exactly.")}`);
+    else if (c.mode === "split") out.push(`- ${c.id} (SPLIT — attempt ${c.attempt}; one file / one property): FIRST REPRODUCE — measure the current state (computed value, px, contrast…) and write it in this order's receipt "notes" as "REPRODUCED: <measurement>" — THEN fix only this file/property.`);
+    else if (c.mode === "redecide") out.push(`- ${c.id} (RE-DECIDED by the reviewers + Optimus — attempt ${c.attempt}): follow "desired" exactly; it replaces the earlier instruction.`);
+  }
+  return out.length ? ["## ESCALATED ORDERS — these failed before; execute them exactly as described", ...out] : [];
+}
+
+/** TASK-27: split → receipt lazima iwe na "REPRODUCED: …" (kipimo kabla ya fix). */
+export function reproducedMap(cos: ChangeOrder[], parsed: ParsedReceipts): Record<string, boolean> {
+  return Object.fromEntries(cos.filter((c) => c.mode === "split").map((c) => [c.id, /REPRODUCED\s*:/i.test(String(parsed.receipts.find((r) => r.orderId === c.id)?.notes || ""))]));
 }
 
 export function renderFixPack(p: FixPackInput): string {
@@ -54,6 +78,7 @@ export function renderFixPack(p: FixPackInput): string {
     JSON.stringify(p.changeOrders, null, 2),
     "```",
     "",
+    ...(p.escalation?.length ? [...p.escalation, ""] : []),
     "## REPO SUMMARY (real, from the sandbox)",
     "```",
     (p.repo.tree || "(empty)").trim(),
@@ -78,6 +103,7 @@ export function receiptsContract(milestoneId: string, round: number, orderIds: s
     `2. Write \`${receiptsPath(round)}\`: a JSON ARRAY with exactly one Receipt per order (${orderIds.join(", ")}):`,
     `   {"orderId":"CO-001","status":"DONE|PARTIAL|BLOCKED|CANNOT","filesChanged":[{"path":"src/x.css","summary":"what changed"}],"commandsRun":["..."],"notes":"...","blockedReason":"required when BLOCKED|CANNOT"}`,
     `   filesChanged lists ONLY files you really changed for that order (the harness compares it with git diff). If an order conflicts with a locked ledger decision or cannot be done, do NOT apply it: status BLOCKED (or CANNOT) with the reason, filesChanged [].`,
+    `   Do NOT create report/notes files in the repo (RIPOTI.md, report.md, NOTES.md…): your summary goes in your final message only — any changed file missing from the receipts is flagged UNLISTED_CHANGE and blocks sign-off.`,
     `3. Commit your work AND the receipts file yourself: \`git add -A && git commit -m "${commitMessage(milestoneId, round, orderIds)}"\`.`,
     `You cannot finish until the receipts file is valid, every order has a receipt, the tree is committed and the build passes. Do not grade yourself; the harness measures.`,
   ].join("\n");
@@ -138,7 +164,7 @@ export function parseNumstat(out: string): DiffStat[] {
 
 export function verifyReceipts(changeOrders: ChangeOrder[], parsed: ParsedReceipts, changedRaw: string[], numstat: DiffStat[] = []): RoundVerification {
   const changed = [...new Set(changedRaw.map(normPath).filter(Boolean))];
-  const work = changed.filter((p) => !HARNESS_PATH_RE.test(p));
+  const work = changed.filter((p) => !HARNESS_PATH_RE.test(p) && !RUNTIME_LOG_RE.test(p));
   const changedSet = new Set(changed);
   const byOrder = new Map(parsed.receipts.map((r) => [r.orderId, r]));
   const listedAll = new Set<string>();

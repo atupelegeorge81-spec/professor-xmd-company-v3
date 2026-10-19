@@ -402,3 +402,23 @@ $ npm run cu:test        → Ran 186 tests — OK
   - `attempt` ya header wakati wa verify.
 - Hatari kwa CEO: reviewers wa LLM hawagundui madhara yasiyotajwa ambayo si ya kufunika; pendekezo ni ulinganisho wa landmarks za DOM. Maelezo yako task-26.md.
 - Baselines: tsc 0 · vitest 661 + 2 skipped (+45) · pytest 338 + 3 · unittest 271 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-26.md + docs/tests/task-26/ (bila `.log`).
+
+## Task 27 — Escalation ladder
+
+- Branch `task/27-escalation`, nyuma ya `XMD_MILESTONES` (OFF kwa default). Inategemea T26 (main `51c7eaf`, Koyeb `26804d5c` HEALTHY).
+- `milestone/escalation.ts` (ina unit tests): ladder kwa attempt — 1 standard · 2 concrete (diagnosis ya Optimus + CO kamili) · 3 pair_patch (diff ya Vextron → `git apply --check`/`git apply` ya harness, au Computer verbatim) · 4 split (faili 1 / property 1, REPRODUCE kwanza, lane switch "skipped" imerekodiwa) · ≥5 redecide (KEEP / MODIFY → ledger decision / WAIVE = reviewers wote + Optimus + sababu; si kimya).
+- `Defect.history` (diagnosis, mode, outcome) + chips `D-xxx escalated to attempt N (mode)`; `waivers:Mk` + `state.waivers` (kwa ripoti ya mwisho / T28); `amendments:Mk` + `decisions`; conflict guard ya COs (selector/property) kabla ya kutuma.
+- REAL (E2B + OpenHands + Chromium + Supabase + LLMs, fixture `xmdtest-site`):
+  - T1: ladder 1→5 dhidi ya A1 (LOCKED) → redecide **WAIVE** (zamu 3) → `SIGNED_OFF_WITH_WAIVERS`;
+  - T2: grid ya CSS → patch ya Vextron `git apply` attempt 3 → checks 5/5 + reviewers PASS → D-001 VERIFIED_FIXED;
+  - T3: Optimus alichagua NOT_ATTEMPTED mwenyewe (inalingana na NO-OP detector), JSON valid;
+  - T4: WAIVE kwenye `state:M1.waivers` + `waivers:M1`;
+  - T5: `CAP_REACHED` 10/10, hakuna R11.
+  - Historia iliyopandwa (T2/T4/T5) imewekwa wazi kwenye task-27.md.
+- Kasoro 4 zilizopatikana kwenye runs halisi zimerekebishwa (zina tests):
+  - race ya bridge kwenye NO-OP rerun (`msBridgeGen`);
+  - SIGN_OFF ya uongo bila waiver → BLOCKED yenye sababu, na `*.log` si UNLISTED;
+  - **kinga ya hitaji** (consolidation ilikuwa inageuza hitaji kimya kimya);
+  - Computer kuandika `RIPOTI.md` kwenye repo.
+- Hatari kwa CEO: kinga ya hitaji inashughulikia checks za computed_style tu; split inaweza kuongeza kazi isiyohusiana chini ya defect ileile.
+- Baselines: tsc 0 · vitest 683 + 2 skipped (+22) · pytest 338 + 3 · unittest 271 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-27.md + docs/tests/task-27/ (bila `.log`).
