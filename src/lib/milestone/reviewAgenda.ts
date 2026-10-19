@@ -393,7 +393,7 @@ const CHECK_SPEC = `Check union (acceptance must be a non-empty array of these o
 - {"id","type":"no_horizontal_overflow","routes":["/"],"viewports":["375x667","768x1024","1280x800"]}
 - {"id","type":"console_clean","route":"/"}
 - {"id","type":"screenshot_taken","route","viewport?","state?"}
-- {"id","type":"http","url":"/path","method?":"GET|POST|PUT|PATCH|DELETE","headers?":{"Authorization":"Bearer …"},"body?":"raw request body","expectStatus":200,"bodyContains?"} — a path url hits the app started with the plan's Start Command; NEGATIVE check = no "headers" (must be denied, e.g. 401). Copy method/headers/body from the PLAN CHECKS when they exist.
+- {"id","type":"http","url":"/path","method?":"GET|POST|PUT|PATCH|DELETE","headers?":{"Authorization":"Bearer …"},"body?":{"text":"hello"} (a JSON object is sent as application/json — prefer it over a JSON string),"expectStatus":200,"bodyContains?"} — a path url hits the app started with the plan's Start Command; NEGATIVE check = no "headers" (must be denied, e.g. 401). Copy method/headers/body from the PLAN CHECKS when they exist.
 - {"id","type":"db","table","rls?":true} (table exists in the real database; rls=true → Row Level Security enabled)
 - {"id","type":"grep","pattern","path","expect":"present|absent"} · {"id","type":"file_exists","path"} · {"id","type":"file_contains","path","text"} · {"id","type":"command","cmd","expectExit":0}
 Viewports are "WIDTHxHEIGHT" (375x667, 768x1024, 1280x800). Browser checks must use a route listed under ROUTES and should use selectors that exist in the DOM HINTS (or the selector the fix will create).`;
@@ -453,6 +453,8 @@ export function validateConsolidation(raw: unknown, i: ConsolidateInput): { ok: 
   const out: ChangeOrder[] = [];
   (list || []).forEach((co: any, k: number) => {
     const P = `changeOrders[${k}]`;
+    // TASK-29: technical — prompt inasema visionNote si lazima; ikikosekana = "" (Koyeb T4 run 6: "must be a string (got undefined)" ×3)
+    if (i.reviewMode === "technical" && co && typeof co === "object" && co.visionNote === undefined) co.visionNote = "";
     const v = validateChangeOrder(co, i.reviewMode);
     if (!v.ok) { v.errors.forEach((x) => e.push(`${P}: ${x}`)); return; }
     for (const id of co.defectIds || []) if (!dIds.has(id)) e.push(`${P}.defectIds: unknown defect ${id}`);

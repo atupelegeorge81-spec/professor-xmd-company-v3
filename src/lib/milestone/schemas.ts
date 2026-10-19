@@ -100,7 +100,9 @@ function checkInto(e: Errs, c: unknown, p: string): void {
       if (has(c, "px") && !has(c, "minPx")) int(e, c, "px", p, 1); else int(e, c, "minPx", p, 1);
       break;
     case "http":
-      str(e, c, "url", p); optStr(e, c, "method", p); optStr(e, c, "bodyContains", p); optStr(e, c, "body", p);
+      str(e, c, "url", p); optStr(e, c, "method", p); optStr(e, c, "bodyContains", p);
+      // TASK-29: body = string AU JSON (object/array → application/json) — JSON-ndani-ya-string ilivunja JSON ya Optimus (Koyeb T4 run 6)
+      if (has(c, "body") && typeof c.body !== "string" && !isObj(c.body) && !Array.isArray(c.body)) e.push(`${p}.body: must be a string or a JSON object/array (got ${show(c.body)})`);
       if (has(c, "headers") && (!isObj(c.headers) || Object.values(c.headers).some((v) => typeof v !== "string"))) e.push(`${p}.headers: must be an object of string values (got ${show(c.headers)})`);
       {
         const k = has(c, "status") && !has(c, "expectStatus") ? "status" : "expectStatus";

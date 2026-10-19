@@ -11,7 +11,7 @@ import { supabaseDbProbe } from "../dbProbe";
 import { patchAgentOf, votePrompt } from "../escalation";
 import { milestoneCast } from "../loop";
 import { buildReviewPrompt, validateFindings, type ReviewContext } from "../review";
-import { numberFindings, reviewParticipants, applyReviewRules } from "../reviewAgenda";
+import { numberFindings, reviewParticipants, applyReviewRules, validateConsolidation } from "../reviewAgenda";
 import { AGENT_ID_BY_ROSTER } from "../roster";
 import { validateChangeOrder, validateCheck } from "../schemas";
 import { roundChecks } from "../fixRound";
@@ -325,4 +325,24 @@ describe("TASK 29 — server iliyochakaa kwenye port inazimwa kabla ya checks (K
     const down = execSync(`curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:${port}/ || true`, { shell: "/bin/bash", encoding: "utf8" });
     expect(down).toBe("000");
   }, 60_000);
+});
+
+describe("TASK 29 — COs za technical zisivunjike (Koyeb T4 run 6)", () => {
+  it("http body ya JSON object → inatumwa kama application/json (hakuna JSON-ndani-ya-string)", async () => {
+    const port = 4394;
+    const ws = fixtureRepo({ "server.js": `require("http").createServer((q, s) => { let b = ""; q.on("data", (c) => b += c); q.on("end", () => { let ok = false; try { ok = q.headers["content-type"] === "application/json" && JSON.parse(b).text === "xmdtest"; } catch {} s.statusCode = ok ? 201 : 400; s.end(); }); }).listen(${port}, "127.0.0.1");` });
+    const r = await runChecks([
+      { id: "obj", type: "http", url: "/api/notes", method: "POST", body: { text: "xmdtest" }, expectStatus: 201 },
+      { id: "str", type: "http", url: "/api/notes", method: "POST", body: "{\"text\":\"xmdtest\"}", headers: { "Content-Type": "application/json" }, expectStatus: 201 },
+    ], { sbx: localSbx() as any, ws, startCommand: "node server.js", port, tag: "t29body", startTimeoutMs: 20_000 });
+    expect(r.results.map((x) => x.result)).toEqual(["PASS", "PASS"]);
+    expect(validateCheck({ id: "x", type: "http", url: "/a", body: 5, expectStatus: 200 }, "c").ok).toBe(false);
+  }, 60_000);
+  it("consolidation technical: visionNote ikikosekana = \"\" (prompt inasema si lazima); visual bado inaidai", () => {
+    const co = { id: "CO-001", defectIds: ["D-001"], decisionIds: [], attempt: 1, priority: 1, location: { route: "/api/notes/:id", selector: "-", files: ["server.js"] },
+      current: "public", desired: "auth", acceptance: [{ id: "a1", type: "http", url: "/api/notes/1", method: "DELETE", expectStatus: 401 }], mode: "standard" };
+    const inp = (mode: "technical" | "visual") => ({ reviewId: "R-M1-0", milestoneId: "M1", round: 0, reviewMode: mode, defects: [{ id: "D-001" }] as any, decisions: [], ledgerLines: [], discussion: "", routes: [], domHints: [], nextCoNo: 1 });
+    expect(validateConsolidation({ changeOrders: [{ ...co }], ledgerConflicts: [] }, inp("technical")).ok).toBe(true);
+    expect(validateConsolidation({ changeOrders: [{ ...co }], ledgerConflicts: [] }, inp("visual")).ok).toBe(false);
+  });
 });

@@ -187,7 +187,7 @@ export interface ContrastMinCheck extends RouteCheck { type: "contrast_min"; sel
 /** TASK-21: `minPx` (Task 9) au `px` (maelezo21). */
 export interface TouchTargetMinCheck extends RouteCheck { type: "touch_target_min"; selector: string; minPx?: number; px?: number }
 /** TASK-21: `expectStatus` (Task 9) au `status` (maelezo21); `bodyContains` hiari. */
-export interface HttpCheck extends CheckBase { type: "http"; url: string; method?: string; expectStatus?: number; status?: number; bodyContains?: string; headers?: Record<string, string>; body?: string }
+export interface HttpCheck extends CheckBase { type: "http"; url: string; method?: string; expectStatus?: number; status?: number; bodyContains?: string; headers?: Record<string, string>; body?: string | Record<string, unknown> | unknown[] }
 export interface FileExistsCheck extends CheckBase { type: "file_exists"; path: string }
 export interface FileContainsCheck extends CheckBase { type: "file_contains"; path: string; text: string }
 export interface ScreenshotTakenCheck extends RouteCheck { type: "screenshot_taken"; state?: string }

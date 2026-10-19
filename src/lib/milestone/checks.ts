@@ -112,6 +112,14 @@ grep -qF -e ${shq(c.text)} -- ${shq(c.path)}; echo "__C=$?"\n`);
   return res(c, "ERROR", `grep -F failed (exit ${m[1]}) on ${c.path}`);
 }
 
+/** TASK-29: body ya JSON (object/array) → string + content-type application/json (isipokuwa header imetolewa) */
+const httpBody = (b: unknown) => (typeof b === "string" ? b : JSON.stringify(b));
+function httpHeaders(c: { headers?: Record<string, string>; body?: unknown }): Record<string, string> {
+  const h = { ...(c.headers || {}) };
+  if (c.body !== undefined && typeof c.body !== "string" && !Object.keys(h).some((k) => k.toLowerCase() === "content-type")) h["Content-Type"] = "application/json";
+  return h;
+}
+
 async function runHttp(c: Extract<Check, { type: "http" }>, ctx: CheckContext): Promise<EvidenceCheckResult> {
   const want = (c.expectStatus ?? c.status) as number;
   const method = (c.method || "GET").toUpperCase();
@@ -120,8 +128,8 @@ async function runHttp(c: Extract<Check, { type: "http" }>, ctx: CheckContext): 
   let body = "";
   if (LOCAL_HOST_RE.test(c.url)) {
     // app iko ndani ya sandbox → curl kutoka huko huko
-    const hdr = Object.entries(c.headers || {}).map(([k, v]) => `-H ${shq(`${k}: ${v}`)}`).join(" ");
-    const data = c.body !== undefined ? `--data-raw ${shq(c.body)}` : "";
+    const hdr = Object.entries(httpHeaders(c)).map(([k, v]) => `-H ${shq(`${k}: ${v}`)}`).join(" ");
+    const data = c.body !== undefined ? `--data-raw ${shq(httpBody(c.body))}` : "";
     const r = await sbxShell(ctx, `code=$(curl -s -o /tmp/xmdh.body -w '%{http_code}' -X ${shq(method)} ${hdr} ${data} --max-time 20 ${shq(c.url)}); echo "__H=$code"; head -c 4000 /tmp/xmdh.body; rm -f /tmp/xmdh.body\n`, 60_000);
     const m = /__H=(\d+)\n?/.exec(r.out);
     if (!m) return res(c, "ERROR", `curl did not run: ${r.out.slice(-300)}`);
@@ -130,7 +138,7 @@ async function runHttp(c: Extract<Check, { type: "http" }>, ctx: CheckContext): 
   } else {
     try {
       const f = ctx.fetchImpl || fetch;
-      const resp = await f(c.url, { method, redirect: "follow", signal: AbortSignal.timeout(20_000), ...(c.headers ? { headers: c.headers } : {}), ...(c.body !== undefined ? { body: c.body } : {}) });
+      const resp = await f(c.url, { method, redirect: "follow", signal: AbortSignal.timeout(20_000), ...(Object.keys(httpHeaders(c)).length ? { headers: httpHeaders(c) } : {}), ...(c.body !== undefined ? { body: httpBody(c.body) } : {}) });
       status = resp.status;
       body = (await resp.text()).slice(0, 1_000_000);
     } catch (e: any) {
