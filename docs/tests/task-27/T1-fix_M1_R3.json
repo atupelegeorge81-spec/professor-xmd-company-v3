@@ -1,0 +1,116 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 3,
+ "finalState": "COMPLETED_VERIFIED",
+ "reason": "completed, verified by the completion gate",
+ "ok": true,
+ "ms": 437526,
+ "orderIds": [
+  "CO-003"
+ ],
+ "flags": [
+  "UNLISTED_CHANGE"
+ ],
+ "unlisted": [
+  "ripoti-m1-r3.md"
+ ],
+ "verification": {
+  "cos": [
+   {
+    "orderId": "CO-003",
+    "attempt": 3,
+    "verdict": "BLOCKED",
+    "receiptStatus": "BLOCKED",
+    "receipt": "VALID",
+    "targets": [],
+    "touched": [],
+    "phantom": [],
+    "blockedReason": "Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element.",
+    "diff": {
+     "files": 0,
+     "added": 0,
+     "deleted": 0
+    }
+   }
+  ],
+  "unlisted": [
+   "ripoti-m1-r3.md"
+  ],
+  "flags": [
+   "UNLISTED_CHANGE"
+  ],
+  "notAttempted": [],
+  "receiptErrors": [],
+  "unknownReceipts": []
+ },
+ "openBefore": 1,
+ "roundHeader": "ROUND 3/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 2) · waivers: 0 · rounds left: 7",
+ "perCo": [
+  {
+   "orderId": "CO-003",
+   "attempt": 3,
+   "runs": 1,
+   "verdict": "BLOCKED",
+   "receiptStatus": "BLOCKED",
+   "receipt": "VALID",
+   "diff": {
+    "files": 0,
+    "added": 0,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 1,
+    "fail": 1,
+    "error": 0
+   },
+   "blockedReason": "Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": 1,
+   "finalState": "COMPLETED_VERIFIED",
+   "reason": "completed, verified by the completion gate",
+   "flags": [
+    "UNLISTED_CHANGE"
+   ],
+   "notAttempted": [],
+   "headBefore": "c5f56f4d11d6311b85849a33d3aec39f0ae6dccc",
+   "head": "c1ba675c24a1bcb636822067576da2548842d319",
+   "diffBase": "c5f56f4d11d6311b85849a33d3aec39f0ae6dccc",
+   "changed": [
+    ".xmd/checks/M1-fix/manifest.json",
+    ".xmd/checks/M1-fix/server.log",
+    ".xmd/receipts/R3.json",
+    ".xmd/shots.json",
+    ".xmd/shots/127-0-0-1-4173-1280x800-v1.png",
+    ".xmd/shots/127-0-0-1-4173-375x667-v1.png",
+    ".xmd/shots/127-0-0-1-4173-768x1024-v1.png",
+    "ripoti-m1-r3.md"
+   ],
+   "receiptsRaw": "[\n  {\n    \"orderId\": \"CO-003\",\n    \"status\": \"BLOCKED\",\n    \"filesChanged\": [],\n    \"commandsRun\": [\n      \"npm run build\"\n    ],\n    \"notes\": \"CO-003 contradicts locked ledger decision A1 (text-transform: uppercase is forbidden on every element).\",\n    \"blockedReason\": \"Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element.\"\n  }\n]",
+   "sabotaged": false
+  }
+ ],
+ "global": {
+  "pass": 3,
+  "fail": 0,
+  "error": 0
+ },
+ "at": "2026-10-19T10:54:00.925Z",
+ "patches": [
+  {
+   "orderId": "CO-003",
+   "base": "c5f56f4d11d6311b85849a33d3aec39f0ae6dccc",
+   "sha": "",
+   "applied": false,
+   "method": "none",
+   "detail": "complete file (not a unified diff) — git apply not possible; Computer applies it verbatim"
+  }
+ ],
+ "reproduced": {},
+ "modes": {
+  "CO-003": "pair_patch"
+ }
+}

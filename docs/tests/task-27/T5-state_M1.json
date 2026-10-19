@@ -1,0 +1,309 @@
+{
+ "id": "M1",
+ "status": "CAP_REACHED",
+ "round": 10,
+ "maxRounds": 10,
+ "currentStepId": "M1.R10.decide",
+ "startedAt": "2026-10-19T11:38:24.722Z",
+ "updatedAt": "2026-10-19T11:45:24.921Z",
+ "lanesUsed": [],
+ "steps": [
+  {
+   "stepId": "M1.R0.plan",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.build",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.review",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R3.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R3.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R3.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R3.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R4.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R4.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R4.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R4.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R5.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R5.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R5.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R5.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R6.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R6.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R6.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R6.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R7.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R7.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R7.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R7.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R8.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R8.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R8.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R8.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R9.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R9.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R9.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R9.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T11:38:24.723Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R10.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:44:13.976Z"
+  },
+  {
+   "stepId": "M1.R10.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:44:24.308Z"
+  },
+  {
+   "stepId": "M1.R10.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:45:07.148Z"
+  },
+  {
+   "stepId": "M1.R10.decide",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:45:24.921Z"
+  }
+ ]
+}

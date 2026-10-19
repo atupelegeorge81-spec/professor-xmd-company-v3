@@ -1,0 +1,91 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 1,
+ "finalState": "COMPLETED_VERIFIED",
+ "reason": "completed, verified by the completion gate",
+ "ok": true,
+ "ms": 144517,
+ "orderIds": [
+  "CO-001"
+ ],
+ "flags": [],
+ "unlisted": [],
+ "verification": {
+  "cos": [
+   {
+    "orderId": "CO-001",
+    "attempt": 1,
+    "verdict": "BLOCKED",
+    "receiptStatus": "BLOCKED",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [],
+    "phantom": [],
+    "blockedReason": "Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element.",
+    "diff": {
+     "files": 0,
+     "added": 0,
+     "deleted": 0
+    }
+   }
+  ],
+  "unlisted": [],
+  "flags": [],
+  "notAttempted": [],
+  "receiptErrors": [],
+  "unknownReceipts": []
+ },
+ "openBefore": 1,
+ "roundHeader": "ROUND 1/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 1) · waivers: 0 · rounds left: 9",
+ "perCo": [
+  {
+   "orderId": "CO-001",
+   "attempt": 1,
+   "runs": 1,
+   "verdict": "BLOCKED",
+   "receiptStatus": "BLOCKED",
+   "receipt": "VALID",
+   "diff": {
+    "files": 0,
+    "added": 0,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 0,
+    "fail": 1,
+    "error": 0
+   },
+   "blockedReason": "Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": 1,
+   "finalState": "COMPLETED_VERIFIED",
+   "reason": "completed, verified by the completion gate",
+   "flags": [],
+   "notAttempted": [],
+   "headBefore": "2a4fdfeaf8cbb140d5a96bf4d511d58de6368a3d",
+   "head": "077bf96414aeb1a62d568c57488a0e9f1de8c150",
+   "diffBase": "2a4fdfeaf8cbb140d5a96bf4d511d58de6368a3d",
+   "changed": [
+    ".xmd/receipts/R1.json"
+   ],
+   "receiptsRaw": "[\n  {\n    \"orderId\": \"CO-001\",\n    \"status\": \"BLOCKED\",\n    \"filesChanged\": [],\n    \"commandsRun\": [\n      \"npm run build\"\n    ],\n    \"notes\": \"CO-001 contradicts locked ledger decision A1 (text-transform: uppercase is forbidden on every element).\",\n    \"blockedReason\": \"Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element.\"\n  }\n]",
+   "sabotaged": false
+  }
+ ],
+ "global": {
+  "pass": 3,
+  "fail": 0,
+  "error": 0
+ },
+ "at": "2026-10-19T10:35:59.037Z",
+ "reproduced": {},
+ "modes": {
+  "CO-001": "standard"
+ }
+}

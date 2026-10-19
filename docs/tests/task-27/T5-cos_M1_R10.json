@@ -1,0 +1,66 @@
+{
+ "version": 1,
+ "round": 10,
+ "changeOrders": [
+  {
+   "defectIds": [
+    "D-001"
+   ],
+   "attempt": 4,
+   "priority": 1,
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": ".site-nav a"
+   },
+   "current": "measure getComputedStyle('.site-nav a').textTransform — expected currently 'none' per A1",
+   "desired": "In src/styles.css, in the .site-nav a rule, add text-transform: uppercase; so the nav reads SHOP · STORY · CONTACT as in the CEO brand sheet.",
+   "visionNote": "A confident capitalised navigation, as on the CEO brand sheet.",
+   "acceptance": [
+    {
+     "id": "nav-caps",
+     "type": "computed_style",
+     "route": "/",
+     "viewport": "1280x800",
+     "selector": ".site-nav a",
+     "property": "text-transform",
+     "expected": "uppercase"
+    }
+   ],
+   "id": "CO-005",
+   "mode": "split"
+  },
+  {
+   "defectIds": [
+    "D-001"
+   ],
+   "attempt": 4,
+   "priority": 1,
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": ".site-nav a"
+   },
+   "current": "measure getComputedStyle('.site-nav a').letterSpacing — expected currently 'normal'",
+   "desired": "In src/styles.css, in the .site-nav a rule, add letter-spacing: 0.06em; to match the spacing on the CEO brand sheet.",
+   "visionNote": "Refined letter spacing for the navigation links to match brand aesthetics.",
+   "acceptance": [
+    {
+     "id": "nav-spacing",
+     "type": "computed_style",
+     "route": "/",
+     "viewport": "1280x800",
+     "selector": ".site-nav a",
+     "property": "letter-spacing",
+     "expected": "0.06em"
+    }
+   ],
+   "id": "CO-006",
+   "mode": "split"
+  }
+ ]
+}

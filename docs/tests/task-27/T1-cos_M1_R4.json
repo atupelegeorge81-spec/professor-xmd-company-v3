@@ -1,0 +1,125 @@
+{
+ "version": 1,
+ "round": 4,
+ "changeOrders": [
+  {
+   "defectIds": [
+    "D-001"
+   ],
+   "priority": 1,
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": ".site-nav a"
+   },
+   "current": "Measure getComputedStyle(.site-nav a).textTransform at 1280px — expected 'none'.",
+   "desired": "Apply text-transform: uppercase to .site-nav a to satisfy the CEO brand sheet requirement as specified in D-001.",
+   "visionNote": "Directly addresses the core brand requirement for uppercase navigation links.",
+   "acceptance": [
+    {
+     "id": "nav-caps#req",
+     "type": "computed_style",
+     "route": "/",
+     "viewport": "1280x800",
+     "selector": ".site-nav a",
+     "property": "text-transform",
+     "expected": "uppercase"
+    }
+   ],
+   "id": "CO-005",
+   "attempt": 4,
+   "mode": "split"
+  },
+  {
+   "defectIds": [
+    "D-001"
+   ],
+   "priority": 1,
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": "header > a"
+   },
+   "current": "Measure the dimensions of the logo link (header > a) — expected ~37x21px.",
+   "desired": "Increase the logo link touch target to a minimum of 44x44px using padding to meet accessibility standards.",
+   "visionNote": "Ensures the logo link is easily interactable on mobile devices.",
+   "acceptance": [
+    {
+     "id": "check-logo-touch-target",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "header > a",
+     "minPx": 44
+    }
+   ],
+   "id": "CO-006",
+   "attempt": 4,
+   "mode": "split"
+  },
+  {
+   "defectIds": [
+    "D-001"
+   ],
+   "priority": 1,
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": "header nav a"
+   },
+   "current": "Measure the dimensions of the navigation links (header nav a) — expected ~35x21px.",
+   "desired": "Increase the navigation link touch targets to a minimum of 44x44px using padding to meet accessibility standards.",
+   "visionNote": "Ensures navigation links are easily interactable on mobile devices.",
+   "acceptance": [
+    {
+     "id": "check-nav-touch-target",
+     "type": "touch_target_min",
+     "route": "/",
+     "selector": "header nav a",
+     "minPx": 44
+    }
+   ],
+   "id": "CO-007",
+   "attempt": 4,
+   "mode": "split"
+  },
+  {
+   "defectIds": [
+    "D-001"
+   ],
+   "priority": 1,
+   "location": {
+    "files": [
+     "src/styles.css"
+    ],
+    "route": "/",
+    "selector": "header"
+   },
+   "current": "Check for horizontal overflow at 375px, 768px, and 1280px viewports.",
+   "desired": "Ensure the header layout remains responsive and does not cause horizontal overflow after increasing touch targets.",
+   "visionNote": "Maintains layout integrity and mobile-first compliance.",
+   "acceptance": [
+    {
+     "id": "check-header-no-overflow",
+     "type": "no_horizontal_overflow",
+     "routes": [
+      "/"
+     ],
+     "viewports": [
+      "375x667",
+      "768x1024",
+      "1280x800"
+     ]
+    }
+   ],
+   "id": "CO-008",
+   "attempt": 4,
+   "mode": "split"
+  }
+ ]
+}

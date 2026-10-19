@@ -1,0 +1,120 @@
+{
+  "milestoneId": "M1",
+  "planMarkdown": "# M1 plan — xmdtest-site (tiny static shop page)\n\n## 1 Goal\nOne static page: header (logo, nav, theme toggle), hero, promo strip, product grid. Dark theme by default.\n\n## 4 Commands\nBuild Command: `npm run build`\nTest Command: none\nStart Command: `python3 -m http.server 4173 --bind 127.0.0.1`\n\n## 7 Screenshot matrix\n- route: / · states: default · viewports: 375x667, 768x1024, 1280x800\n",
+  "ledger": [
+    {
+      "agenda_index": 1,
+      "agenda_item": "Typography",
+      "status": "LOCKED",
+      "decision_summary": "Inter / system sans-serif only. Sentence case everywhere: NO all-caps text — text-transform: uppercase is forbidden on every element."
+    },
+    {
+      "agenda_index": 2,
+      "agenda_item": "Header",
+      "status": "LOCKED",
+      "decision_summary": "The header holds the logo (left), the nav, and a theme toggle button at the right end: <button id=\"theme-toggle\" aria-label=\"Toggle theme\"> at least 44x44px that switches html[data-theme] between dark and light."
+    },
+    {
+      "agenda_index": 3,
+      "agenda_item": "Layout",
+      "status": "LOCKED",
+      "decision_summary": "Mobile first: no horizontal scrolling at 375, 768 or 1280 px. Every block fits the viewport width; content max-width 1100px."
+    },
+    {
+      "agenda_index": 4,
+      "agenda_item": "Palette",
+      "status": "LOCKED",
+      "decision_summary": "Dark default: background #0B0C10, text #E5E7EB, accent #F2F0EB. Light theme via html[data-theme=light]."
+    }
+  ],
+  "buildReport": "# M1 build report\n\n## 1 Summary\nStatic page built: header, hero, promo strip, product grid.\n\n## 2 Files\n- index.html\n- src/styles.css\n- src/app.js\n",
+  "files": {
+    "package.json": "{\n  \"name\": \"xmdtest-site\",\n  \"private\": true,\n  \"version\": \"0.0.1\",\n  \"scripts\": {\n    \"build\": \"node scripts/build.mjs\"\n  }\n}\n",
+    "scripts/build.mjs": "import fs from \"node:fs\";\nconst html = fs.readFileSync(\"index.html\", \"utf8\");\nconst css = fs.readFileSync(\"src/styles.css\", \"utf8\");\nif (!html.includes('href=\"/src/styles.css\"')) { console.error(\"index.html must link /src/styles.css\"); process.exit(1); }\nconst open = (css.match(/{/g) || []).length, close = (css.match(/}/g) || []).length;\nif (open !== close) { console.error(\"styles.css: unbalanced braces\"); process.exit(1); }\nconsole.log(\"build ok: \" + open + \" css rules\");\n",
+    "index.html": "<!doctype html>\n<html lang=\"en\" data-theme=\"dark\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>xmdtest-site</title>\n  <link rel=\"icon\" href=\"data:,\">\n  <link rel=\"stylesheet\" href=\"/src/styles.css\">\n</head>\n<body>\n  <header class=\"site-header\">\n    <a class=\"logo\" href=\"/\">Kivuli</a>\n    <nav class=\"site-nav\">\n      <a href=\"#shop\">Shop</a>\n      <a href=\"#story\">Story</a>\n      <a href=\"#contact\">Contact</a>\n    </nav>\n    <button id=\"theme-toggle\" aria-label=\"Toggle theme\" type=\"button\">◐</button>\n  </header>\n  <main>\n    <section class=\"hero\">\n      <h1>Quiet goods for slow mornings</h1>\n      <p class=\"lead\">Hand-thrown mugs, linen and small-batch coffee from Dar es Salaam.</p>\n      <a class=\"cta\" href=\"#shop\">Browse the shop</a>\n    </section>\n    <div class=\"promo-strip\">Free delivery in Dar es Salaam on orders over 50,000 TZS</div>\n    <section id=\"shop\" class=\"grid\">\n      <article class=\"card\"><h2>Mug</h2><p>Stoneware, 300 ml.</p></article>\n      <article class=\"card\"><h2>Linen</h2><p>Natural, pre-washed.</p></article>\n      <article class=\"card\"><h2>Coffee</h2><p>Kilimanjaro, medium roast.</p></article>\n    </section>\n  </main>\n  <script src=\"/src/app.js\"></script>\n</body>\n</html>\n",
+    "src/app.js": "// theme: html[data-theme] = dark | light\nconst t = document.getElementById(\"theme-toggle\");\nt.addEventListener(\"click\", () => {\n  const h = document.documentElement;\n  h.dataset.theme = h.dataset.theme === \"light\" ? \"dark\" : \"light\";\n});\n",
+    "src/styles.css": ":root {\n  --bg: #0B0C10;\n  --text: #E5E7EB;\n  --accent: #F2F0EB;\n}\nhtml[data-theme=\"light\"] {\n  --bg: #F7F5F0;\n  --text: #1F2328;\n  --accent: #0B0C10;\n}\n\n* { box-sizing: border-box; }\n\nbody {\n  margin: 0;\n  background: var(--bg);\n  color: var(--text);\n  font-family: Inter, system-ui, sans-serif;\n}\n\n.site-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  padding: 16px 20px;\n}\n\n#theme-toggle {\n  min-width: 44px;\n  min-height: 44px;\n  background: transparent;\n  border: 1px solid var(--accent);\n  color: var(--accent);\n  font-size: 18px;\n}\n\n.logo {\n  color: var(--accent);\n  font-weight: 700;\n  text-decoration: none;\n}\n\n.site-nav {\n  display: flex;\n  gap: 16px;\n}\n\n.site-nav a {\n  color: var(--text);\n  text-decoration: none;\n}\n\nmain {\n  padding: 0 20px 40px;\n  max-width: 1100px;\n  margin: 0 auto;\n}\n\nh1 {\n  color: var(--accent);\n  font-size: 36px;\n  line-height: 1.15;\n}\n\n.lead {\n  font-size: 18px;\n}\n\n.cta {\n  display: inline-block;\n  padding: 12px 20px;\n  border: 1px solid var(--accent);\n  color: var(--accent);\n  text-decoration: none;\n}\n\n.promo-strip {\n  max-width: 100%;\n  margin: 32px 0;\n  padding: 12px 16px;\n  background: #1A1C23;\n}\n\n.grid {\n  display: grid;\n  grid-template-columns: repeat(3, 280px);\n  gap: 16px;\n}\n\n.card {\n  min-width: 280px;\n  padding: 16px;\n  background: #13151B;\n}\n",
+    "README.md": "# xmdtest-site\n\nTiny static shop page used by the XMD escalation-ladder test (task 27).\n"
+  },
+  "changeOrders": [
+    {
+      "id": "CO-003",
+      "defectIds": [
+        "D-001"
+      ],
+      "attempt": 3,
+      "priority": 1,
+      "mode": "standard",
+      "location": {
+        "files": [
+          "src/styles.css"
+        ],
+        "route": "/",
+        "selector": ".grid"
+      },
+      "current": ".grid { grid-template-columns: repeat(3, 280px) } · .card { min-width: 280px }",
+      "desired": "The product grid must never cause horizontal scrolling: 1 column at 375px, wrapping at 768px, up to 3 columns at 1280px — fix BOTH the grid track sizing and the card minimum width in src/styles.css.",
+      "visionNote": "Products sit in a calm grid that always fits the screen.",
+      "acceptance": [
+        {
+          "id": "grid-fit",
+          "type": "no_horizontal_overflow",
+          "routes": [
+            "/"
+          ],
+          "viewports": [
+            "375x667",
+            "768x1024",
+            "1280x800"
+          ]
+        },
+        {
+          "id": "grid-display",
+          "type": "computed_style",
+          "route": "/",
+          "viewport": "1280x800",
+          "selector": "#shop",
+          "property": "display",
+          "expected": "grid"
+        }
+      ]
+    }
+  ],
+  "defects": [
+    {
+      "milestoneId": "M1",
+      "foundInRound": 0,
+      "reportedBy": [
+        "designer",
+        "frontend"
+      ],
+      "evidence": [
+        "S-001",
+        "S-001 page: scrollWidth 896 > 375",
+        "S-002 page: scrollWidth 896 > 768"
+      ],
+      "status": "REOPENED",
+      "attempts": 2,
+      "history": [
+        {
+          "round": 1,
+          "result": "CO-001: APPLIED · checks 1P/1F/0E",
+          "cause": "ATTEMPTED_WRONG: changed only grid-template-columns, .card min-width still forces 280px (seeded history)"
+        },
+        {
+          "round": 2,
+          "result": "CO-002: APPLIED · checks 1P/1F/0E",
+          "cause": "ATTEMPTED_WRONG: used minmax(280px,1fr) — still 280px minimum at 375 (seeded history)"
+        }
+      ],
+      "id": "D-001",
+      "area": "layout",
+      "severity": "major",
+      "title": "Product grid overflows horizontally at 375px and 768px (fixed 3 × 280px columns + card min-width)",
+      "expected": "A3: no horizontal scrolling at 375/768/1280; the grid wraps to 1 column on phones and keeps up to 3 columns on desktop",
+      "actual": ".grid grid-template-columns: repeat(3, 280px); .card min-width: 280px"
+    }
+  ],
+  "startRound": 3,
+  "escalate": true
+}

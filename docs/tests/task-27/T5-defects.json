@@ -1,0 +1,64 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 dom: .site-nav a textTransform=none"
+   ],
+   "status": "REOPENED",
+   "attempts": 4,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1 (seeded history)"
+    },
+    {
+     "round": 2,
+     "result": "CO-002: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1 (seeded history)"
+    },
+    {
+     "round": 3,
+     "result": "CO-003: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1 (seeded history)"
+    },
+    {
+     "round": 10,
+     "result": "ESCALATED attempt 4 (split) → CO-005, CO-006",
+     "cause": "lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched",
+     "mode": "split",
+     "laneSwitch": "lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched"
+    },
+    {
+     "round": 10,
+     "result": "CO-005: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden"
+    },
+    {
+     "round": 10,
+     "result": "CO-006: APPLIED · checks 0P/1F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 10,
+     "result": "verify: CO-005 FAIL (designer FAIL, frontend FAIL, checks 0P/1F/0E); CO-006 FAIL (designer FAIL, frontend FAIL, checks 0P/1F/0E)",
+     "cause": "acceptance checks 1 FAIL / 0 ERROR"
+    }
+   ],
+   "id": "D-001",
+   "area": "navigation",
+   "severity": "medium",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "expected": "CEO brand sheet: the three nav links render in capitals — .site-nav a computed text-transform: uppercase",
+   "actual": ".site-nav a text-transform: none (sentence case)"
+  }
+ ]
+}

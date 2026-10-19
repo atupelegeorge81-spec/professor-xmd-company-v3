@@ -1,0 +1,203 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 10,
+ "header": "ROUND 10/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 4) · waivers: 0 · rounds left: 0",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-005",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-005/nav-caps",
+       "S-003 dom: body > header > nav > a:nth-of-type(1)"
+      ],
+      "note": "The change was BLOCKED because it violates locked decision A1 (Sentence case only). The navigation links remain in sentence case ('Shop', 'Story', 'Contact'), failing the desired state of the order and leaving D-001 unresolved."
+     },
+     {
+      "orderId": "CO-006",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-006/nav-spacing",
+       "S-003 dom: body > header > nav > a:nth-of-type(1) letterSpacing=0.96px"
+      ],
+      "note": "The acceptance check failed. Although the computed value of 0.96px is mathematically equivalent to 0.06em (16px * 0.06), the automated check rejected the implementation."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": {
+     "reason": "There is a fundamental conflict between locked decision A1 (forbidding all-caps) and the CEO's brand requirement for uppercase navigation links (D-001). The computer is correctly blocking the fix to uphold the ledger, but the brand requirement remains unfulfilled."
+    },
+    "notes": "Milestone 1 ends with D-001 still open. While the layout and typography strictly follow the ledger (A1-A4), the specific brand styling requested for the navigation has not been applied due to the conflict with A1."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "8c1d3cb0897389532b944e178ad998eb0a624f3c38f2d2af4f63cb6046a781d2",
+   "promptChars": 17646,
+   "imageParts": 3,
+   "model": "gemini-3-flash-preview",
+   "ms": 28785,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-005\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-005/nav-caps\",\n        \"S-003 dom: body > header > nav > a:nth-of-type(1)\"\n      ],\n      \"note\": \"The change was BLOCKED because it violates locked decision A1 (Sentence case only). The navigation links remain in sentence case ('Shop', 'Story', 'Contact'), failing the desired state of the order and leaving D-001 unresolved.\"\n    },\n    {\n      \"orderId\": \"CO-006\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-006/nav-spacing\",\n        \"S-003 dom: body > header > nav > a:nth-of-type(1) letterSpacing=0.96px\"\n      ],\n      \"note\": \"The acceptance check failed. Although the computed value of 0.96px is mathematically equivalent to 0.06em (16px * 0.06), the automated check rejected the implementation.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": {\n    \"reason\": \"There is a fundamental conflict between locked decision A1 (forbidding all-caps) and the CEO's brand requirement for uppercase navigation links (D-001). The computer is correctly blocking the fix to uphold the ledger, but the brand requirement remains unfulfilled.\"\n  },\n  \"notes\": \"Milestone 1 ends with D-001 still open. While the layout and typography strictly follow the ledger (A1-A4), the specific brand styling requested for the navigation has not been applied due to the conflict with A1.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-005",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-005/nav-caps",
+       "S-003"
+      ],
+      "note": "CO-005 receipt was BLOCKED because applying text-transform: uppercase contradicts locked decision A1. Check check:CO-005/nav-caps failed with text-transform 'none'."
+     },
+     {
+      "orderId": "CO-006",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-006/nav-spacing",
+       "S-003 dom: body > header > nav > a:nth-of-type(1) letterSpacing=0.96px"
+      ],
+      "note": "check:CO-006/nav-spacing failed because the acceptance test expected '0.06em' while getComputedStyle returned resolved '0.96px' (0.06 * 16px). Per rule, a failed check mandates a FAIL verdict."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "Both change orders failed automated checks. CO-005 was blocked due to conflict with locked decision A1 (no uppercase). CO-006 applied letter-spacing: 0.06em (0.96px computed) but failed the literal string match check. Milestone 1 round cap 10/10 reached; D-001 will carry over as inherited."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "6f19a0f50b9d80998728f7e1fe5977024aa58d26dff0e1c08ecfc953bb1e881e",
+   "promptChars": 17667,
+   "imageParts": 3,
+   "model": "gemini-3.7-flash",
+   "ms": 35360,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-005\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-005/nav-caps\",\n        \"S-003\"\n      ],\n      \"note\": \"CO-005 receipt was BLOCKED because applying text-transform: uppercase contradicts locked decision A1. Check check:CO-005/nav-caps failed with text-transform 'none'.\"\n    },\n    {\n      \"orderId\": \"CO-006\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-006/nav-spacing\",\n        \"S-003 dom: body > header > nav > a:nth-of-type(1) letterSpacing=0.96px\"\n      ],\n      \"note\": \"check:CO-006/nav-spacing failed because the acceptance test expected '0.06em' while getComputedStyle returned resolved '0.96px' (0.06 * 16px). Per rule, a failed check mandates a FAIL verdict.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"Both change orders failed automated checks. CO-005 was blocked due to conflict with locked decision A1 (no uppercase). CO-006 applied letter-spacing: 0.06em (0.96px computed) but failed the literal string match check. Milestone 1 round cap 10/10 reached; D-001 will carry over as inherited.\"\n}\n```"
+  }
+ },
+ "disputed": [],
+ "sync": null,
+ "at": "2026-10-19T11:45:24.309Z",
+ "defectsBefore": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 dom: .site-nav a textTransform=none"
+   ],
+   "status": "IN_FIX",
+   "attempts": 4,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1 (seeded history)"
+    },
+    {
+     "round": 2,
+     "result": "CO-002: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1 (seeded history)"
+    },
+    {
+     "round": 3,
+     "result": "CO-003: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1 (seeded history)"
+    },
+    {
+     "round": 10,
+     "result": "ESCALATED attempt 4 (split) → CO-005, CO-006",
+     "cause": "lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched",
+     "mode": "split",
+     "laneSwitch": "lane switch skipped — cu/brain.py has no per-CO Computer lane override (FLOW-MAP B.8); recorded, not switched"
+    },
+    {
+     "round": 10,
+     "result": "CO-005: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden"
+    },
+    {
+     "round": 10,
+     "result": "CO-006: APPLIED · checks 0P/1F/0E",
+     "cause": "receipt DONE"
+    }
+   ],
+   "id": "D-001",
+   "area": "navigation",
+   "severity": "medium",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "expected": "CEO brand sheet: the three nav links render in capitals — .site-nav a computed text-transform: uppercase",
+   "actual": ".site-nav a text-transform: none (sentence case)"
+  }
+ ],
+ "harnessRegressions": [],
+ "git": {
+  "op": "none",
+  "ok": true,
+  "sha": "",
+  "detail": "open defects unchanged (1)"
+ },
+ "outcome": {
+  "outcome": "SAME",
+  "reason": "open defects unchanged (1)",
+  "openBefore": 1,
+  "openAfter": 1,
+  "regressions": 0
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-005",
+    "verdict": "FAIL",
+    "reason": "acceptance checks 1 FAIL / 0 ERROR",
+    "designer": "FAIL",
+    "frontend": "FAIL",
+    "checks": {
+     "pass": 0,
+     "fail": 1,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-006",
+    "verdict": "FAIL",
+    "reason": "acceptance checks 1 FAIL / 0 ERROR",
+    "designer": "FAIL",
+    "frontend": "FAIL",
+    "checks": {
+     "pass": 0,
+     "fail": 1,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [],
+  "newDefects": [],
+  "regressions": [],
+  "disagreements": [],
+  "allPass": false
+ },
+ "next": {
+  "next": "CAP_REACHED",
+  "reason": "round 10/10 — COs not PASS: CO-005, CO-006 · checks 2 FAIL / 0 ERROR · open defects ≥ medium: D-001 (medium)",
+  "leftoverMinor": []
+ },
+ "added": [],
+ "duplicates": []
+}

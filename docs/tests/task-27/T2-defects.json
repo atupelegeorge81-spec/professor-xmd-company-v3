@@ -1,0 +1,92 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth 896 > 375",
+    "S-002 page: scrollWidth 896 > 768"
+   ],
+   "status": "VERIFIED_FIXED",
+   "attempts": 3,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 1P/1F/0E",
+     "cause": "ATTEMPTED_WRONG: changed only grid-template-columns, .card min-width still forces 280px (seeded history)"
+    },
+    {
+     "round": 2,
+     "result": "CO-002: APPLIED · checks 1P/1F/0E",
+     "cause": "ATTEMPTED_WRONG: used minmax(280px,1fr) — still 280px minimum at 375 (seeded history)"
+    },
+    {
+     "round": 3,
+     "result": "ESCALATED attempt 3 (pair patch) → CO-003",
+     "cause": "patch diff src/styles.css",
+     "mode": "pair_patch"
+    },
+    {
+     "round": 3,
+     "result": "CO-003: APPLIED · checks 2P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 3,
+     "result": "verify: CO-003 PASS (designer PASS, frontend PASS, checks 2P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ],
+   "id": "D-001",
+   "area": "layout",
+   "severity": "major",
+   "title": "Product grid overflows horizontally at 375px and 768px (fixed 3 × 280px columns + card min-width)",
+   "expected": "A3: no horizontal scrolling at 375/768/1280; the grid wraps to 1 column on phones and keeps up to 3 columns on desktop",
+   "actual": ".grid grid-template-columns: repeat(3, 280px); .card min-width: 280px"
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 3,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "area": "header",
+   "severity": "minor",
+   "title": "Navigation links touch targets are too small",
+   "evidence": [
+    "S-001 dom: body > header > a touch 37.05x21 TOO-SMALL",
+    "S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+    "S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL"
+   ],
+   "expected": "Interactive elements in the header should have a minimum touch target size of 44x44px for mobile usability, consistent with the theme toggle requirement in A2.",
+   "actual": "Logo and navigation links have heights of only 21px, failing standard accessibility checks for touch targets.",
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 3,
+     "result": "found in verify R3",
+     "cause": "NEW_DEFECT"
+    },
+    {
+     "round": 4,
+     "result": "CO-004: APPLIED · checks 3P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 4,
+     "result": "verify: CO-004 PASS (designer PASS, frontend PASS, checks 3P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ]
+  }
+ ]
+}

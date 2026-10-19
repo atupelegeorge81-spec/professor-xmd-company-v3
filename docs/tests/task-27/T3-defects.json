@@ -1,0 +1,101 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth 640 > 375"
+   ],
+   "status": "REOPENED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: NOT_ATTEMPTED (NO-OP on run 1 → reminder + rerun) · checks 0P/1F/0E",
+     "cause": "NOT_ATTEMPTED"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-001 FAIL (designer FAIL, frontend FAIL, checks 0P/1F/0E)",
+     "cause": "acceptance checks 1 FAIL / 0 ERROR"
+    },
+    {
+     "round": 2,
+     "result": "ESCALATED attempt 2 (concrete) → CO-002",
+     "cause": "diagnosis NOT_ATTEMPTED: The previous change order failed to generate any file modifications, leaving the hardcoded 640px width in src/styles.css untouched.",
+     "mode": "concrete",
+     "diagnosis": {
+      "cause": "NOT_ATTEMPTED",
+      "reason": "The previous change order failed to generate any file modifications, leaving the hardcoded 640px width in src/styles.css untouched."
+     }
+    }
+   ],
+   "id": "D-001",
+   "area": "layout",
+   "severity": "medium",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "expected": "A3: no horizontal scroll at 375px",
+   "actual": ".promo-strip width: 640px"
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 1,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "area": "header",
+   "severity": "medium",
+   "title": "Header navigation and logo touch targets are too small for mobile",
+   "evidence": [
+    "S-001 dom: body > header > a touch 37.05x21 TOO-SMALL",
+    "S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+    "S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL",
+    "S-001 dom: body > header > nav > a:nth-of-type(3) touch 53.67x21 TOO-SMALL"
+   ],
+   "expected": "Per mobile-first layout principles (A3), interactive elements should have a minimum touch target of 44x44px.",
+   "actual": "Logo and navigation links have touch targets as small as 35x21px, flagged as TOO-SMALL.",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": [
+    {
+     "round": 1,
+     "result": "found in verify R1",
+     "cause": "NEW_DEFECT"
+    }
+   ]
+  },
+  {
+   "id": "D-003",
+   "milestoneId": "M1",
+   "foundInRound": 1,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "header",
+   "severity": "minor",
+   "title": "Theme toggle button uses incorrect font family",
+   "evidence": [
+    "S-001 dom: #theme-toggle fontFamily=Arial"
+   ],
+   "expected": "All text elements must use Inter / system sans-serif (A1).",
+   "actual": "The theme toggle button is using Arial, creating a visual inconsistency with the rest of the header which uses Inter.",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": [
+    {
+     "round": 1,
+     "result": "found in verify R1",
+     "cause": "NEW_DEFECT"
+    }
+   ]
+  }
+ ]
+}

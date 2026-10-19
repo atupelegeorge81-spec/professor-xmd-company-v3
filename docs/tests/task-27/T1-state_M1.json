@@ -1,0 +1,144 @@
+{
+ "id": "M1",
+ "status": "SIGNED_OFF_WITH_WAIVERS",
+ "round": 4,
+ "maxRounds": 10,
+ "currentStepId": "M1.R4.decide",
+ "startedAt": "2026-10-19T10:33:32.682Z",
+ "updatedAt": "2026-10-19T11:06:38.957Z",
+ "lanesUsed": [],
+ "steps": [
+  {
+   "stepId": "M1.R0.plan",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T10:33:32.683Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.build",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T10:33:32.683Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.review",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T10:33:32.683Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:36:02.721Z"
+  },
+  {
+   "stepId": "M1.R1.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:36:15.997Z"
+  },
+  {
+   "stepId": "M1.R1.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:37:14.820Z"
+  },
+  {
+   "stepId": "M1.R1.decide",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:39:21.533Z"
+  },
+  {
+   "stepId": "M1.R2.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:42:24.494Z"
+  },
+  {
+   "stepId": "M1.R2.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:42:39.242Z"
+  },
+  {
+   "stepId": "M1.R2.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:43:36.905Z"
+  },
+  {
+   "stepId": "M1.R2.decide",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:46:42.347Z"
+  },
+  {
+   "stepId": "M1.R3.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:54:11.069Z"
+  },
+  {
+   "stepId": "M1.R3.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:54:27.188Z"
+  },
+  {
+   "stepId": "M1.R3.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:55:06.847Z"
+  },
+  {
+   "stepId": "M1.R3.decide",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T10:59:01.333Z"
+  },
+  {
+   "stepId": "M1.R4.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:02:54.763Z"
+  },
+  {
+   "stepId": "M1.R4.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:03:10.360Z"
+  },
+  {
+   "stepId": "M1.R4.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:04:13.447Z"
+  },
+  {
+   "stepId": "M1.R4.decide",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T11:06:38.957Z"
+  }
+ ],
+ "waivers": [
+  {
+   "defectId": "D-001",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "severity": "medium",
+   "round": 4,
+   "reason": "Defect D-001 (requiring uppercase nav links) directly contradicts Locked Ledger decision A1, which explicitly forbids 'text-transform: uppercase' on all elements. Since A1 is a binding constraint and both reviewers have agreed to waive the defect due to this conflict, the defect is waived.",
+   "approvedBy": [
+    "designer",
+    "frontend",
+    "pm"
+   ],
+   "at": "2026-10-19T11:06:25.654Z"
+  }
+ ]
+}

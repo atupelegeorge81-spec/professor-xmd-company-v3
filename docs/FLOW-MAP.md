@@ -66,6 +66,16 @@
     - `Mk.Rn.decide` (code): `decide` (PASS = wote PASS + checks PASS; check FAIL/ERROR inapindua) → `applyVerifyToDefects` (dedupe: reviewers wawili + defects zilizo wazi) → regressions (reviewers + task 22 + `newlyOccluded`: maandishi yaliyofunikwa sasa dhidi ya evidence ya raundi iliyopita) → `roundOutcome` BEST (`git tag -f xmd-best-Mk`, `best:Mk`) / REVERT (`git stash` ya mabadiliko yasiyocommitiwa + `git revert <base>..HEAD` + ujumbe "round N reverted: made things worse" kwa Optimus) / SAME → `decideNext` → CONTINUE: Optimus `consolidate` (validation ya T24; ids `nextCoNumber`) → `cos:Mk:R(n+1)`.
     - RoundHeader (`fixRoundHeader`) inajengwa kutoka DB kila wito; `attempt` = jaribio linaloendelea.
     - Event: `verifyRound`. Test hooks (inert bila `XMD_TEST_HOOKS=1`): `XMD_TEST_VERIFY_INPUT` (pamoja na `startRound`), `XMD_TEST_STOP_AFTER_ROUND`.
+13. **TASK-27 · Escalation ladder (`XMD_MILESTONES=1` pekee):**
+    - Mahali: `Mk.Rn.decide` → baada ya `consolidate` (`loop.ts`): `escalateChangeOrders` (`milestone/escalation.ts`) kwa kila CO yenye `attempt ≥ 2`. Kisha `applyEscalation`: `Defect.history`, chips 🪜/🏳️, `amendments:Mk`, `decisions`, `waivers:Mk` na `state.waivers`. Event: `escalation`.
+    - `modeForAttempt`: 1 `standard` · 2 `concrete` · 3 `pair_patch` · 4 `split` · ≥5 `redecide`.
+    - **concrete:** Optimus anatoa diagnosis (`DIAGNOSIS_CAUSES`, sentensi moja; `enforceDetector` = NO-OP detector → NOT_ATTEMPTED) + CO kamili (faili, selector, before/after `prop: value`, check kali).
+    - **pair_patch:** Vextron anaandika unified diff au faili kamili (`milestoneReadFiles`). Harness inaendesha `git apply --check` + `git apply` + commit (`milestonePatch`, `patch:Mk:Rn`); ikishindwa, Computer inaitumia verbatim.
+    - **split:** COs zenye faili 1 + property 1 kila moja; Computer lazima i-REPRODUCE (ipime) kwanza. Lane switch = `LANE_SWITCH_SKIPPED` (hakuna override kwa kila CO, B.8).
+    - **redecide:** reviewers 2 wanapiga kura + Optimus anaamua, zamu ≤4. KEEP (guidance + CO) / MODIFY (requirement → ledger decision `AM-Mk-Rn-D-xxx`) / WAIVE (inahitaji kura za reviewers WOTE + Optimus, sababu ni lazima; defect inakuwa `WAIVED`). Ikiwa hakuna CO wala defect wazi na kuna waivers → `SIGNED_OFF_WITH_WAIVERS`.
+    - **Kinga ya hitaji:** `escalationRequirements` = computed_style checks za CO ya kwanza ya defect. Attempts 2–4 na KEEP lazima zizihifadhi (`requirementDrift`); consolidation ikibadilisha hitaji, `restoreRequirement` inalirejesha. MODIFY peke yake ndiyo inaweza kulibadilisha.
+    - **Conflicting COs:** `findCoConflicts` (selector + property ileile, thamani tofauti) → Optimus anasuluhisha kabla ya kutuma; akishindwa → `mergeConflictFallback`.
+    - CONTINUE isiyo na CO → `BLOCKED: nothing for a fix round …`. Hook: `XMD_TEST_FIX_NOOP_<Mk>=all`; `XMD_TEST_VERIFY_INPUT.escalate` (escalation kwenye seed).
 
 ## C. Computer flow (`src/lib/cu/*`)
 1. **start:** `startComputerPhase(runner, hooks)` — `cu/engine.ts:418`. Ndiyo inachofanya: events zilizohifadhiwa zinareplay (`:575` `resumeNote = resume ? buildResumeNote(runner) : ""`), sandbox ikipatikana hai → attach tu (`:515` pgrep ya bridge), vinginevyo bridge mpya inaandikwa (`:598-601` background, timeout 3600s) na mirror-restore + replay (`mirror.ts`).

@@ -1,0 +1,107 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 5,
+ "finalState": "COMPLETED_VERIFIED",
+ "reason": "completed, verified by the completion gate",
+ "ok": true,
+ "ms": 496042,
+ "orderIds": [
+  "CO-006"
+ ],
+ "flags": [
+  "UNLISTED_CHANGE"
+ ],
+ "unlisted": [
+  "RIPOTI.md"
+ ],
+ "verification": {
+  "cos": [
+   {
+    "orderId": "CO-006",
+    "attempt": 1,
+    "verdict": "APPLIED",
+    "receiptStatus": "DONE",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "diff": {
+     "files": 1,
+     "added": 1,
+     "deleted": 1
+    }
+   }
+  ],
+  "unlisted": [
+   "RIPOTI.md"
+  ],
+  "flags": [
+   "UNLISTED_CHANGE"
+  ],
+  "notAttempted": [],
+  "receiptErrors": [],
+  "unknownReceipts": []
+ },
+ "openBefore": 1,
+ "roundHeader": "ROUND 5/10 (M1) — closed defects: 1 · open: 1 (D-002 attempt 1) · waivers: 1 · rounds left: 5",
+ "perCo": [
+  {
+   "orderId": "CO-006",
+   "attempt": 1,
+   "runs": 1,
+   "verdict": "APPLIED",
+   "receiptStatus": "DONE",
+   "receipt": "VALID",
+   "diff": {
+    "files": 1,
+    "added": 1,
+    "deleted": 1
+   },
+   "checks": {
+    "pass": 1,
+    "fail": 0,
+    "error": 0
+   }
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": 1,
+   "finalState": "COMPLETED_VERIFIED",
+   "reason": "completed, verified by the completion gate",
+   "flags": [
+    "UNLISTED_CHANGE"
+   ],
+   "notAttempted": [],
+   "headBefore": "b5c319de18df3673bb814ef72680ea64776118d1",
+   "head": "46d1b9b0ece563cadb0a7f1a3393510d11ca6573",
+   "diffBase": "b5c319de18df3673bb814ef72680ea64776118d1",
+   "changed": [
+    ".xmd/receipts/R5.json",
+    ".xmd/shots.json",
+    ".xmd/shots/localhost-4173-1280x800-v1.png",
+    ".xmd/shots/localhost-4173-375x667-v1.png",
+    ".xmd/shots/localhost-4173-768x1024-v1.png",
+    "RIPOTI.md",
+    "src/styles.css"
+   ],
+   "receiptsRaw": "[{\"orderId\": \"CO-006\", \"status\": \"DONE\", \"filesChanged\": [{\"path\": \"src/styles.css\", \"summary\": \"Replace width: 640px with max-width: 100% in .promo-strip rule\"}], \"commandsRun\": [\"sed -i 's/width: 640px;/max-width: 100%;/' src/styles.css\", \"npm run build\"], \"notes\": \"Promo strip now uses max-width: 100% to fit every screen without horizontal overflow\"}]",
+   "sabotaged": false
+  }
+ ],
+ "global": {
+  "pass": 3,
+  "fail": 0,
+  "error": 0
+ },
+ "at": "2026-10-19T11:29:46.849Z",
+ "reproduced": {},
+ "modes": {
+  "CO-006": "standard"
+ }
+}

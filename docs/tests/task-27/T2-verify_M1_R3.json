@@ -1,0 +1,272 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 3,
+ "header": "ROUND 3/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 3) · waivers: 0 · rounds left: 7",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-003",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-003/grid-fit",
+       "S-001 dom: body scrollWidth=375 clientWidth=375",
+       "S-002 dom: #shop > article:nth-of-type(2) > h2 x=408",
+       "S-003 dom: #shop > article:nth-of-type(3) > h2 x=843.33"
+      ],
+      "note": "The product grid now correctly responds to viewport changes without horizontal overflow. It shows 1 column at 375px, 2 columns at 768px, and 3 columns at 1280px as requested."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [
+     {
+      "title": "Navigation links touch targets are too small",
+      "area": "header",
+      "severity": "minor",
+      "kind": "violation",
+      "evidence": [
+       "S-001 dom: body > header > a touch 37.05x21 TOO-SMALL",
+       "S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+       "S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL"
+      ],
+      "expected": "Interactive elements in the header should have a minimum touch target size of 44x44px for mobile usability, consistent with the theme toggle requirement in A2.",
+      "actual": "Logo and navigation links have heights of only 21px, failing standard accessibility checks for touch targets."
+     }
+    ],
+    "requestDiscussion": null,
+    "notes": "The horizontal overflow issue (D-001) is fully resolved. The layout now respects the 1100px max-width on desktop (S-003) and the dark theme palette is correctly applied according to A4. Typography follows the Inter/system-sans rule. The only remaining concern is the small touch targets for the navigation links."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "e7a1f5367ab24b8b1a482a63caccc488db3af212a75579544ddc6f05517015f3",
+   "promptChars": 17133,
+   "imageParts": 3,
+   "model": "gemini-3-flash-preview",
+   "ms": 28260,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-003/grid-fit\",\n        \"S-001 dom: body scrollWidth=375 clientWidth=375\",\n        \"S-002 dom: #shop > article:nth-of-type(2) > h2 x=408\",\n        \"S-003 dom: #shop > article:nth-of-type(3) > h2 x=843.33\"\n      ],\n      \"note\": \"The product grid now correctly responds to viewport changes without horizontal overflow. It shows 1 column at 375px, 2 columns at 768px, and 3 columns at 1280px as requested.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [\n    {\n      \"title\": \"Navigation links touch targets are too small\",\n      \"area\": \"header\",\n      \"severity\": \"minor\",\n      \"kind\": \"violation\",\n      \"evidence\": [\n        \"S-001 dom: body > header > a touch 37.05x21 TOO-SMALL\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL\"\n      ],\n      \"expected\": \"Interactive elements in the header should have a minimum touch target size of 44x44px for mobile usability, consistent with the theme toggle requirement in A2.\",\n      \"actual\": \"Logo and navigation links have heights of only 21px, failing standard accessibility checks for touch targets.\"\n    }\n  ],\n  \"requestDiscussion\": null,\n  \"notes\": \"The horizontal overflow issue (D-001) is fully resolved. The layout now respects the 1100px max-width on desktop (S-003) and the dark theme palette is correctly applied according to A4. Typography follows the Inter/system-sans rule. The only remaining concern is the small touch targets for the navigation links.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-003",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-003/grid-fit",
+       "check:CO-003/grid-display",
+       "S-001 dom: #shop > article:nth-of-type(1) > h2 width=303",
+       "S-002 dom: #shop > article:nth-of-type(1) > h2 width=324",
+       "S-003 dom: #shop > article:nth-of-type(1) > h2 width=310.66"
+      ],
+      "note": "The product grid is now fully responsive and fits within the viewport at all required breakpoints (1 column at 375px, 2 columns at 768px, and 3 columns at 1280px). Horizontal overflow is eliminated, and the card/track sizing issues are resolved."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [
+     {
+      "title": "Navigation and logo touch targets are too small",
+      "area": "Header",
+      "severity": "minor",
+      "kind": "violation",
+      "evidence": [
+       "S-001 dom: body > header > a touch 37.05x21 TOO-SMALL",
+       "S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+       "S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL"
+      ],
+      "expected": "Interactive elements should have a minimum touch target size of 44x44px to ensure mobile accessibility and usability.",
+      "actual": "The logo and navigation links have a height of only 21px, which is significantly below the 44px standard."
+     }
+    ],
+    "requestDiscussion": null,
+    "notes": "Change order CO-003 is successfully verified, resolving the primary layout defect D-001. The site is now responsive and follows the dark theme and typography constraints. A new accessibility defect regarding touch targets in the header has been noted."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "54cbe85818e1f60d02c0690ac0742b457770609dce05c244714f84f66bbab608",
+   "promptChars": 17154,
+   "imageParts": 3,
+   "model": "gemini-3-flash-preview",
+   "ms": 24028,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-003/grid-fit\",\n        \"check:CO-003/grid-display\",\n        \"S-001 dom: #shop > article:nth-of-type(1) > h2 width=303\",\n        \"S-002 dom: #shop > article:nth-of-type(1) > h2 width=324\",\n        \"S-003 dom: #shop > article:nth-of-type(1) > h2 width=310.66\"\n      ],\n      \"note\": \"The product grid is now fully responsive and fits within the viewport at all required breakpoints (1 column at 375px, 2 columns at 768px, and 3 columns at 1280px). Horizontal overflow is eliminated, and the card/track sizing issues are resolved.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [\n    {\n      \"title\": \"Navigation and logo touch targets are too small\",\n      \"area\": \"Header\",\n      \"severity\": \"minor\",\n      \"kind\": \"violation\",\n      \"evidence\": [\n        \"S-001 dom: body > header > a touch 37.05x21 TOO-SMALL\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL\",\n        \"S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL\"\n      ],\n      \"expected\": \"Interactive elements should have a minimum touch target size of 44x44px to ensure mobile accessibility and usability.\",\n      \"actual\": \"The logo and navigation links have a height of only 21px, which is significantly below the 44px standard.\"\n    }\n  ],\n  \"requestDiscussion\": null,\n  \"notes\": \"Change order CO-003 is successfully verified, resolving the primary layout defect D-001. The site is now responsive and follows the dark theme and typography constraints. A new accessibility defect regarding touch targets in the header has been noted.\"\n}\n```"
+  }
+ },
+ "disputed": [],
+ "sync": null,
+ "at": "2026-10-19T09:52:18.937Z",
+ "defectsBefore": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth 896 > 375",
+    "S-002 page: scrollWidth 896 > 768"
+   ],
+   "status": "IN_FIX",
+   "attempts": 3,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 1P/1F/0E",
+     "cause": "ATTEMPTED_WRONG: changed only grid-template-columns, .card min-width still forces 280px (seeded history)"
+    },
+    {
+     "round": 2,
+     "result": "CO-002: APPLIED · checks 1P/1F/0E",
+     "cause": "ATTEMPTED_WRONG: used minmax(280px,1fr) — still 280px minimum at 375 (seeded history)"
+    },
+    {
+     "round": 3,
+     "result": "ESCALATED attempt 3 (pair patch) → CO-003",
+     "cause": "patch diff src/styles.css",
+     "mode": "pair_patch"
+    },
+    {
+     "round": 3,
+     "result": "CO-003: APPLIED · checks 2P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ],
+   "id": "D-001",
+   "area": "layout",
+   "severity": "major",
+   "title": "Product grid overflows horizontally at 375px and 768px (fixed 3 × 280px columns + card min-width)",
+   "expected": "A3: no horizontal scrolling at 375/768/1280; the grid wraps to 1 column on phones and keeps up to 3 columns on desktop",
+   "actual": ".grid grid-template-columns: repeat(3, 280px); .card min-width: 280px"
+  }
+ ],
+ "harnessRegressions": [],
+ "git": {
+  "op": "none",
+  "ok": true,
+  "sha": "",
+  "detail": "open defects unchanged (1)"
+ },
+ "outcome": {
+  "outcome": "SAME",
+  "reason": "open defects unchanged (1)",
+  "openBefore": 1,
+  "openAfter": 1,
+  "regressions": 0
+ },
+ "consolidation": {
+  "valid": true,
+  "attempts": 1,
+  "errors": [],
+  "discussed": false,
+  "changeOrders": [
+   {
+    "id": "CO-004",
+    "defectIds": [
+     "D-002"
+    ],
+    "decisionIds": [],
+    "attempt": 1,
+    "priority": 1,
+    "location": {
+     "route": "/",
+     "selector": "header"
+    },
+    "current": "Interactive elements within the header, specifically the logo (body > header > a) and navigation links (body > header > nav > a), have touch target heights of approximately 21px, as evidenced by S-001.",
+    "desired": "All interactive elements within the header, specifically the logo (body > header > a) and navigation links (body > header > nav > a), must have a minimum touch target size of 44x44px.",
+    "visionNote": "Ensuring all interactive elements in the header meet a 44x44px touch target minimum significantly improves mobile usability and accessibility, providing a consistent and reliable user experience across devices, as mandated by A2 for the theme toggle.",
+    "acceptance": [
+     {
+      "id": "C-001",
+      "type": "touch_target_min",
+      "route": "/",
+      "selector": "body > header > a",
+      "minPx": 44,
+      "viewport": "375x667"
+     },
+     {
+      "id": "C-002",
+      "type": "touch_target_min",
+      "route": "/",
+      "selector": "body > header > nav > a:nth-of-type(1)",
+      "minPx": 44,
+      "viewport": "375x667"
+     },
+     {
+      "id": "C-003",
+      "type": "touch_target_min",
+      "route": "/",
+      "selector": "body > header > nav > a:nth-of-type(2)",
+      "minPx": 44,
+      "viewport": "375x667"
+     }
+    ],
+    "mode": "standard"
+   }
+  ],
+  "escalation": {
+   "events": [],
+   "waivers": [],
+   "amendments": [],
+   "conflicts": {
+    "found": [],
+    "resolvedBy": "none",
+    "errors": []
+   }
+  }
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-003",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 2 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 2,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [],
+  "newDefects": [
+   {
+    "title": "Navigation links touch targets are too small",
+    "area": "header",
+    "severity": "minor",
+    "kind": "violation",
+    "evidence": [
+     "S-001 dom: body > header > a touch 37.05x21 TOO-SMALL",
+     "S-001 dom: body > header > nav > a:nth-of-type(1) touch 35.78x21 TOO-SMALL",
+     "S-001 dom: body > header > nav > a:nth-of-type(2) touch 35.47x21 TOO-SMALL"
+    ],
+    "expected": "Interactive elements in the header should have a minimum touch target size of 44x44px for mobile usability, consistent with the theme toggle requirement in A2.",
+    "actual": "Logo and navigation links have heights of only 21px, failing standard accessibility checks for touch targets.",
+    "by": [
+     "designer",
+     "frontend"
+    ]
+   }
+  ],
+  "regressions": [],
+  "disagreements": [],
+  "allPass": true
+ },
+ "next": {
+  "next": "CONTINUE",
+  "reason": "unlisted minor defects: D-002 · receipts do not match the diffs",
+  "leftoverMinor": []
+ },
+ "added": [
+  "D-002"
+ ],
+ "duplicates": []
+}

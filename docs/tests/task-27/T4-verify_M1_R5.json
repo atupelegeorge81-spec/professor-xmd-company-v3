@@ -1,0 +1,210 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 5,
+ "header": "ROUND 5/10 (M1) — closed defects: 1 · open: 1 (D-002 attempt 1) · waivers: 1 · rounds left: 5",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-006",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-006/promo-fit",
+       "S-001",
+       "S-002",
+       "S-003"
+      ],
+      "note": "Promo strip now uses max-width: 100% and fits cleanly within the 375px viewport (scrollWidth=375 clientWidth=375). Layout and visual balance are preserved across mobile, tablet, and desktop."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "CO-006 verified fixed. Horizontal overflow is eliminated, spacing and typography hierarchy across hero, promo banner, and product grid align with ledger rules."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "9d2de772b66c01a178b62b1153a4767e51458f536458bb729125aef4294cbd99",
+   "promptChars": 16841,
+   "imageParts": 3,
+   "model": "gemini-3.8-flash",
+   "ms": 48120,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-006\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-006/promo-fit\",\n        \"S-001\",\n        \"S-002\",\n        \"S-003\"\n      ],\n      \"note\": \"Promo strip now uses max-width: 100% and fits cleanly within the 375px viewport (scrollWidth=375 clientWidth=375). Layout and visual balance are preserved across mobile, tablet, and desktop.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"CO-006 verified fixed. Horizontal overflow is eliminated, spacing and typography hierarchy across hero, promo banner, and product grid align with ledger rules.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-006",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-006/promo-fit",
+       "check:global/no_horizontal_overflow",
+       "S-001"
+      ],
+      "note": "Replacing width: 640px with max-width: 100% resolved the horizontal overflow on the promo strip at 375px viewport (scrollWidth=375, clientWidth=375, overflowPx=0)."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "CO-006 verified successfully. D-002 is resolved. The layout scales cleanly without overflow across 375px, 768px, and 1280px viewports."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "d1ec6a5ed686022780ba965ff102697a4fc06905ee2bf62a45d6e5dcd1930e41",
+   "promptChars": 16862,
+   "imageParts": 3,
+   "model": "gemini-3.7-flash",
+   "ms": 33453,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-006\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-006/promo-fit\",\n        \"check:global/no_horizontal_overflow\",\n        \"S-001\"\n      ],\n      \"note\": \"Replacing width: 640px with max-width: 100% resolved the horizontal overflow on the promo strip at 375px viewport (scrollWidth=375, clientWidth=375, overflowPx=0).\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"CO-006 verified successfully. D-002 is resolved. The layout scales cleanly without overflow across 375px, 768px, and 1280px viewports.\"\n}\n```"
+  }
+ },
+ "disputed": [],
+ "sync": null,
+ "at": "2026-10-19T11:34:28.849Z",
+ "defectsBefore": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 dom: .site-nav a textTransform=none"
+   ],
+   "status": "WAIVED",
+   "attempts": 4,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1; build rejects uppercase (seeded history)"
+    },
+    {
+     "round": 2,
+     "result": "CO-002: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1; build rejects uppercase (seeded history)"
+    },
+    {
+     "round": 3,
+     "result": "CO-003: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1; build rejects uppercase (seeded history)"
+    },
+    {
+     "round": 4,
+     "result": "CO-004: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: conflicts with locked decision A1; build rejects uppercase (seeded history)"
+    },
+    {
+     "round": 5,
+     "result": "ESCALATED attempt 5 (redecide) → WAIVE → no order",
+     "cause": "WAIVE: D-001 directly conflicts with the locked ledger decision A1, which strictly forbids uppercase text and text-transform: uppercase on all elements. Since A1 is locked and the build system rejects uppercase styling, the defect is waived to maintain consistency with the project's binding typography rules.",
+     "mode": "redecide",
+     "outcome": "WAIVE"
+    }
+   ],
+   "id": "D-001",
+   "area": "navigation",
+   "severity": "minor",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "expected": "CEO brand sheet: the three nav links render in capitals — .site-nav a computed text-transform: uppercase",
+   "actual": ".site-nav a text-transform: none (sentence case)"
+  },
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth 640 > 375"
+   ],
+   "status": "IN_FIX",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 5,
+     "result": "CO-006: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ],
+   "id": "D-002",
+   "area": "layout",
+   "severity": "medium",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "expected": "A3: no horizontal scroll at 375px",
+   "actual": ".promo-strip width: 640px"
+  }
+ ],
+ "harnessRegressions": [],
+ "git": {
+  "op": "tag",
+  "ok": true,
+  "sha": "46d1b9b0ece563cadb0a7f1a3393510d11ca6573",
+  "detail": "tag xmd-best-M1"
+ },
+ "outcome": {
+  "outcome": "BEST",
+  "reason": "open defects 1 → 0",
+  "openBefore": 1,
+  "openAfter": 0,
+  "regressions": 0
+ },
+ "consolidation": {
+  "valid": true,
+  "attempts": 2,
+  "errors": [],
+  "discussed": false,
+  "changeOrders": [],
+  "escalation": {
+   "events": [],
+   "waivers": [],
+   "amendments": [],
+   "conflicts": {
+    "found": [],
+    "resolvedBy": "none",
+    "errors": []
+   }
+  }
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-006",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [],
+  "newDefects": [],
+  "regressions": [],
+  "disagreements": [],
+  "allPass": true
+ },
+ "next": {
+  "next": "BLOCKED",
+  "reason": "nothing for a fix round (no open defects, no change orders) — remaining blocker: receipts do not match the diffs",
+  "leftoverMinor": []
+ },
+ "added": [],
+ "duplicates": []
+}

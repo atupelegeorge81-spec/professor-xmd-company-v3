@@ -1,0 +1,141 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 10,
+ "finalState": "COMPLETED_VERIFIED",
+ "reason": "completed, verified by the completion gate",
+ "ok": true,
+ "ms": 340010,
+ "orderIds": [
+  "CO-005",
+  "CO-006"
+ ],
+ "flags": [],
+ "unlisted": [],
+ "verification": {
+  "cos": [
+   {
+    "orderId": "CO-005",
+    "attempt": 4,
+    "verdict": "BLOCKED",
+    "receiptStatus": "BLOCKED",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "blockedReason": "Contradicts locked ledger decision A1: text-transform: uppercase is forbidden",
+    "diff": {
+     "files": 0,
+     "added": 0,
+     "deleted": 0
+    }
+   },
+   {
+    "orderId": "CO-006",
+    "attempt": 4,
+    "verdict": "APPLIED",
+    "receiptStatus": "DONE",
+    "receipt": "VALID",
+    "targets": [
+     "src/styles.css"
+    ],
+    "touched": [
+     "src/styles.css"
+    ],
+    "phantom": [],
+    "diff": {
+     "files": 1,
+     "added": 1,
+     "deleted": 0
+    }
+   }
+  ],
+  "unlisted": [],
+  "flags": [],
+  "notAttempted": [],
+  "receiptErrors": [],
+  "unknownReceipts": []
+ },
+ "openBefore": 1,
+ "roundHeader": "ROUND 10/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 3) · waivers: 0 · rounds left: 0",
+ "perCo": [
+  {
+   "orderId": "CO-005",
+   "attempt": 4,
+   "runs": 1,
+   "verdict": "BLOCKED",
+   "receiptStatus": "BLOCKED",
+   "receipt": "VALID",
+   "diff": {
+    "files": 0,
+    "added": 0,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 0,
+    "fail": 1,
+    "error": 0
+   },
+   "blockedReason": "Contradicts locked ledger decision A1: text-transform: uppercase is forbidden"
+  },
+  {
+   "orderId": "CO-006",
+   "attempt": 4,
+   "runs": 1,
+   "verdict": "APPLIED",
+   "receiptStatus": "DONE",
+   "receipt": "VALID",
+   "diff": {
+    "files": 1,
+    "added": 1,
+    "deleted": 0
+   },
+   "checks": {
+    "pass": 0,
+    "fail": 1,
+    "error": 0
+   }
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": 1,
+   "finalState": "COMPLETED_VERIFIED",
+   "reason": "completed, verified by the completion gate",
+   "flags": [],
+   "notAttempted": [],
+   "headBefore": "93c5956c015bdc0c9bd56395f8415906f9707bf6",
+   "head": "b71584bfc97232f1e2ea2f72f735efde8c49c83f",
+   "diffBase": "93c5956c015bdc0c9bd56395f8415906f9707bf6",
+   "changed": [
+    ".xmd/receipts/R10.json",
+    ".xmd/shots.json",
+    ".xmd/shots/localhost-4173-1280x800-v1.png",
+    ".xmd/shots/localhost-4173-375x667-v1.png",
+    ".xmd/shots/localhost-4173-390x844-v1.png",
+    ".xmd/shots/localhost-4173-768x1024-v1.png",
+    "src/styles.css"
+   ],
+   "receiptsRaw": "[\n  {\n    \"orderId\": \"CO-005\",\n    \"status\": \"BLOCKED\",\n    \"filesChanged\": [],\n    \"commandsRun\": [],\n    \"notes\": \"REPRODUCED: text-transform none. Blocked because application of text-transform: uppercase contradicts locked ledger decision A1 (Sentence case everywhere) and causes build failure.\",\n    \"blockedReason\": \"Contradicts locked ledger decision A1: text-transform: uppercase is forbidden\"\n  },\n  {\n    \"orderId\": \"CO-006\",\n    \"status\": \"DONE\",\n    \"filesChanged\": [{\"path\": \"src/styles.css\", \"summary\": \"Add letter-spacing: 0.06em; to .site-nav a rule\"}],\n    \"commandsRun\": [\"npm run build\"],\n    \"notes\": \"REPRODUCED: letter-spacing normal. Applied letter-spacing: 0.06em; to .site-nav a rule as requested.\"\n  }\n]",
+   "sabotaged": false
+  }
+ ],
+ "global": {
+  "pass": 3,
+  "fail": 0,
+  "error": 0
+ },
+ "at": "2026-10-19T11:44:09.948Z",
+ "reproduced": {
+  "CO-005": true,
+  "CO-006": true
+ },
+ "modes": {
+  "CO-005": "split",
+  "CO-006": "split"
+ }
+}

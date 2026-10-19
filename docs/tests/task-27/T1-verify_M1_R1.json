@@ -1,0 +1,218 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 1,
+ "header": "ROUND 1/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 1) · waivers: 0 · rounds left: 9",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-001",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-001/nav-caps",
+       "S-003"
+      ],
+      "note": "CO-001 was BLOCKED with 0 files changed and check:CO-001/nav-caps failed with text-transform 'none'. Moreover, CO-001's desired uppercase styling directly contradicts locked ledger decision A1 forbidding text-transform: uppercase."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": {
+     "reason": "Defect D-001 and CO-001 demand uppercase nav links ('SHOP · STORY · CONTACT'), which directly violates locked ledger decision A1 ('Sentence case everywhere: NO all-caps text — text-transform: uppercase is forbidden on every element'). The change was blocked. The team must resolve whether to amend decision A1 or close D-001 as invalid."
+    },
+    "notes": "CO-001 failed because the fix was blocked due to a direct conflict with locked ledger decision A1. A team discussion is required before round 2 to resolve the conflict between A1 and D-001."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "0c60bb7d6d1307555564dc66fe29347c6c8baaca67be61c20059fc497beb4351",
+   "promptChars": 16890,
+   "imageParts": 3,
+   "model": "gemini-3.8-flash",
+   "ms": 53379,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-001\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-001/nav-caps\",\n        \"S-003\"\n      ],\n      \"note\": \"CO-001 was BLOCKED with 0 files changed and check:CO-001/nav-caps failed with text-transform 'none'. Moreover, CO-001's desired uppercase styling directly contradicts locked ledger decision A1 forbidding text-transform: uppercase.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": {\n    \"reason\": \"Defect D-001 and CO-001 demand uppercase nav links ('SHOP · STORY · CONTACT'), which directly violates locked ledger decision A1 ('Sentence case everywhere: NO all-caps text — text-transform: uppercase is forbidden on every element'). The change was blocked. The team must resolve whether to amend decision A1 or close D-001 as invalid.\"\n  },\n  \"notes\": \"CO-001 failed because the fix was blocked due to a direct conflict with locked ledger decision A1. A team discussion is required before round 2 to resolve the conflict between A1 and D-001.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-001",
+      "verdict": "FAIL",
+      "evidence": [
+       "check:CO-001/nav-caps",
+       "S-003"
+      ],
+      "note": "check:CO-001/nav-caps failed with text-transform of .site-nav a remaining 'none' (3/3 differ). The receipt was BLOCKED (+0/-0 files) because applying text-transform: uppercase directly violates locked decision A1."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": {
+     "reason": "D-001 and CO-001 demand uppercase nav links per CEO brand sheet ('SHOP · STORY · CONTACT'), but locked decision A1 explicitly specifies: 'Sentence case everywhere: NO all-caps text — text-transform: uppercase is forbidden on every element.' The automated fix was blocked. The team must discuss whether to close/waive D-001 to respect A1 or submit a change request to amend A1."
+    },
+    "notes": "CO-001 failed check:CO-001/nav-caps and was blocked due to a direct conflict with locked decision A1. Discussion requested to resolve the conflict between D-001 and A1."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "f3dc805c77ff9706f477f1aa718dad664d0962360e4895617afb2cb89c3fbd8f",
+   "promptChars": 16911,
+   "imageParts": 3,
+   "model": "gemini-3.8-flash",
+   "ms": 42746,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-001\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"check:CO-001/nav-caps\",\n        \"S-003\"\n      ],\n      \"note\": \"check:CO-001/nav-caps failed with text-transform of .site-nav a remaining 'none' (3/3 differ). The receipt was BLOCKED (+0/-0 files) because applying text-transform: uppercase directly violates locked decision A1.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": {\n    \"reason\": \"D-001 and CO-001 demand uppercase nav links per CEO brand sheet ('SHOP · STORY · CONTACT'), but locked decision A1 explicitly specifies: 'Sentence case everywhere: NO all-caps text — text-transform: uppercase is forbidden on every element.' The automated fix was blocked. The team must discuss whether to close/waive D-001 to respect A1 or submit a change request to amend A1.\"\n  },\n  \"notes\": \"CO-001 failed check:CO-001/nav-caps and was blocked due to a direct conflict with locked decision A1. Discussion requested to resolve the conflict between D-001 and A1.\"\n}\n```"
+  }
+ },
+ "disputed": [],
+ "sync": null,
+ "at": "2026-10-19T10:39:20.333Z",
+ "defectsBefore": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 dom: .site-nav a textTransform=none"
+   ],
+   "status": "OPEN",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: BLOCKED · checks 0P/1F/0E",
+     "cause": "BLOCKED: Contradicts locked ledger decision A1: text-transform: uppercase is forbidden on every element."
+    }
+   ],
+   "id": "D-001",
+   "area": "navigation",
+   "severity": "medium",
+   "title": "Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT')",
+   "expected": "CEO brand sheet: the three nav links render in capitals — .site-nav a computed text-transform: uppercase",
+   "actual": ".site-nav a text-transform: none (sentence case)"
+  }
+ ],
+ "harnessRegressions": [],
+ "git": {
+  "op": "none",
+  "ok": true,
+  "sha": "",
+  "detail": "open defects unchanged (1)"
+ },
+ "outcome": {
+  "outcome": "SAME",
+  "reason": "open defects unchanged (1)",
+  "openBefore": 1,
+  "openAfter": 1,
+  "regressions": 0
+ },
+ "consolidation": {
+  "valid": true,
+  "attempts": 1,
+  "errors": [],
+  "discussed": true,
+  "changeOrders": [
+   {
+    "defectIds": [
+     "D-001"
+    ],
+    "priority": 1,
+    "location": {
+     "files": [
+      "src/styles.css"
+     ],
+     "route": "/",
+     "selector": ".site-nav a"
+    },
+    "current": ".site-nav a { text-transform: none; }",
+    "desired": ".site-nav a { text-transform: uppercase; }",
+    "visionNote": "Set uppercase text-transform on the navigation anchor tags to satisfy the CEO brand sheet specification.",
+    "acceptance": [
+     {
+      "id": "nav-caps#req",
+      "type": "computed_style",
+      "route": "/",
+      "viewport": "1280x800",
+      "selector": ".site-nav a",
+      "property": "text-transform",
+      "expected": "uppercase"
+     }
+    ],
+    "id": "CO-002",
+    "attempt": 2,
+    "mode": "concrete",
+    "decisionIds": [],
+    "diagnosis": {
+     "cause": "CONFLICT_WITH_DECISION",
+     "note": "The required styling of text-transform: uppercase on .site-nav a directly contradicts locked ledger decision A1 forbidding uppercase transformations on every element."
+    }
+   }
+  ],
+  "escalation": {
+   "events": [
+    {
+     "coId": "CO-002",
+     "resultIds": [
+      "CO-002"
+     ],
+     "defectIds": [
+      "D-001"
+     ],
+     "attempt": 2,
+     "mode": "concrete",
+     "valid": true,
+     "tries": 1,
+     "errors": [],
+     "requirementRestored": 1,
+     "diagnosis": {
+      "cause": "CONFLICT_WITH_DECISION",
+      "reason": "The required styling of text-transform: uppercase on .site-nav a directly contradicts locked ledger decision A1 forbidding uppercase transformations on every element."
+     }
+    }
+   ],
+   "waivers": [],
+   "amendments": [],
+   "conflicts": {
+    "found": [],
+    "resolvedBy": "none",
+    "errors": []
+   }
+  }
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-001",
+    "verdict": "FAIL",
+    "reason": "acceptance checks 1 FAIL / 0 ERROR",
+    "designer": "FAIL",
+    "frontend": "FAIL",
+    "checks": {
+     "pass": 0,
+     "fail": 1,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [],
+  "newDefects": [],
+  "regressions": [],
+  "disagreements": [],
+  "allPass": false
+ },
+ "next": {
+  "next": "CONTINUE",
+  "reason": "COs not PASS: CO-001 · checks 1 FAIL / 0 ERROR · open defects ≥ medium: D-001 (medium)",
+  "leftoverMinor": []
+ },
+ "added": [],
+ "duplicates": []
+}
