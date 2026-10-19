@@ -907,7 +907,7 @@ async function msReadFix(sbx: any, hooks: CuHooks, id: string, fx: MilestoneFixI
   const base = /^[0-9a-f]{7,40}$/.test(fx.diffBase || "") ? String(fx.diffBase) : headBefore;
   const raw: MsFixRaw = { headBefore, diffBase: base, head: "", receiptsPath: receiptsPath(fx.round), receiptsRaw: null, changed: [], numstat: "" };
   if ((fx.attempt === 1 || testFixNoopAll(id)) && testFixNoop(id) && /^[0-9a-f]{7,40}$/.test(headBefore)) {
-    await sbx.commands.run(`cd /home/user/ws && git reset -q --hard ${headBefore} && git clean -fdq -e .xmd/receipts`, { timeoutMs: 30_000 }).catch(() => {});
+    await sbx.commands.run(`cd /home/user/ws && R=${q(receiptsPath(fx.round))}; cp "$R" /tmp/xmd-noop-receipts.json 2>/dev/null; git reset -q --hard ${headBefore} && git clean -fdq -e .xmd/receipts; if [ -f /tmp/xmd-noop-receipts.json ]; then mkdir -p "$(dirname "$R")" && cp /tmp/xmd-noop-receipts.json "$R"; fi`, { timeoutMs: 30_000 }).catch(() => {}); // receipt (dai la Computer) inabaki — diff tupu
     raw.sabotaged = true;
     hooks.blog("warning", `🧪 XMD_TEST_FIX_NOOP_${id}: kazi ya Computer (attempt ${fx.attempt}) imefutwa kwa \`git reset --hard ${headBefore.slice(0, 7)}\` — harness lazima iitambue kama NO-OP.`);
   }
@@ -1149,6 +1149,8 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
 
     cu.startedAt = Date.now();
     cu.lastEventAt = cu.startedAt;
+    // TASK-27 (T3 halisi): kizazi cha bridge — `wait()` ya bridge ILIYOPITA (rerun ya NO-OP, id ileile) isiue awamu mpya
+    const gen = ((cu as any).msBridgeGen = ((cu as any).msBridgeGen || 0) + 1);
     const handle = await sbx.commands.run(`bash -lc ${q(cmd)}`, {
       background: true, timeoutMs: 24 * 60 * 60 * 1000, // hakuna cap ya wall-clock (liveness pekee) — 0 ingekata MARA MOJA (connect-rpc: ≤0 = abort)
       onStdout: (d: string) => { for (const l of String(d).split("\n")) if (l.startsWith("@@XMD ")) hooks.blog("info", `🖥️ ${l.slice(6, 400)}`); },
@@ -1157,7 +1159,7 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
     if (cu.slowHeartbeat) { clearInterval(cu.slowHeartbeat); cu.slowHeartbeat = undefined; }
     cu.heartbeat = setInterval(() => { sbx.setTimeout(60 * 60 * 1000).catch(() => {}); }, 60_000);
     handle.wait().then(async (r: any) => {
-      if (!cu.done && (cu as any).msPhase?.id === id && !cu.pausedNow && !cu.pausing) {
+      if (!cu.done && (cu as any).msPhase?.id === id && (cu as any).msBridgeGen === gen && !cu.pausedNow && !cu.pausing) {
         hooks.blog("error", `🖥️ Bridge ya ${id} imekufa (code ${r?.exitCode ?? "?"}) bila kumaliza.`);
         await handleCuEvent(runner, hooks, { i: cu.maxI + 1, type: "run_end", status: "error", steps: cu.step, ms: Date.now() - cu.startedAt, fatal: `bridge exit ${r?.exitCode ?? "?"}` });
       }
