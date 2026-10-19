@@ -72,6 +72,11 @@ describe("receipts: muundo + uthibitishaji dhidi ya git diff", () => {
     expect(v.flags).toEqual(expect.arrayContaining(["NOT_ATTEMPTED", "RECEIPT_REJECTED"]));
     expect(noOpReminder(v)).toBe(noOpMessage("CO-001", ["src/styles.css"]));
   });
+  it("TASK-27 (T2 halisi): log ya runtime (server.log, logs/dev.log) si UNLISTED — README bado ni UNLISTED", () => {
+    const v = verifyReceipts([co("CO-001", ["src/styles.css"])], P([rcpt("CO-001", ["src/styles.css"])]), ["src/styles.css", "server.log", "logs/dev.log"]);
+    expect(v.unlisted).toEqual([]);
+    expect(v.flags).not.toContain("UNLISTED_CHANGE");
+  });
   it("T3 UNLISTED_CHANGE: faili imebadilika lakini haiko kwenye receipt yoyote", () => {
     const v = verifyReceipts([co("CO-001", ["src/styles.css"])], P([rcpt("CO-001", ["src/styles.css"])]), ["src/styles.css", "README.md"]);
     expect(v.cos[0].verdict).toBe("APPLIED");

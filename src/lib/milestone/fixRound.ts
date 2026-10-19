@@ -18,6 +18,8 @@ export const fixChecksKey = (milestoneId: string, round: number) => `checks:${mi
 export const PREV_CHANGES_MAX_LINES = 40;
 /** faili za harness — si kazi ya Computer (hazihesabiwi kama UNLISTED_CHANGE) */
 export const HARNESS_PATH_RE = /^\.xmd\//;
+/** TASK-27 (T2 halisi, pia T26 T4e): log za runtime za Computer (mf. `server.log` ya dev server) si kazi ya CO — hazihesabiwi kama UNLISTED */
+export const RUNTIME_LOG_RE = /(^|\/)[^/]+\.log$/;
 
 /** Ujumbe WA KUDUMU wa NO-OP (maelezo25 §3) — neno kwa neno. */
 export function noOpMessage(orderId: string, files: string[]): string {
@@ -161,7 +163,7 @@ export function parseNumstat(out: string): DiffStat[] {
 
 export function verifyReceipts(changeOrders: ChangeOrder[], parsed: ParsedReceipts, changedRaw: string[], numstat: DiffStat[] = []): RoundVerification {
   const changed = [...new Set(changedRaw.map(normPath).filter(Boolean))];
-  const work = changed.filter((p) => !HARNESS_PATH_RE.test(p));
+  const work = changed.filter((p) => !HARNESS_PATH_RE.test(p) && !RUNTIME_LOG_RE.test(p));
   const changedSet = new Set(changed);
   const byOrder = new Map(parsed.receipts.map((r) => [r.orderId, r]));
   const listedAll = new Set<string>();

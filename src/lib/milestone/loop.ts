@@ -874,8 +874,10 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
       newCos = cons.changeOrders;
       if (cons.escalation) {
         const esc = await applyEscalation(runner, m, round, hooks, cons.escalation);
-        if (!newCos.length && !mineOpen(esc).length) nd = { ...nd, next: "SIGN_OFF", reason: `all remaining defects waived by redecide (${cons.escalation.waivers.map((w) => w.defectId).join(", ")})` };
+        if (!newCos.length && !mineOpen(esc).length && cons.escalation.waivers.length) nd = { ...nd, next: "SIGN_OFF", reason: `all remaining defects waived by redecide (${cons.escalation.waivers.map((w) => w.defectId).join(", ")})` };
       }
+      // hakuna defect wazi wala CO lakini bado si SIGN_OFF (mf. receipts ≠ diffs) → raundi tupu haina maana: BLOCKED yenye sababu ya wazi
+      if (nd.next === "CONTINUE" && !newCos.length) nd = { ...nd, next: "BLOCKED", reason: `nothing for a fix round (no open defects, no change orders) — remaining blocker: ${nd.reason}` };
       await msUpdate<{ version: number; changeOrders: ChangeOrder[] }>(runner, cosKey(m.id), (cur) => ({ version: 1, changeOrders: [...(cur?.changeOrders || []).filter((c) => !newCos.some((x) => x.id === c.id)), ...newCos] }));
       await msUpdate(runner, cosRoundKey(m.id, round + 1), () => ({ version: 1, round: round + 1, changeOrders: newCos }));
     }
