@@ -1,7 +1,7 @@
 // src/lib/milestone/testHooks.ts — TASK 14: hooks za majaribio PEKEE (maelezo0: inert bila XMD_TEST_HOOKS=1).
 // XMD_TEST_CAPTURE_PROMPTS=<file.jsonl> → system prompt halisi ya kila zamu ya mjadala inaandikwa (kwa T3/T4).
 
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 
 export function captureTarget(env: NodeJS.ProcessEnv = process.env): string | null {
   if (env.XMD_TEST_HOOKS !== "1") return null;
@@ -63,4 +63,23 @@ export function testFixNoop(milestoneId: string, env: NodeJS.ProcessEnv = proces
 /** TASK 27 (T3): `XMD_TEST_FIX_NOOP_<Mk>=all` → kazi inafutwa kwenye KILA jaribio (rerun pia) — diff haigusi lengo kabisa. */
 export function testFixNoopAll(milestoneId: string, env: NodeJS.ProcessEnv = process.env): boolean {
   return env.XMD_TEST_HOOKS === "1" && !!milestoneId && env[`XMD_TEST_FIX_NOOP_${milestoneId}`] === "all";
+}
+
+/** TASK 28 (T2): `XMD_TEST_MAX_ROUNDS=<n>` (1..10) → kikomo cha raundi kinashushwa kwa milestone mpya (njia ya CAP ipimwe haraka). null bila XMD_TEST_HOOKS=1. */
+export function testMaxRounds(env: Record<string, string | undefined> = process.env): number | null {
+  if (env.XMD_TEST_HOOKS !== "1") return null;
+  const n = Number(env.XMD_TEST_MAX_ROUNDS);
+  return Number.isInteger(n) && n >= 1 && n <= 10 ? n : null;
+}
+
+/** TASK 28 (T5): `XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_<Mk>=1` → process inajiua (SIGKILL) MARA MOJA baada ya commit + tag ya sign-off,
+ *  KABLA rekodi haijahifadhiwa — kill -9 halisi. Mara moja tu kwa session (alama /tmp), resume haijiui tena. Inert bila XMD_TEST_HOOKS=1. */
+export function testCrashAfterSignoffGit(milestoneId: string, sessionId: string, env: Record<string, string | undefined> = process.env): boolean {
+  if (env.XMD_TEST_HOOKS !== "1" || env[`XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_${milestoneId}`] !== "1") return false;
+  const mark = `/tmp/xmd-crash-signoff-${String(sessionId).replace(/[^\w-]/g, "_")}-${milestoneId}`;
+  try {
+    if (existsSync(mark)) return false;
+    writeFileSync(mark, new Date().toISOString());
+    return true;
+  } catch { return false; }
 }

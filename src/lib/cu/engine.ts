@@ -37,7 +37,8 @@ import { cuSilentBridge, maybeCapturePrompt, testGateOverride } from "@/lib/mile
 import { BUILD_REPORT_INLINE_MAX, buildReportPath } from "@/lib/milestone/buildReport"; // TASK-17
 import { needsScreenshots } from "@/lib/milestone/evidence"; // TASK-19
 import { captureEvidence, evidenceSummary, type CaptureEvidenceResult, type EvidenceUploader } from "./evidence"; // TASK-19
-import { checkRegression, regressionSummary } from "@/lib/milestone/regression"; // TASK-22
+import { checkRegression, regressionSummary, saveBaselines } from "@/lib/milestone/regression"; // TASK-22
+import type { EvidencePack } from "@/lib/milestone/types"; // TASK-28
 import { commitMessage, receiptsPath } from "@/lib/milestone/fixRound"; // TASK-25
 import { testFixNoop, testFixNoopAll } from "@/lib/milestone/testHooks"; // TASK-25 (T2 sabotage, inert bila XMD_TEST_HOOKS=1)
 const STARTPACK_JSON = ".xmd/startpack.json"; // TASK-18 (cu/gate.py STARTPACK_JSON)
@@ -969,7 +970,8 @@ export async function captureRoundEvidence(runner: Runner, o: { milestoneId: str
 }
 
 /** TASK-26: git ya raundi — tag ya "best" au `git revert` ya commits za raundi iliyoharibu (kisha snapshot mpya). */
-export async function milestoneGit(runner: Runner, op: { kind: "tag"; name: string } | { kind: "revert"; from: string; message: string; label: string }): Promise<{ ok: boolean; sha: string; detail: string }> {
+export async function milestoneGit(runner: Runner, op: { kind: "tag"; name: string } | { kind: "revert"; from: string; message: string; label: string } | { kind: "signoff"; tag: string; message: string }): Promise<{ ok: boolean; sha: string; detail: string }> {
+  if (op.kind === "signoff") return milestoneSignoffGit(runner, op);
   return runOnMilestoneSandbox(runner, async (sbx) => {
     const cmd = op.kind === "tag"
       ? `cd /home/user/ws && git tag -f ${q(op.name)} HEAD >/dev/null && git rev-parse HEAD`
@@ -982,6 +984,39 @@ export async function milestoneGit(runner: Runner, op: { kind: "tag"; name: stri
     if (op.kind === "revert" && rc === 0 && out.includes("XMD_REVERTED") && runner.cu && runner.cuHooks) await msSnapshot(sbx, runner.cu, runner.cuHooks, op.label);
     const detail = op.kind === "tag" ? `tag ${op.name}` : out.includes("XMD_NOTHING") ? "nothing to revert (HEAD == round base)" : out.includes("XMD_REVERTED") ? `reverted ${lines[lines.indexOf("XMD_REVERTED") + 1] || "?"} commit(s) since ${op.from.slice(0, 7)}${out.includes("XMD_STASHED") ? " (uncommitted changes stashed first)" : ""}` : `git failed: ${String(r?.stderr || out).slice(-300)}`;
     return { ok: rc === 0 && !!sha, sha, detail };
+  });
+}
+
+/** TASK-28 (sign-off): commit (mabadiliko yoyote yaliyobaki, au commit tupu ya alama) + annotated tag + push ikiwa remote ipo.
+ *  Idempotent: tag ipo → hakuna commit wala tag mpya; HEAD tayari ni commit ya sign-off (kill kati ya commit na tag) → tag tu. */
+export async function milestoneSignoffGit(runner: Runner, op: { tag: string; message: string }): Promise<{ ok: boolean; sha: string; detail: string }> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    const t = q(op.tag), msg = q(op.message);
+    const cmd = [
+      "cd /home/user/ws",
+      `if git rev-parse -q --verify refs/tags/${t} >/dev/null; then echo XMD_TAG_EXISTS; else`,
+      `  if [ "$(git log -1 --format=%s 2>/dev/null)" = ${msg} ]; then echo XMD_COMMIT_EXISTS; else git add -A && ${MS_GIT} commit -q --allow-empty -m ${msg} && echo XMD_COMMITTED; fi &&`,
+      `  ${MS_GIT} tag -a ${t} -m ${msg} && echo XMD_TAGGED;`,
+      "fi",
+      `R=$(git remote | head -1); if [ -n "$R" ]; then (git push -q "$R" HEAD 2>&1 && git push -q "$R" ${t} 2>&1 && echo XMD_PUSHED) || echo XMD_PUSH_FAILED; else echo XMD_NO_REMOTE; fi`,
+      `git rev-parse ${t}^{commit}`,
+    ].join("\n");
+    const r: any = await sbx.commands.run(`${cmd}\necho __XMD_RC=$?`, { timeoutMs: 120_000 }).catch((e: any) => ({ stdout: "", stderr: String(e?.message || e) }));
+    const out = String(r?.stdout || "").trim();
+    const rc = Number(/__XMD_RC=(\d+)/.exec(out)?.[1] ?? 1);
+    const lines = out.replace(/__XMD_RC=\d+/, "").trim().split("\n").map((l) => l.trim()).filter(Boolean);
+    const sha = /^[0-9a-f]{40}$/.test(lines[lines.length - 1] || "") ? lines[lines.length - 1] : "";
+    const flags = ["XMD_TAG_EXISTS", "XMD_COMMIT_EXISTS", "XMD_COMMITTED", "XMD_TAGGED", "XMD_PUSHED", "XMD_PUSH_FAILED", "XMD_NO_REMOTE"].filter((f) => lines.includes(f)).map((f) => f.slice(4).toLowerCase().replace(/_/g, " "));
+    if (rc === 0 && sha && runner.cu && runner.cuHooks) await msSnapshot(sbx, runner.cu, runner.cuHooks, `${op.tag}`);
+    return { ok: rc === 0 && !!sha, sha, detail: `${op.tag}: ${flags.join(" · ") || (String(r?.stderr || "").slice(-200) || "no output")}` };
+  });
+}
+
+/** TASK-28 (sign-off, task 22): screenshots za evidence iliyoidhinishwa (raundi hii) → `.xmd/baselines/<Mk>/` + storage. */
+export async function milestoneSaveBaselines(runner: Runner, o: { milestoneId: string; round: number; pack: Pick<EvidencePack, "screenshots"> }): Promise<{ uploaded: number; entries: number; errors: string[]; manifestUrl?: string }> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    const r = await saveBaselines(sbx, { milestoneId: o.milestoneId, round: o.round, pack: o.pack, script: await readCuFile("xmd-regression.mjs"), sessionId: runner.sessionId || runner.id }, evidenceUploader);
+    return { uploaded: r.uploaded, entries: r.manifest?.entries.length || 0, errors: r.errors, manifestUrl: r.manifest?.manifestUrl };
   });
 }
 

@@ -12,7 +12,7 @@ import { curateSources, onOwnerTurn, onObserverNote, reviewFacts, onReviewVerdic
 import { saveReport, saveSession, updateSessionItems, getConversation, lastSaveError, type SessionItem } from "./reports";
 import { saveLedgerEntry, finalBoardResolution, markSuperseded, type LedgerObjection } from "./ledger";
 import { generateAgenda, type AgendaItem } from "./agenda";
-import { MAX_ROUNDS, type Defect } from "./milestone/types"; // TASK-24
+import { MAX_ROUNDS, type Defect, type EvidencePack, type Milestone } from "./milestone/types"; // TASK-24
 import { nextCoNumber, findingsKey, isReviewAgenda, reviewPromptBlock, testReviewInput, type TestReviewInput, turnWordRule, REVIEW_TRANSCRIPT_CHARS, REVIEW_TURN_MAX_TOKENS, type DiscussionOutcome } from "./milestone/reviewAgenda"; // TASK-24
 import type { BoardEvent } from "./types";
 import { readUsage, createLiveMeter, type ExactUsage } from "./tokenMeter";
@@ -52,9 +52,9 @@ import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
 import { putRecord, getRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13 (getRecord: TASK-16)
 import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
-import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks, applyEscalation, escalateLlm, fixRoundHeader } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16)
+import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks, applyEscalation, escalateLlm, fixRoundHeader, freshMilestoneState } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16)
 import { buildOCB, buildOCBForComputer, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14 (Computer OCB: TASK-16)
-import { buildStartPack, type PrevBuild } from "./milestone/startpack"; // TASK-16
+import { buildStartPack, renderStartPack, type PrevBuild } from "./milestone/startpack"; // TASK-16
 import { maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks";
 import { EVIDENCE_PORT, generateMilestonePlan } from "./milestone/plan"; // TASK-15 (EVIDENCE_PORT: TASK-25)
 import { runChecks } from "./milestone/checks"; // TASK-25: acceptance + global checks za raundi ya marekebisho
@@ -62,9 +62,10 @@ import { testFixInput, type TestFixInput } from "./milestone/fixRound"; // TASK-
 import { newMilestoneState, planSteps, setStep, stepIdOf, transition } from "./milestone/state"; // TASK-25 test hook // TASK-14 (XMD_TEST_HOOKS=1 pekee)
 import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
-import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace, captureRoundEvidence, milestoneGit, milestonePatch, milestoneReadFiles } from "./cu/engine"; // TASK-25/26
+import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace, captureRoundEvidence, milestoneGit, milestonePatch, milestoneReadFiles, milestoneSaveBaselines } from "./cu/engine"; // TASK-25/26
 import { testStopAfterRound, testVerifyInput, type TestVerifyInput, nextAttempt, planGoalOf } from "./milestone/verify"; // TASK-26 test hooks
 import { escalateChangeOrders, requirementChecksOf } from "./milestone/escalation"; // TASK-27
+import { inheritedFor, inheritedLine } from "./milestone/signoff"; // TASK-28
 import { formatRoundHeader } from "./milestone/review"; // TASK-27
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
 import {
@@ -1575,6 +1576,26 @@ async function run(runner: Runner) {
     let testFix: TestFixInput | null = null; // TASK-25 test hook (XMD_TEST_FIX_INPUT)
     let testVerify: TestVerifyInput | null = null; // TASK-26 test hook (XMD_TEST_VERIFY_INPUT)
     const lockedCount = () => runner.items.filter((it) => it.kind === "chip" && /^\s*🔒 LOCKED/.test(String((it as { text?: string }).text || ""))).length;
+    // TASK-28: defects zilizorithiwa (CAP_REACHED za milestones zilizotangulia) → plan + StartPack ya milestone inayofuata
+    const inheritedLinesFor = async (m: { id: string }) => inheritedFor((await getRecord<{ defects?: Defect[] }>(sessionId || runner.id, "defects"))?.data?.defects || [], m.id).map(inheritedLine);
+    // TASK-16/28: StartPack ya milestone (build hook + harness ya T28 T2) — pamoja na defects zilizorithiwa
+    const startPackFor = async (m: Milestone, planMarkdown: string) => {
+        const map = runner.msMap!;
+        const idx = map.milestones.findIndex((x) => x.id === m.id);
+        const sid = sessionId || runner.id;
+        const prevBuilds = (await Promise.all(map.milestones.slice(0, Math.max(0, idx)).map(async (x): Promise<PrevBuild | null> => {
+          const r = (await getRecord<{ finalState?: string; reason?: string; report?: string }>(sid, buildKey(x.id)))?.data;
+          return r ? { id: x.id, title: x.title, finalState: String(r.finalState || "?"), reason: r.reason, report: r.report } : null;
+        }))).filter((x): x is PrevBuild => !!x);
+        const ocb = buildOCBForComputer({
+          project: { name: conversationTitle, summary: runner.project }, map, stage: "BUILD", self: "computer", milestoneId: m.id, round: null,
+          counts: {
+            lockedDecisions: runner.items.filter((it) => it.kind === "chip" && /^\s*🔒 LOCKED/.test(String((it as { text?: string }).text || ""))).length,
+            milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects: 0, waivers: 0,
+          },
+        });
+        return buildStartPack({ m, planMarkdown, ledger: await finalBoardResolution(runner.id), prevBuilds, defects: await inheritedLinesFor(m), ocb }); // TASK-28: defects zilizorithiwa
+    };
     const msHooks = (status: string): LoopHooks => ({
       bcast: (e) => bcast(e as BoardEvent), addChip, blog: (lvl, t) => blog(lvl, t),
       persist: () => persist(status, conversationTitle),
@@ -1606,7 +1627,7 @@ async function run(runner: Runner) {
             return text;
           },
           guard: guardOf, sabotage: (md) => maybeSabotagePlan(md, runner.project),
-          maxSteps: planStepsMaxFor(runner.project, PLAN_STEPS_MAX), prevReports: [], repoState: "", defects: [],
+          maxSteps: planStepsMaxFor(runner.project, PLAN_STEPS_MAX), prevReports: [], repoState: "", defects: await inheritedLinesFor(m), // TASK-28
           log: (lvl, t) => blog(lvl, t),
         });
       },
@@ -1616,19 +1637,7 @@ async function run(runner: Runner) {
         runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle };
         const map = runner.msMap!;
         const idx = map.milestones.findIndex((x) => x.id === m.id);
-        const sid = sessionId || runner.id;
-        const prevBuilds = (await Promise.all(map.milestones.slice(0, Math.max(0, idx)).map(async (x): Promise<PrevBuild | null> => {
-          const r = (await getRecord<{ finalState?: string; reason?: string; report?: string }>(sid, buildKey(x.id)))?.data;
-          return r ? { id: x.id, title: x.title, finalState: String(r.finalState || "?"), reason: r.reason, report: r.report } : null;
-        }))).filter((x): x is PrevBuild => !!x);
-        const ocb = buildOCBForComputer({
-          project: { name: conversationTitle, summary: runner.project }, map, stage: "BUILD", self: "computer", milestoneId: m.id, round: null,
-          counts: {
-            lockedDecisions: runner.items.filter((it) => it.kind === "chip" && /^\s*🔒 LOCKED/.test(String((it as { text?: string }).text || ""))).length,
-            milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects: 0, waivers: 0,
-          },
-        });
-        const startPack = buildStartPack({ m, planMarkdown, ledger: await finalBoardResolution(runner.id), prevBuilds, defects: [], ocb });
+        const startPack = await startPackFor(m, planMarkdown);
         return startComputerPhase(runner, runner.cuHooks, { milestoneId: m.id, planMarkdown, startPack, title: conversationTitle, last: idx === map.milestones.length - 1, reviewMode: m.reviewMode });
       },
       // TASK-24: REVIEW R0 — context ya reviewers (T23) + mjadala kupitia discussAgenda (closure hiihii ya run())
@@ -1693,6 +1702,11 @@ async function run(runner: Runner) {
           };
         },
         git: async (_m, op) => { runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle }; return milestoneGit(runner as Runner, op); },
+        // TASK-28 (sign-off): screenshots za evidence iliyoidhinishwa → baselines (task 22)
+        saveBaselines: async (m, round) => {
+          const pack = (await getRecord<{ screenshots?: EvidencePack["screenshots"] }>(sessionId || runner.id, `evidence:${m.id}:R${round}`))?.data;
+          return milestoneSaveBaselines(runner as Runner, { milestoneId: m.id, round, pack: { screenshots: pack?.screenshots || [] } });
+        },
         readFiles: async (_m, paths) => milestoneReadFiles(runner as Runner, paths),
         stopAfterRound: testStopAfterRound(),
       },
@@ -3473,7 +3487,7 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
             await msUpdate(lr, `cos:${m.id}`, () => ({ version: 1, changeOrders: seedCos }));
             await msUpdate(lr, "defects", () => ({ version: 1, defects: tv.defects || [] }));
             await msUpdate(lr, `state:${m.id}`, () => {
-              let st = newMilestoneState(m.id);
+              let st = freshMilestoneState(m.id); // TASK-28: XMD_TEST_MAX_ROUNDS
               const ok = <T,>(r: { state: T } | { error: string }): T => { if ("error" in r) throw new Error(r.error); return r.state; };
               st = ok(planSteps(st, ["plan", "build", "review"].map((x) => stepIdOf(m.id, 0, x))));
               for (const x of ["plan", "build", "review"]) st = ok(setStep(st, stepIdOf(m.id, 0, x), "DONE"));
@@ -3503,6 +3517,16 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
         });
         const st = (await getRecord<{ status: string; round: number }>(runner.sessionId, `state:${m.id}`))?.data;
         blog("system", `🧪 XMD_TEST_VERIFY_INPUT: ${m.id} → ${st?.status} (round ${st?.round}) · sandbox ${String(runner.cu?.sandboxId || "").slice(0, 8)}…`);
+        // TASK-28 (T2): baada ya CAP_REACHED → plan HALISI ya milestone inayofuata (Optimus) + StartPack yake (bila kujenga) — defects zilizorithiwa zinaonekana
+        const nextM = runner.msMap?.milestones[(runner.msMap?.milestones.findIndex((x) => x.id === m.id) ?? -2) + 1];
+        if (tv.nextMilestone && nextM && st?.status === "CAP_REACHED" && !(await getRecord(runner.sessionId, `startpack:${nextM.id}`))) {
+          const pr = await msHooks("running").plan!(nextM);
+          await msUpdate(lr, planKey(nextM.id), () => ({ version: 1, ...pr, at: new Date().toISOString() }));
+          const sp = await startPackFor(nextM, pr.markdown);
+          const text = renderStartPack(sp, { tree: "(xmdtest: next milestone not built — StartPack only)", gitLog: "(xmdtest)" });
+          await msUpdate(lr, `startpack:${nextM.id}`, () => ({ version: 1, id: nextM.id, defects: sp.defects, text, at: new Date().toISOString() }));
+          blog("system", `🧪 XMD_TEST_VERIFY_INPUT: ${nextM.id} plan (${pr.status}, hatua ${pr.steps}) + StartPack — inherited defects ${sp.defects.length}: ${sp.defects.map((x) => x.split(" ")[0]).join(", ") || "none"}`);
+        }
         await persist("completed", conversationTitle);
         runner.status = "completed";
         bcast({ type: "done" });

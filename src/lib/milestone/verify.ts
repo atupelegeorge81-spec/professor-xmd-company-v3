@@ -597,6 +597,8 @@ export interface TestVerifyInput {
   startRound?: number;
   /** TASK-27: (na changeOrders) COs zinapita kwenye escalation ladder HALISI (attempt = defects.attempts + 1) kabla ya raundi */
   escalate?: boolean;
+  /** TASK-28 (T2): baada ya CAP_REACHED → plan halisi + StartPack ya milestone inayofuata (bila kujenga) */
+  nextMilestone?: boolean;
 }
 export function testVerifyInput(env: Record<string, string | undefined> = process.env, read: (p: string) => string = (p) => readFileSync(p, "utf8")): TestVerifyInput | null {
   if (env.XMD_TEST_HOOKS !== "1" || !env.XMD_TEST_VERIFY_INPUT) return null;

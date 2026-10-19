@@ -224,12 +224,12 @@ describe("TASK 24 — runReviewRound (store + events)", () => {
     await runReviewRound(rin, d2);
     expect([d2.calls.analyse, d2.calls.discuss]).toEqual([0, 0]);
   });
-  it("NO_CHANGES: minor tu + checks PASS + hakuna uamuzi → defect ya minor inakuwa INHERITED, hakuna CO", async () => {
+  it("NO_CHANGES: minor tu + checks PASS + hakuna uamuzi → minor inabaki OPEN (TASK-28: backlog ya sign-off), hakuna CO", async () => {
     const { m, store } = memStore();
     const d = rdeps({ s: store, analyse: async () => ({ designer: F("designer", [["tiny spacing", "minor"]], []), frontend: F("frontend", [], []), meta: {} }), discuss: async () => outcome("ACCEPTED PROPOSALS: none\nREJECTED PROPOSALS: none\nINVALID DEFECTS: none\nCHANGE REQUESTS: none") });
     const r = await runReviewRound(rin, d);
     expect([r.status, d.calls.consolidate, r.changeOrders.length]).toEqual(["NO_CHANGES", 0, 0]);
-    expect(m.get(DEFECTS_KEY).defects.map((x: any) => x.status)).toEqual(["INHERITED"]);
+    expect(m.get(DEFECTS_KEY).defects.map((x: any) => x.status)).toEqual(["OPEN"]);
     expect(d.events.map((e) => e.type)).toEqual(["reviewFindings", "reviewDecision"]);
   });
   it("FAILED: consolidate batili → hakuna COs zilizohifadhiwa", async () => {

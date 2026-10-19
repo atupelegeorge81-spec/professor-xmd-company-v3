@@ -613,12 +613,7 @@ export async function runReviewRound(inp: ReviewRoundInput, deps: ReviewRoundDep
   let status: ReviewRoundResult["status"] = "NO_CHANGES";
   let reason = "no defect ≥ medium, all checks PASS, no accepted proposals";
   if (noChanges) {
-    // defects ndogo (minor) zinabebwa kwenda milestone inayofuata (INHERITED) — hakuna CO kwa R0 inayosign-off
-    if (rules.openDefects.length) {
-      await deps.store.update<{ version: number; defects: Defect[] }>(DEFECTS_KEY, (cur) => ({
-        version: 1, defects: (cur?.defects || []).map((d) => (d.milestoneId === mId && d.foundInRound === round ? { ...d, status: "INHERITED" as const } : d)),
-      }));
-    }
+    // TASK-28: minor zinabaki OPEN — sign-off inaziorodhesha (ledger backlog + ripoti ya mwisho); INHERITED ni ya CAP_REACHED tu
   } else {
     // 6) Optimus: COs (kila defect + kila uamuzi ≥1 CO); maamuzi yanayopingana na Ledger → CR
     const prevCos = (await deps.store.get<{ version: number; changeOrders: ChangeOrder[] }>(cosKey(mId)))?.changeOrders || [];

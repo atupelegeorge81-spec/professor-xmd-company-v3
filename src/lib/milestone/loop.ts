@@ -24,6 +24,8 @@ import {
 } from "./verify"; // TASK-26
 import { buildOCB } from "./ocb";
 import { maybeCapturePrompt } from "./testHooks";
+import { allowedOpenAtSignoff, applyInheritedResults, closeOutMilestone, CLOSE_STATUSES, inheritedChecks, isInheritedCheck, signoffStatus, type CloseoutDeps } from "./signoff"; // TASK-28
+import { testCrashAfterSignoffGit, testMaxRounds } from "./testHooks"; // TASK-28
 import { amendmentLine, applyEscalationToDefects, escalateChangeOrders, escalationChip, requirementChecksOf, type Amendment, type EscalateDeps, type EscalateResult, type Msg as EscMsg, type PrevAttemptFact, type Waiver } from "./escalation"; // TASK-27
 
 export interface LoopRunner {
@@ -69,7 +71,9 @@ export interface LoopHooks {
     evidence: (m: Milestone, round: number, planMarkdown: string, cos: ChangeOrder[]) => Promise<NonNullable<BuildOutcome["evidence"]>>;
     /** OCB (bila stage/self) + ledger kwa reviewers */
     context: (m: Milestone, round: number, openDefects: number) => Promise<{ ocb: VerifyContext["ocb"]; ledger: VerifyContext["ledger"]; ledgerLines: string[] }>;
-    git: (m: Milestone, op: { kind: "tag"; name: string } | { kind: "revert"; from: string; message: string; label: string }) => Promise<{ ok: boolean; sha: string; detail: string }>;
+    git: (m: Milestone, op: { kind: "tag"; name: string } | { kind: "revert"; from: string; message: string; label: string } | { kind: "signoff"; tag: string; message: string }) => Promise<{ ok: boolean; sha: string; detail: string }>;
+    /** TASK-28 (sign-off, task 22): screenshots zilizoidhinishwa za raundi hii → baselines (sandbox + storage) */
+    saveBaselines?: (m: Milestone, round: number) => Promise<{ uploaded: number; entries: number; errors: string[]; manifestUrl?: string }>;
     /** majaribio tu: badala ya LLM halisi */
     deps?: VerifyDeps;
     consolidate?: (i: ConsolidateInput) => Promise<ConsolidateResult>;
@@ -180,6 +184,22 @@ const running = (G.__xmdMsRunning ||= new Set<string>());
  * milestone kuendeshwa mara mbili; `milestoneClosed` inatolewa TU na aliyeshinda CAS ya DISCUSSING → PLANNING.
  * Inarudisha ids za milestones zilizokamilishwa katika wito huu.
  */
+/** state mpya ya milestone — TASK-28 test hook `XMD_TEST_MAX_ROUNDS` inashusha kikomo (inert bila XMD_TEST_HOOKS=1) */
+export const freshMilestoneState = (id: string): MilestoneState => { const st = newMilestoneState(id); const cap = testMaxRounds(); return cap ? { ...st, maxRounds: cap } : st; };
+
+/** TASK-28: deps za closeOutMilestone (sign-off / cap) kutoka hooks za loop */
+export function closeoutDeps(runner: LoopRunner, m: Milestone, hooks: LoopHooks): CloseoutDeps {
+  const sid = runner.sessionId as string;
+  const vh = hooks.verify;
+  return {
+    sid, update: (key, mutate) => msUpdate(runner, key, mutate),
+    git: vh ? async (tag, message) => vh.git(m, { kind: "signoff", tag, message }) : undefined,
+    saveBaselines: vh?.saveBaselines && m.reviewMode !== "technical" ? (round) => vh.saveBaselines!(m, round) : undefined,
+    crashAfterGit: () => { if (testCrashAfterSignoffGit(m.id, sid)) { hooks.blog("warning", `🧪 XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_${m.id}: kill -9 baada ya commit/tag (kabla ya rekodi)`); process.kill(process.pid, "SIGKILL"); } },
+    bcast: hooks.bcast, addChip: hooks.addChip, blog: hooks.blog,
+  };
+}
+
 export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks): Promise<string[]> {
   if (!milestonesEnabled() || !runner.msMap || !runner.sessionId) return [];
   const resolved = await hooks.resolvedAgendas();
@@ -199,7 +219,7 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
       if (status === "DISCUSSING") {
         try {
           await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
-            const base = s ?? newMilestoneState(m.id);
+            const base = s ?? freshMilestoneState(m.id);
             if (base.status !== "DISCUSSING") throw new NoChange(); // mwingine ameshabadilisha → si sisi
             return must(transition(base, { type: "GOTO", to: "PLANNING" }));
           });
@@ -230,7 +250,7 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
  */
 export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks: LoopHooks): Promise<MilestoneState> {
   const steps = ["plan", "build", ...(hooks.review ? ["review"] : [])].map((s) => stepIdOf(m.id, 0, s)); // TASK-24: review baada ya evidence
-  let rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(planSteps(s ?? newMilestoneState(m.id), steps)));
+  let rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(planSteps(s ?? freshMilestoneState(m.id), steps)));
   for (const id of steps) {
     if ((rec.data.steps || []).find((x) => x.stepId === id)?.status === "DONE") continue;
     if (id.endsWith(".plan") && hooks.plan) {
@@ -262,6 +282,16 @@ export async function runMilestoneBuild(runner: LoopRunner, m: Milestone, hooks:
     hooks.blog("info", `🧩 ${id} DONE (stub — kazi halisi inakuja tasks 15+).`);
   }
   if ((rec.data.status === "FIXING" && hooks.fix) || (rec.data.status === "VERIFYING" && hooks.verify)) return runFixVerifyLoop(runner, m, rec.data, hooks); // TASK-25/26 (resume pia)
+  if (rec.data.status === "REVIEW_R0" && hooks.review && hooks.verify && runner.sessionId) {
+    // TASK-28: R0 bila mabadiliko → utaratibu kamili wa sign-off (ledger, commit + tag, baselines, ripoti, event) kabla ya mpito
+    const ds = (await getRecord<{ defects?: Defect[] }>(runner.sessionId, "defects"))?.data?.defects || [];
+    const to = signoffStatus(ds, m.id);
+    const co = await closeOutMilestone(m, 0, to, "R0 review: no changes needed", closeoutDeps(runner, m, hooks));
+    rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(s as MilestoneState, { type: "GOTO", to: co.problems.length ? "BLOCKED" : to })));
+    hooks.blog(co.problems.length ? "error" : "success", `✅ Milestone ${m.id} → ${rec.data.status}${co.problems.length ? `: ${co.problems.join(" · ")}` : " (R0)"}.`);
+    await hooks.persist();
+    return rec.data;
+  }
   rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
     let st = s as MilestoneState;
     for (let i = STUB_PATH.indexOf(st.status) + 1; i > 0 && i < STUB_PATH.length; i++) st = must(transition(st, { type: "GOTO", to: STUB_PATH[i] }));
@@ -541,7 +571,9 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
   }
 
   // checks: acceptance za COs + global (build, tests, console_clean, no_horizontal_overflow) — Computer ikimaliza kwa mafanikio tu
-  const rc = roundChecks(cos, plan);
+  const rc0 = roundChecks(cos, plan);
+  const inh = inheritedChecks(defects0, m.id); // TASK-28: checks za defects zilizorithiwa zinaendeshwa tena kila raundi
+  const rc: RoundChecks = inh.checks.length ? { ...rc0, checks: [...rc0.checks, ...inh.checks], owner: { ...rc0.owner, ...inh.owner } } : rc0;
   let results: EvidenceCheckResult[] = [];
   let checksMs = 0;
   if (out.ok) {
@@ -560,7 +592,14 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
     global: perCo.global || { pass: 0, fail: 0, error: 0 }, at: now,
     patches: patchRec?.results, reproduced: reproducedMap(cos, parseReceipts(out.fix?.receiptsRaw)), modes: Object.fromEntries(cos.map((c) => [c.id, c.mode || "standard"])),
   }));
-  await msUpdate<{ version: number; defects: Defect[] }>(runner, "defects", (cur) => ({ version: 1, ...(cur || {}), defects: applyRoundToDefects(cur?.defects || defects0, cos, v, round, perCo) }));
+  let inheritedFixed: string[] = [];
+  await msUpdate<{ version: number; defects: Defect[] }>(runner, "defects", (cur) => {
+    const ds = applyRoundToDefects(cur?.defects || defects0, cos, v, round, perCo);
+    const ir = inh.checks.length ? applyInheritedResults(ds, m.id, round, results) : { defects: ds, fixed: [] };
+    inheritedFixed = ir.fixed;
+    return { version: 1, ...(cur || {}), defects: ir.defects };
+  });
+  if (inh.checks.length) hooks.blog(inheritedFixed.length ? "success" : "info", `📦 ${m.id} R${round}: inherited checks ${results.filter(isInheritedCheck).filter((r) => r.result === "PASS").length}/${inh.checks.length} PASS${inheritedFixed.length ? ` → ${inheritedFixed.join(", ")} VERIFIED_FIXED` : ""}`);
   const ck = perCo.global || { pass: 0, fail: 0, error: 0 };
   const all = Object.values(perCo).reduce((a, s) => ({ pass: a.pass + s.pass, fail: a.fail + s.fail, error: a.error + s.error }), { pass: 0, fail: 0, error: 0 });
   hooks.bcast({ type: "fixRound", id: m.id, round, phase: "done", finalState: out.finalState, ok: out.ok, flags: v.flags, unlisted: v.unlisted, perCo: v.cos.map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus, diff: c.diff, checks: perCo[c.orderId] })), checks: all, global: ck, rerun: v.rerun ? { before: v.rerun.before, after: v.rerun.after } : undefined });
@@ -821,11 +860,11 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
   } else if (git.op === "revert") hooks.blog("error", `⏪ ${m.id} R${round}: revert ilihitajika (${outcome.reason}) lakini haikufanyika: ${git.detail}`);
   else if (git.op === "tag") hooks.blog(git.ok ? "success" : "warning", `🏷️ ${m.id} R${round}: ${outcome.reason} → ${git.ok ? `best mpya (tag xmd-best-${m.id} @ ${git.sha.slice(0, 7)})` : `tag haikufanyika: ${git.detail}`}`);
 
-  const tally = results.reduce((a, r) => ({ pass: a.pass + (r.result === "PASS" ? 1 : 0), fail: a.fail + (r.result === "FAIL" ? 1 : 0), error: a.error + (r.result !== "PASS" && r.result !== "FAIL" ? 1 : 0) }), { pass: 0, fail: 0, error: 0 });
+  const tally = results.filter((r) => !isInheritedCheck(r)).reduce((a, r) => ({ pass: a.pass + (r.result === "PASS" ? 1 : 0), fail: a.fail + (r.result === "FAIL" ? 1 : 0), error: a.error + (r.result !== "PASS" && r.result !== "FAIL" ? 1 : 0) }), { pass: 0, fail: 0, error: 0 });
   const openList = mineOpen(res.defects);
   let nd = decideNext({
     round, maxRounds: rec.data.maxRounds, cos: decision.cos, reviewersValid: !!designer && !!frontend, checks: tally,
-    openDefects: openList.map((d) => ({ id: d.id, severity: d.severity })), listedMinor: [], // orodha ya minor zinazoruhusiwa = task 28
+    openDefects: openList.map((d) => ({ id: d.id, severity: d.severity })), listedMinor: openList.filter(allowedOpenAtSignoff).map((d) => d.id), // TASK-28: minor zinaruhusiwa — sign-off inaziorodhesha (ledger backlog + ripoti)
     receiptsMatch: !!fixRec && (fixRec.flags || []).length === 0, blocked: cos.length ? undefined : "no change orders for this round",
   });
   if (reverted && nd.next === "SIGN_OFF") nd = { ...nd, next: round >= rec.data.maxRounds ? "CAP_REACHED" : "CONTINUE", reason: reverted };
@@ -895,8 +934,13 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
       await msUpdate(runner, cosRoundKey(m.id, round + 1), () => ({ version: 1, round: round + 1, changeOrders: newCos }));
     }
   }
-  const waivedAny = ((await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || []).some((d) => d.milestoneId === m.id && d.status === "WAIVED");
-  const to: MilestoneStatus = nd.next === "SIGN_OFF" ? (nd.leftoverMinor.length || waivedAny ? "SIGNED_OFF_WITH_WAIVERS" : "SIGNED_OFF") : nd.next === "CONTINUE" ? "FIXING" : nd.next === "CAP_REACHED" ? "CAP_REACHED" : "BLOCKED";
+  const defsNow = (await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || [];
+  let to: MilestoneStatus = nd.next === "SIGN_OFF" ? signoffStatus(defsNow, m.id) : nd.next === "CONTINUE" ? "FIXING" : nd.next === "CAP_REACHED" ? "CAP_REACHED" : "BLOCKED";
+  // TASK-28: sign-off / cap — utaratibu kamili KABLA ya mpito wa mwisho (kila hatua idempotent → kill -9 inaendelea hapa)
+  if (CLOSE_STATUSES.includes(to)) {
+    const co = await closeOutMilestone(m, round, to, nd.reason, closeoutDeps(runner, m, hooks));
+    if (co.problems.length) { to = "BLOCKED"; nd = { ...nd, next: "BLOCKED", reason: `close-out refused: ${co.problems.join(" · ")}` }; }
+  }
   await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), decision, next: nd, added: res.added.map((d) => d.id), duplicates: trial.duplicates, at: now() }));
   rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, dId, to === "BLOCKED" ? "FAILED" : "DONE")), { type: "GOTO", to })));
   hooks.bcast({

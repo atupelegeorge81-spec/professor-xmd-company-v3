@@ -130,7 +130,14 @@ export interface Defect {
   status: DefectStatus;
   attempts: number;
   history: DefectHistoryEntry[];
+  /** TASK-28: CAP_REACHED → defect wazi inarithiwa na milestone inayofuata (status INHERITED) */
+  inheritedFrom?: string;
+  /** TASK-28: checks za CO ya mwisho ya defect iliyorithiwa — zinaendeshwa tena kila raundi ya milestones zinazofuata */
+  inheritedChecks?: Check[];
 }
+
+/** TASK-28: sign-off inaruhusu defects wazi za kiwango hiki (na chini) TU — zikiorodheshwa (ledger `backlog` + ripoti ya mwisho) */
+export const SIGNOFF_MAX_OPEN_SEVERITY: DefectSeverity = "minor";
 
 // ── Checks (verdict inatolewa na code, kamwe si LLM) ────────────────────────
 export const CHECK_TYPES = [

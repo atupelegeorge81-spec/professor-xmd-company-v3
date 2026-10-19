@@ -12,6 +12,7 @@ import type { GuardHit } from "@/lib/board/dataGuard";
 import { isPlanExecutable, planStatusOf, planWarningsOf } from "@/lib/cu/planGate";
 import { validateCheck } from "./schemas";
 import { planGateCommands } from "./startpack"; // TASK-18
+import { inheritedSection } from "./signoff"; // TASK-28
 import type { Check, Milestone } from "./types";
 
 /** Viewports za ushahidi (maelezo19) — plan inazitaja kwa kila route. */
@@ -272,6 +273,7 @@ ${RULES}`;
     const a = assemblePlanDocument({ partTexts: planTexts, title: `${deps.title} — ${m.id}: ${m.title}`, sessionId: deps.sessionId, date: deps.date, facts: deps.facts, constraintFallback, maxSteps: max });
     let md = a.markdown.replace(/^# AGENT WORK PLAN — /, "# MILESTONE PLAN — ");
     md = `${md}\n\n## 9. Ledger Decisions (verbatim)\n\n${ledgerDecisionsSection(ledger)}`;
+    if ((deps.defects || []).length) md = `${md}\n\n${inheritedSection(deps.defects!)}`; // TASK-28: na CODE — plan inataja defects zilizorithiwa
     if (deps.sabotage) md = deps.sabotage(md);
     return { a, md, v: validateMilestonePlan(md, m) };
   };

@@ -291,6 +291,7 @@ function harness(script: Script, opts: { consolidate?: (i: ConsolidateInput) => 
   const events: any[] = [];
   const llm: string[] = [];
   const git: any[] = [];
+  const bl: number[] = [];
   const cons: ConsolidateInput[] = [];
   const runner: LoopRunner = { id: SID, sessionId: SID, msMap: MAP, msChips: [] };
   let round = 0;
@@ -315,6 +316,7 @@ function harness(script: Script, opts: { consolidate?: (i: ConsolidateInput) => 
       context: async () => ({ ocb: ctxOf([]).ocb, ledger: ctxOf([]).ledger, ledgerLines: ["- A1 [LOCKED] Typography: sans only"] }),
       escalateComplete: opts.esc || escStub("KEEP"),
       readFiles: async (_m, paths) => Object.fromEntries(paths.map((p) => [p, "h1{color:#000}\n"])),
+      saveBaselines: async (_m, r) => { bl.push(r); return { uploaded: 2, entries: 2, errors: [] }; },
       git: async (_m, op) => { git.push(op); return { ok: true, sha: "c".repeat(40), detail: op.kind === "tag" ? `tag ${op.name}` : "reverted 1 commit(s)" }; },
       deps: {
         images: false,
@@ -334,7 +336,7 @@ function harness(script: Script, opts: { consolidate?: (i: ConsolidateInput) => 
       }),
     },
   };
-  return { runner, hooks, events, llm, git, cons };
+  return { runner, hooks, events, llm, git, cons, bl };
 }
 
 beforeEach(() => { db.clear(); vi.stubEnv("XMD_MILESTONES", "1"); });
@@ -356,7 +358,7 @@ describe("runVerifyRound (loop)", () => {
     const r2 = db.get(`${SID}|${cosRoundKey("M1", 2)}`)!.data.changeOrders;
     expect(r2.map((c: ChangeOrder) => [c.id, c.attempt])).toEqual([["CO-002", 2]]);
     expect(db.get(`${SID}|defects`)!.data.defects[0]).toMatchObject({ id: "D-001", status: "VERIFIED_FIXED", attempts: 2 });
-    expect(h.git).toEqual([{ kind: "tag", name: "xmd-best-M1" }]); // R1 SAME (1→1), R2 BEST (1→0)
+    expect(h.git).toEqual([{ kind: "tag", name: "xmd-best-M1" }, { kind: "signoff", tag: "milestone-M1", message: "xmd: sign-off M1 (SIGNED_OFF, round 2)" }]); // R1 SAME (1→1), R2 BEST (1→0) · TASK-28 sign-off
     expect(db.get(`${SID}|best:M1`)!.data).toMatchObject({ round: 2, tag: "xmd-best-M1" });
     expect(h.events.filter((e) => e.type === "verifyRound").map((e) => e.next)).toEqual(["CONTINUE", "SIGN_OFF"]);
   });
@@ -446,7 +448,7 @@ describe("runVerifyRound (loop)", () => {
     expect(db.get(`${SID}|state:M1`)!.data).toMatchObject({ status: "CAP_REACHED", round: 10 });
     expect([...db.keys()].filter((k) => /\|fix:M1:R\d+$/.test(k))).toHaveLength(10);
     expect((db.get(`${SID}|${cosRoundKey("M1", 10)}`)!.data.changeOrders as ChangeOrder[]).map((c) => [c.attempt, c.mode])).toEqual([[10, "redecide"]]);
-    expect(db.get(`${SID}|defects`)!.data.defects[0]).toMatchObject({ status: "REOPENED", attempts: 10 });
+    expect(db.get(`${SID}|defects`)!.data.defects[0]).toMatchObject({ status: "INHERITED", inheritedFrom: "M1", attempts: 10 }); // TASK-28: cap → INHERITED
   });
   it("TASK-27: redecide MODIFY → requirement mpya kwenye ledger (decisions + amendments) na defect.expected", async () => {
     await seed([CO("CO-001", ["D-001"], { attempt: 5 })], [D("D-001", { status: "OPEN", attempts: 4 })]);
@@ -465,5 +467,89 @@ describe("runVerifyRound (loop)", () => {
     expect(st).toMatchObject({ status: "BLOCKED", round: 1 });
     expect(db.get(`${SID}|${verifyKey("M1", 1)}`)!.data.next.reason).toMatch(/^nothing for a fix round .* remaining blocker: receipts do not match the diffs/);
     expect(db.get(`${SID}|fix:M1:R1`)!.data.unlisted).toEqual(["README.md"]); // server.log haihesabiwi
+  });
+});
+
+/* ======================== TASK-28: sign-off · cap · inherited · backlog ya minor ======================== */
+describe("TASK-28 sign-off / cap (loop)", () => {
+  const PASS2 = (ids: string[]) => ({ 1: { designer: { cos: Object.fromEntries(ids.map((i) => [i, "PASS" as VerifyVerdict])) }, frontend: { cos: Object.fromEntries(ids.map((i) => [i, "PASS" as VerifyVerdict])) } } });
+  it("T1 (code): defects 2 → SIGNED_OFF · commit+tag milestone-M1 · baselines · ledger MS-M1 · finalReport safi · event moja", async () => {
+    await seed([CO("CO-001", ["D-001"]), CO("CO-002", ["D-002"], { acceptance: [{ id: "h2-color", type: "computed_style", route: "/", selector: "h2", property: "color", expected: "#F2F0EB" }] })], [D("D-001"), D("D-002", { severity: "medium" })]);
+    const h = harness(PASS2(["CO-001", "CO-002"]));
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data).toMatchObject({ status: "SIGNED_OFF", round: 1 });
+    expect(h.git.filter((g) => g.kind === "signoff")).toEqual([{ kind: "signoff", tag: "milestone-M1", message: "xmd: sign-off M1 (SIGNED_OFF, round 1)" }]);
+    expect(h.bl).toEqual([1]);
+    const e = db.get(`${SID}|decisions`)!.data.decisions.find((x: any) => x.id === "MS-M1");
+    expect(e).toMatchObject({ source: "milestone", status: "SIGNED_OFF", round: 1, tag: "milestone-M1", waivers: [], backlog: [], inherited: [] });
+    expect(e.closedDefects.map((x: any) => x.id)).toEqual(["D-001", "D-002"]);
+    expect(e.baselines).toMatch(/2 baseline/);
+    expect(db.get(`${SID}|signoff:M1`)!.data).toMatchObject({ ledger: { id: "MS-M1" }, git: { ok: true, tag: "milestone-M1" }, baselines: { uploaded: 2 }, report: {}, event: {} });
+    expect(db.get(`${SID}|finalReport`)!.data.milestones).toMatchObject([{ milestoneId: "M1", status: "SIGNED_OFF", clean: true }]);
+    expect(h.events.filter((x) => x.type === "milestoneSignedOff")).toHaveLength(1);
+  });
+  it("T2 (code): XMD_TEST_MAX_ROUNDS=2 + defect isiyorekebishika → CAP_REACHED · INHERITED (inheritedFrom M1 + checks) · ledger · haionyeshwi safi · hakuna tag", async () => {
+    vi.stubEnv("XMD_TEST_HOOKS", "1"); vi.stubEnv("XMD_TEST_MAX_ROUNDS", "2");
+    const { freshMilestoneState } = await import("../loop");
+    expect(freshMilestoneState("M1").maxRounds).toBe(2);
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const st = db.get(`${SID}|state:M1`)!; st.data = { ...st.data, maxRounds: 2 };
+    const h = harness({}, { allFail: true, checkFail: (id) => id.startsWith("CO-") });
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data).toMatchObject({ status: "CAP_REACHED", round: 2 });
+    const d = db.get(`${SID}|defects`)!.data.defects[0];
+    expect(d).toMatchObject({ id: "D-001", status: "INHERITED", inheritedFrom: "M1" });
+    expect(d.inheritedChecks.map((c: any) => c.id)).toEqual(["inherited/D-001/h1-color"]);
+    expect(h.git.filter((g) => g.kind === "signoff")).toEqual([]);
+    expect(h.bl).toEqual([]);
+    expect(db.get(`${SID}|decisions`)!.data.decisions.find((x: any) => x.id === "MS-M1")).toMatchObject({ status: "CAP_REACHED", inherited: [{ id: "D-001" }] });
+    expect(db.get(`${SID}|finalReport`)!.data.milestones[0]).toMatchObject({ status: "CAP_REACHED", clean: false, inherited: [{ id: "D-001" }] });
+    expect(h.events.filter((x) => x.type === "milestoneCapReached")).toHaveLength(1);
+  });
+  it("T3 (code): WAIVE → SIGNED_OFF_WITH_WAIVERS + sababu kwenye ledger", async () => {
+    await seed([CO("CO-001", ["D-001"], { attempt: 5 })], [D("D-001", { status: "OPEN", attempts: 4 })]);
+    const h = harness({}, { allFail: true, checkFail: (id) => id.startsWith("CO-"), esc: escStub("WAIVE") });
+    await maybeCloseMilestones(h.runner, h.hooks);
+    const st = db.get(`${SID}|state:M1`)!.data;
+    expect(st.status).toBe("SIGNED_OFF_WITH_WAIVERS");
+    const e = db.get(`${SID}|decisions`)!.data.decisions.find((x: any) => x.id === "MS-M1");
+    expect(e.status).toBe("SIGNED_OFF_WITH_WAIVERS");
+    expect(e.waivers).toMatchObject([{ defectId: "D-001", reason: expect.stringMatching(/Locked decision A1/) }]);
+    expect(h.git.filter((g) => g.kind === "signoff")[0]).toMatchObject({ tag: "milestone-M1", message: expect.stringMatching(/SIGNED_OFF_WITH_WAIVERS/) });
+    expect(db.get(`${SID}|finalReport`)!.data.milestones[0].clean).toBe(false);
+  });
+  it("T4 (code): minor moja wazi → SIGNED_OFF + backlog (ledger + finalReport); medium wazi → hakuna sign-off", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001"), D("D-009", { status: "OPEN", severity: "minor", title: "Footer spacing 2px off" })]);
+    const h = harness(PASS2(["CO-001"]));
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data.status).toBe("SIGNED_OFF");
+    expect(db.get(`${SID}|decisions`)!.data.decisions.find((x: any) => x.id === "MS-M1").backlog).toMatchObject([{ id: "D-009", severity: "minor" }]);
+    expect(db.get(`${SID}|finalReport`)!.data.milestones[0]).toMatchObject({ clean: false, backlog: [{ id: "D-009" }] });
+    expect(db.get(`${SID}|defects`)!.data.defects.find((x: any) => x.id === "D-009").status).toBe("OPEN");
+  });
+  it("T5 (code): kill baada ya git (kabla ya rekodi) → resume: git inaitwa tena na tag ileile (engine: XMD_TAG_EXISTS), ledger/report/event mara moja; mara ya 3 hakuna kinachorudiwa", async () => {
+    const { closeOutMilestone } = await import("../signoff");
+    const { msUpdate } = await import("../loop");
+    db.set(`${SID}|defects`, { version: 1, data: { version: 1, defects: [D("D-001", { status: "VERIFIED_FIXED" })] } });
+    const git: string[] = [], ev: any[] = [], bl: number[] = [];
+    let crash = true;
+    const runner: LoopRunner = { id: SID, sessionId: SID, msMap: MAP, msChips: [] };
+    const deps: import("../signoff").CloseoutDeps = { sid: SID, update: (k, f) => msUpdate(runner, k, f),
+      git: async (t: string) => { git.push(t); return { ok: true, sha: "d".repeat(40), detail: git.length > 1 ? "tag exists · no remote" : "committed · tagged · no remote" }; },
+      crashAfterGit: () => { if (crash) { crash = false; throw new Error("SIGKILL (simulated)"); } },
+      saveBaselines: async (r: number) => { bl.push(r); return { uploaded: 1, entries: 1, errors: [] }; },
+      bcast: (e: any) => ev.push(e), addChip: () => {}, blog: () => {} };
+    await expect(closeOutMilestone(MAP.milestones[0], 1, "SIGNED_OFF", "ok", deps)).rejects.toThrow(/SIGKILL/);
+    expect(db.get(`${SID}|signoff:M1`)!.data.git).toBeUndefined();
+    expect(ev).toHaveLength(0);
+    const r2 = await closeOutMilestone(MAP.milestones[0], 1, "SIGNED_OFF", "ok", deps);
+    expect(r2.problems).toEqual([]);
+    expect(git).toEqual(["milestone-M1", "milestone-M1"]);
+    expect(r2.record.git).toMatchObject({ ok: true, tag: "milestone-M1", detail: "tag exists · no remote" });
+    const r3 = await closeOutMilestone(MAP.milestones[0], 1, "SIGNED_OFF", "ok", deps);
+    expect(git).toHaveLength(2); expect(bl).toEqual([1]); expect(r3.record.event).toBeTruthy();
+    expect(db.get(`${SID}|decisions`)!.data.decisions.filter((x: any) => x.id === "MS-M1")).toHaveLength(1);
+    expect(db.get(`${SID}|finalReport`)!.data.milestones).toHaveLength(1);
+    expect(ev.filter((e) => e.type === "milestoneSignedOff")).toHaveLength(1);
   });
 });
