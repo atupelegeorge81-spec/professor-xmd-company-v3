@@ -62,6 +62,7 @@ import { testFixInput, type TestFixInput } from "./milestone/fixRound"; // TASK-
 import { newMilestoneState, planSteps, setStep, stepIdOf, transition } from "./milestone/state"; // TASK-25 test hook // TASK-14 (XMD_TEST_HOOKS=1 pekee)
 import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
+import { defaultDbProbe } from "./milestone/dbProbe"; // TASK-29
 import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace, captureRoundEvidence, milestoneGit, milestonePatch, milestoneReadFiles, milestoneSaveBaselines } from "./cu/engine"; // TASK-25/26
 import { testStopAfterRound, testVerifyInput, type TestVerifyInput, nextAttempt, planGoalOf } from "./milestone/verify"; // TASK-26 test hooks
 import { escalateChangeOrders, requirementChecksOf } from "./milestone/escalation"; // TASK-27
@@ -1685,14 +1686,14 @@ async function run(runner: Runner) {
         },
         applyPatch: async (m, round, co) => milestonePatch(runner as Runner, { orderId: co.id, patch: String(co.patch || ""), message: `${m.id} R${round}: ${co.id} pair patch (harness git apply)` }),
         checks: async (m, rc) => runOnMilestoneSandbox(runner as Runner, async (sbx) => runChecks(rc.checks, {
-          sbx, ws: "/home/user/ws", script: await readEngineScript("xmd-evidence.mjs"), startCommand: rc.startCommand, port: EVIDENCE_PORT, tag: `${m.id}-fix`,
+          sbx, ws: "/home/user/ws", script: await readEngineScript("xmd-evidence.mjs"), startCommand: rc.startCommand, port: EVIDENCE_PORT, tag: `${m.id}-fix`, db: defaultDbProbe(), // TASK-29
         })),
       },
       // TASK-26: raundi ya uthibitisho — evidence upya (tasks 19–22) kwenye sandbox ileile · reviewers 2 · git tag/revert
       verify: {
         evidence: async (m, round, planMarkdown, cos) => {
           runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle };
-          const ev = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round, planMarkdown, changeOrders: cos });
+          const ev = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round, planMarkdown, changeOrders: cos, reviewMode: m.reviewMode }); // TASK-29
           return { pack: ev.pack, exit: ev.exit, invalid: ev.invalid, uploaded: ev.uploaded, ms: ev.ms };
         },
         context: async (m, round, openDefects) => {
@@ -3468,7 +3469,7 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
           blog("info", `🌱 XMD_TEST_VERIFY_INPUT: \`xmdtest-site\` imepandwa kwenye sandbox ${seed.sandboxId.slice(0, 8)}… · HEAD ${seed.head.slice(0, 7)}`);
           if (tv.changeOrders?.length) {
             // baseline ya R0 (kama mtiririko halisi: evidence ya build ipo kabla ya fix) — harness inalinganisha raundi kwa raundi
-            const ev0 = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round: 0, planMarkdown: tv.planMarkdown, changeOrders: [] });
+            const ev0 = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round: 0, planMarkdown: tv.planMarkdown, changeOrders: [], reviewMode: m.reviewMode });
             await msUpdate(lr, `evidence:${m.id}:R0`, () => ({ version: 1, ...ev0.pack, exit: ev0.exit, invalid: ev0.invalid.slice(0, 20), uploaded: ev0.uploaded, ms: ev0.ms, at: new Date().toISOString() }));
             blog("info", `📸 XMD_TEST_VERIFY_INPUT: baseline R0 — screenshots ${ev0.pack.screenshots.length} · errors ${ev0.pack.errors.length}`);
             // TASK-27 (T2/T4): COs zilizopandwa → escalation ladder halisi (Frontend patch / redecide n.k.) kabla ya raundi ya kwanza
@@ -3514,7 +3515,7 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
           ...msHooks("running"), resolvedAgendas: async () => range,
           plan: async () => ({ milestoneId: m.id, status: "active", executable: true, reasons: [], markdown: tv.planMarkdown, steps: 1, checks: 0, routes: 0, problems: [], warnings: [], guardHits: [], repairs: { structure: 0, guard: 0 } }),
           build: async () => {
-            const ev = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round: 0, planMarkdown: tv.planMarkdown, changeOrders: [] });
+            const ev = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round: 0, planMarkdown: tv.planMarkdown, changeOrders: [], reviewMode: m.reviewMode });
             return { ok: true, finalState: "DONE", reason: "xmdtest-site (XMD_TEST_VERIFY_INPUT)", report: tv.buildReport || "", evidence: { pack: ev.pack, exit: ev.exit, invalid: ev.invalid, uploaded: ev.uploaded, ms: ev.ms } };
           },
         });

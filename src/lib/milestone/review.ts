@@ -13,7 +13,8 @@ import { brokerComplete, type CompleteResult } from "@/lib/broker";
 type Msg = { role: string; content?: unknown };
 import { buildOCB, type OcbInput } from "./ocb";
 import type { LedgerLike } from "./plan";
-import { DEFECT_SEVERITIES, type Defect, type DefectSeverity, type EvidencePack, type RoundHeaderData } from "./types";
+import { castAgentId, TECH_LENS, TECH_METHOD, type ReviewCast } from "./techEvidence"; // TASK-29
+import { DEFECT_SEVERITIES, type Defect, type DefectSeverity, type EvidencePack, type ReviewMode, type RoundHeaderData } from "./types";
 
 export const REVIEWERS = ["designer", "frontend"] as const;
 export type ReviewerId = (typeof REVIEWERS)[number];
@@ -64,6 +65,9 @@ export interface ReviewContext {
   defects: Defect[];
   /** baselines za milestones zilizoidhinishwa (task 22 manifests) */
   baselines: { milestoneId: string; route: string; viewport: string; state: string; url?: string }[];
+  /** TASK-29: technical → slots zinachezwa na wataalamu wa roster (backend + qa); tupu = designer/frontend */
+  cast?: Partial<ReviewCast>;
+  reviewMode?: ReviewMode;
 }
 
 export interface DomJson {
@@ -76,7 +80,7 @@ export interface ReviewImage { mime: string; base64: string }
 
 export interface ReviewDeps {
   /** LLM (default: broker → Gemini Flash, thinking ON) */
-  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string; tier?: string; provider?: string } }>;
+  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string; agentId?: string }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string; tier?: string; provider?: string } }>;
   /** PNG ya screenshot (default: fetch url ya storage) */
   loadImage?: (shot: EvidencePack["screenshots"][number]) => Promise<ReviewImage | null>;
   /** *.dom.json (default: fetch url ya storage) */
@@ -119,7 +123,11 @@ export const REVIEW_MAX_IMAGES = 12;
 export const REVIEW_STALL_FIRST_MS = 300_000;
 const DOM_ELEMENTS_PER_SHOT = 40;
 const cap = (s: unknown, n: number) => { const t = String(s ?? ""); return t.length > n ? `${t.slice(0, n)} […cut ${t.length - n} chars]` : t; };
-const agentOf = (id: ReviewerId) => AGENTS.find((a) => a.id === id)!;
+/** TASK-29: slot → agent anayeicheza (cast ya technical) */
+const agentOf = (id: ReviewerId, cast?: Partial<ReviewCast>) => AGENTS.find((a) => a.id === castAgentId(cast, id)) || AGENTS.find((a) => a.id === id)!;
+/** TASK-29: review ya technical (hakuna screenshots — ushahidi wa technical) */
+export const isTechnicalReview = (ctx: { reviewMode?: ReviewMode; pack?: EvidencePack }) =>
+  ctx.reviewMode === "technical" || (!!ctx.pack?.technical && !(ctx.pack.screenshots || []).length);
 
 /** "ROUND 0/10 (M1) — closed defects: 0 · open: 0 · waivers: 0 · rounds left: 10" (types.ts RoundHeaderData) */
 export function formatRoundHeader(d: RoundHeaderData): string {
@@ -147,13 +155,14 @@ const OUTPUT_SPEC = `OUTPUT: ONE JSON object, nothing else (no prose before or a
 }
 EVIDENCE RULES: every defect and proposal needs ≥1 evidence item that points INTO THE EVIDENCE PACK: a screenshot id (e.g. "S-003"), a DOM metric written exactly as "S-003 dom: <selector> <property>=<value>" (copy selector and value from the DOM METRICS lines), "check:<id>" of a listed check, "regression:<route>@<viewport>" of a listed regression, or "console". Extra references ("ledger:A2", "plan", "build-report", "git-diff") are allowed in addition. Never invent ids. A DEFECT must be a violation of a LOCKED decision / the plan, or broken behavior — taste goes to PROPOSALS.`;
 
-function systemPrompt(reviewer: ReviewerId): string {
-  const a = agentOf(reviewer);
+function systemPrompt(reviewer: ReviewerId, ctx?: Pick<ReviewContext, "cast" | "reviewMode" | "pack">): string {
+  const a = agentOf(reviewer, ctx?.cast);
+  const tech = !!ctx && isTechnicalReview(ctx);
   return [
     `You are ${a.name}, the ${a.role} of PROFESSOR XMD COMPANY ("${a.tagline}"). You are one of two independent reviewers of a milestone the XMD Computer just built. You review ALONE — you will not see the other reviewer's findings, and they will not see yours.`,
-    `YOUR LENS: ${ROLE_PROMPT[reviewer]}`,
-    `METHOD: ${BOTH_PROMPT}`,
-    OUTPUT_SPEC,
+    `YOUR LENS: ${tech ? TECH_LENS[a.id] || TECH_LENS.qa : ROLE_PROMPT[reviewer]}`,
+    `METHOD: ${tech ? TECH_METHOD : BOTH_PROMPT}`,
+    tech ? OUTPUT_SPEC.replace("<your id: designer | frontend>", reviewer) : OUTPUT_SPEC,
   ].join("\n\n");
 }
 
@@ -193,14 +202,16 @@ export interface BuiltPrompt {
 /** Context pack (mpangilio wa maelezo23) → messages. Picha = image parts halisi (data URL) baada ya maandishi ya evidence. */
 export async function buildReviewPrompt(reviewer: ReviewerId, ctx: ReviewContext, deps: ReviewDeps = {}): Promise<BuiltPrompt> {
   const pack = ctx.pack;
-  const ocb = buildOCB({ ...ctx.ocb, stage: "REVIEW_ANALYSE", self: reviewer });
+  const ocb = buildOCB({ ...ctx.ocb, stage: "REVIEW_ANALYSE", self: castAgentId(ctx.cast, reviewer) as OcbInput["self"] });
+  const tech = isTechnicalReview(ctx); // TASK-29
   const loadDom = deps.loadDom || defaultLoadDom;
   const doms = await Promise.all((pack.screenshots || []).map(async (s) => {
     const dm = (pack.domMetrics || []).find((d) => d.screenshotId === s.id);
     return dm ? loadDom(dm).catch(() => null) : null;
   }));
   const shotsLine = (pack.screenshots || []).map((s) => `- ${s.id}: route ${s.route} · viewport ${s.viewport} · state ${s.state}`).join("\n") || "- (no screenshots)";
-  const checks = (pack.checks || []).map((c) => `- check:${c.id} [${c.type}] ${c.result} — ${cap(c.detail, 300)}`).join("\n") || "- (no check results)";
+  // TASK-29: technical → output za amri/scan zinaonyeshwa kwa urefu (ndio ushahidi pekee)
+  const checks = (pack.checks || []).map((c) => `- check:${c.id} [${c.type}] ${c.result} — ${cap(c.detail, tech ? 1500 : 300)}`).join("\n") || "- (no check results)";
   const regression = (pack.regression || []).map((r) => `- regression:${r.route}@${r.viewport} [${r.kind}] changed ${r.changedPct}% (threshold ${r.thresholdPct}%) vs baseline ${r.baselineMilestone}${r.note ? ` — ${r.note}` : ""}${r.changeOrderIds?.length ? ` (change orders ${r.changeOrderIds.join(", ")})` : ""}`).join("\n") || "- (none)";
   const ledger = ctx.ledger.map((e) => `- A${e.agenda_index} [${e.status}] ${e.agenda_item}: ${cap(String(e.decision_summary || "").replace(/\s+/g, " ").trim(), 400) || "(no summary)"}`).join("\n") || "- (no ledger decisions)";
   const minis = ctx.miniReports.map((m) => `### A${m.agendaIndex} — ${m.title}\n${m.detail.trim()}`).join("\n\n") || "(no mini-reports)";
@@ -217,7 +228,7 @@ export async function buildReviewPrompt(reviewer: ReviewerId, ctx: ReviewContext
       if (img) imgs.push({ id: s.id, img });
     }
   }
-  const imgNote = !want
+  const imgNote = tech ? "PICTURES: none — technical mode (no screenshots)." : !want
     ? "PICTURES: NOT attached in this call — you only have the DOM metrics and the text above. Do not claim anything you could only know from looking at a picture."
     : imgs.length
       ? `PICTURES: ${imgs.length} screenshot image(s) are attached after this text, in this order: ${imgs.map((i) => i.id).join(", ")}. Each image is preceded by a label with its id.`
@@ -229,6 +240,10 @@ export async function buildReviewPrompt(reviewer: ReviewerId, ctx: ReviewContext
     `## LEDGER (locked decisions — authoritative)\n${ledger}`,
     `## MILESTONE PLAN (what XMD Computer was told to build)\n${cap(ctx.planMarkdown, 24_000)}`,
     `## XMD COMPUTER BUILD REPORT\n${cap(ctx.buildReport || "(no build report)", 16_000)}`,
+    ...(tech ? [`## TECHNICAL EVIDENCE (decided by code — no screenshots in technical mode)
+SECRETS SCAN: ${pack.technical ? `${pack.technical.secrets} finding(s)${pack.technical.secretFiles.length ? ` in ${pack.technical.secretFiles.join(", ")}` : ""} — see check:tech/secrets` : "not run"}
+CHECKS NOT PASSING: ${(pack.checks || []).filter((c) => c.result !== "PASS").map((c) => `check:${c.id} ${c.result}`).join(", ") || "none"}
+COMMANDS RUN: ${(pack.commands || []).map((c) => `\`${cap(c.cmd, 120)}\` → exit ${c.exit}`).join(" · ") || "none"}`] : []),
     `## EVIDENCE PACK (${pack.milestoneId} R${pack.round}${pack.base ? ` · ${pack.mode || "local"} ${pack.base}` : ""})
 SCREENSHOTS:
 ${shotsLine}
@@ -245,10 +260,12 @@ ${cap(pack.gitDiffSummary || "(none)", 4000)}
 ${imgNote}`,
     `## DEFECT LEDGER (inherited / still open)\n${defects}`,
     `## BASELINES OF PREVIOUS MILESTONES (approved screenshots)\n${baselines}`,
-    `## YOUR TASK\nReview milestone ${pack.milestoneId} as ${agentOf(reviewer).name} (${reviewer}). Describe EVERY screenshot (${(pack.screenshots || []).map((s) => s.id).join(", ") || "none"}), then list DEFECTS and PROPOSALS with evidence. Reply with the JSON object only.`,
+    tech
+      ? `## YOUR TASK\nReview milestone ${pack.milestoneId} as ${agentOf(reviewer, ctx.cast).name} (reviewer id "${reviewer}"). Technical mode: "screenshots": []. Compare the Build Report's claims with the technical evidence, list what the report does not say, run the security checklist, then list DEFECTS and PROPOSALS citing check:<id>. Reply with the JSON object only.`
+      : `## YOUR TASK\nReview milestone ${pack.milestoneId} as ${agentOf(reviewer).name} (${reviewer}). Describe EVERY screenshot (${(pack.screenshots || []).map((s) => s.id).join(", ") || "none"}), then list DEFECTS and PROPOSALS with evidence. Reply with the JSON object only.`,
   ];
   const userText = sections.join("\n\n");
-  const system = systemPrompt(reviewer);
+  const system = systemPrompt(reviewer, ctx);
   const content: any[] = [{ type: "text", text: userText }];
   for (const { id, img } of imgs) {
     const s = pack.screenshots.find((x) => x.id === id)!;
@@ -308,12 +325,12 @@ export function classifyEvidence(ev: string, pack: EvidencePack): { kind: "pack"
 const isObj = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 const nonEmpty = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
-export function validateFindings(raw: unknown, reviewer: ReviewerId, pack: EvidencePack): { ok: true; value: Findings } | { ok: false; errors: string[] } {
+export function validateFindings(raw: unknown, reviewer: ReviewerId, pack: EvidencePack, cast?: Partial<ReviewCast>): { ok: true; value: Findings } | { ok: false; errors: string[] } {
   const e: string[] = [];
   if (!isObj(raw)) return { ok: false, errors: ["root: must be a JSON object"] };
-  const a = agentOf(reviewer);
+  const a = agentOf(reviewer, cast);
   const who = String(raw.reviewer || "").toLowerCase();
-  if (who && who !== reviewer && who !== a.name.toLowerCase()) e.push(`reviewer: must be "${reviewer}" (got ${JSON.stringify(raw.reviewer)})`);
+  if (who && who !== reviewer && who !== a.name.toLowerCase() && who !== a.id) e.push(`reviewer: must be "${reviewer}" (got ${JSON.stringify(raw.reviewer)})`);
   const evid = (arr: unknown, p: string) => {
     if (!Array.isArray(arr) || !arr.length) { e.push(`${p}.evidence: must be a non-empty array`); return; }
     let packRefs = 0;
@@ -373,8 +390,8 @@ export function validateFindings(raw: unknown, reviewer: ReviewerId, pack: Evide
 }
 
 /** Lane ya maelezo23 (hadi task 30): Gemini Flash, thinking ON, kupitia broker iliyopo. */
-const defaultComplete: NonNullable<ReviewDeps["complete"]> = async ({ reviewer, messages, purpose }) =>
-  brokerComplete({ agentId: reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", allow: ["gemini"], effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
+const defaultComplete: NonNullable<ReviewDeps["complete"]> = async ({ reviewer, messages, purpose, agentId }) =>
+  brokerComplete({ agentId: agentId || reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", allow: ["gemini"], effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
 
 /** maelezo23 #1 — reviewer MMOJA, peke yake. */
 export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omit<ReviewContext, "pack">, deps: ReviewDeps = {}): Promise<ReviewRun> {
@@ -383,7 +400,8 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
   const built = await buildReviewPrompt(reviewer, full, deps);
   const complete = deps.complete || defaultComplete;
   const purpose = `review-analyse:${pack.milestoneId}:R${pack.round}:${reviewer}`;
-  deps.log?.("info", `🔎 ${agentOf(reviewer).name} (${reviewer}) ${pack.milestoneId} R${pack.round}: prompt ${built.text.length} chars · parts: text ${built.textParts} + image ${built.imageParts}${built.imageIds.length ? ` (${built.imageIds.join(", ")})` : ""} · hash ${built.hash.slice(0, 12)}`);
+  const agentId = castAgentId(ctx.cast, reviewer); // TASK-29
+  deps.log?.("info", `🔎 ${agentOf(reviewer, ctx.cast).name} (${reviewer}) ${pack.milestoneId} R${pack.round}: prompt ${built.text.length} chars · parts: text ${built.textParts} + image ${built.imageParts}${built.imageIds.length ? ` (${built.imageIds.join(", ")})` : ""} · hash ${built.hash.slice(0, 12)}`);
   let messages = built.messages;
   let raw = "", errors: string[] = ["not run"], findings: Findings | null = null, attempts = 0;
   let lane = "", model = "", tier = "", usage: CompleteResult["usage"] = null;
@@ -391,7 +409,7 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
     attempts++;
     let r: Awaited<ReturnType<typeof complete>>;
     try {
-      r = await complete({ reviewer, messages, purpose });
+      r = await complete({ reviewer, messages, purpose, agentId });
     } catch (e: any) {
       // lanes zimekwisha / provider down → reviewer huyu hana findings (raundi haianguki; harness inaamua)
       errors = [`LLM call failed: ${String(e?.message || e).slice(0, 300)}`];
@@ -403,7 +421,7 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
     let parsed: unknown;
     try { parsed = extractJson(raw); } catch (e: any) { errors = [`invalid JSON: ${String(e?.message || e).slice(0, 200)}`]; parsed = undefined; }
     if (parsed !== undefined) {
-      const v = validateFindings(parsed, reviewer, pack);
+      const v = validateFindings(parsed, reviewer, pack, ctx.cast);
       if (v.ok) { findings = v.value; errors = []; break; }
       errors = v.errors;
     }

@@ -27,7 +27,8 @@ export const CHECK_SHAPES = `Allowed check objects (exact field names; "id" uniq
 {"id":"…","type":"grep","pattern":"messages\\\\.json","path":"server.js","expect":"present"}        (expect: "present" | "absent")
 {"id":"…","type":"grep","pattern":"console\\\\.log","paths":["src"],"count":0,"op":"eq"}             (count of matching lines; op: eq | lt | gt; node_modules/.next/dist skipped)
 {"id":"…","type":"command","cmd":"node --check server.js","expectExit":0}                           (run from the workspace root)
-{"id":"…","type":"http","url":"http://localhost:3000/","method":"GET","expectStatus":200,"bodyContains":"<h1"}   (bodyContains optional)
+{"id":"…","type":"http","url":"http://localhost:3000/","method":"GET","expectStatus":200,"bodyContains":"<h1"}   (bodyContains optional; "headers":{"Authorization":"Bearer …"} and "body":"…" optional)
+{"id":"…","type":"db","table":"orders","rls":true}                                                     (real database: table exists; "rls":true = Row Level Security must be ON; "schema" optional, default public)
 {"id":"…","type":"dom_exists","route":"/","selector":"form#contact","viewport":"375x667"}           (viewport optional)
 {"id":"…","type":"computed_style","route":"/","selector":"h1","property":"font-size","expected":"32px"}   (or "forbidden":"…" instead of "expected")
 {"id":"…","type":"no_horizontal_overflow","route":"/","viewport":"375x667"}                              (or "routes":[…] / "viewports":[…]; default: all 3 viewports)
@@ -212,7 +213,13 @@ Then a "**Screenshots:**" list — one line per route the harness must capture, 
 An extra state = a name plus its actions in brackets: \`click <css selector>\` or \`hover <css selector>\`, several actions joined with " > ".
 Then one line \`Start Command: <command that builds and serves the app on port ${EVIDENCE_PORT}>\` (e.g. \`npm run build && npm run start -- -p ${EVIDENCE_PORT}\`) — the harness runs it to take the screenshots.
 Optionally one line \`Key Selectors: <comma-separated CSS selectors of this milestone's key elements, e.g. .product-card, #cart-button>\` — the harness measures them (box, fonts, colors, contrast, touch size) next to the generic landmarks.` : ""}${technical ? `
-Then a "**Proof:**" list — the exact commands / tests / API calls that prove the work (they must also appear as "command" or "http" checks in the steps).` : ""}
+Then a "**Proof:**" list — the exact commands / tests / API calls that prove the work (they must also appear as "command" or "http" checks in the steps).
+Technical evidence (TASK-29 — the harness runs these itself, no screenshots in technical mode):
+- every protected endpoint needs a NEGATIVE http check: the same request WITHOUT credentials must be denied (e.g. {"type":"http","url":"http://localhost:${EVIDENCE_PORT}/api/admin","expectStatus":401});
+- every table this milestone creates needs a "db" check (with "rls":true when the data is private);
+- optional lines (one shell command each, or "none"): \`Lint Command: …\`, \`Typecheck Command: …\`, \`Migration Status Command: …\`;${visual ? "" : `
+- if the milestone serves an API, one line \`Start Command: <command that serves it on port ${EVIDENCE_PORT}>\` — the harness starts it for the http checks;`}
+- never commit secrets or .env files (the harness scans every tracked file).` : ""}
 ## 8. Agent Rules — DATA RASMI and LEDGER decisions are law; never invent; build ONLY milestone ${m.id}; stop and report on data conflicts or a failed check x2`;
 }
 

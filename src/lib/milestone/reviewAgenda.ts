@@ -16,6 +16,7 @@ import { AGENTS } from "../agents";
 import type { AgendaItem } from "../agenda";
 import { validateChangeOrder } from "./schemas";
 import { extractJson, type Findings, type ReviewerId } from "./review";
+import { castAgentId, type ReviewCast } from "./techEvidence"; // TASK-29
 import { DEFECT_SEVERITIES, type ChangeOrder, type Check, type Defect, type DefectSeverity, type EvidencePack, type ReviewMode } from "./types";
 
 export const REVIEW_KIND = "REVIEW" as const;
@@ -46,7 +47,7 @@ const nameOf = (id: string) => AGENTS.find((a) => a.id === id)?.name || id;
 const clip = (s: unknown, n: number) => { const t = String(s ?? "").replace(/\s+/g, " ").trim(); return t.length > n ? `${t.slice(0, n)}…` : t; };
 
 // ── Aina ─────────────────────────────────────────────────────────────────────
-export interface ReviewProposal { id: string; by: ReviewerId | "team"; title: string; detail: string; rationale: string; evidence: string[] }
+export interface ReviewProposal { id: string; /** agent id (TASK-29: technical → backend/qa) au "team" */ by: string; title: string; detail: string; rationale: string; evidence: string[] }
 export interface ReviewTable {
   reviewId: string;
   milestoneId: string;
@@ -71,6 +72,8 @@ export interface ReviewAgendaPayload {
   /** "S-001 / @375x667 default" … */
   evidenceRefs: string[];
   participants: string[];
+  /** TASK-29: wachezaji wa slots (technical → backend + qa) */
+  cast?: Partial<ReviewCast>;
 }
 export type ReviewAgendaItem = AgendaItem & { kind: typeof REVIEW_KIND; reviewId: string; review: ReviewAgendaPayload };
 export const isReviewAgenda = (it: unknown): it is ReviewAgendaItem => (it as { kind?: string })?.kind === REVIEW_KIND && !!(it as { review?: unknown }).review;
@@ -120,7 +123,7 @@ export interface ReviewRulesResult {
 }
 
 // ── Findings → jedwali lenye ids ─────────────────────────────────────────────
-export function numberFindings(f: Partial<Record<ReviewerId, Findings | null>>, o: { milestoneId: string; round: number; nextDefectNo?: number }): ReviewTable {
+export function numberFindings(f: Partial<Record<ReviewerId, Findings | null>>, o: { milestoneId: string; round: number; nextDefectNo?: number; cast?: Partial<ReviewCast> }): ReviewTable {
   let dn = Math.max(1, o.nextDefectNo ?? 1);
   let pn = 1;
   const t: ReviewTable = { reviewId: reviewAgendaId(o.milestoneId, o.round), milestoneId: o.milestoneId, round: o.round, defects: [], proposals: [], decisionRefs: {}, notes: {} };
@@ -131,21 +134,22 @@ export function numberFindings(f: Partial<Record<ReviewerId, Findings | null>>, 
     for (const d of x.defects || []) {
       const id = `D-${String(dn++).padStart(3, "0")}`;
       t.defects.push({
-        id, milestoneId: o.milestoneId, foundInRound: o.round, reportedBy: [r], area: d.area || r,
+        id, milestoneId: o.milestoneId, foundInRound: o.round, reportedBy: [castAgentId(o.cast, r)], area: d.area || r,
         severity: (DEFECT_SEVERITIES as readonly string[]).includes(d.severity) ? d.severity : "medium",
         title: d.title, evidence: d.evidence || [], expected: d.expected, actual: d.actual, status: "OPEN", attempts: 0, history: [],
       });
       if (d.decisionRef) t.decisionRefs[id] = d.decisionRef;
     }
-    for (const p of x.proposals || []) t.proposals.push({ id: `P-${String(pn++).padStart(2, "0")}`, by: r, title: p.title, detail: p.detail, rationale: p.rationale, evidence: p.evidence || [] });
+    for (const p of x.proposals || []) t.proposals.push({ id: `P-${String(pn++).padStart(2, "0")}`, by: castAgentId(o.cast, r), title: p.title, detail: p.detail, rationale: p.rationale, evidence: p.evidence || [] });
   }
   return t;
 }
 
 /** Washiriki: Ultron + Vextron + Optimus; wengine TU ikiwa Optimus amewaongeza kwa milestone hii (`extra`). */
-export function reviewParticipants(extra: string[] = []): string[] {
+export function reviewParticipants(extra: string[] = [], cast?: Partial<ReviewCast>): string[] {
   const known = new Set(AGENTS.map((a) => a.id));
-  return [...new Set([...REVIEW_BASE_PARTICIPANTS, ...extra.filter((x) => known.has(x))])];
+  const base = REVIEW_BASE_PARTICIPANTS.map((x) => (x === "pm" ? x : castAgentId(cast, x))); // TASK-29
+  return [...new Set([...base, ...extra.filter((x) => known.has(x))])];
 }
 
 export function makeReviewAgendaItem(p: ReviewAgendaPayload): ReviewAgendaItem {
@@ -174,9 +178,10 @@ export function reviewPromptBlock(item: ReviewAgendaItem, selfId: string): strin
   const others = p.participants.filter((x) => x !== selfId).map(nameOf).join(", ");
   const defects = t.defects.map((d) => `- ${d.id} [${d.severity}] (${nameOf(d.reportedBy[0])}) ${d.title}${t.decisionRefs[d.id] ? ` · violates ${t.decisionRefs[d.id]}` : ""}\n    expected: ${clip(d.expected, 300)}\n    actual: ${clip(d.actual, 300)}\n    evidence: ${d.evidence.slice(0, 6).map((e) => clip(e, 160)).join(" | ")}`).join("\n") || "- (none)";
   const props = t.proposals.map((x) => `- ${x.id} (${x.by === "team" ? "team" : nameOf(x.by)}) ${x.title}\n    detail: ${clip(x.detail, 500)}\n    rationale: ${clip(x.rationale, 300)}\n    evidence: ${x.evidence.slice(0, 4).map((e) => clip(e, 140)).join(" | ") || "-"}`).join("\n") || "- (none)";
-  const notes = (["designer", "frontend"] as ReviewerId[]).filter((r) => t.notes[r]).map((r) => `- ${nameOf(r)}: ${clip(t.notes[r], 700)}`).join("\n") || "- (none)";
+  const notes = (["designer", "frontend"] as ReviewerId[]).filter((r) => t.notes[r]).map((r) => `- ${nameOf(castAgentId(p.cast, r))}: ${clip(t.notes[r], 700)}`).join("\n") || "- (none)";
+  const rv = (["designer", "frontend"] as ReviewerId[]).map((r) => { const a = AGENTS.find((x) => x.id === castAgentId(p.cast, r)); return a ? `${a.name} (${a.role})` : r; }).join(" and ");
   return `=== REVIEW ${p.reviewId} — milestone ${p.milestoneId} "${p.milestoneTitle}", round ${p.round} (NOT a numbered agenda) ===
-Ultron (Designer) and Vextron (Frontend Engineer) each reviewed what XMD Computer built INDEPENDENTLY. Now the team (${p.participants.map(nameOf).join(", ")}) discusses BOTH reviews like a normal Board agenda: read each other's findings, challenge or support them, research current practice (RESEARCH_REQUEST / READ_SOURCE work here), propose bigger changes when justified. You discuss with: ${others}.
+${rv} each reviewed what XMD Computer built INDEPENDENTLY. Now the team (${p.participants.map(nameOf).join(", ")}) discusses BOTH reviews like a normal Board agenda: read each other's findings, challenge or support them, research current practice (RESEARCH_REQUEST / READ_SOURCE work here), propose bigger changes when justified. You discuss with: ${others}.
 Refer to the other participants' points explicitly by name and id (e.g. "Vextron's D-003 …", "I disagree with Ultron's P-02 because …").
 
 LOCKED LEDGER DECISIONS (authoritative; the CEO brief is authoritative too):
@@ -292,9 +297,9 @@ export function parseReviewDecision(text: string): ParsedReviewDecision {
  *  • defect inaondoka TU ikiwa iko kwenye INVALID DEFECTS ya uamuzi uliokubaliwa na wote (reviewers WOTE wawili) + sababu;
  *  • proposal inakubaliwa TU ikiwa iko kwenye ACCEPTED ya uamuzi huo; ikipingana na Ledger → CR (si CO, si uamuzi).
  */
-export function applyReviewRules(t: ReviewTable, d: { consensus: boolean; decision: string; participants: string[] }): ReviewRulesResult {
+export function applyReviewRules(t: ReviewTable, d: { consensus: boolean; decision: string; participants: string[]; cast?: Partial<ReviewCast> }): ReviewRulesResult {
   const warnings: string[] = [];
-  const reviewersAgreed = ["designer", "frontend"].every((r) => d.participants.includes(r));
+  const reviewersAgreed = (["designer", "frontend"] as const).every((r) => d.participants.includes(castAgentId(d.cast, r)));
   if (!d.consensus || !d.decision.trim() || !reviewersAgreed) {
     return {
       consensus: false, acceptedProposals: [], invalidDefects: [], changeRequests: [], openDefects: [...t.defects], warnings,
@@ -516,6 +521,8 @@ export interface ReviewRoundInput {
   participants: string[];
   /** TASK-26: RoundHeader (kutoka DB) kwa Optimus */
   roundHeader?: string;
+  /** TASK-29: wachezaji wa slots (technical → backend + qa) */
+  cast?: Partial<ReviewCast>;
 }
 export interface ReviewRoundDeps {
   /** T23 reviewRound0 (wote wawili sambamba, huru) → findings */
@@ -566,7 +573,7 @@ export async function runReviewRound(inp: ReviewRoundInput, deps: ReviewRoundDep
   const ledger = (await deps.store.get<{ version: number; defects: Defect[] }>(DEFECTS_KEY))?.defects || [];
   const prior = ledger.filter((d) => !(d.milestoneId === mId && d.foundInRound === round));
   const maxNo = prior.reduce((m, d) => Math.max(m, Number(d.id.slice(2)) || 0), 0);
-  const table = numberFindings({ designer: fr.designer, frontend: fr.frontend }, { milestoneId: mId, round, nextDefectNo: maxNo + 1 });
+  const table = numberFindings({ designer: fr.designer, frontend: fr.frontend }, { milestoneId: mId, round, nextDefectNo: maxNo + 1, cast: inp.cast });
 
   // 3) mjadala wa TIMU (mashine ya agenda) — matokeo yanahifadhiwa; resume hairudii mjadala uliokamilika
   let rv = await deps.store.get<ReviewRecord>(reviewKey(mId, round));
@@ -576,11 +583,11 @@ export async function runReviewRound(inp: ReviewRoundInput, deps: ReviewRoundDep
       ledgerLines: inp.ledgerLines,
       checkLines: (inp.pack.checks || []).map((c) => `- check:${c.id} [${c.type}] ${c.result} — ${clip(c.detail, 200)}`),
       evidenceRefs: (inp.pack.screenshots || []).map((s) => `- ${s.id}: ${s.route} @${s.viewport} ${s.state}`),
-      participants: inp.participants,
+      participants: inp.participants, ...(inp.cast ? { cast: inp.cast } : {}),
     });
     deps.addChip(`🧑‍⚖️ ${reviewId}: mjadala wa timu (${inp.participants.map(nameOf).join(" + ")}) — defects ${table.defects.length} · proposals ${table.proposals.length}`);
     const discussion = await deps.discuss(item);
-    const rules = applyReviewRules(table, { consensus: discussion.consensus, decision: discussion.decision, participants: inp.participants });
+    const rules = applyReviewRules(table, { consensus: discussion.consensus, decision: discussion.decision, participants: inp.participants, cast: inp.cast });
     rv = await deps.store.update<ReviewRecord>(reviewKey(mId, round), () => ({
       version: 1, reviewId, table, rules, at: now(),
       discussion: { ...discussion, transcript: discussion.transcript.map((t) => ({ ...t, text: t.text.slice(0, 8000) })).slice(-60) },

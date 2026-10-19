@@ -10,7 +10,12 @@ import type { EvidenceSandbox } from "@/lib/cu/evidence";
 import { EVIDENCE_PORT } from "./plan";
 import { EVIDENCE_TOOLS_DIR } from "./evidence";
 import { validateCheck } from "./schemas";
-import type { Check, CheckResult, EvidenceCheckResult, EvidencePack, GrepOp } from "./types";
+import { maskSecrets } from "./techEvidence"; // TASK-29
+import type { Check, CheckResult, DbCheck, EvidenceCheckResult, EvidencePack, GrepOp } from "./types";
+
+/** TASK-29: hali ya table kwenye database halisi (harness: Supabase client — src/lib/milestone/dbProbe.ts). */
+export interface DbProbeResult { exists: boolean; rls: boolean | null; detail?: string }
+export type DbProbe = (c: DbCheck) => Promise<DbProbeResult>;
 
 export interface CheckContext {
   sbx: EvidenceSandbox;
@@ -29,6 +34,8 @@ export interface CheckContext {
   tag?: string;
   commandTimeoutMs?: number;
   fetchImpl?: typeof fetch;
+  /** TASK-29: checks za `db` (bila probe → ERROR) */
+  db?: DbProbe;
 }
 
 export const BROWSER_CHECK_TYPES = ["dom_exists", "computed_style", "no_horizontal_overflow", "console_clean", "contrast_min", "touch_target_min"] as const;
@@ -41,7 +48,7 @@ const TAIL_LINES = 40;
 export const shq = (s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
 const res = (c: { id?: string; type?: string }, result: CheckResult, detail: string): EvidenceCheckResult =>
-  ({ id: String(c.id || "?"), type: String(c.type || "?") as EvidenceCheckResult["type"], result, detail: detail.slice(0, 2000) });
+  ({ id: String(c.id || "?"), type: String(c.type || "?") as EvidenceCheckResult["type"], result, detail: maskSecrets(detail).slice(0, 2000) }); // TASK-29: siri hazichapishwi
 
 /** Inaendesha script ya bash ndani ya sandbox bila exception kwa exit≠0. Inarudisha exit + mkia wa output. */
 export async function sbxShell(ctx: CheckContext, body: string, timeoutMs = ctx.commandTimeoutMs ?? 5 * 60_000): Promise<{ exit: number; out: string }> {
@@ -113,7 +120,9 @@ async function runHttp(c: Extract<Check, { type: "http" }>, ctx: CheckContext): 
   let body = "";
   if (LOCAL_HOST_RE.test(c.url)) {
     // app iko ndani ya sandbox → curl kutoka huko huko
-    const r = await sbxShell(ctx, `code=$(curl -s -o /tmp/xmdh.body -w '%{http_code}' -X ${shq(method)} --max-time 20 ${shq(c.url)}); echo "__H=$code"; head -c 4000 /tmp/xmdh.body; rm -f /tmp/xmdh.body\n`, 60_000);
+    const hdr = Object.entries(c.headers || {}).map(([k, v]) => `-H ${shq(`${k}: ${v}`)}`).join(" ");
+    const data = c.body !== undefined ? `--data-raw ${shq(c.body)}` : "";
+    const r = await sbxShell(ctx, `code=$(curl -s -o /tmp/xmdh.body -w '%{http_code}' -X ${shq(method)} ${hdr} ${data} --max-time 20 ${shq(c.url)}); echo "__H=$code"; head -c 4000 /tmp/xmdh.body; rm -f /tmp/xmdh.body\n`, 60_000);
     const m = /__H=(\d+)\n?/.exec(r.out);
     if (!m) return res(c, "ERROR", `curl did not run: ${r.out.slice(-300)}`);
     status = Number(m[1]);
@@ -121,7 +130,7 @@ async function runHttp(c: Extract<Check, { type: "http" }>, ctx: CheckContext): 
   } else {
     try {
       const f = ctx.fetchImpl || fetch;
-      const resp = await f(c.url, { method, redirect: "follow", signal: AbortSignal.timeout(20_000) });
+      const resp = await f(c.url, { method, redirect: "follow", signal: AbortSignal.timeout(20_000), ...(c.headers ? { headers: c.headers } : {}), ...(c.body !== undefined ? { body: c.body } : {}) });
       status = resp.status;
       body = (await resp.text()).slice(0, 1_000_000);
     } catch (e: any) {
@@ -131,8 +140,9 @@ async function runHttp(c: Extract<Check, { type: "http" }>, ctx: CheckContext): 
   if (status === 0) return res(c, "ERROR", `${method} ${c.url}: no HTTP response (connection failed)`);
   const statusOk = status === want;
   const bodyOk = contains === undefined || contains === "" || body.includes(contains);
+  const auth = c.headers && Object.keys(c.headers).some((k) => /^authorization$|api[-_]?key|token/i.test(k)) ? " (authenticated)" : " (no credentials)";
   return res(c, statusOk && bodyOk ? "PASS" : "FAIL",
-    `${method} ${c.url} → HTTP ${status} (expected ${want})${contains ? ` · body ${bodyOk ? "contains" : "does NOT contain"} ${JSON.stringify(contains).slice(0, 80)}` : ""}`);
+    `${method} ${c.url}${auth} → HTTP ${status} (expected ${want})${contains ? ` · body ${bodyOk ? "contains" : "does NOT contain"} ${JSON.stringify(contains).slice(0, 80)}` : ""}`);
 }
 
 async function runScreenshotTaken(c: Extract<Check, { type: "screenshot_taken" }>, ctx: CheckContext): Promise<EvidenceCheckResult> {
@@ -187,6 +197,37 @@ async function runBrowserBatch(checks: Check[], ctx: CheckContext): Promise<Evid
   }
 }
 
+/** TASK-29: table ipo + RLS (ikiombwa) kupitia probe ya harness (database halisi). */
+async function runDb(c: DbCheck, ctx: CheckContext): Promise<EvidenceCheckResult> {
+  const name = `${c.schema || "public"}.${c.table}`;
+  if (!ctx.db) return res(c, "ERROR", `${name}: no database connection configured for db checks`);
+  const r = await ctx.db(c);
+  if (!r.exists) return res(c, "FAIL", `${name}: table does NOT exist${r.detail ? ` — ${r.detail}` : ""}`);
+  if (c.rls === true && r.rls === false) return res(c, "FAIL", `${name}: table exists but Row Level Security is DISABLED (plan requires RLS)`);
+  if (c.rls !== undefined && r.rls === null) return res(c, "ERROR", `${name}: table exists; RLS status could not be read${r.detail ? ` — ${r.detail}` : ""}`);
+  return res(c, "PASS", `${name}: table exists${r.rls === null ? "" : ` · RLS ${r.rls ? "enabled" : "disabled"}`}${c.rls === undefined ? "" : ` (plan: rls ${c.rls})`}`);
+}
+
+/** TASK-29: http checks za localhost zinahitaji app hai — Start Command inawashwa MARA MOJA (ikiwa port haijibu), kisha inazimwa. */
+export async function withLocalServer<T>(ctx: CheckContext, needed: boolean, fn: () => Promise<T>): Promise<{ value: T; note: string }> {
+  if (!needed || !ctx.startCommand || ctx.base) return { value: await fn(), note: "" };
+  const port = ctx.port ?? EVIDENCE_PORT;
+  const tag = (ctx.tag || "srv").replace(/[^\w.-]/g, "_");
+  const log = `.xmd/tools/server-${tag}.log`;
+  const probe = `curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:${port}/`;
+  const up = await sbxShell(ctx, `c=$(${probe}); echo "__UP=$c"\n`, 30_000).catch(() => ({ exit: -1, out: "" }));
+  if (/__UP=[1-5]\d\d/.test(up.out)) return { value: await fn(), note: `server already listening on ${port}` };
+  const secs = Math.round((ctx.startTimeoutMs ?? 120_000) / 1000);
+  const st = await sbxShell(ctx, `mkdir -p .xmd/tools; PORT=${port} nohup setsid bash -c ${shq(ctx.startCommand)} > ${shq(log)} 2>&1 < /dev/null & echo $! > /tmp/xmd-srv-${tag}.pid
+for i in $(seq 1 ${secs}); do c=$(${probe}); case "$c" in [1-5][0-9][0-9]) echo "__UP=$c after $i s"; exit 0;; esac; sleep 1; done
+echo "__DOWN"; tail -n 15 ${shq(log)}\n`, (secs + 30) * 1000).catch((e) => ({ exit: -1, out: String(e?.message || e) }));
+  const note = /__UP=/.test(st.out) ? `started \`${ctx.startCommand}\` on port ${port}` : `Start Command did not answer on port ${port}: ${st.out.slice(-400)}`;
+  try { return { value: await fn(), note }; }
+  finally {
+    await sbxShell(ctx, `p=$(cat /tmp/xmd-srv-${tag}.pid 2>/dev/null); [ -n "$p" ] && kill -- -"$p" 2>/dev/null; kill "$p" 2>/dev/null; rm -f /tmp/xmd-srv-${tag}.pid; exit 0\n`, 30_000).catch(() => {});
+  }
+}
+
 async function runOne(c: Check, ctx: CheckContext): Promise<EvidenceCheckResult> {
   switch (c.type) {
     case "command": return runCommand(c, ctx);
@@ -195,6 +236,7 @@ async function runOne(c: Check, ctx: CheckContext): Promise<EvidenceCheckResult>
     case "file_contains": return runFile(c, ctx);
     case "http": return runHttp(c, ctx);
     case "screenshot_taken": return runScreenshotTaken(c, ctx);
+    case "db": return runDb(c, ctx);
     default: return (await runBrowserBatch([c], ctx))[0];
   }
 }
@@ -209,12 +251,23 @@ export async function runChecks(checks: unknown[], ctx: CheckContext): Promise<{
   const t0 = Date.now();
   const out: EvidenceCheckResult[] = new Array(checks.length);
   const browser: { i: number; c: Check }[] = [];
+  const valid: { i: number; c: Check }[] = [];
   for (let i = 0; i < checks.length; i++) {
     const raw = checks[i] as Record<string, unknown>;
     const v = validateCheck(raw, `check[${i}]`);
     if (!v.ok) { out[i] = res((raw || {}) as { id?: string; type?: string }, "ERROR", `invalid check: ${v.errors.join("; ")}`); continue; }
     if (isBrowser(v.value.type)) { browser.push({ i, c: v.value }); continue; }
-    try { out[i] = await runOne(v.value, ctx); } catch (e: any) { out[i] = res(v.value, "ERROR", `check runner failed: ${String(e?.message || e).slice(0, 240)}`); }
+    valid.push({ i, c: v.value });
+  }
+  // TASK-29: http ya localhost → app inawashwa mara moja kwa checks hizo (si kwa browser — script ina server yake)
+  const localHttp = valid.some(({ c }) => c.type === "http" && LOCAL_HOST_RE.test(c.url));
+  const srv = await withLocalServer(ctx, localHttp, async () => {
+    for (const { i, c } of valid) {
+      try { out[i] = await runOne(c, ctx); } catch (e: any) { out[i] = res(c, "ERROR", `check runner failed: ${String(e?.message || e).slice(0, 240)}`); }
+    }
+  });
+  if (srv.note && /did not answer/.test(srv.note)) {
+    for (const { i, c } of valid) if (c.type === "http" && LOCAL_HOST_RE.test(c.url) && out[i].result !== "PASS") out[i] = { ...out[i], detail: `${out[i].detail} · ${maskSecrets(srv.note).slice(0, 500)}` };
   }
   const br = await runBrowserBatch(browser.map((b) => b.c), ctx);
   browser.forEach((b, k) => { out[b.i] = br[k]; });

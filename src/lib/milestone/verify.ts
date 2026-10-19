@@ -14,7 +14,8 @@ import { AGENTS } from "@/lib/agents";
 import { brokerComplete, type CompleteResult } from "@/lib/broker";
 import { buildOCB } from "./ocb";
 import { classifyEvidence, domLines, extractJson, formatRoundHeader, REVIEW_STALL_FIRST_MS, REVIEWERS, type DefectFinding, type DomJson, type ReviewContext, type ReviewDeps, type ReviewerId, type ReviewImage } from "./review";
-import { DEFECT_SEVERITIES, type ChangeOrder, type Defect, type DefectSeverity, type EvidenceCheckResult, type EvidencePack, type RoundHeaderData } from "./types";
+import { castAgentId, TECH_LENS, type ReviewCast } from "./techEvidence"; // TASK-29
+import { DEFECT_SEVERITIES, type ChangeOrder, type Defect, type DefectSeverity, type EvidenceCheckResult, type EvidencePack, type ReviewMode, type RoundHeaderData } from "./types";
 
 type Msg = { role: string; content?: unknown };
 
@@ -307,7 +308,12 @@ export interface VerifyContext {
   notes?: string[];
   /** sehemu ya "Goal" ya plan (regression ya bidhaa, si ya CO tu) */
   planGoal?: string;
+  /** TASK-29: technical → slots zinachezwa na wataalamu wa roster (backend + qa) */
+  cast?: Partial<ReviewCast>;
+  reviewMode?: ReviewMode;
 }
+const agentFor = (r: ReviewerId, cast?: Partial<ReviewCast>) => AGENTS.find((x) => x.id === castAgentId(cast, r)) || AGENTS.find((x) => x.id === r)!;
+const TECH_VERIFY_NOTE = `TECHNICAL MODE: there are NO screenshots. PASS = the change order's "desired" state is proven by the evidence (command output, http status incl. negative/unauthenticated checks, db check, secrets scan). Cite "check:<id>" (e.g. check:CO-001/c1, check:tech/secrets). A Build Report / receipt claim that a check contradicts is a FAIL.`;
 
 /** "## 1 Goal" ya plan (au mwanzo wake) — muhtasari mfupi kwa reviewers. */
 export function planGoalOf(plan: string): string {
@@ -334,12 +340,13 @@ A change order can be applied EXACTLY as written and still be WRONG: if applying
 A check marked FAIL/ERROR means the CO fails whatever you say — say what you see anyway. If a check PASSED but you still see a problem, say FAIL/PARTIAL and explain: the harness will open a NEW defect and a NEW check.
 EVIDENCE: every verdict, regression and new defect needs ≥1 item pointing INTO THE EVIDENCE PACK: a screenshot id ("S-003"), a DOM metric written exactly as "S-003 dom: <selector> <property>=<value>", "check:<id>" of a listed check, "regression:<route>@<viewport>" of a listed regression, or "console". Never invent ids.`;
 
-function verifySystem(r: ReviewerId): string {
-  const a = AGENTS.find((x) => x.id === r)!;
+function verifySystem(r: ReviewerId, ctx?: Pick<VerifyContext, "cast" | "reviewMode">): string {
+  const a = agentFor(r, ctx?.cast);
+  const tech = ctx?.reviewMode === "technical";
   return [
     `You are ${a.name}, the ${a.role} of PROFESSOR XMD COMPANY. You are one of the TWO reviewers who VERIFY a fix round of XMD Computer. You verify ALONE — you will not see the other reviewer's verdicts.`,
-    `YOUR LENS: ${ROLE[r]}`,
-    VERIFY_SPEC,
+    `YOUR LENS: ${tech ? TECH_LENS[a.id] || TECH_LENS.qa : ROLE[r]}`,
+    tech ? `${VERIFY_SPEC.replace("<designer | frontend>", r)}\n${TECH_VERIFY_NOTE}` : VERIFY_SPEC,
   ].join("\n\n");
 }
 
@@ -348,7 +355,7 @@ const cap = (s: unknown, n: number) => { const t = String(s ?? ""); return t.len
 export interface VerifyDeps {
   /** pumziko kabla ya kurudia wito ulioanguka (429 / provider down); default 30s, majaribio VERIFY_TRANSPORT_RETRIES */
   retryDelayMs?: number;
-  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string } }>;
+  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string; agentId?: string }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string } }>;
   loadImage?: ReviewDeps["loadImage"];
   loadDom?: ReviewDeps["loadDom"];
   images?: boolean;
@@ -366,7 +373,8 @@ export function verifyPack(ctx: VerifyContext): EvidencePack {
 
 export async function buildVerifyPrompt(reviewer: ReviewerId, ctx: VerifyContext, deps: VerifyDeps = {}): Promise<{ messages: Msg[]; text: string; hash: string; imageParts: number }> {
   const pack = verifyPack(ctx);
-  const ocb = buildOCB({ ...ctx.ocb, stage: "REVIEW_VERIFY", self: reviewer });
+  const ocb = buildOCB({ ...ctx.ocb, stage: "REVIEW_VERIFY", self: castAgentId(ctx.cast, reviewer) as Parameters<typeof buildOCB>[0]["self"] });
+  const tech = ctx.reviewMode === "technical"; // TASK-29
   const loadDom = deps.loadDom || (async (d) => (/^https?:\/\//.test(d.url || "") ? ((await fetch(String(d.url))).json() as Promise<DomJson>) : null));
   const doms = await Promise.all((pack.screenshots || []).map(async (s) => {
     const dm = (pack.domMetrics || []).find((d) => d.screenshotId === s.id);
@@ -383,6 +391,8 @@ receipt: ${rc ? `${rc.verdict} · receipt ${rc.receipt} (${rc.receiptStatus}) ·
 acceptance checks (decided by code): ${ck.map((x) => `check:${x.id} ${x.result} — ${cap(x.detail, 160)}`).join(" | ") || "none ran"}`;
   }).join("\n\n");
   const global = ctx.checkResults.filter((x) => !ctx.changeOrders.some((c) => x.id.startsWith(`${c.id}/`))).map((x) => `- check:${x.id} [${x.type}] ${x.result} — ${cap(x.detail, 200)}`).join("\n") || "- (none)";
+  // TASK-29: ushahidi wa technical wa raundi hii (tech/*, plan/*) — ndio "picha" ya technical
+  const techLines = tech ? (pack.checks || []).filter((x) => /^(tech|plan)\//.test(x.id)).map((x) => `- check:${x.id} [${x.type}] ${x.result} — ${cap(x.detail, 900)}`).join("\n") || "- (none)" : "";
   const regression = (pack.regression || []).map((r) => `- regression:${r.route}@${r.viewport} [${r.kind}] changed ${r.changedPct}% vs baseline ${r.baselineMilestone}`).join("\n") || "- (none)";
   const ledger = ctx.ledger.map((e) => `- A${e.agenda_index} ${e.agenda_item}: ${cap(String(e.decision_summary || "").replace(/\s+/g, " "), 240)}`).join("\n") || "- (none)";
   const defects = ctx.defects.filter((d) => d.milestoneId === ctx.roundHeader.milestoneId).map((d) => `- ${d.id} [${d.status}, ${d.severity}, attempts ${d.attempts}] ${d.title}`).join("\n") || "- (none)";
@@ -406,6 +416,7 @@ acceptance checks (decided by code): ${ck.map((x) => `check:${x.id} ${x.result} 
     ...(ctx.planGoal ? [`## PLAN GOAL (what the product must contain)\n${ctx.planGoal}`] : []),
     `## CHANGE ORDERS OF ROUND ${ctx.roundHeader.round} (verify EVERY one)\n${cos}`,
     `## GLOBAL CHECKS (decided by code)\n${global}`,
+    ...(tech ? [`## FRESH TECHNICAL EVIDENCE (decided by code — no screenshots)\n${techLines}`] : []),
     `## FRESH EVIDENCE PACK (${pack.milestoneId} R${pack.round})
 SCREENSHOTS:
 ${(pack.screenshots || []).map((s) => `- ${s.id}: route ${s.route} · viewport ${s.viewport} · state ${s.state}`).join("\n") || "- (none)"}
@@ -418,9 +429,9 @@ GIT DIFF SUMMARY:
 ${cap(pack.gitDiffSummary || "(none)", 3000)}
 PICTURES: ${imgs.length ? `${imgs.length} attached after this text: ${imgs.map((i) => i.id).join(", ")}` : "none attached — use the DOM metrics"}`,
     `## DEFECT LEDGER OF THIS MILESTONE\n${defects}`,
-    `## YOUR TASK\nVerify round ${ctx.roundHeader.round} of ${ctx.roundHeader.milestoneId} as ${reviewer}: one verdict per change order (${ctx.changeOrders.map((c) => c.id).join(", ")}), then regressions and new defects. JSON only.`,
+    `## YOUR TASK\nVerify round ${ctx.roundHeader.round} of ${ctx.roundHeader.milestoneId} as ${agentFor(reviewer, ctx.cast).name} (reviewer id "${reviewer}"): one verdict per change order (${ctx.changeOrders.map((c) => c.id).join(", ")}), then regressions and new defects. JSON only.`,
   ].join("\n\n");
-  const system = verifySystem(reviewer);
+  const system = verifySystem(reviewer, ctx);
   const content: any[] = [{ type: "text", text: user }];
   for (const { id, img } of imgs) {
     const s = pack.screenshots.find((x) => x.id === id)!;
@@ -455,12 +466,12 @@ function checkEvidence(arr: unknown, p: string, pack: EvidencePack, e: string[])
   if (!packRefs) e.push(`${p}.evidence: needs ≥1 item pointing into the evidence pack`);
 }
 
-export function validateVerify(raw: unknown, reviewer: ReviewerId, orderIds: string[], pack: EvidencePack): { ok: true; value: VerifyFindings } | { ok: false; errors: string[] } {
+export function validateVerify(raw: unknown, reviewer: ReviewerId, orderIds: string[], pack: EvidencePack, cast?: Partial<ReviewCast>): { ok: true; value: VerifyFindings } | { ok: false; errors: string[] } {
   const e: string[] = [];
   if (!isObj(raw)) return { ok: false, errors: ["root: must be a JSON object"] };
   const who = String(raw.reviewer || "").toLowerCase();
-  const a = AGENTS.find((x) => x.id === reviewer)!;
-  if (who && who !== reviewer && who !== a.name.toLowerCase()) e.push(`reviewer: must be "${reviewer}"`);
+  const a = agentFor(reviewer, cast);
+  if (who && who !== reviewer && who !== a.name.toLowerCase() && who !== a.id) e.push(`reviewer: must be "${reviewer}"`);
   const cos: ReviewerCoVerdict[] = [];
   if (!Array.isArray(raw.cos)) e.push("cos: must be an array with one entry per change order");
   else {
@@ -491,8 +502,8 @@ export function validateVerify(raw: unknown, reviewer: ReviewerId, orderIds: str
 export const VERIFY_MAX_RETRIES = 2;
 /** wito wa LLM ulioanguka (quota 429 / lanes zimekwisha) unarudiwa mara hizi kabla reviewer kuhesabiwa INVALID (T4 halisi: 429 moja ilizuia raundi nzima). */
 export const VERIFY_TRANSPORT_RETRIES = 2;
-const defaultComplete: NonNullable<VerifyDeps["complete"]> = async ({ reviewer, messages, purpose }) =>
-  brokerComplete({ agentId: reviewer, purpose, messages: messages as never, maxOut: 16_000, cls: "heavy", allow: ["gemini"], effort: "high", temperature: 0.3, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
+const defaultComplete: NonNullable<VerifyDeps["complete"]> = async ({ reviewer, messages, purpose, agentId }) =>
+  brokerComplete({ agentId: agentId || reviewer, purpose, messages: messages as never, maxOut: 16_000, cls: "heavy", allow: ["gemini"], effort: "high", temperature: 0.3, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
 
 export interface VerifyRun { findings: VerifyFindings | null; attempts: number; errors: string[]; promptHash: string; promptChars: number; imageParts: number; model: string; ms: number; raw: string }
 
@@ -510,7 +521,7 @@ export async function verifyOne(reviewer: ReviewerId, ctx: VerifyContext, deps: 
   for (let k = 0; k <= VERIFY_MAX_RETRIES; k++) {
     attempts++;
     try {
-      const r = await complete({ reviewer, messages, purpose });
+      const r = await complete({ reviewer, messages, purpose, agentId: castAgentId(ctx.cast, reviewer) });
       raw = r.text; model = r.lane?.model || model;
     } catch (err: any) {
       errors = [`LLM call failed: ${String(err?.message || err).slice(0, 300)}`];
@@ -524,7 +535,7 @@ export async function verifyOne(reviewer: ReviewerId, ctx: VerifyContext, deps: 
     let parsed: unknown;
     try { parsed = extractJson(raw); } catch (err: any) { parsed = undefined; errors = [`invalid JSON: ${String(err?.message || err).slice(0, 200)}`]; }
     if (parsed !== undefined) {
-      const v = validateVerify(parsed, reviewer, orderIds, pack);
+      const v = validateVerify(parsed, reviewer, orderIds, pack, ctx.cast);
       if (v.ok) { findings = v.value; errors = []; break; }
       errors = v.errors;
     }
@@ -544,9 +555,9 @@ export async function verifyBoth(ctx: VerifyContext, deps: VerifyDeps = {}): Pro
 /* ============================ sync turn (MOJA, fupi) ============================ */
 
 export interface SyncItem { orderId: string; mine: ReviewerCoVerdict; other: ReviewerCoVerdict }
-export function buildSyncPrompt(reviewer: ReviewerId, header: RoundHeaderData, ocbText: string, items: SyncItem[]): Msg[] {
-  const a = AGENTS.find((x) => x.id === reviewer)!;
-  const other = AGENTS.find((x) => x.id === (reviewer === "designer" ? "frontend" : "designer"))!;
+export function buildSyncPrompt(reviewer: ReviewerId, header: RoundHeaderData, ocbText: string, items: SyncItem[], cast?: Partial<ReviewCast>): Msg[] {
+  const a = agentFor(reviewer, cast);
+  const other = agentFor(reviewer === "designer" ? "frontend" : "designer", cast);
   const system = `You are ${a.name} (${reviewer}). You and ${other.name} verified the same fix round and DISAGREE on the change orders below. This is ONE short sync turn: read ${other.name}'s verdict and evidence, then give your FINAL verdict. Disagreement after this turn counts as FAIL. Reply with ONE JSON object only: {"cos":[{"orderId":"CO-001","verdict":"PASS|FAIL|PARTIAL","note":"≤40 words"}]}`;
   const user = `${ocbText}\n${formatRoundHeader(header)}\n\n${items.map((i) => `### ${i.orderId}\nYOUR verdict: ${i.mine.verdict} — ${cap(i.mine.note, 400)} · evidence ${i.mine.evidence.join(", ")}\n${other.name.toUpperCase()}'S verdict: ${i.other.verdict} — ${cap(i.other.note, 400)} · evidence ${i.other.evidence.join(", ")}`).join("\n\n")}`;
   return [{ role: "system", content: system }, { role: "user", content: user }];
@@ -559,16 +570,16 @@ export function parseSync(raw: string, orderIds: string[]): Record<string, Verif
     return Object.keys(out).length ? out : null;
   } catch { return null; }
 }
-export async function syncTurn(header: RoundHeaderData, ocbOf: (r: ReviewerId) => string, a: VerifyFindings, b: VerifyFindings, disputed: string[], deps: VerifyDeps = {}):
+export async function syncTurn(header: RoundHeaderData, ocbOf: (r: ReviewerId) => string, a: VerifyFindings, b: VerifyFindings, disputed: string[], deps: VerifyDeps = {}, cast?: Partial<ReviewCast>):
   Promise<{ sync: Partial<Record<ReviewerId, Record<string, VerifyVerdict>>>; transcript: { reviewer: ReviewerId; text: string }[] }> {
   const complete = deps.complete || defaultComplete;
   const pair: [ReviewerId, VerifyFindings, VerifyFindings][] = [["designer", a, b], ["frontend", b, a]];
   const res = await Promise.all(pair.map(async ([r, mine, other]) => {
     const items = disputed.map((id) => ({ orderId: id, mine: mine.cos.find((c) => c.orderId === id)!, other: other.cos.find((c) => c.orderId === id)! }));
-    const messages = buildSyncPrompt(r, header, ocbOf(r), items);
+    const messages = buildSyncPrompt(r, header, ocbOf(r), items, cast);
     deps.capture?.(r, `verify-sync:${header.milestoneId}:R${header.round}`, messages.map((m) => String(m.content)).join("\n\n"));
     try {
-      const out = await complete({ reviewer: r, messages, purpose: `review-verify-sync:${header.milestoneId}:R${header.round}:${r}` });
+      const out = await complete({ reviewer: r, messages, purpose: `review-verify-sync:${header.milestoneId}:R${header.round}:${r}`, agentId: castAgentId(cast, r) });
       return { r, text: out.text, verdicts: parseSync(out.text, disputed) };
     } catch (err: any) { return { r, text: `LLM call failed: ${String(err?.message || err).slice(0, 200)}`, verdicts: null }; }
   }));

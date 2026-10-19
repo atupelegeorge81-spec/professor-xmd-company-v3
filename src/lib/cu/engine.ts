@@ -36,6 +36,9 @@ import { parseRepoSummary, planGateCommands, renderStartPack, REPO_SUMMARY_CMD, 
 import { cuSilentBridge, maybeCapturePrompt, testGateOverride } from "@/lib/milestone/testHooks"; // TASK-16/18
 import { BUILD_REPORT_INLINE_MAX, buildReportPath } from "@/lib/milestone/buildReport"; // TASK-17
 import { needsScreenshots } from "@/lib/milestone/evidence"; // TASK-19
+import { needsTechEvidence } from "@/lib/milestone/techEvidence"; // TASK-29
+import { defaultDbProbe } from "@/lib/milestone/dbProbe"; // TASK-29
+import { captureTechEvidence, mergeTechEvidence, techEvidenceSummary } from "./techEvidence"; // TASK-29
 import { captureEvidence, evidenceSummary, type CaptureEvidenceResult, type EvidenceUploader } from "./evidence"; // TASK-19
 import { checkRegression, regressionSummary, saveBaselines } from "@/lib/milestone/regression"; // TASK-22
 import type { EvidencePack } from "@/lib/milestone/types"; // TASK-28
@@ -957,10 +960,30 @@ export async function seedMilestoneWorkspace(runner: Runner, files: Record<strin
 }
 
 /** TASK-26: evidence ya raundi n baada ya marekebisho (task 19) + regression dhidi ya baselines (task 22). */
-export async function captureRoundEvidence(runner: Runner, o: { milestoneId: string; round: number; planMarkdown: string; changeOrders: { id: string; location: any }[] }): Promise<CaptureEvidenceResult> {
+/** TASK-29: ushahidi wa technical (technical/mixed) → juu ya pack ya screenshots (mixed) au pack tupu (technical). */
+async function withTechEvidence(sbx: any, runner: Runner, o: { milestoneId: string; round: number; planMarkdown: string; reviewMode?: string }, ev: CaptureEvidenceResult | undefined): Promise<CaptureEvidenceResult | undefined> {
+  if (!needsTechEvidence(o.reviewMode)) return ev;
+  const hooks = runner.cuHooks;
+  hooks?.blog("info", `🛡️ ${o.milestoneId} R${o.round}: technical evidence (secrets · commands · http · db · git diff)…`);
+  try {
+    const t = await captureTechEvidence(sbx, { milestoneId: o.milestoneId, round: o.round, planMarkdown: o.planMarkdown, db: defaultDbProbe() });
+    const base: EvidencePack = ev?.pack ?? { milestoneId: o.milestoneId, round: o.round, screenshots: [], domMetrics: [], checks: [], commands: [], gitDiffSummary: "", regression: [], consoleErrors: [], errors: [] };
+    const pack = mergeTechEvidence(base, t);
+    hooks?.blog(t.secrets.length || pack.technical!.failed ? "warning" : "success", `🛡️ ${o.milestoneId} R${o.round} technical: ${techEvidenceSummary(t)}`);
+    return ev ? { ...ev, pack } : { pack, exit: 0, invalid: [], uploaded: 0, ms: t.ms };
+  } catch (e: any) {
+    hooks?.blog("warning", `🛡️ ${o.milestoneId}: technical evidence haikufanyika: ${String(e?.message || e).slice(0, 160)}`);
+    return ev;
+  }
+}
+
+export async function captureRoundEvidence(runner: Runner, o: { milestoneId: string; round: number; planMarkdown: string; changeOrders: { id: string; location: any }[]; reviewMode?: string }): Promise<CaptureEvidenceResult> {
   return runOnMilestoneSandbox(runner, async (sbx) => {
     const sessionId = runner.sessionId || runner.id;
+    // TASK-29: technical → HAKUNA screenshots (ushahidi wa technical tu); visual/mixed (au haijulikani) → screenshots kama zamani
+    if (o.reviewMode === "technical") return (await withTechEvidence(sbx, runner, o, undefined))!;
     const ev = await captureEvidence(sbx, { milestoneId: o.milestoneId, round: o.round, planMarkdown: o.planMarkdown, script: await readCuFile("xmd-evidence.mjs"), sessionId }, evidenceUploader);
+    if (o.reviewMode === "mixed") Object.assign(ev, await withTechEvidence(sbx, runner, o, ev));
     if (ev.pack.screenshots.length) {
       const rg = await checkRegression(sbx, { milestoneId: o.milestoneId, round: o.round, pack: ev.pack, changeOrders: o.changeOrders, script: await readCuFile("xmd-regression.mjs"), sessionId }, evidenceUploader);
       runner.cuHooks?.blog(rg.entries.some((e) => e.kind === "regression") || rg.errors.length ? "warning" : "info", `🔍 ${o.milestoneId} R${o.round} regression: ${regressionSummary(rg)}`);
@@ -1272,6 +1295,8 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
         hooks.blog("warning", `📸 ${id}: evidence haikufanyika: ${String(e?.message || e).slice(0, 160)}`);
       }
     }
+    // TASK-29: technical/mixed → ushahidi wa technical (bila screenshots kwa technical)
+    if (!MS_BUILD_FAIL_STATES.includes((cu.finalState || "ERROR") as CuFinalState)) evidence = await withTechEvidence(sbx, runner, { milestoneId: id, round: 0, planMarkdown: ph.planMarkdown, reviewMode: ph.reviewMode }, evidence);
     await msSnapshot(sbx, cu, hooks, id);
     if (ph.last) setTimeout(() => sbx.kill?.().catch(() => {}), 15_000);
     else sbx.setTimeout(30 * 60_000).catch(() => {}); // inabaki kwa milestone inayofuata (ikifa → kiovu)

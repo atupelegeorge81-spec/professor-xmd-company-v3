@@ -153,6 +153,7 @@ export const CHECK_TYPES = [
   "file_exists",
   "file_contains",
   "screenshot_taken",
+  "db",
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
 
@@ -186,10 +187,12 @@ export interface ContrastMinCheck extends RouteCheck { type: "contrast_min"; sel
 /** TASK-21: `minPx` (Task 9) au `px` (maelezo21). */
 export interface TouchTargetMinCheck extends RouteCheck { type: "touch_target_min"; selector: string; minPx?: number; px?: number }
 /** TASK-21: `expectStatus` (Task 9) au `status` (maelezo21); `bodyContains` hiari. */
-export interface HttpCheck extends CheckBase { type: "http"; url: string; method?: string; expectStatus?: number; status?: number; bodyContains?: string }
+export interface HttpCheck extends CheckBase { type: "http"; url: string; method?: string; expectStatus?: number; status?: number; bodyContains?: string; headers?: Record<string, string>; body?: string }
 export interface FileExistsCheck extends CheckBase { type: "file_exists"; path: string }
 export interface FileContainsCheck extends CheckBase { type: "file_contains"; path: string; text: string }
 export interface ScreenshotTakenCheck extends RouteCheck { type: "screenshot_taken"; state?: string }
+/** TASK-29: database halisi (Supabase client ya harness) — table ipo; `rls: true` = Row Level Security lazima iwe ON. */
+export interface DbCheck extends CheckBase { type: "db"; table: string; schema?: string; rls?: boolean }
 
 export type Check =
   | CommandCheck
@@ -203,7 +206,8 @@ export type Check =
   | HttpCheck
   | FileExistsCheck
   | FileContainsCheck
-  | ScreenshotTakenCheck;
+  | ScreenshotTakenCheck
+  | DbCheck;
 
 export const CHECK_RESULTS = ["PASS", "FAIL", "ERROR"] as const;
 export type CheckResult = (typeof CHECK_RESULTS)[number];
@@ -356,6 +360,8 @@ export interface EvidencePack {
   /** TASK-19: http://127.0.0.1:<port> (local) au URL ya deployed (--base) */
   base?: string;
   mode?: "local" | "deployed";
+  /** TASK-29: muhtasari wa ushahidi wa technical (checks zenyewe ziko `checks` — ids tech/..., plan/...) */
+  technical?: { secrets: number; secretFiles: string[]; checks: number; failed: number; ms: number };
 }
 
 // ── RoundHeader (data; maandishi yanajengwa na code) ─────────────────────────

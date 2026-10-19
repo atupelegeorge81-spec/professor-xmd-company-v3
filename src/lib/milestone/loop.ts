@@ -13,6 +13,9 @@ import { MAX_ROUNDS, type ChangeOrder, type Defect, type EvidenceCheckResult, ty
 import { formatRoundHeader, reviewRound0, REVIEWERS, type ReviewContext, type ReviewDeps, type ReviewerId } from "./review"; // TASK-24 (T23 analyses)
 import { consolidate, cosKey, DECISIONS_KEY, makeReviewAgendaItem, nextCoNumber, reviewAgendaId, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
 import { brokerComplete } from "../broker/broker"; // TASK-24: Optimus consolidate
+import { castAgentId, reviewCast, type ReviewCast } from "./techEvidence"; // TASK-29
+import { AGENT_ID_BY_ROSTER } from "./roster"; // TASK-29
+import { AGENTS } from "@/lib/agents"; // TASK-29
 import {
   applyRoundToDefects, fixChecksKey, fixKey, mergeAttempts, noOpReminder, parseNumstat, parseReceipts, prevChangesLines, renderFixPack, roundChecks, escalationLines, reproducedMap, type PatchApply,
   summarizeChecks, verifyReceipts, type CoVerification, type FixPhaseInput, type FixRaw, type RoundChecks, type RoundVerification,
@@ -403,13 +406,13 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
   const rh = hooks.review as NonNullable<LoopHooks["review"]>;
   const sid = runner.sessionId as string;
   const ev = sid ? (await getRecord<EvidencePack>(sid, evidenceKey(m.id, 0)))?.data : null;
-  if (!ev || !(ev.screenshots || []).length) {
-    // technical / bila UI → hakuna evidence ya kuona: review ya R0 inarukwa (njia ya zamani)
+  if (!ev || (!(ev.screenshots || []).length && !ev.technical)) {
+    // hakuna screenshots WALA ushahidi wa technical (TASK-29) → review ya R0 inarukwa (njia ya zamani)
     const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
       const st = must(setStep(s as MilestoneState, id, "DONE"));
       return { ...st, steps: (st.steps || []).map((x) => (x.stepId === id ? { ...x, stub: true } : x)) };
     });
-    hooks.blog("info", `🧑‍⚖️ ${m.id}: hakuna evidence ya screenshots (${m.reviewMode}) — REVIEW R0 imerukwa.`);
+    hooks.blog("info", `🧑‍⚖️ ${m.id}: hakuna evidence (screenshots wala technical) (${m.reviewMode}) — REVIEW R0 imerukwa.`);
     return { ok: true, state: rec.data };
   }
   await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
@@ -424,10 +427,12 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
   const ctx = await rh.context(m, ev);
   // TASK-26: RoundHeader inajengwa kutoka DB kila wito (si thamani ya kudumu)
   const header0 = fixRoundHeader(m, 0, MAX_ROUNDS, (await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || []);
-  ctx.analyseCtx = { ...ctx.analyseCtx, roundHeader: header0 };
+  const cast = milestoneCast(m); // TASK-29: technical → Megatron/Cybertron (kutoka roster)
+  ctx.analyseCtx = { ...ctx.analyseCtx, roundHeader: header0, cast, reviewMode: m.reviewMode };
+  if (m.reviewMode === "technical") hooks.blog("info", `🛡️ ${m.id}: technical review — reviewers ${castNames(cast)} (roster: ${m.roster.join(", ")}) · screenshots 0 · checks ${(ev.checks || []).length}`);
   const result = await runReviewRound({
     milestoneId: m.id, milestoneTitle: m.title, round: 0, reviewMode: m.reviewMode, pack: ev, ledgerLines: ctx.ledgerLines, domHints: [],
-    participants: reviewParticipants(ctx.extraParticipants), roundHeader: formatRoundHeader(header0),
+    participants: reviewParticipants(ctx.extraParticipants, cast), roundHeader: formatRoundHeader(header0), cast,
   }, {
     analyse: async () => {
       const r = await reviewRound0(ev, ctx.analyseCtx, { log: (lvl, t) => hooks.blog(lvl, t), ...(rh.analyseDeps || {}) });
@@ -460,6 +465,10 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
   await hooks.persist();
   return { ok: true, state: rec.data, result };
 }
+
+/** TASK-29: cast ya reviewers ya milestone (visual/mixed → designer/frontend; technical → wataalamu wa roster). */
+export const milestoneCast = (m: Pick<Milestone, "reviewMode" | "roster">): ReviewCast => reviewCast(m.reviewMode, m.roster || [], AGENT_ID_BY_ROSTER);
+const castNames = (c: ReviewCast) => (["designer", "frontend"] as const).map((r) => AGENTS.find((a) => a.id === castAgentId(c, r))?.name || r).join(" + ");
 
 /* ============================ TASK-25: raundi ya marekebisho ============================ */
 
@@ -699,7 +708,7 @@ export const amendmentsKey = (milestoneId: string) => `amendments:${milestoneId}
 export const waiversKey = (milestoneId: string) => `waivers:${milestoneId}`;
 export const patchKey = (milestoneId: string, round: number) => `patch:${milestoneId}:R${round}`;
 
-export async function escalateLlm(sid: string, agent: "pm" | "designer" | "frontend", purpose: string, messages: EscMsg[]): Promise<string> {
+export async function escalateLlm(sid: string, agent: string, purpose: string, messages: EscMsg[]): Promise<string> {
   if (/:a1$/.test(purpose)) maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase: purpose.replace(/:a1$/, ""), system: messages.map((x) => x.content).join("\n\n") });
   return (await brokerComplete({ agentId: agent, purpose, messages: messages as never, maxOut: 12_000, cls: "heavy", temperature: 0.2, priority: "background", waitMs: 120_000, critical: true })).text;
 }
@@ -802,6 +811,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
   const vctx: VerifyContext = {
     ocb: base.ocb, roundHeader: header, ledger: base.ledger, pack, changeOrders: cos, checkResults: results, defects: defectsNow, planGoal: planGoalOf(plan),
     receipts: (fixRec?.verification?.cos || []).map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus, touched: c.touched, diff: c.diff })),
+    cast: milestoneCast(m), reviewMode: m.reviewMode, // TASK-29
   };
   const deps: VerifyDeps = { log: (l, t) => hooks.blog(l, t), capture: (agent, phase, text) => { maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase, system: text }); }, ...(vh.deps || {}) };
   const now = () => new Date().toISOString();
@@ -811,7 +821,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
   if (!done(vId)) {
     await running(vId);
     if (!vr?.runs) {
-      hooks.addChip(`🔍 ${m.id} R${round}: Ultron + Vextron wanathibitisha COs ${orderIds.join(", ")} (peke yao)`);
+      hooks.addChip(`🔍 ${m.id} R${round}: ${castNames(milestoneCast(m))} wanathibitisha COs ${orderIds.join(", ")} (peke yao)`);
       hooks.blog("system", `🔍 ${formatRoundHeader(header)} — reviewers 2 wanathibitisha (REVIEW_VERIFY).`);
       const runs = await verifyBoth(vctx, deps);
       const disputed = disagreements(orderIds, runs.designer.findings, runs.frontend.findings);
@@ -820,8 +830,8 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
     } else hooks.blog("info", `♻️ ${m.id} R${round}: verdicts za reviewers zimeshahifadhiwa — hazirudiwi (resume).`);
     if (vr.disputed.length && !vr.sync && vr.runs.designer.findings && vr.runs.frontend.findings) {
       hooks.addChip(`🤝 ${m.id} R${round}: reviewers wanatofautiana (${vr.disputed.join(", ")}) — zamu MOJA ya sync`);
-      const ocbOf = (r: ReviewerId) => buildOCB({ ...vctx.ocb, stage: "REVIEW_VERIFY", self: r });
-      const st = await syncTurn(header, ocbOf, vr.runs.designer.findings, vr.runs.frontend.findings, vr.disputed, deps);
+      const ocbOf = (r: ReviewerId) => buildOCB({ ...vctx.ocb, stage: "REVIEW_VERIFY", self: castAgentId(vctx.cast, r) as Parameters<typeof buildOCB>[0]["self"] });
+      const st = await syncTurn(header, ocbOf, vr.runs.designer.findings, vr.runs.frontend.findings, vr.disputed, deps, vctx.cast);
       vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), sync: st.sync, syncTranscript: st.transcript }))).data;
     }
     await stepDone(vId);
@@ -902,7 +912,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
             reviewId, milestoneId: m.id, milestoneTitle: m.title, round, reviewMode: m.reviewMode,
             table: { reviewId, milestoneId: m.id, round, defects: openList, proposals: [], decisionRefs: {}, notes: { designer: designer?.notes, frontend: frontend?.notes } },
             ledgerLines: base.ledgerLines, checkLines: results.map((c) => `- check:${c.id} [${c.type}] ${c.result} — ${c.detail.slice(0, 160)}`),
-            evidenceRefs: pack.screenshots.map((x) => `- ${x.id}: ${x.route} @${x.viewport} ${x.state}`), participants: reviewParticipants(),
+            evidenceRefs: pack.screenshots.map((x) => `- ${x.id}: ${x.route} @${x.viewport} ${x.state}`), participants: reviewParticipants([], vctx.cast), cast: vctx.cast,
           });
           hooks.addChip(`🧑‍⚖️ ${reviewId}: mjadala wa timu umeombwa na ${asked.map((f) => f!.reviewer).join(" + ")}`);
           const d = await hooks.review.discuss(item);
@@ -927,7 +937,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
         const ex = await escalateChangeOrders({
           milestoneId: m.id, round: round + 1, reviewMode: m.reviewMode, defects: res.defects, ledgerLines: [...base.ledgerLines, ...amends.map(amendmentLine)],
           roundHeader: formatRoundHeader(nowHeader), planGoal: planGoalOf(plan), notes: reverted ? [reverted] : [],
-          requirements: await escalationRequirements(sid, m, amends),
+          requirements: await escalationRequirements(sid, m, amends), cast: vctx.cast,
         }, cons.changeOrders, facts, Math.max(nextCoNumber(prevAll), nextCoNumber(cons.changeOrders)), {
           complete: vh.escalateComplete || ((agent, purpose, messages) => escalateLlm(sid, agent, purpose, messages)),
           readFiles: vh.readFiles ? (paths) => vh.readFiles!(m, paths) : undefined, log: hooks.blog,

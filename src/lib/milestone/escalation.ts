@@ -10,6 +10,8 @@
  * Kila kitu hapa ni SAFI isipokuwa `escalateChangeOrders` (inaita LLM kupitia deps zinazodungwa).
  */
 import { extractJson } from "./review";
+import { AGENTS } from "@/lib/agents";
+import { castAgentId, type ReviewCast } from "./techEvidence"; // TASK-29
 import { validateChangeOrder } from "./schemas";
 import { CO_MODES, DIAGNOSIS_CAUSES, type ChangeOrder, type ChangeOrderMode, type Check, type Defect, type DiagnosisCause, type ReviewMode } from "./types";
 
@@ -288,7 +290,7 @@ export function concretePrompt(i: EscalateCtx, co: ChangeOrder, facts: PrevAttem
 export function patchPrompt(i: EscalateCtx, co: ChangeOrder, files: Record<string, string>): Msg[] {
   const fileBlocks = Object.entries(files).map(([p, c]) => `=== FILE ${p} (current, exact) ===\n${c.slice(0, PATCH_FILE_MAX_CHARS)}${c.length > PATCH_FILE_MAX_CHARS ? "\n…(truncated)" : ""}`);
   return [
-    { role: "system", content: "You are Vextron, the Frontend Engineer. The Computer failed to fix this defect twice. Write the EXACT fix yourself as a minimal unified diff against the files shown (or one complete file). Reply with ONE JSON object only." },
+    { role: "system", content: `You are ${patchAgentLabel(i)}. The Computer failed to fix this defect twice. Write the EXACT fix yourself as a minimal unified diff against the files shown (or one complete file). Reply with ONE JSON object only.` },
     { role: "user", content: [...head(i), "", `ESCALATION: attempt ${co.attempt} → mode "pair_patch".`, "DEFECT(S):", ...defectBlock(co, i.defects), "", "ORDER:", JSON.stringify(co), "", ...requirementLines(reqOf(i, co)), "",
       ...(fileBlocks.length ? fileBlocks : ["(target files could not be read — write a complete file)"]), "",
       "Rules: change ONLY what the order needs; respect every LOCKED decision; context lines must match the current file EXACTLY (the harness runs `git apply --check`); paths repo-relative.",
@@ -305,7 +307,8 @@ export function splitPrompt(i: EscalateCtx, co: ChangeOrder, facts: PrevAttemptF
   ];
 }
 export function votePrompt(i: EscalateCtx, co: ChangeOrder, facts: PrevAttemptFact[], reviewer: RedecideVote["reviewer"], prior: RedecideVote[]): Msg[] {
-  const who = reviewer === "designer" ? "Ultron (Designer, reviewer)" : "Vextron (Frontend Engineer, reviewer)";
+  const a = AGENTS.find((x) => x.id === castAgentId(i.cast, reviewer)); // TASK-29: technical → backend/qa
+  const who = a ? `${a.name} (${a.role}, reviewer)` : reviewer === "designer" ? "Ultron (Designer, reviewer)" : "Vextron (Frontend Engineer, reviewer)";
   return [
     { role: "system", content: `You are ${who}. A defect has failed ${co.attempt - 1} fix attempts (concrete order, exact patch and split were all tried). The team must RE-DECIDE. Reply with ONE JSON object only.` },
     { role: "user", content: [...head(i), "", "DEFECT(S):", ...defectBlock(co, i.defects), "", "ATTEMPTS:", ...factLines(facts), "", "LAST ORDER:", JSON.stringify(co), "", ...requirementLines(reqOf(i, co)), "",
@@ -346,9 +349,17 @@ export interface EscalateCtx {
   notes?: string[];
   /** hitaji la asili kwa kila defect (computed_style checks za CO ya kwanza) — hakuna kwa defect iliyo-AMEND */
   requirements?: Record<string, StyleCheck[]>;
+  /** TASK-29: technical → kura na patch zinatoka kwa wataalamu wa cast (backend + qa) */
+  cast?: Partial<ReviewCast>;
+}
+/** mwandishi wa pair_patch: frontend (visual) · technical → mtaalamu wa kwanza wa cast (backend akiwepo) */
+export const patchAgentOf = (i: Pick<EscalateCtx, "cast" | "reviewMode">): string => (i.reviewMode === "technical" ? castAgentId(i.cast, "designer") : "frontend");
+function patchAgentLabel(i: EscalateCtx): string {
+  const a = AGENTS.find((x) => x.id === patchAgentOf(i));
+  return a ? `${a.name}, the ${a.role}` : "Vextron, the Frontend Engineer";
 }
 export interface EscalateDeps {
-  complete: (agent: "pm" | "designer" | "frontend", purpose: string, messages: Msg[]) => Promise<string>;
+  complete: (agent: string, purpose: string, messages: Msg[]) => Promise<string>;
   readFiles?: (paths: string[]) => Promise<Record<string, string>>;
   log?: (level: "info" | "success" | "warning" | "error" | "system", text: string) => void;
 }
@@ -372,7 +383,7 @@ export interface Waiver { defectId: string; title: string; severity: string; rou
 export interface Amendment { id: string; defectId: string; round: number; requirement: string; reason: string; at: string }
 export interface EscalateResult { changeOrders: ChangeOrder[]; events: EscalationEvent[]; waivers: Waiver[]; amendments: Amendment[]; conflicts: { found: CoConflict[]; resolvedBy: "none" | "optimus" | "fallback-merge"; errors: string[] }; nextCoNo: number }
 
-async function tryJson<T>(deps: EscalateDeps, agent: "pm" | "designer" | "frontend", purpose: string, msgs: Msg[], validate: (raw: unknown) => V<T>): Promise<{ value: T | null; tries: number; errors: string[] }> {
+async function tryJson<T>(deps: EscalateDeps, agent: string, purpose: string, msgs: Msg[], validate: (raw: unknown) => V<T>): Promise<{ value: T | null; tries: number; errors: string[] }> {
   let m = msgs, errors: string[] = ["not run"];
   for (let t = 1; t <= ESCALATION_MAX_TRIES; t++) {
     let raw = "";
@@ -422,7 +433,7 @@ export async function escalateChangeOrders(ctx: EscalateCtx, cos: ChangeOrder[],
       const files = (co0.location.files || []).slice(0, 3);
       let contents: Record<string, string> = {};
       try { contents = files.length && deps.readFiles ? await deps.readFiles(files) : {}; } catch { contents = {}; }
-      const r = await tryJson(deps, "frontend", `${P}:patch`, patchPrompt(ctx, co0, contents), validatePatch);
+      const r = await tryJson(deps, patchAgentOf(ctx), `${P}:patch`, patchPrompt(ctx, co0, contents), validatePatch);
       ev.tries = r.tries;
       if (r.value) { ev.patch = { kind: r.value.kind, files: r.value.files, chars: r.value.text.length }; out.push({ ...co0, mode: "pair_patch", patch: r.value.text }); }
       else { ev.valid = false; ev.errors = r.errors; out.push({ ...co0, mode: "pair_patch" }); }
@@ -436,7 +447,7 @@ export async function escalateChangeOrders(ctx: EscalateCtx, cos: ChangeOrder[],
       const votes: RedecideVote[] = [];
       let turns = 0;
       for (const who of ["designer", "frontend"] as const) {
-        const r = await tryJson(deps, who, `${P}:vote-${who}`, votePrompt(ctx, co0, f, who, votes), (raw) => validateVote(raw, who));
+        const r = await tryJson(deps, castAgentId(ctx.cast, who), `${P}:vote-${who}`, votePrompt(ctx, co0, f, who, votes), (raw) => validateVote(raw, who));
         turns++;
         if (r.value) votes.push(r.value); else ev.errors.push(...r.errors.map((x) => `${who}: ${x}`));
       }

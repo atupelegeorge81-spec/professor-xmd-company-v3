@@ -13,7 +13,7 @@ export const MAP_MAX_ATTEMPTS = 3;
 export const MAP_AGENT_IDS: readonly string[] = AGENTS.map((a) => a.name.toLowerCase());
 
 export const MAP_SYSTEM_PROMPT =
-  "You are Optimus. Split the agenda list into milestones. Each milestone is a contiguous range of agendas that can be built AND verified (seen or measured). The FIRST milestone must be foundation/design (design tokens, base layout, base components) if the project has a UI. Dependent agendas go together or in order. The LAST milestone must be quality + deploy and include the last agenda. For each milestone give id, title, agendas{from,to}, phase, reviewMode(visual|technical|mixed), roster (agent ids relevant to this milestone only; always include optimus), rationale. Output JSON only.";
+  "You are Optimus. Split the agenda list into milestones. Each milestone is a contiguous range of agendas that can be built AND verified (seen or measured). The FIRST milestone must be foundation/design (design tokens, base layout, base components) if the project has a UI. Dependent agendas go together or in order. The LAST milestone must be quality + deploy and include the last agenda. For each milestone give id, title, agendas{from,to}, phase, reviewMode(visual|technical|mixed), roster (agent ids relevant to this milestone only; always include optimus; include megatron ONLY when the milestone has backend/API/database work; a technical milestone also includes cybertron for security/QA review), rationale. Output JSON only.";
 
 export type MapAgenda = string | { item: string };
 export type MapLog = (level: "info" | "success" | "warning", text: string) => void;

@@ -100,7 +100,8 @@ function checkInto(e: Errs, c: unknown, p: string): void {
       if (has(c, "px") && !has(c, "minPx")) int(e, c, "px", p, 1); else int(e, c, "minPx", p, 1);
       break;
     case "http":
-      str(e, c, "url", p); optStr(e, c, "method", p); optStr(e, c, "bodyContains", p);
+      str(e, c, "url", p); optStr(e, c, "method", p); optStr(e, c, "bodyContains", p); optStr(e, c, "body", p);
+      if (has(c, "headers") && (!isObj(c.headers) || Object.values(c.headers).some((v) => typeof v !== "string"))) e.push(`${p}.headers: must be an object of string values (got ${show(c.headers)})`);
       {
         const k = has(c, "status") && !has(c, "expectStatus") ? "status" : "expectStatus";
         if (!isInt(c[k]) || c[k] < 100 || c[k] > 599) e.push(`${p}.${k}: must be an HTTP status 100-599 (got ${show(c[k])})`);
@@ -114,6 +115,11 @@ function checkInto(e: Errs, c: unknown, p: string): void {
       break;
     case "screenshot_taken":
       optStr(e, c, "state", p);
+      break;
+    case "db": // TASK-29
+      str(e, c, "table", p); optStr(e, c, "schema", p);
+      if (!/^[A-Za-z_][A-Za-z0-9_$]{0,62}$/.test(String(c.table || ""))) e.push(`${p}.table: must be a plain SQL identifier (got ${show(c.table)})`);
+      if (has(c, "rls") && typeof c.rls !== "boolean") e.push(`${p}.rls: must be true/false when present (got ${show(c.rls)})`);
       break;
     default: // no_horizontal_overflow, console_clean: route(s) tu
       break;
