@@ -288,6 +288,14 @@ export interface VerifyContext {
   defects: Defect[];
   /** maelezo ya raundi iliyorudishwa nyuma (ikiwa ipo) n.k. */
   notes?: string[];
+  /** sehemu ya "Goal" ya plan (regression ya bidhaa, si ya CO tu) */
+  planGoal?: string;
+}
+
+/** "## 1 Goal" ya plan (au mwanzo wake) — muhtasari mfupi kwa reviewers. */
+export function planGoalOf(plan: string): string {
+  const m = /^##\s*1?\s*Goal[^\n]*\n([\s\S]*?)(?=^##\s|$(?![\s\S]))/im.exec(plan || "");
+  return cap((m ? m[1] : plan || "").trim(), 600);
 }
 
 const ROLE: Record<ReviewerId, string> = {
@@ -305,6 +313,7 @@ const VERIFY_SPEC = `OUTPUT: ONE JSON object, nothing else (a \`\`\`json fence i
   "notes": "overall verdict"
 }
 RULES: PASS = the change order's "desired" state is visibly and measurably there. PARTIAL = some of it. FAIL = not there or wrong.
+A change order can be applied EXACTLY as written and still be WRONG: if applying it removed or broke something the PLAN GOAL or the LEDGER requires, or something that worked before this round (compare the GIT DIFF SUMMARY), the verdict is FAIL and you MUST list the damage in "regressions" (severity ≥ major when a planned section disappears).
 A check marked FAIL/ERROR means the CO fails whatever you say — say what you see anyway. If a check PASSED but you still see a problem, say FAIL/PARTIAL and explain: the harness will open a NEW defect and a NEW check.
 EVIDENCE: every verdict, regression and new defect needs ≥1 item pointing INTO THE EVIDENCE PACK: a screenshot id ("S-003"), a DOM metric written exactly as "S-003 dom: <selector> <property>=<value>", "check:<id>" of a listed check, "regression:<route>@<viewport>" of a listed regression, or "console". Never invent ids.`;
 
@@ -320,6 +329,8 @@ function verifySystem(r: ReviewerId): string {
 const cap = (s: unknown, n: number) => { const t = String(s ?? ""); return t.length > n ? `${t.slice(0, n)} […cut ${t.length - n} chars]` : t; };
 
 export interface VerifyDeps {
+  /** pumziko kabla ya kurudia wito ulioanguka (429 / provider down); default 30s, majaribio VERIFY_TRANSPORT_RETRIES */
+  retryDelayMs?: number;
   complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string } }>;
   loadImage?: ReviewDeps["loadImage"];
   loadDom?: ReviewDeps["loadDom"];
@@ -375,6 +386,7 @@ acceptance checks (decided by code): ${ck.map((x) => `check:${x.id} ${x.result} 
     `${ocb}\n${formatRoundHeader(ctx.roundHeader)}`,
     ...(ctx.notes?.length ? [`## NOTES FROM THE HARNESS\n${ctx.notes.map((n) => `- ${n}`).join("\n")}`] : []),
     `## LEDGER (locked decisions)\n${ledger}`,
+    ...(ctx.planGoal ? [`## PLAN GOAL (what the product must contain)\n${ctx.planGoal}`] : []),
     `## CHANGE ORDERS OF ROUND ${ctx.roundHeader.round} (verify EVERY one)\n${cos}`,
     `## GLOBAL CHECKS (decided by code)\n${global}`,
     `## FRESH EVIDENCE PACK (${pack.milestoneId} R${pack.round})
@@ -460,6 +472,8 @@ export function validateVerify(raw: unknown, reviewer: ReviewerId, orderIds: str
 }
 
 export const VERIFY_MAX_RETRIES = 2;
+/** wito wa LLM ulioanguka (quota 429 / lanes zimekwisha) unarudiwa mara hizi kabla reviewer kuhesabiwa INVALID (T4 halisi: 429 moja ilizuia raundi nzima). */
+export const VERIFY_TRANSPORT_RETRIES = 2;
 const defaultComplete: NonNullable<VerifyDeps["complete"]> = async ({ reviewer, messages, purpose }) =>
   brokerComplete({ agentId: reviewer, purpose, messages: messages as never, maxOut: 16_000, cls: "heavy", allow: ["gemini"], effort: "high", temperature: 0.3, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
 
@@ -475,12 +489,21 @@ export async function verifyOne(reviewer: ReviewerId, ctx: VerifyContext, deps: 
   const orderIds = ctx.changeOrders.map((c) => c.id);
   const complete = deps.complete || defaultComplete;
   let messages = built.messages, raw = "", errors: string[] = ["not run"], findings: VerifyFindings | null = null, attempts = 0, model = "";
+  let transport = 0;
   for (let k = 0; k <= VERIFY_MAX_RETRIES; k++) {
     attempts++;
     try {
       const r = await complete({ reviewer, messages, purpose });
       raw = r.text; model = r.lane?.model || model;
-    } catch (err: any) { errors = [`LLM call failed: ${String(err?.message || err).slice(0, 300)}`]; break; }
+    } catch (err: any) {
+      errors = [`LLM call failed: ${String(err?.message || err).slice(0, 300)}`];
+      if (transport >= VERIFY_TRANSPORT_RETRIES) break;
+      transport++; k--;
+      const wait = deps.retryDelayMs ?? 30_000;
+      deps.log?.("warning", `🔍 verify ${reviewer}: ${errors[0].slice(0, 160)} — narudia baada ya ${Math.round(wait / 1000)}s (${transport}/${VERIFY_TRANSPORT_RETRIES})`);
+      await new Promise((res) => setTimeout(res, wait));
+      continue;
+    }
     let parsed: unknown;
     try { parsed = extractJson(raw); } catch (err: any) { parsed = undefined; errors = [`invalid JSON: ${String(err?.message || err).slice(0, 200)}`]; }
     if (parsed !== undefined) {

@@ -28,7 +28,7 @@ vi.mock("../store", async () => {
 });
 
 import {
-  applyVerifyToDefects, buildVerifyPrompt, decide, decideNext, disagreements, nextAttempt, roundOutcome, testStopAfterRound, testVerifyInput, titleSimilarity, validateVerify,
+  applyVerifyToDefects, buildVerifyPrompt, decide, decideNext, disagreements, nextAttempt, roundOutcome, testStopAfterRound, testVerifyInput, titleSimilarity, validateVerify, verifyOne, planGoalOf, VERIFY_TRANSPORT_RETRIES,
   verifyKey, cosRoundKey, type DecideInput, type NextState, type VerifyContext, type VerifyFindings, type VerifyVerdict,
 } from "../verify";
 import { maybeCloseMilestones, type BuildOutcome, type LoopHooks, type LoopRunner } from "../loop";
@@ -97,6 +97,27 @@ describe("T1: decide — kanuni za verdict (jedwali)", () => {
     expect(d.newDefects[0]).toMatchObject({ by: ["designer", "frontend"], severity: "major", evidence: ["S-001", "S-002"] });
     expect(d.regressions[0].by).toEqual(["frontend"]);
     expect(d.allPass).toBe(false);
+  });
+});
+
+describe("verifyOne: wito ulioanguka (429) unarudiwa; plan goal iko kwenye prompt", () => {
+  it("429 mara 1 → jaribio la pili linafaulu (transport retry haihesabiwi kama validation retry)", async () => {
+    let n = 0;
+    const ctx = ctxOf([CO("CO-1", ["D-004"])]);
+    const r = await verifyOne("frontend", { ...ctx, planGoal: planGoalOf("# M1 plan\n\n## 1 Goal\nOne page with a product grid.\n\n## 4 Commands\nx") }, {
+      images: false, loadDom: async () => null, retryDelayMs: 1,
+      complete: async ({ messages }) => {
+        n++;
+        if (n === 1) throw new Error("429 quota exceeded");
+        expect(JSON.stringify(messages)).toContain("## PLAN GOAL (what the product must contain)\\nOne page with a product grid.");
+        return { text: JSON.stringify({ reviewer: "frontend", cos: [{ orderId: "CO-1", verdict: "PASS", evidence: ["S-001"], note: "ok" }], regressions: [], newDefects: [], requestDiscussion: null, notes: "" }), usage: null };
+      },
+    });
+    expect(n).toBe(2);
+    expect(r.findings?.cos[0].verdict).toBe("PASS");
+    const dead = await verifyOne("frontend", ctx, { images: false, loadDom: async () => null, retryDelayMs: 1, complete: async () => { n++; throw new Error("429"); } });
+    expect(dead.findings).toBeNull();
+    expect(n).toBe(2 + 1 + VERIFY_TRANSPORT_RETRIES);
   });
 });
 

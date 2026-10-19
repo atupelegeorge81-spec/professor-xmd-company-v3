@@ -19,6 +19,7 @@ import {
 import {
   applyVerifyToDefects, bestKey, CHECK_MISSED_IT, cosRoundKey, decide, decideNext, disagreements, isOpenDefect, nextAttempt, revertNote, roundOutcome, syncTurn,
   verifyBoth, verifyKey, type Decision, type NextDecision, type VerifyContext, type VerifyDeps, type VerifyFindings, type VerifyRun, type VerifyVerdict,
+  planGoalOf,
 } from "./verify"; // TASK-26
 import { buildOCB } from "./ocb";
 import { maybeCapturePrompt } from "./testHooks";
@@ -629,7 +630,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
   const header = fixRoundHeader(m, round, rec.data.maxRounds, defectsNow);
   const base = await vh.context(m, round, header.open.length);
   const vctx: VerifyContext = {
-    ocb: base.ocb, roundHeader: header, ledger: base.ledger, pack, changeOrders: cos, checkResults: results, defects: defectsNow,
+    ocb: base.ocb, roundHeader: header, ledger: base.ledger, pack, changeOrders: cos, checkResults: results, defects: defectsNow, planGoal: planGoalOf(plan),
     receipts: (fixRec?.verification?.cos || []).map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus, touched: c.touched, diff: c.diff })),
   };
   const deps: VerifyDeps = { log: (l, t) => hooks.blog(l, t), capture: (agent, phase, text) => { maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase, system: text }); }, ...(vh.deps || {}) };
