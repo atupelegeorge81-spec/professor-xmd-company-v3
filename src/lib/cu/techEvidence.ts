@@ -26,6 +26,8 @@ export interface TechEvidenceResult {
   gitDiffSummary: string;
   secrets: SecretFinding[];
   scannedFiles: number;
+  /** TASK-29: faili za repo (git ls-files) — Optimus asibuni njia kwenye COs */
+  files: string[];
   errors: EvidenceError[];
   ms: number;
 }
@@ -48,7 +50,7 @@ export async function captureTechEvidence(sbx: EvidenceSandbox, input: CaptureTe
   const ex = SECRET_SCAN_EXCLUDE.map((d) => `':(exclude)${d}'`).join(" ");
   const exDirs = [...SECRET_SCAN_EXCLUDE, ".git"].map((d) => `--exclude-dir=${d}`).join(" ");
   let secrets: SecretFinding[] = [];
-  let scanned = 0, hasPkg = false;
+  let scanned = 0, hasPkg = false, tracked: string[] = [];
   try {
     await sbxShell(ctx, `{ [ -f package.json ] && echo "__PKG"
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -63,6 +65,7 @@ fi; } > ${out} 2>&1; exit 0\n`, 120_000);
     const files = (raw.split("__FILES\n")[1] || "").split("__HITS\n")[0].split("\n").map((x) => x.trim()).filter(Boolean);
     const hits = raw.split("__HITS\n")[1] || "";
     scanned = files.length;
+    tracked = files.slice(0, 300);
     secrets = parseSecretScan(hits, files);
     checks.push({ id: "tech/secrets", type: "grep", result: raw.includes("__FILES") ? (secrets.length ? "FAIL" : "PASS") : "ERROR", detail: raw.includes("__FILES") ? secretsCheckDetail(secrets, scanned) : "secrets scan did not run" });
   } catch (e: any) {
@@ -97,7 +100,7 @@ fi; } > ${out} 2>&1; exit 0\n`, 120_000);
     gitDiffSummary = g.out.slice(0, 4000);
   } catch (e: any) { errors.push({ kind: "harness", detail: `git diff summary failed: ${String(e?.message || e).slice(0, 160)}` }); }
 
-  return { checks, commands, gitDiffSummary, secrets, scannedFiles: scanned, errors, ms: Date.now() - t0 };
+  return { checks, commands, gitDiffSummary, secrets, scannedFiles: scanned, files: tracked, errors, ms: Date.now() - t0 };
 }
 
 /** Unganisha ushahidi wa technical kwenye pack (technical: pack tupu ya screenshots · mixed: juu ya screenshots). */
@@ -111,7 +114,7 @@ export function mergeTechEvidence(pack: EvidencePack, t: TechEvidenceResult): Ev
     errors: [...(pack.errors || []), ...t.errors],
     technical: {
       secrets: t.secrets.length, secretFiles: [...new Set(t.secrets.map((s) => s.file))].slice(0, 20),
-      checks: t.checks.length, failed: t.checks.filter((c) => c.result !== "PASS").length, ms: t.ms,
+      checks: t.checks.length, failed: t.checks.filter((c) => c.result !== "PASS").length, ms: t.ms, files: (t.files || []).slice(0, 300),
     },
   };
 }

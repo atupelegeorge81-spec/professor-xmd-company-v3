@@ -198,6 +198,8 @@ export function validateMilestoneMap(map: unknown, totalAgendas: number, knownAg
 }
 
 // ── ChangeOrder ──────────────────────────────────────────────────────────────
+const TECH_ACCEPTANCE_TYPES = ["command", "grep", "http", "db", "file_exists", "file_contains"];
+
 export function validateChangeOrder(co: unknown, reviewMode: ReviewMode): ValidationResult<ChangeOrder> {
   const e: Errs = [];
   const P = "changeOrder";
@@ -228,7 +230,12 @@ export function validateChangeOrder(co: unknown, reviewMode: ReviewMode): Valida
   else if (!co.visionNote.trim() && reviewMode !== "technical") e.push(`${P}.visionNote: may be empty only when reviewMode is "technical" (reviewMode=${reviewMode})`);
 
   if (!Array.isArray(co.acceptance) || co.acceptance.length === 0) e.push(`${P}.acceptance: must be a non-empty array of Checks`);
-  else co.acceptance.forEach((c: unknown, i: number) => checkInto(e, c, `${P}.acceptance[${i}]`));
+  else co.acceptance.forEach((c: unknown, i: number) => {
+    checkInto(e, c, `${P}.acceptance[${i}]`);
+    // TASK-29 (maelezo29 #3): technical = hakuna UI → acceptance ni command/grep/http/db/file_* tu
+    const t = String((c as { type?: unknown })?.type ?? "");
+    if (reviewMode === "technical" && TECH_ACCEPTANCE_TYPES.indexOf(t) < 0) e.push(`${P}.acceptance[${i}].type: "${t}" is a browser/screenshot check — technical review has no UI; use one of ${TECH_ACCEPTANCE_TYPES.join("|")}`);
+  });
 
   if (co.diagnosis !== undefined) {
     if (!isObj(co.diagnosis)) e.push(`${P}.diagnosis: must be an object {cause,note} when present`);

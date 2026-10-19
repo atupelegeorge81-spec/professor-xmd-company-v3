@@ -13,7 +13,9 @@ import { milestoneCast } from "../loop";
 import { buildReviewPrompt, validateFindings, type ReviewContext } from "../review";
 import { numberFindings, reviewParticipants, applyReviewRules } from "../reviewAgenda";
 import { AGENT_ID_BY_ROSTER } from "../roster";
-import { validateCheck } from "../schemas";
+import { validateChangeOrder, validateCheck } from "../schemas";
+import { roundChecks } from "../fixRound";
+import { technicalHints } from "../techEvidence";
 import {
   findSecretsInLine, maskSecret, maskSecrets, needsTechEvidence, parseSecretScan, reviewCast, techCommandsOf, techPlanChecks,
 } from "../techEvidence";
@@ -257,4 +259,44 @@ describe("http ya localhost — Start Command inawashwa na kuzimwa (withLocalSer
     const down = execSync(`curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:${port}/ || true`, { shell: "/bin/bash", encoding: "utf8" });
     expect(down).toBe("000");
   }, 60_000);
+});
+
+describe("TASK 29 — marekebisho kutoka Koyeb T4 (COs za technical)", () => {
+  it("http yenye url \"/path\" → app ya Start Command (kabla: fetch ya path = ERROR)", async () => {
+    const port = 4392;
+    const ws = fixtureRepo({ "server.js": `require("http").createServer((q, s) => { s.statusCode = q.method === "DELETE" && !q.headers.authorization ? 401 : 200; s.end("ok"); }).listen(${port}, "127.0.0.1");` });
+    const r = await runChecks([
+      { id: "del-noauth", type: "http", url: "/api/notes/1", method: "DELETE", expectStatus: 401 },
+      { id: "del-auth", type: "http", url: "/api/notes/1", method: "DELETE", headers: { Authorization: "Bearer xmdtest" }, expectStatus: 200 },
+    ], { sbx: localSbx() as any, ws, startCommand: "node server.js", port, tag: "t29rel", startTimeoutMs: 20_000 });
+    expect(r.results.map((x) => x.result)).toEqual(["PASS", "PASS"]);
+    expect(r.results[0].detail).toContain(`DELETE http://127.0.0.1:${port}/api/notes/1 (no credentials) → HTTP 401`);
+  }, 60_000);
+  it("roundChecks technical: build ndiyo, console_clean/overflow (browser) HAPANA", () => {
+    const plan = "## 4. Tech Stack\nBuild Command: `node --check server.js`\nStart Command: `node server.js`\n";
+    const ids = (t: boolean) => roundChecks([], plan, { technical: t }).checks.map((c) => c.id);
+    expect(ids(true)).toEqual(["global/build"]);
+    expect(ids(false)).toEqual(expect.arrayContaining(["global/build", "global/console_clean", "global/no_horizontal_overflow"]));
+  });
+  it("technicalHints: plan checks kamili (method/headers), matokeo, faili halisi", () => {
+    const h = technicalHints([
+      { id: "del-noauth", type: "http", url: "http://127.0.0.1:4173/api/notes/1", method: "DELETE", expectStatus: 401 } as any,
+      { id: "hero", type: "dom_exists", route: "/", selector: "h1" } as any,
+    ], { checks: [{ id: "plan/del-noauth", type: "http", result: "FAIL", detail: "DELETE … → HTTP 200 (expected 401)" }], technical: { files: ["server.js", "config.js"] } });
+    expect(h[0]).toContain('"method":"DELETE"');
+    expect(h[0]).toContain('"id":"del-noauth"');
+    expect(h.join("\n")).not.toContain("dom_exists");
+    expect(h).toContain("- RESULT check:plan/del-noauth [http] FAIL — DELETE … → HTTP 200 (expected 401)");
+    expect(h[h.length - 1]).toBe("- REPO FILES (git ls-files, 2): server.js, config.js");
+  });
+  it("validateChangeOrder technical: acceptance ya browser inakataliwa; http/command zinakubaliwa", () => {
+    const co = (acc: unknown[]) => ({ id: "CO-001", defectIds: ["D-001"], decisionIds: [], attempt: 1, priority: 1, location: { route: "/api/notes/:id", selector: "-", files: ["server.js"] },
+      current: "DELETE is public", desired: "DELETE requires the bearer token", visionNote: "", acceptance: acc, mode: "standard" });
+    const http = { id: "a1", type: "http", url: "/api/notes/1", method: "DELETE", expectStatus: 401 };
+    expect(validateChangeOrder(co([http]), "technical").ok).toBe(true);
+    const bad = validateChangeOrder(co([http, { id: "a2", type: "dom_exists", route: "/", selector: "h1" }]), "technical");
+    expect(bad.ok).toBe(false);
+    expect(JSON.stringify(bad)).toContain("browser/screenshot check");
+    expect(validateChangeOrder({ ...co([{ id: "a2", type: "dom_exists", route: "/", selector: "h1" }]), visionNote: "v" }, "visual").ok).toBe(true);
+  });
 });

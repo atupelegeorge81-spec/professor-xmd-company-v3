@@ -393,7 +393,8 @@ const CHECK_SPEC = `Check union (acceptance must be a non-empty array of these o
 - {"id","type":"no_horizontal_overflow","routes":["/"],"viewports":["375x667","768x1024","1280x800"]}
 - {"id","type":"console_clean","route":"/"}
 - {"id","type":"screenshot_taken","route","viewport?","state?"}
-- {"id","type":"http","url":"/path","expectStatus":200,"bodyContains?"}
+- {"id","type":"http","url":"/path","method?":"GET|POST|PUT|PATCH|DELETE","headers?":{"Authorization":"Bearer …"},"body?":"raw request body","expectStatus":200,"bodyContains?"} — a path url hits the app started with the plan's Start Command; NEGATIVE check = no "headers" (must be denied, e.g. 401). Copy method/headers/body from the PLAN CHECKS when they exist.
+- {"id","type":"db","table","rls?":true} (table exists in the real database; rls=true → Row Level Security enabled)
 - {"id","type":"grep","pattern","path","expect":"present|absent"} · {"id","type":"file_exists","path"} · {"id","type":"file_contains","path","text"} · {"id","type":"command","cmd","expectExit":0}
 Viewports are "WIDTHxHEIGHT" (375x667, 768x1024, 1280x800). Browser checks must use a route listed under ROUTES and should use selectors that exist in the DOM HINTS (or the selector the fix will create).`;
 
@@ -407,15 +408,15 @@ ${i.ledgerLines.join("\n") || "- (none)"}
 OPEN DEFECTS (EVERY one needs ≥1 CO — a defect without a CO is a bug):
 ${i.defects.map((d) => `- ${d.id} [${d.severity}] ${d.title} · area ${d.area}\n    expected: ${clip(d.expected, 260)}\n    actual: ${clip(d.actual, 260)}\n    evidence: ${d.evidence.slice(0, 5).map((e) => clip(e, 150)).join(" | ")}`).join("\n") || "- (none)"}
 
-ACCEPTED DECISIONS (agreed by Ultron + Vextron + Optimus; EVERY one needs ≥1 CO unless it contradicts a locked ledger decision or the CEO brief — then list it under ledgerConflicts instead, never as a CO):
+ACCEPTED DECISIONS (agreed by the review team; EVERY one needs ≥1 CO unless it contradicts a locked ledger decision or the CEO brief — then list it under ledgerConflicts instead, never as a CO):
 ${i.decisions.map((d) => `- ${d.id}: ${d.title} — ${clip(d.detail, 400)}`).join("\n") || "- (none)"}
 
 TEAM DISCUSSION (excerpt):
 ${clip(i.discussion, 12_000)}
 
-ROUTES: ${i.routes.join(", ") || "/"}
-DOM HINTS (real selectors and values measured on the built site):
-${i.domHints.slice(0, 40).join("\n") || "- (none)"}
+${i.reviewMode === "technical"
+  ? `TECHNICAL HINTS (no UI, no screenshots — use only acceptance checks of type command/grep/http/db/file_exists/file_contains; location.route = the API path or "-", location.selector = "-"; location.files = ONLY files listed under REPO FILES or new files the fix must create — never invent paths):\n${i.domHints.slice(0, 70).join("\n") || "- (none)"}`
+  : `ROUTES: ${i.routes.join(", ") || "/"}\nDOM HINTS (real selectors and values measured on the built site):\n${i.domHints.slice(0, 40).join("\n") || "- (none)"}`}
 
 ${CHECK_SPEC}
 

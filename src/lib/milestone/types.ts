@@ -361,7 +361,7 @@ export interface EvidencePack {
   base?: string;
   mode?: "local" | "deployed";
   /** TASK-29: muhtasari wa ushahidi wa technical (checks zenyewe ziko `checks` — ids tech/..., plan/...) */
-  technical?: { secrets: number; secretFiles: string[]; checks: number; failed: number; ms: number };
+  technical?: { secrets: number; secretFiles: string[]; checks: number; failed: number; ms: number; files?: string[] };
 }
 
 // ── RoundHeader (data; maandishi yanajengwa na code) ─────────────────────────

@@ -111,7 +111,8 @@ describe("validateChangeOrder", () => {
   });
   it("visionNote tupu: inaruhusiwa technical tu", () => {
     expect(errsOf(validateChangeOrder(co({ visionNote: "" }), "visual"))).toContain('changeOrder.visionNote: may be empty only when reviewMode is "technical" (reviewMode=visual)');
-    expect(validateChangeOrder(co({ visionNote: "" }), "technical").ok).toBe(true);
+    // TASK-29: technical = acceptance zisizo za browser tu
+    expect(validateChangeOrder(co({ visionNote: "", acceptance: [{ id: "a1", type: "http", url: "/api/health", expectStatus: 200 }] }), "technical").ok).toBe(true);
   });
   it("location bila files wala route · defectIds tupu", () => {
     const e = errsOf(validateChangeOrder(co({ location: { files: [], selector: ".x" }, defectIds: [] }), "visual"));

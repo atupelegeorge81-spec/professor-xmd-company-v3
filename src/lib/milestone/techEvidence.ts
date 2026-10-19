@@ -122,6 +122,17 @@ export function techPlanChecks(checks: Check[]): Check[] {
     .filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
 }
 
+/** TASK-29: "hints" za Optimus kwa COs za technical (badala ya ROUTES/DOM HINTS za visual): checks kamili za plan
+ *  (url/method/headers/body halisi — acceptance za http zinakiliwa kutoka hapa), matokeo ya checks, na faili halisi za repo. */
+export function technicalHints(planChecks: Check[], pack: { checks?: { id: string; type: string; result: string; detail: string }[]; technical?: { files?: string[] } }): string[] {
+  const out: string[] = [];
+  for (const c of techPlanChecks(planChecks).slice(0, 30)) out.push(`- PLAN CHECK ${JSON.stringify({ ...c, id: c.id.replace(/^plan\//, "") }).slice(0, 400)}`);
+  for (const c of (pack.checks || []).slice(0, 30)) out.push(`- RESULT check:${c.id} [${c.type}] ${c.result} — ${String(c.detail || "").split("\n")[0].slice(0, 200)}`);
+  const files = pack.technical?.files || [];
+  if (files.length) out.push(`- REPO FILES (git ls-files, ${files.length}): ${files.slice(0, 120).join(", ")}`);
+  return out;
+}
+
 // ── Reviewers: "cast" ya slots mbili kwa reviewMode (maelezo29 #2) ─────────────
 /** Slots mbili za pipeline ya review (tasks 23–28) zinabaki "designer"/"frontend" (data, keys za verdicts);
  *  technical → Optimus anachagua wataalamu 2 kutoka roster: backend (Megatron) + QA/security (Cybertron). */

@@ -256,6 +256,8 @@ export async function runChecks(checks: unknown[], ctx: CheckContext): Promise<{
     const raw = checks[i] as Record<string, unknown>;
     const v = validateCheck(raw, `check[${i}]`);
     if (!v.ok) { out[i] = res((raw || {}) as { id?: string; type?: string }, "ERROR", `invalid check: ${v.errors.join("; ")}`); continue; }
+    // TASK-29: CHECK_SPEC inaruhusu url "/path" → app ya Start Command ndani ya sandbox (kabla: fetch ya "/path" = ERROR)
+    if (v.value.type === "http" && v.value.url.startsWith("/")) v.value = { ...v.value, url: `http://127.0.0.1:${ctx.port ?? EVIDENCE_PORT}${v.value.url}` };
     if (isBrowser(v.value.type)) { browser.push({ i, c: v.value }); continue; }
     valid.push({ i, c: v.value });
   }

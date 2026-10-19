@@ -9,11 +9,12 @@ import { BUILD_REPORT_INLINE_MAX, buildReportPath, crossCheckBuildReport, parseB
 import { evidenceKey } from "./evidence"; // TASK-19
 import type { DomJson } from "./review"; // TASK-26 (occlusion)
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
-import { MAX_ROUNDS, type ChangeOrder, type Defect, type EvidenceCheckResult, type EvidencePack, type Milestone, type MilestoneMap, type MilestoneState, type MilestoneStatus, type RoundHeaderData, type WaiverEntry } from "./types";
+import { MAX_ROUNDS, type ChangeOrder, type Check, type Defect, type EvidenceCheckResult, type EvidencePack, type Milestone, type MilestoneMap, type MilestoneState, type MilestoneStatus, type RoundHeaderData, type WaiverEntry } from "./types";
 import { formatRoundHeader, reviewRound0, REVIEWERS, type ReviewContext, type ReviewDeps, type ReviewerId } from "./review"; // TASK-24 (T23 analyses)
 import { consolidate, cosKey, DECISIONS_KEY, makeReviewAgendaItem, nextCoNumber, reviewAgendaId, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
 import { brokerComplete } from "../broker/broker"; // TASK-24: Optimus consolidate
-import { castAgentId, reviewCast, type ReviewCast } from "./techEvidence"; // TASK-29
+import { castAgentId, reviewCast, technicalHints, type ReviewCast } from "./techEvidence"; // TASK-29
+import { validateMilestonePlan } from "./plan"; // TASK-29 (technicalHints)
 import { AGENT_ID_BY_ROSTER } from "./roster"; // TASK-29
 import { AGENTS } from "@/lib/agents"; // TASK-29
 import {
@@ -187,6 +188,13 @@ const running = (G.__xmdMsRunning ||= new Set<string>());
  * milestone kuendeshwa mara mbili; `milestoneClosed` inatolewa TU na aliyeshinda CAS ya DISCUSSING → PLANNING.
  * Inarudisha ids za milestones zilizokamilishwa katika wito huu.
  */
+/** TASK-29: hints za COs za technical — checks kamili za plan + matokeo + faili halisi (badala ya DOM HINTS). */
+function techHintsFor(m: Milestone, planMd: string, pack: EvidencePack): string[] {
+  let planChecks: Check[] = [];
+  try { planChecks = validateMilestonePlan(planMd, { id: m.id, reviewMode: "technical" }).checks; } catch { /* plan mbovu → matokeo + faili tu */ }
+  return technicalHints(planChecks, pack);
+}
+
 /** state mpya ya milestone — TASK-28 test hook `XMD_TEST_MAX_ROUNDS` inashusha kikomo (inert bila XMD_TEST_HOOKS=1) */
 export const freshMilestoneState = (id: string): MilestoneState => { const st = newMilestoneState(id); const cap = testMaxRounds(); return cap ? { ...st, maxRounds: cap } : st; };
 
@@ -431,7 +439,7 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
   ctx.analyseCtx = { ...ctx.analyseCtx, roundHeader: header0, cast, reviewMode: m.reviewMode };
   if (m.reviewMode === "technical") hooks.blog("info", `🛡️ ${m.id}: technical review — reviewers ${castNames(cast)} (roster: ${m.roster.join(", ")}) · screenshots 0 · checks ${(ev.checks || []).length}`);
   const result = await runReviewRound({
-    milestoneId: m.id, milestoneTitle: m.title, round: 0, reviewMode: m.reviewMode, pack: ev, ledgerLines: ctx.ledgerLines, domHints: [],
+    milestoneId: m.id, milestoneTitle: m.title, round: 0, reviewMode: m.reviewMode, pack: ev, ledgerLines: ctx.ledgerLines, domHints: m.reviewMode === "technical" ? techHintsFor(m, ctx.analyseCtx.planMarkdown || "", ev) : [],
     participants: reviewParticipants(ctx.extraParticipants, cast), roundHeader: formatRoundHeader(header0), cast,
   }, {
     analyse: async () => {
@@ -595,7 +603,7 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
   }
 
   // checks: acceptance za COs + global (build, tests, console_clean, no_horizontal_overflow) — Computer ikimaliza kwa mafanikio tu
-  const rc0 = roundChecks(cos, plan);
+  const rc0 = roundChecks(cos, plan, { technical: m.reviewMode === "technical" });
   const inh = inheritedChecks(defects0, m.id); // TASK-28: checks za defects zilizorithiwa zinaendeshwa tena kila raundi
   const rc: RoundChecks = inh.checks.length ? { ...rc0, checks: [...rc0.checks, ...inh.checks], owner: { ...rc0.owner, ...inh.owner } } : rc0;
   let results: EvidenceCheckResult[] = [];
@@ -926,7 +934,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
       const r = await consolidateFn({
         reviewId: reviewAgendaId(m.id, round), milestoneId: m.id, round: round + 1, reviewMode: m.reviewMode, defects: openList, decisions: [],
         ledgerLines: base.ledgerLines, discussion, routes: [...new Set([...(pack.screenshots || []).map((x) => x.route), ...(checksRec?.routes || [])])],
-        domHints: [...new Set([...decision.newDefects, ...decision.regressions].flatMap((x) => x.evidence).concat(decision.concerns.flatMap((c) => c.evidence)).filter((e) => / dom: /.test(e)))],
+        domHints: m.reviewMode === "technical" ? techHintsFor(m, plan, pack) : [...new Set([...decision.newDefects, ...decision.regressions].flatMap((x) => x.evidence).concat(decision.concerns.flatMap((c) => c.evidence)).filter((e) => / dom: /.test(e)))],
         nextCoNo: nextCoNumber(prevAll), roundHeader: formatRoundHeader(nowHeader), notes: reverted ? [reverted] : [],
       });
       cons = { valid: r.valid, attempts: r.attempts, errors: r.errors, discussed, changeOrders: r.valid ? r.changeOrders.map((c) => ({ ...c, attempt: nextAttempt(c, res.defects) })) : [] };

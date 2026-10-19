@@ -213,7 +213,7 @@ export function mergeAttempts(first: RoundVerification, second: RoundVerificatio
 
 // ── Checks za raundi: acceptance za COs + global (build, tests, console_clean, no_horizontal_overflow kwenye routes muhimu) ──
 export interface RoundChecks { checks: Check[]; owner: Record<string, string>; startCommand: string; routes: string[] }
-export function roundChecks(changeOrders: ChangeOrder[], planMarkdown: string, opts: { maxRoutes?: number } = {}): RoundChecks {
+export function roundChecks(changeOrders: ChangeOrder[], planMarkdown: string, opts: { maxRoutes?: number; /** TASK-29: technical → hakuna console_clean / overflow (hakuna UI) */ technical?: boolean } = {}): RoundChecks {
   const owner: Record<string, string> = {};
   const checks: Check[] = [];
   for (const co of changeOrders) for (const c of co.acceptance || []) {
@@ -227,7 +227,7 @@ export function roundChecks(changeOrders: ChangeOrder[], planMarkdown: string, o
   const keyRoutes = routes.length ? routes : ["/"];
   if (g.buildCommand) { checks.push({ id: "global/build", type: "command", cmd: g.buildCommand, expectExit: 0 }); owner["global/build"] = "global"; }
   if (g.requiresTests) { checks.push({ id: "global/tests", type: "command", cmd: g.testCommand, expectExit: 0 }); owner["global/tests"] = "global"; }
-  if (spec.startCommand) {
+  if (spec.startCommand && !opts.technical) {
     checks.push({ id: "global/console_clean", type: "console_clean", routes: keyRoutes, viewports: [...PLAN_VIEWPORTS] });
     checks.push({ id: "global/no_horizontal_overflow", type: "no_horizontal_overflow", routes: keyRoutes, viewports: [...PLAN_VIEWPORTS] });
     owner["global/console_clean"] = "global"; owner["global/no_horizontal_overflow"] = "global";
