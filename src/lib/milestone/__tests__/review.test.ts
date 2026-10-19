@@ -147,6 +147,18 @@ describe("TASK 23 — kurudia + uhuru", () => {
   });
 });
 
+describe("TASK 29 — technical bila picha → textOnly (lane yoyote nzito)", () => {
+  it("visual → textOnly false; technical → true", async () => {
+    const seen: Record<string, boolean | undefined> = {};
+    const d = deps({ complete: async ({ reviewer, textOnly }) => { seen[reviewer] = textOnly; return { text: JSON.stringify(good(reviewer)), usage: null }; } });
+    await analyse("designer", pack(), ctx(), d);
+    expect(seen.designer).toBe(false);
+    const tp = { ...pack(), screenshots: [], domMetrics: [] } as any;
+    await analyse("frontend", tp, { ...ctx(), reviewMode: "technical" } as any, d);
+    expect(seen.frontend).toBe(true);
+  });
+});
+
 describe("TASK 23 — LLM ikishindwa", () => {
   it("lanes zimekwisha → valid=false + kosa wazi, reviewRound0 haianguki", async () => {
     const r = await reviewRound0(pack(), ctx(), deps({ complete: async ({ reviewer }) => { if (reviewer === "designer") throw new Error("503 high demand"); return { text: JSON.stringify(good(reviewer)), usage: null }; } }));

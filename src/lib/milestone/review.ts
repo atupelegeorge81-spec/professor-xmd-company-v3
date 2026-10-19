@@ -80,7 +80,7 @@ export interface ReviewImage { mime: string; base64: string }
 
 export interface ReviewDeps {
   /** LLM (default: broker → Gemini Flash, thinking ON) */
-  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string; agentId?: string }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string; tier?: string; provider?: string } }>;
+  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string; agentId?: string; /** TASK-29: technical bila picha → lane yoyote nzito (si Gemini tu) */ textOnly?: boolean }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string; tier?: string; provider?: string } }>;
   /** PNG ya screenshot (default: fetch url ya storage) */
   loadImage?: (shot: EvidencePack["screenshots"][number]) => Promise<ReviewImage | null>;
   /** *.dom.json (default: fetch url ya storage) */
@@ -390,8 +390,8 @@ export function validateFindings(raw: unknown, reviewer: ReviewerId, pack: Evide
 }
 
 /** Lane ya maelezo23 (hadi task 30): Gemini Flash, thinking ON, kupitia broker iliyopo. */
-const defaultComplete: NonNullable<ReviewDeps["complete"]> = async ({ reviewer, messages, purpose, agentId }) =>
-  brokerComplete({ agentId: agentId || reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", allow: ["gemini"], effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
+const defaultComplete: NonNullable<ReviewDeps["complete"]> = async ({ reviewer, messages, purpose, agentId, textOnly }) =>
+  brokerComplete({ agentId: agentId || reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", allow: textOnly ? undefined : ["gemini"], effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
 
 /** maelezo23 #1 — reviewer MMOJA, peke yake. */
 export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omit<ReviewContext, "pack">, deps: ReviewDeps = {}): Promise<ReviewRun> {
@@ -401,6 +401,7 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
   const complete = deps.complete || defaultComplete;
   const purpose = `review-analyse:${pack.milestoneId}:R${pack.round}:${reviewer}`;
   const agentId = castAgentId(ctx.cast, reviewer); // TASK-29
+  const textOnly = isTechnicalReview(full) && built.imageParts === 0; // TASK-29: hakuna picha → Gemini si lazima (T4 Koyeb: 429 ya Gemini iliua analysis)
   deps.log?.("info", `🔎 ${agentOf(reviewer, ctx.cast).name} (${reviewer}) ${pack.milestoneId} R${pack.round}: prompt ${built.text.length} chars · parts: text ${built.textParts} + image ${built.imageParts}${built.imageIds.length ? ` (${built.imageIds.join(", ")})` : ""} · hash ${built.hash.slice(0, 12)}`);
   let messages = built.messages;
   let raw = "", errors: string[] = ["not run"], findings: Findings | null = null, attempts = 0;
@@ -409,7 +410,7 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
     attempts++;
     let r: Awaited<ReturnType<typeof complete>>;
     try {
-      r = await complete({ reviewer, messages, purpose, agentId });
+      r = await complete({ reviewer, messages, purpose, agentId, textOnly });
     } catch (e: any) {
       // lanes zimekwisha / provider down → reviewer huyu hana findings (raundi haianguki; harness inaamua)
       errors = [`LLM call failed: ${String(e?.message || e).slice(0, 300)}`];
