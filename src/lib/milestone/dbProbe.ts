@@ -3,6 +3,7 @@
 // select (head) na RLS inarudi `null` (check ya rls → ERROR yenye maelekezo — kamwe si PASS ya kubuni).
 // Database: XMD_PROJECT_SUPABASE_URL + XMD_PROJECT_SUPABASE_SERVICE_KEY (database ya mradi) au Supabase ya XMD.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import ws from "ws"; // Node 20 haina native WebSocket — supabase-js (realtime) inahitaji transport (kama server/supabase.ts)
 import type { DbProbe, DbProbeResult } from "./checks";
 import type { DbCheck } from "./types";
 
@@ -33,6 +34,6 @@ export function defaultDbProbe(env: Record<string, string | undefined> = process
   const url = (env.XMD_PROJECT_SUPABASE_URL || env.SUPABASE_URL || "").replace(/\/$/, "");
   const key = env.XMD_PROJECT_SUPABASE_SERVICE_KEY || env.SUPABASE_SERVICE_KEY || "";
   if (!url || !key) return undefined;
-  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { transport: ws as never } });
   return supabaseDbProbe(client);
 }
