@@ -81,6 +81,8 @@ export interface ReviewImage { mime: string; base64: string }
 export interface ReviewDeps {
   /** LLM (default: broker → Gemini Flash, thinking ON) */
   complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string; agentId?: string; /** TASK-29: technical bila picha → lane yoyote nzito (si Gemini tu) */ textOnly?: boolean }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string; tier?: string; provider?: string } }>;
+  /** TASK-29: kusubiri kabla ya kujaribu tena LLM ikishindwa (default 45s; tests 0) */
+  retryWaitMs?: number;
   /** PNG ya screenshot (default: fetch url ya storage) */
   loadImage?: (shot: EvidencePack["screenshots"][number]) => Promise<ReviewImage | null>;
   /** *.dom.json (default: fetch url ya storage) */
@@ -391,7 +393,7 @@ export function validateFindings(raw: unknown, reviewer: ReviewerId, pack: Evide
 
 /** Lane ya maelezo23 (hadi task 30): Gemini Flash, thinking ON, kupitia broker iliyopo. */
 const defaultComplete: NonNullable<ReviewDeps["complete"]> = async ({ reviewer, messages, purpose, agentId, textOnly }) =>
-  brokerComplete({ agentId: agentId || reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", allow: textOnly ? undefined : ["gemini"], effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
+  brokerComplete({ agentId: agentId || reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", allow: textOnly ? undefined : ["gemini"], maxHops: textOnly ? 10 : undefined, effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
 
 /** maelezo23 #1 — reviewer MMOJA, peke yake. */
 export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omit<ReviewContext, "pack">, deps: ReviewDeps = {}): Promise<ReviewRun> {
@@ -415,7 +417,12 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
       // lanes zimekwisha / provider down → reviewer huyu hana findings (raundi haianguki; harness inaamua)
       errors = [`LLM call failed: ${String(e?.message || e).slice(0, 300)}`];
       deps.log?.("error", `🔎 ${reviewer} attempt ${attempts}: ${errors[0]}`);
-      break;
+      // TASK-29 (Koyeb T4: 429 za Gemini kwa wote wawili ndani ya 1s) — subiri kisha jaribu tena; broker inaepuka lanes zilizochoka
+      if (i === REVIEW_MAX_RETRIES) break;
+      const wait = deps.retryWaitMs ?? 45_000;
+      deps.log?.("warning", `🔎 ${reviewer}: LLM imeshindwa — jaribio jingine baada ya ${Math.round(wait / 1000)}s`);
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
     }
     raw = r.text; usage = r.usage ?? null;
     lane = r.lane?.id || lane; model = r.lane?.model || model; tier = r.lane?.tier || tier;

@@ -160,11 +160,16 @@ describe("TASK 29 — technical bila picha → textOnly (lane yoyote nzito)", ()
 });
 
 describe("TASK 23 — LLM ikishindwa", () => {
+  it("TASK 29: kosa la muda (429) kisha jibu → reviewer anapata findings (attempt 2)", async () => {
+    let n = 0;
+    const r = await analyse("designer", pack(), ctx(), deps({ retryWaitMs: 0, complete: async ({ reviewer }) => { if (++n === 1) throw new Error("429 quota"); return { text: JSON.stringify(good(reviewer)), usage: null }; } }));
+    expect([r.valid, r.meta.attempts]).toEqual([true, 2]);
+  });
   it("lanes zimekwisha → valid=false + kosa wazi, reviewRound0 haianguki", async () => {
-    const r = await reviewRound0(pack(), ctx(), deps({ complete: async ({ reviewer }) => { if (reviewer === "designer") throw new Error("503 high demand"); return { text: JSON.stringify(good(reviewer)), usage: null }; } }));
+    const r = await reviewRound0(pack(), ctx(), deps({ retryWaitMs: 0, complete: async ({ reviewer }) => { if (reviewer === "designer") throw new Error("503 high demand"); return { text: JSON.stringify(good(reviewer)), usage: null }; } }));
     expect(r.designer.valid).toBe(false);
     expect(r.designer.meta.errors[0]).toMatch(/LLM call failed: 503 high demand/);
-    expect(r.designer.meta.attempts).toBe(1);
+    expect(r.designer.meta.attempts).toBe(REVIEW_MAX_RETRIES + 1); // TASK-29: inajaribiwa tena (kusubiri) kabla ya kukata tamaa
     expect(r.frontend.valid).toBe(true);
   });
 });
