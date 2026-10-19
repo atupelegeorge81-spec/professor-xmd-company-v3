@@ -85,13 +85,22 @@ export function disagreements(orderIds: string[], designer: VerifyFindings | nul
   });
 }
 
-/** Unganisha findings za wawili (title+area sawa → moja yenye `by` mbili). */
+const STOP = new Set(["a", "an", "the", "on", "at", "in", "of", "to", "is", "and", "or", "for", "with", "not", "no", "are", "be", "its"]);
+const words = (t: string) => new Set(String(t).toLowerCase().split(/[^a-z0-9#.]+/).filter((w) => w && !STOP.has(w)));
+/** Ufanano wa vichwa (Jaccard ya maneno) — reviewers wawili huandika tatizo lilelile kwa maneno tofauti (T4 halisi). */
+export function titleSimilarity(a: string, b: string): number {
+  const A = words(a), B = words(b);
+  const inter = [...A].filter((w) => B.has(w)).length;
+  return A.size + B.size ? inter / (A.size + B.size - inter) : 0;
+}
+export const SAME_FINDING_SIMILARITY = 0.5;
+/** Unganisha findings za wawili: title+area sawa, AU (reviewer mwingine) vichwa vinafanana ≥ 0.5 → moja yenye `by` mbili. */
 function mergeFindings(list: { r: ReviewerId; d: DefectFinding }[]): (DefectFinding & { by: ReviewerId[] })[] {
   const out: (DefectFinding & { by: ReviewerId[] })[] = [];
   const key = (d: DefectFinding) => `${d.title.trim().toLowerCase()}|${d.area.trim().toLowerCase()}`;
   for (const { r, d } of list) {
     const k = key(d);
-    const hit = out.find((x) => key(x) === k);
+    const hit = out.find((x) => key(x) === k) || out.find((x) => !x.by.includes(r) && titleSimilarity(x.title, d.title) >= SAME_FINDING_SIMILARITY);
     if (hit) {
       if (!hit.by.includes(r)) hit.by.push(r);
       hit.evidence = [...new Set([...hit.evidence, ...d.evidence])];
@@ -202,7 +211,7 @@ export const isOpenDefect = (d: Pick<Defect, "status">) => (OPEN_STATUSES as rea
 
 /** sababu ya defect mpya inayotokana na concern (tatizo lilelile la CO, check haikulipima) — haihesabiwi kama "made things worse" */
 export const CHECK_MISSED_IT = "CHECK_MISSED_IT";
-export interface VerifyDefectsResult { defects: Defect[]; added: Defect[]; fixed: string[]; reopened: string[] }
+export interface VerifyDefectsResult { defects: Defect[]; added: Defect[]; fixed: string[]; reopened: string[]; duplicates: { title: string; of: string }[] }
 /**
  * CO zote za defect PASS → VERIFIED_FIXED; vinginevyo REOPENED. Defects MPYA: newDefects + regressions + concerns
  * (concern = reviewer aliona tatizo ingawa check ilipita → defect mpya inayohitaji check mpya). `reverted` = raundi
@@ -225,16 +234,24 @@ export function applyVerifyToDefects(defects: Defect[], o: {
       history: [...(d.history || []), { round: o.round, result: `verify: ${line}${o.reverted ? ` · ${o.reverted}` : ""}`, cause: pass ? "VERIFIED_FIXED" : o.reverted ? "REVERTED" : res.find((c) => c && c.verdict !== "PASS")?.reason || "no verdict" }],
     };
   });
-  if (o.reverted) return { defects: next, added: [], fixed, reopened };
+  if (o.reverted) return { defects: next, added: [], fixed, reopened, duplicates: [] };
   let n = defects.reduce((m, d) => Math.max(m, Number(String(d.id).slice(2)) || 0), 0);
   const mk = (f: Pick<DefectFinding, "title" | "area" | "severity" | "evidence" | "expected" | "actual">, by: ReviewerId[], cause: string): Defect => ({
     id: `D-${String(++n).padStart(3, "0")}`, milestoneId: o.milestoneId, foundInRound: o.round, reportedBy: by, area: f.area, severity: f.severity,
     title: f.title, evidence: f.evidence, expected: f.expected, actual: f.actual, status: "OPEN", attempts: 0,
     history: [{ round: o.round, result: `found in verify R${o.round}`, cause }],
   });
+  // finding inayofanana na defect ILIYO WAZI tayari (reviewer aliripoti upya kasoro inayojulikana) → haiongezwi
+  const known = next.filter((d) => d.milestoneId === o.milestoneId && isOpenDefect(d));
+  const duplicates: { title: string; of: string }[] = [];
+  const fresh = <T extends DefectFinding>(f: T) => {
+    const hit = known.find((d) => titleSimilarity(d.title, f.title) >= SAME_FINDING_SIMILARITY);
+    if (hit) duplicates.push({ title: f.title, of: hit.id });
+    return !hit;
+  };
   const added: Defect[] = [
-    ...o.decision.regressions.map((r) => mk(r, r.by, "REGRESSION")),
-    ...o.decision.newDefects.map((r) => mk(r, r.by, "NEW_DEFECT")),
+    ...o.decision.regressions.filter(fresh).map((r) => mk(r, r.by, "REGRESSION")),
+    ...o.decision.newDefects.filter(fresh).map((r) => mk(r, r.by, "NEW_DEFECT")),
     // concern MOJA kwa kila CO (reviewers wawili wanaunganishwa)
     ...[...new Set(o.decision.concerns.map((c) => c.orderId))].map((orderId) => {
       const cs = o.decision.concerns.filter((c) => c.orderId === orderId);
@@ -247,7 +264,7 @@ export function applyVerifyToDefects(defects: Defect[], o: {
       }, cs.map((c) => c.reviewer), CHECK_MISSED_IT);
     }),
   ];
-  return { defects: [...next, ...added], added, fixed, reopened };
+  return { defects: [...next, ...added], added, fixed, reopened, duplicates };
 }
 
 /** CO.attempt kwa raundi ijayo: 1 + attempts kubwa za defects zake (defect mpya → 1). */
@@ -283,7 +300,7 @@ const VERIFY_SPEC = `OUTPUT: ONE JSON object, nothing else (a \`\`\`json fence i
   "reviewer": "<designer | frontend>",
   "cos": [ { "orderId": "CO-001", "verdict": "PASS|FAIL|PARTIAL", "evidence": ["S-002", "S-002 dom: <selector> <property>=<value>", "check:CO-001/c1"], "note": "why (cite numbers)" } ],   // EVERY change order of this round, once
   "regressions": [ { "title", "area", "severity": "blocker|major|medium|minor", "kind": "broken", "evidence": [...], "expected", "actual" } ],   // things that worked before this round and are broken now
-  "newDefects":  [ { "title", "area", "severity", "kind": "violation|broken", "decisionRef?": "A2", "evidence": [...], "expected", "actual" } ],   // problems not covered by this round's change orders
+  "newDefects":  [ { "title", "area", "severity", "kind": "violation|broken", "decisionRef?": "A2", "evidence": [...], "expected", "actual" } ],   // problems NOT already listed in the DEFECT LEDGER below (never re-report a listed defect)
   "requestDiscussion": null,   // or { "reason": "..." } ONLY if the whole team must discuss something before the next round
   "notes": "overall verdict"
 }
@@ -536,6 +553,8 @@ export interface TestVerifyInput {
   extraParticipants?: string[];
   changeOrders?: ChangeOrder[];
   defects?: Defect[];
+  /** (na changeOrders) anza FIXING ya raundi hii (kingo halali; raundi za nyuma = stub) — T3 */
+  startRound?: number;
 }
 export function testVerifyInput(env: Record<string, string | undefined> = process.env, read: (p: string) => string = (p) => readFileSync(p, "utf8")): TestVerifyInput | null {
   if (env.XMD_TEST_HOOKS !== "1" || !env.XMD_TEST_VERIFY_INPUT) return null;

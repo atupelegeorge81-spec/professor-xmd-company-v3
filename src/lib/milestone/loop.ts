@@ -583,6 +583,8 @@ interface VerifyRecord {
   decision?: Decision;
   next?: NextDecision;
   consolidation?: { valid: boolean; attempts: number; errors: string[]; changeOrders: ChangeOrder[]; discussed: boolean };
+  added?: string[];
+  duplicates?: { title: string; of: string }[];
   at: string;
 }
 
@@ -730,13 +732,13 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
         } catch (e: any) { hooks.blog("warning", `🧑‍⚖️ ${m.id} R${round}: mjadala ulioombwa haukufanyika: ${String(e?.message || e).slice(0, 160)}`); }
       }
       const prevAll = (await getRecord<{ changeOrders?: ChangeOrder[] }>(sid, cosKey(m.id)))?.data?.changeOrders || [];
-      const nextHeader = fixRoundHeader(m, round + 1, rec.data.maxRounds, res.defects);
+      const nowHeader = fixRoundHeader(m, round, rec.data.maxRounds, res.defects); // raundi ya SASA, counts mpya kutoka DB
       const consolidateFn = vh.consolidate || hooks.review?.consolidate || ((i: ConsolidateInput) => defaultConsolidate(i, hooks.blog, sid));
       const r = await consolidateFn({
         reviewId: reviewAgendaId(m.id, round), milestoneId: m.id, round: round + 1, reviewMode: m.reviewMode, defects: openList, decisions: [],
         ledgerLines: base.ledgerLines, discussion, routes: [...new Set([...(pack.screenshots || []).map((x) => x.route), ...(checksRec?.routes || [])])],
         domHints: [...new Set([...decision.newDefects, ...decision.regressions].flatMap((x) => x.evidence).concat(decision.concerns.flatMap((c) => c.evidence)).filter((e) => / dom: /.test(e)))],
-        nextCoNo: prevAll.length + 1, roundHeader: formatRoundHeader(nextHeader), notes: reverted ? [reverted] : [],
+        nextCoNo: prevAll.length + 1, roundHeader: formatRoundHeader(nowHeader), notes: reverted ? [reverted] : [],
       });
       cons = { valid: r.valid, attempts: r.attempts, errors: r.errors, discussed, changeOrders: r.valid ? r.changeOrders.map((c) => ({ ...c, attempt: nextAttempt(c, res.defects) })) : [] };
       vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), consolidation: cons }))).data;
@@ -749,7 +751,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
     }
   }
   const to: MilestoneStatus = nd.next === "SIGN_OFF" ? (nd.leftoverMinor.length ? "SIGNED_OFF_WITH_WAIVERS" : "SIGNED_OFF") : nd.next === "CONTINUE" ? "FIXING" : nd.next === "CAP_REACHED" ? "CAP_REACHED" : "BLOCKED";
-  await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), decision, next: nd, at: now() }));
+  await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), decision, next: nd, added: res.added.map((d) => d.id), duplicates: trial.duplicates, at: now() }));
   rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, dId, to === "BLOCKED" ? "FAILED" : "DONE")), { type: "GOTO", to })));
   hooks.bcast({
     type: "verifyRound", id: m.id, round, next: nd.next, status: to, reason: nd.reason, outcome: outcome.outcome, git: { op: git.op, ok: git.ok, sha: git.sha.slice(0, 12), detail: git.detail },
@@ -757,7 +759,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
     newDefects: res.added.map((d) => d.id), fixed: res.fixed, reopened: res.reopened, nextCos: newCos.map((c) => c.id),
   });
   hooks.addChip(`✅ ${m.id} R${round} verify: ${decision.cos.map((c) => `${c.orderId} ${c.verdict}`).join(" · ")} → ${nd.next}${newCos.length ? ` (COs ${newCos.map((c) => c.id).join(", ")})` : ""}`);
-  hooks.blog(to === "BLOCKED" ? "error" : "success", `✅ ${m.id} R${round} → ${to}: ${nd.reason} · defects fixed ${res.fixed.length} · reopened ${res.reopened.length} · new ${res.added.length} · ${outcome.outcome} (${outcome.reason}).`);
+  hooks.blog(to === "BLOCKED" ? "error" : "success", `✅ ${m.id} R${round} → ${to}: ${nd.reason} · defects fixed ${res.fixed.length} · reopened ${res.reopened.length} · new ${res.added.length}${trial.duplicates.length ? ` · duplicates ${trial.duplicates.map((x) => `${x.of}`).join(", ")}` : ""} · ${outcome.outcome} (${outcome.reason}).`);
   await hooks.persist();
   return rec.data;
 }

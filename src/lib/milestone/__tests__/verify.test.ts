@@ -28,7 +28,7 @@ vi.mock("../store", async () => {
 });
 
 import {
-  applyVerifyToDefects, buildVerifyPrompt, decide, decideNext, disagreements, nextAttempt, roundOutcome, testStopAfterRound, testVerifyInput, validateVerify,
+  applyVerifyToDefects, buildVerifyPrompt, decide, decideNext, disagreements, nextAttempt, roundOutcome, testStopAfterRound, testVerifyInput, titleSimilarity, validateVerify,
   verifyKey, cosRoundKey, type DecideInput, type NextState, type VerifyContext, type VerifyFindings, type VerifyVerdict,
 } from "../verify";
 import { maybeCloseMilestones, type BuildOutcome, type LoopHooks, type LoopRunner } from "../loop";
@@ -100,6 +100,18 @@ describe("T1: decide — kanuni za verdict (jedwali)", () => {
   });
 });
 
+describe("dedupe ya findings kati ya reviewers (T4 halisi: overflow ileile, vichwa tofauti)", () => {
+  it("vichwa vinavyofanana ≥0.5 vya reviewers TOFAUTI → defect moja; reviewer mmoja haunganishwi na nafsi yake", () => {
+    expect(titleSimilarity("Horizontal page overflow on 375px mobile viewport", "Horizontal scrolling overflow at 375px viewport")).toBeGreaterThanOrEqual(0.5);
+    const a = F("designer", { "CO-1": "FAIL" }, { newDefects: [{ ...nd("Horizontal page overflow on 375px mobile viewport", "major"), area: "layout" }] });
+    const b = F("frontend", { "CO-1": "FAIL" }, { newDefects: [{ ...nd("Horizontal scrolling overflow at 375px viewport", "major"), area: "responsiveness" }, nd("Theme toggle missing")] });
+    const d = decide({ orderIds: ["CO-1"], checks: { "CO-1": ok1 }, designer: a, frontend: b });
+    expect(d.newDefects.map((x) => [x.title, x.by])).toEqual([["Horizontal page overflow on 375px mobile viewport", ["designer", "frontend"]], ["Theme toggle missing", ["frontend"]]]);
+    const self = decide({ orderIds: ["CO-1"], checks: { "CO-1": ok1 }, designer: F("designer", { "CO-1": "FAIL" }, { newDefects: [nd("Nav overflow at 375px"), nd("Grid overflow at 375px")] }), frontend: null });
+    expect(self.newDefects).toHaveLength(2);
+  });
+});
+
 describe("T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali)", () => {
   it.each(nextCases)("%s", (_name, state, next, reason) => {
     const r = decideNext(state);
@@ -139,6 +151,12 @@ describe("applyVerifyToDefects + nextAttempt", () => {
     expect(r.defects.find((d) => d.id === "D-002")!.history[0].result).toMatch(/^verify: CO-2 FAIL/);
     expect(nextAttempt({ defectIds: ["D-002"] }, r.defects)).toBe(2);
     expect(nextAttempt({ defectIds: ["D-011"] }, r.defects)).toBe(1);
+  });
+  it("finding inayofanana na defect iliyo wazi tayari haiongezwi (duplicate inarekodiwa)", () => {
+    const decision = decide({ orderIds: ["CO-1"], checks: { "CO-1": { pass: 0, fail: 1, error: 0 } }, designer: F("designer", { "CO-1": "FAIL" }, { newDefects: [nd("Promo strip overflows at 375px viewport", "major")] }), frontend: F("frontend", { "CO-1": "FAIL" }) });
+    const r = applyVerifyToDefects([D("D-001"), D("D-003", { title: "Promo strip overflows at 375px (width: 640px)", status: "OPEN", attempts: 0 })], { milestoneId: "M1", round: 1, changeOrders: [CO("CO-1", ["D-001"])], decision });
+    expect(r.added).toEqual([]);
+    expect(r.duplicates).toEqual([{ title: "Promo strip overflows at 375px viewport", of: "D-003" }]);
   });
   it("raundi iliyorudishwa nyuma: defects zote za raundi → REOPENED, mpya hazihesabiwi", () => {
     const decision = decide({ orderIds: ["CO-1"], checks: { "CO-1": ok1 }, designer: F("designer", { "CO-1": "PASS" }, { newDefects: [nd("x")] }), frontend: F("frontend", { "CO-1": "PASS" }) });
@@ -256,7 +274,7 @@ beforeEach(() => { db.clear(); vi.stubEnv("XMD_MILESTONES", "1"); });
 afterEach(() => vi.unstubAllEnvs());
 
 describe("runVerifyRound (loop)", () => {
-  it("R1 FAIL → Optimus COs (attempt 2, RoundHeader R2) → FIXING R2 → R2 PASS → BEST tag → SIGNED_OFF", async () => {
+  it("R1 FAIL → Optimus COs (attempt 2, RoundHeader ya R1 kutoka DB) → FIXING R2 → R2 PASS → BEST tag → SIGNED_OFF", async () => {
     await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
     const h = harness({ 1: { designer: { cos: { "CO-001": "FAIL" } }, frontend: { cos: { "CO-001": "FAIL" } } }, 2: { designer: { cos: { "CO-002": "PASS" } }, frontend: { cos: { "CO-002": "PASS" } } } }, { checkFail: (id, r) => r === 1 && id.startsWith("CO-") });
     await maybeCloseMilestones(h.runner, h.hooks);
@@ -264,7 +282,7 @@ describe("runVerifyRound (loop)", () => {
     expect(st).toMatchObject({ status: "SIGNED_OFF", round: 2 });
     expect(st.steps.map((x: any) => x.stepId)).toEqual(expect.arrayContaining(["M1.R1.fix", "M1.R1.evidence", "M1.R1.verify", "M1.R1.decide", "M1.R2.fix", "M1.R2.decide"]));
     expect(h.cons).toHaveLength(1);
-    expect(h.cons[0].roundHeader).toBe("ROUND 2/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 2) · waivers: 0 · rounds left: 8");
+    expect(h.cons[0].roundHeader).toBe("ROUND 1/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 2) · waivers: 0 · rounds left: 9");
     const r2 = db.get(`${SID}|${cosRoundKey("M1", 2)}`)!.data.changeOrders;
     expect(r2.map((c: ChangeOrder) => [c.id, c.attempt])).toEqual([["CO-002", 2]]);
     expect(db.get(`${SID}|defects`)!.data.defects[0]).toMatchObject({ id: "D-001", status: "VERIFIED_FIXED", attempts: 2 });

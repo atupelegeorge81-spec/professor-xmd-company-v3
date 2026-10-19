@@ -3455,8 +3455,17 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
               for (const x of ["plan", "build", "review"]) st = ok(setStep(st, stepIdOf(m.id, 0, x), "DONE"));
               st = { ...st, steps: (st.steps || []).map((x) => ({ ...x, stub: true })) };
               for (const to of ["PLANNING", "BUILDING", "EVIDENCE", "REVIEW_R0", "FIXING"] as const) st = ok(transition(st, { type: "GOTO", to }));
+              // startRound (T3): raundi za nyuma = stub (kingo halali FIXING → VERIFYING → FIXING; round inaongezeka na state machine)
+              for (let r = 1; r < Math.min(tv.startRound || 1, MAX_ROUNDS); r++) {
+                const ids = ["fix", "evidence", "verify", "decide"].map((x) => stepIdOf(m.id, r, x));
+                st = ok(planSteps(st, ids));
+                for (const x of ids) st = ok(setStep(st, x, "DONE"));
+                st = { ...st, steps: (st.steps || []).map((x) => (ids.includes(x.stepId) ? { ...x, stub: true } : x)) };
+                st = ok(transition(ok(transition(st, { type: "GOTO", to: "VERIFYING" })), { type: "GOTO", to: "FIXING" }));
+              }
               return st;
             });
+            if ((tv.startRound || 1) > 1) await msUpdate(lr, `cos:${m.id}:R${tv.startRound}`, () => ({ version: 1, round: tv.startRound, changeOrders: tv.changeOrders }));
           }
         }
         await maybeCloseMilestones(lr, {
