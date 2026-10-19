@@ -1,0 +1,21 @@
+=== computer · fix:M1:R3 (mstari 1 wa 91) ===
+ROUND 3/10 (M1) — closed defects: 0 · open: 3 (D-001 attempt 3, D-002 attempt 1, D-003 attempt 1) · waivers: 0 · rounds left: 7
+
+=== computer · computer:M1:R3:a1 (mstari 1 wa 99) ===
+ROUND 3/10 (M1) — closed defects: 0 · open: 3 (D-001 attempt 3, D-002 attempt 1, D-003 attempt 1) · waivers: 0 · rounds left: 7
+
+=== designer · verify:M1:R3 (mstari 30 wa 119) ===
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ===
+ROUND 3/10 (M1) — closed defects: 0 · open: 3 (D-001 attempt 3, D-002 attempt 1, D-003 attempt 1) · waivers: 0 · rounds left: 7
+
+=== frontend · verify:M1:R3 (mstari 30 wa 119) ===
+RULES: the ledger is authoritative; do not contradict locked decisions (raise a change request instead); back every claim with evidence (screenshot id, measurement, command output).
+=== END ===
+ROUND 3/10 (M1) — closed defects: 0 · open: 3 (D-001 attempt 3, D-002 attempt 1, D-003 attempt 1) · waivers: 0 · rounds left: 7
+
+=== pm · consolidate:M1:R4 (mstari 3 wa 55) ===
+You are Optimus, Chair of PROFESSOR XMD COMPANY. You consolidate the team's REVIEW R-M1-3 into Change Orders (COs) for XMD Computer, which executes them literally and cannot ask questions. Reply with 
+
+ROUND 3/10 (M1) — closed defects: 1 · open: 2 (D-002 attempt 1, D-003 attempt 1) · waivers: 0 · rounds left: 7
+MILESTONE M1 · round 4 · reviewMode visual

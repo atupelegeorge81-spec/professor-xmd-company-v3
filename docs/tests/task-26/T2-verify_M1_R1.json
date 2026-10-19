@@ -1,0 +1,624 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 1,
+ "header": "ROUND 1/10 (M1) — closed defects: 0 · open: 4 (D-001 attempt 1, D-002 attempt 1, D-003 attempt 1, D-007 attempt 1) · waivers: 0 · rounds left: 9",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-001",
+      "verdict": "PARTIAL",
+      "evidence": [
+       "check:CO-001/chk-toggle-exists",
+       "check:CO-001/chk-toggle-target",
+       "check:CO-001/chk-nav-target",
+       "S-001 dom: #theme-toggle color=rgb(0, 0, 0)",
+       "S-001 dom: #theme-toggle contrastRatio=1.07",
+       "S-001"
+      ],
+      "note": "The #theme-toggle button exists with 44x44px touch target (check:CO-001/chk-toggle-target PASS) and nav links meet 44px touch targets (check:CO-001/chk-nav-target PASS). However, the button's content color is unstyled black rgb(0, 0, 0) against the rgb(11, 12, 16) dark background, resulting in contrastRatio=1.07 (LOW-CONTRAST), making the toggle icon virtually invisible in dark mode."
+     },
+     {
+      "orderId": "CO-002",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-002/chk-no-overflow",
+       "S-001",
+       "S-002",
+       "S-003"
+      ],
+      "note": "Horizontal overflow is completely resolved across all viewports (scrollWidth 375 vs clientWidth 375, overflowPx=0 per check:CO-002/chk-no-overflow). The promo strip adapts cleanly across 375px, 768px, and 1280px."
+     },
+     {
+      "orderId": "CO-003",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-003/chk-subtitle-case",
+       "S-001",
+       "S-002",
+       "S-003"
+      ],
+      "note": "Hero subtitle text-transform uppercase removed (computed value none per check:CO-003/chk-subtitle-case). Subtitle renders in natural sentence case per decision A1."
+     },
+     {
+      "orderId": "CO-004",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-004/chk-header-inner-maxwidth",
+       "S-003 dom: body > main x=90",
+       "S-003 dom: body > main width=1100",
+       "S-003"
+      ],
+      "note": "Header inner container is constrained to max-width 1100px (check:CO-004/chk-header-inner-maxwidth PASS), properly aligning the header items with the 1100px main content block on desktop (S-003)."
+     },
+     {
+      "orderId": "CO-005",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-005/chk-cta-bg",
+       "check:CO-005/chk-cta-target",
+       "S-001 dom: body > main > section:nth-of-type(1) > a backgroundColor=rgb(242, 240, 235)",
+       "S-001"
+      ],
+      "note": "Primary hero CTA is prominently styled with solid accent background #F2F0EB (rgb(242, 240, 235)), dark text rgb(11, 12, 16), rounded corners, and touch target 165.27x45px meeting the 44px minimum."
+     },
+     {
+      "orderId": "CO-006",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-006/chk-console-clean",
+       "check:global/build"
+      ],
+      "note": "Visible focus styling applied cleanly with 0 console or build errors across all tested viewports."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [
+     {
+      "title": "Theme toggle button icon has insufficient contrast in dark theme",
+      "area": "header",
+      "severity": "major",
+      "kind": "violation",
+      "decisionRef": "A4",
+      "evidence": [
+       "S-001 dom: #theme-toggle color=rgb(0, 0, 0)",
+       "S-001 dom: #theme-toggle contrastRatio=1.07",
+       "S-001",
+       "S-002",
+       "S-003"
+      ],
+      "expected": "Theme toggle button content should use text color #E5E7EB or accent #F2F0EB to ensure legible contrast (>=4.5:1) against dark background #0B0C10 per decision A4",
+      "actual": "Button content color is unstyled black rgb(0, 0, 0) against rgb(11, 12, 16) resulting in contrastRatio=1.07 (LOW-CONTRAST), rendering the icon inside virtually invisible"
+     }
+    ],
+    "requestDiscussion": null,
+    "notes": "Solid progress in round 1: horizontal overflow (D-002) is fixed, hero subtitle uppercase text (D-003) is corrected to sentence case, desktop header constraint (D-007) is aligned to 1100px max-width, and hero CTA styling is in place. However, the newly added #theme-toggle button in CO-001 has unstyled black text/icon color resulting in 1.07:1 contrast on the dark background, leaving the toggle icon nearly invisible."
+   },
+   "attempts": 2,
+   "errors": [],
+   "promptHash": "b5a1d73845fbca42e6c622c7a83f8c3f4c2af112f17d569d5bb66ebe602985e5",
+   "promptChars": 21370,
+   "imageParts": 3,
+   "model": "gemini-3.7-flash",
+   "ms": 325964,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-001\",\n      \"verdict\": \"PARTIAL\",\n      \"evidence\": [\n        \"check:CO-001/chk-toggle-exists\",\n        \"check:CO-001/chk-toggle-target\",\n        \"check:CO-001/chk-nav-target\",\n        \"S-001 dom: #theme-toggle color=rgb(0, 0, 0)\",\n        \"S-001 dom: #theme-toggle contrastRatio=1.07\",\n        \"S-001\"\n      ],\n      \"note\": \"The #theme-toggle button exists with 44x44px touch target (check:CO-001/chk-toggle-target PASS) and nav links meet 44px touch targets (check:CO-001/chk-nav-target PASS). However, the button's content color is unstyled black rgb(0, 0, 0) against the rgb(11, 12, 16) dark background, resulting in contrastRatio=1.07 (LOW-CONTRAST), making the toggle icon virtually invisible in dark mode.\"\n    },\n    {\n      \"orderId\": \"CO-002\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-002/chk-no-overflow\",\n        \"S-001\",\n        \"S-002\",\n        \"S-003\"\n      ],\n      \"note\": \"Horizontal overflow is completely resolved across all viewports (scrollWidth 375 vs clientWidth 375, overflowPx=0 per check:CO-002/chk-no-overflow). The promo strip adapts cleanly across 375px, 768px, and 1280px.\"\n    },\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-003/chk-subtitle-case\",\n        \"S-001\",\n        \"S-002\",\n        \"S-003\"\n      ],\n      \"note\": \"Hero subtitle text-transform uppercase removed (computed value none per check:CO-003/chk-subtitle-case). Subtitle renders in natural sentence case per decision A1.\"\n    },\n    {\n      \"orderId\": \"CO-004\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-004/chk-header-inner-maxwidth\",\n        \"S-003 dom: body > main x=90\",\n        \"S-003 dom: body > main width=1100\",\n        \"S-003\"\n      ],\n      \"note\": \"Header inner container is constrained to max-width 1100px (check:CO-004/chk-header-inner-maxwidth PASS), properly aligning the header items with the 1100px main content block on desktop (S-003).\"\n    },\n    {\n      \"orderId\": \"CO-005\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-005/chk-cta-bg\",\n        \"check:CO-005/chk-cta-target\",\n        \"S-001 dom: body > main > section:nth-of-type(1) > a backgroundColor=rgb(242, 240, 235)\",\n        \"S-001\"\n      ],\n      \"note\": \"Primary hero CTA is prominently styled with solid accent background #F2F0EB (rgb(242, 240, 235)), dark text rgb(11, 12, 16), rounded corners, and touch target 165.27x45px meeting the 44px minimum.\"\n    },\n    {\n      \"orderId\": \"CO-006\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-006/chk-console-clean\",\n        \"check:global/build\"\n      ],\n      \"note\": \"Visible focus styling applied cleanly with 0 console or build errors across all tested viewports.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [\n    {\n      \"title\": \"Theme toggle button icon has insufficient contrast in dark theme\",\n      \"area\": \"header\",\n      \"severity\": \"major\",\n      \"kind\": \"violation\",\n      \"decisionRef\": \"A4\",\n      \"evidence\": [\n        \"S-001 dom: #theme-toggle color=rgb(0, 0, 0)\",\n        \"S-001 dom: #theme-toggle contrastRatio=1.07\",\n        \"S-001\",\n        \"S-002\",\n        \"S-003\"\n      ],\n      \"expected\": \"Theme toggle button content should use text color #E5E7EB or accent #F2F0EB to ensure legible contrast (>=4.5:1) against dark background #0B0C10 per decision A4\",\n      \"actual\": \"Button content color is unstyled black rgb(0, 0, 0) against rgb(11, 12, 16) resulting in contrastRatio=1.07 (LOW-CONTRAST), rendering the icon inside virtually invisible\"\n    }\n  ],\n  \"requestDiscussion\": null,\n  \"notes\": \"Solid progress in round 1: horizontal overflow (D-002) is fixed, hero subtitle uppercase text (D-003) is corrected to sentence case, desktop header constraint (D-007) is aligned to 1100px max-width, and hero CTA styling is in place. However, the newly added #theme-toggle button in CO-001 has unstyled black text/icon color resulting in 1.07:1 contrast on the dark background, leaving the toggle icon nearly invisible.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-001",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-001/chk-toggle-exists",
+       "check:CO-001/chk-toggle-target",
+       "check:CO-001/chk-nav-target",
+       "S-001",
+       "S-001 dom: #theme-toggle width=44"
+      ],
+      "note": "#theme-toggle button exists in the header with 44x44px touch target. Nav links meet the >=44x44px touch target (Shop 51.78x44, Story 51.47x44, Contact 69.67x44)."
+     },
+     {
+      "orderId": "CO-002",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-002/chk-no-overflow",
+       "check:global/no_horizontal_overflow",
+       "S-001"
+      ],
+      "note": "Horizontal overflow eliminated across all viewports. scrollWidth matches clientWidth exactly at 375px (375px), 768px (768px), and 1280px (1280px) with overflowPx=0."
+     },
+     {
+      "orderId": "CO-003",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-003/chk-subtitle-case",
+       "S-001"
+      ],
+      "note": "Hero subtitle rendered in natural sentence case ('Hand-thrown mugs, linen and small-batch coffee from Dar es Salaam.') with text-transform=none, conforming to A1."
+     },
+     {
+      "orderId": "CO-004",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-004/chk-header-inner-maxwidth",
+       "S-003",
+       "S-003 dom: body > main width=1100"
+      ],
+      "note": "Header inner content max-width is constrained to 1100px with auto margins, aligning perfectly with <main> (x=90 to x=1190 on 1280px viewport)."
+     },
+     {
+      "orderId": "CO-005",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-005/chk-cta-bg",
+       "check:CO-005/chk-cta-target",
+       "S-001 dom: body > main > section:nth-of-type(1) > a backgroundColor=rgb(242, 240, 235)",
+       "S-001"
+      ],
+      "note": "Primary CTA styled with accent background rgb(242, 240, 235), dark text rgb(11, 12, 16), rounded corners, and touch target 165.27x45px (>=44px)."
+     },
+     {
+      "orderId": "CO-006",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-006/chk-console-clean",
+       "check:global/console_clean",
+       "S-001"
+      ],
+      "note": "Focus indicator rules compiled cleanly with 0 console or network errors across all viewports."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [
+     {
+      "title": "Theme toggle button content has near-zero contrast against dark header background",
+      "area": "header #theme-toggle",
+      "severity": "medium",
+      "kind": "violation",
+      "decisionRef": "A4",
+      "evidence": [
+       "S-001 dom: #theme-toggle color=rgb(0, 0, 0)",
+       "S-001 dom: #theme-toggle contrastRatio=1.07",
+       "S-001"
+      ],
+      "expected": "Theme toggle button text/icon should use text color #E5E7EB or accent #F2F0EB per Decision A4, meeting WCAG AA contrast >= 3:1 against #0B0C10.",
+      "actual": "color is rgb(0, 0, 0) on backgroundColor rgb(11, 12, 16), producing contrastRatio=1.07 (LOW-CONTRAST) which makes the toggle icon/content invisible."
+     },
+     {
+      "title": "Header logo touch target is smaller than 44x44px",
+      "area": "body > header > div > a",
+      "severity": "minor",
+      "kind": "violation",
+      "evidence": [
+       "S-001 dom: body > header > div > a height=21",
+       "S-001 dom: body > header > div > a width=37.05",
+       "S-001"
+      ],
+      "expected": "Header logo link should have minimum touch target dimensions of 44x44px for touch accessibility.",
+      "actual": "Logo <a> dimensions are 37.05x21px, flagged as touch TOO-SMALL."
+     }
+    ],
+    "requestDiscussion": null,
+    "notes": "All 6 change orders pass: theme toggle is present with 44x44px target, overflow is completely resolved across all viewports (375/768/1280), hero subtitle sentence casing complies with A1, desktop header alignment matches 1100px max-width, hero CTA is properly styled, and focus styles generate 0 console errors. Two accessibility defects noted: theme toggle button inherits default black color resulting in 1.07:1 contrast on dark background, and logo touch target is 37.05x21px."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "7698a852e2610ec93ef8a827843f6b4873c313f6859203b42e6c5399970b31e5",
+   "promptChars": 21391,
+   "imageParts": 3,
+   "model": "gemini-3.7-flash",
+   "ms": 136199,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-001\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-001/chk-toggle-exists\",\n        \"check:CO-001/chk-toggle-target\",\n        \"check:CO-001/chk-nav-target\",\n        \"S-001\",\n        \"S-001 dom: #theme-toggle width=44\"\n      ],\n      \"note\": \"#theme-toggle button exists in the header with 44x44px touch target. Nav links meet the >=44x44px touch target (Shop 51.78x44, Story 51.47x44, Contact 69.67x44).\"\n    },\n    {\n      \"orderId\": \"CO-002\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-002/chk-no-overflow\",\n        \"check:global/no_horizontal_overflow\",\n        \"S-001\"\n      ],\n      \"note\": \"Horizontal overflow eliminated across all viewports. scrollWidth matches clientWidth exactly at 375px (375px), 768px (768px), and 1280px (1280px) with overflowPx=0.\"\n    },\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-003/chk-subtitle-case\",\n        \"S-001\"\n      ],\n      \"note\": \"Hero subtitle rendered in natural sentence case ('Hand-thrown mugs, linen and small-batch coffee from Dar es Salaam.') with text-transform=none, conforming to A1.\"\n    },\n    {\n      \"orderId\": \"CO-004\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-004/chk-header-inner-maxwidth\",\n        \"S-003\",\n        \"S-003 dom: body > main width=1100\"\n      ],\n      \"note\": \"Header inner content max-width is constrained to 1100px with auto margins, aligning perfectly with <main> (x=90 to x=1190 on 1280px viewport).\"\n    },\n    {\n      \"orderId\": \"CO-005\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-005/chk-cta-bg\",\n        \"check:CO-005/chk-cta-target\",\n        \"S-001 dom: body > main > section:nth-of-type(1) > a backgroundColor=rgb(242, 240, 235)\",\n        \"S-001\"\n      ],\n      \"note\": \"Primary CTA styled with accent background rgb(242, 240, 235), dark text rgb(11, 12, 16), rounded corners, and touch target 165.27x45px (>=44px).\"\n    },\n    {\n      \"orderId\": \"CO-006\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-006/chk-console-clean\",\n        \"check:global/console_clean\",\n        \"S-001\"\n      ],\n      \"note\": \"Focus indicator rules compiled cleanly with 0 console or network errors across all viewports.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [\n    {\n      \"title\": \"Theme toggle button content has near-zero contrast against dark header background\",\n      \"area\": \"header #theme-toggle\",\n      \"severity\": \"medium\",\n      \"kind\": \"violation\",\n      \"decisionRef\": \"A4\",\n      \"evidence\": [\n        \"S-001 dom: #theme-toggle color=rgb(0, 0, 0)\",\n        \"S-001 dom: #theme-toggle contrastRatio=1.07\",\n        \"S-001\"\n      ],\n      \"expected\": \"Theme toggle button text/icon should use text color #E5E7EB or accent #F2F0EB per Decision A4, meeting WCAG AA contrast >= 3:1 against #0B0C10.\",\n      \"actual\": \"color is rgb(0, 0, 0) on backgroundColor rgb(11, 12, 16), producing contrastRatio=1.07 (LOW-CONTRAST) which makes the toggle icon/content invisible.\"\n    },\n    {\n      \"title\": \"Header logo touch target is smaller than 44x44px\",\n      \"area\": \"body > header > div > a\",\n      \"severity\": \"minor\",\n      \"kind\": \"violation\",\n      \"evidence\": [\n        \"S-001 dom: body > header > div > a height=21\",\n        \"S-001 dom: body > header > div > a width=37.05\",\n        \"S-001\"\n      ],\n      \"expected\": \"Header logo link should have minimum touch target dimensions of 44x44px for touch accessibility.\",\n      \"actual\": \"Logo <a> dimensions are 37.05x21px, flagged as touch TOO-SMALL.\"\n    }\n  ],\n  \"requestDiscussion\": null,\n  \"notes\": \"All 6 change orders pass: theme toggle is present with 44x44px target, overflow is completely resolved across all viewports (375/768/1280), hero subtitle sentence casing complies with A1, desktop header alignment matches 1100px max-width, hero CTA is properly styled, and focus styles generate 0 console errors. Two accessibility defects noted: theme toggle button inherits default black color resulting in 1.07:1 contrast on dark background, and logo touch target is 37.05x21px.\"\n}\n```"
+  }
+ },
+ "disputed": [
+  "CO-001"
+ ],
+ "sync": {
+  "designer": {
+   "CO-001": "PASS"
+  },
+  "frontend": {
+   "CO-001": "PARTIAL"
+  }
+ },
+ "at": "2026-10-19T07:45:22.736Z",
+ "syncTranscript": [
+  {
+   "reviewer": "designer",
+   "text": "{\"cos\":[{\"orderId\":\"CO-001\",\"verdict\":\"PASS\",\"note\":\"Conceding to PASS: automated checks for toggle existence and 44px touch targets on nav and toggle all passed as specified in CO-001. Toggle contrast can be addressed in M2.\"}]}"
+  },
+  {
+   "reviewer": "frontend",
+   "text": "{\"cos\":[{\"orderId\":\"CO-001\",\"verdict\":\"PARTIAL\",\"note\":\"Concur with Ultron. While touch targets pass, #theme-toggle has unstyled black text on dark background (contrastRatio=1.07), making it invisible in dark mode. Needs color fix.\"}]}"
+  }
+ ],
+ "defectsBefore": [
+  {
+   "id": "D-001",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "header",
+   "severity": "blocker",
+   "title": "Missing theme toggle button in header",
+   "evidence": [
+    "S-001",
+    "S-002",
+    "S-003",
+    "S-001 dom: body > header height=53",
+    "S-002 dom: body > header height=53",
+    "S-003 dom: body > header width=1280"
+   ],
+   "expected": "Locked decision A2 requires: 'The header holds the logo (left), the nav, and a theme toggle button at the right end: <button id=\"theme-toggle\" aria-label=\"Toggle theme\"> at least 44x44px that switches html[data-theme] between dark and light.'",
+   "actual": "Header only contains the logo link and the three navigation links ('Shop', 'Story', 'Contact'). The theme toggle button element is completely missing across all viewports.",
+   "status": "IN_FIX",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 3P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ]
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "layout",
+   "severity": "blocker",
+   "title": "Horizontal overflow and scrolling on mobile viewport (375px)",
+   "evidence": [
+    "S-001",
+    "S-001 dom: body > header width=375",
+    "S-001 dom: body > main width=375"
+   ],
+   "expected": "Locked decision A3 requires: 'Mobile first: no horizontal scrolling at 375, 768 or 1280 px. Every block fits the viewport width; content max-width 1100px.'",
+   "actual": "On the 375px viewport (S-001), horizontal scrolling occurs with scrollWidth=660px against clientWidth=375px (overflowPx=285), caused by an inflexible fixed-width promo strip.",
+   "status": "IN_FIX",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-002: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ]
+  },
+  {
+   "id": "D-003",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "typography",
+   "severity": "major",
+   "title": "Hero subtitle rendered in forbidden all-caps text",
+   "evidence": [
+    "S-001",
+    "S-002",
+    "S-003",
+    "S-001 dom: body > main > section:nth-of-type(1) > h1 fontSize=36px"
+   ],
+   "expected": "Locked decision A1 requires: 'Sentence case everywhere: NO all-caps text — text-transform: uppercase is forbidden on every element.'",
+   "actual": "The hero subtitle paragraph below h1 is rendered entirely in uppercase ('HAND-THROWN MUGS, LINEN AND SMALL-BATCH COFFEE FROM DAR ES SALAAM.').",
+   "status": "IN_FIX",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-003: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ]
+  },
+  {
+   "id": "D-007",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "header / layout",
+   "severity": "medium",
+   "title": "Header container is unconstrained by max-width 1100px on desktop",
+   "evidence": [
+    "S-003 dom: body > header width=1280",
+    "S-003 dom: body > main width=1100"
+   ],
+   "expected": "A3 locked decision mandates: 'content max-width 1100px' across blocks to keep content aligned.",
+   "actual": "On desktop 1280px, <header> width is 1280px and stretches logo to x=20 and nav to x=1260, whereas <main> is centered at max-width 1100px (x=90 to x=1190), resulting in visual misalignment between header items and main content.",
+   "status": "IN_FIX",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-004: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ]
+  }
+ ],
+ "harnessRegressions": [],
+ "git": {
+  "op": "none",
+  "ok": true,
+  "sha": "",
+  "detail": "open defects unchanged (4)"
+ },
+ "outcome": {
+  "outcome": "SAME",
+  "reason": "open defects unchanged (4)",
+  "openBefore": 4,
+  "openAfter": 4,
+  "regressions": 0
+ },
+ "consolidation": {
+  "valid": true,
+  "attempts": 2,
+  "errors": [],
+  "discussed": false,
+  "changeOrders": [
+   {
+    "id": "CO-007",
+    "defectIds": [
+     "D-001",
+     "D-008",
+     "D-009",
+     "D-011"
+    ],
+    "decisionIds": [],
+    "attempt": 2,
+    "priority": 1,
+    "location": {
+     "route": "/",
+     "selector": "header #theme-toggle"
+    },
+    "current": "#theme-toggle button exists in header but has unstyled black text/icon color rgb(0, 0, 0) against dark header background rgb(11, 12, 16), producing contrastRatio=1.07 (LOW-CONTRAST) and rendering the toggle icon virtually invisible.",
+    "desired": "Style #theme-toggle button with color #E5E7EB (or accent #F2F0EB) on dark background to achieve contrast ratio >= 4.5:1 per decision A4, while maintaining minimum 44x44px touch target, aria-label='Toggle theme', and functional theme toggle switching html[data-theme] between dark and light per decision A2.",
+    "visionNote": "The theme toggle is a primary interactive control in the header; it must be clearly visible and accessible across both themes.",
+    "acceptance": [
+     {
+      "id": "chk-toggle-contrast-dark",
+      "type": "contrast_min",
+      "route": "/",
+      "selector": "#theme-toggle",
+      "min": 4.5
+     },
+     {
+      "id": "chk-toggle-target-size",
+      "type": "touch_target_min",
+      "route": "/",
+      "selector": "#theme-toggle",
+      "minPx": 44
+     },
+     {
+      "id": "chk-toggle-exists",
+      "type": "dom_exists",
+      "route": "/",
+      "selector": "header #theme-toggle"
+     }
+    ],
+    "mode": "standard"
+   },
+   {
+    "id": "CO-008",
+    "defectIds": [
+     "D-010"
+    ],
+    "decisionIds": [],
+    "attempt": 1,
+    "priority": 2,
+    "location": {
+     "route": "/",
+     "selector": "body > header > div > a"
+    },
+    "current": "Header logo <a> link dimensions are 37.05x21px, failing the minimum touch target requirement of 44x44px.",
+    "desired": "Ensure header logo link has a touch target of at least 44x44px (e.g. min-width: 44px; min-height: 44px; display: inline-flex; align-items: center;) while preserving natural sentence-case typography and layout alignment.",
+    "visionNote": "All interactive touch targets in the header must meet the 44px minimum for effortless mobile accessibility.",
+    "acceptance": [
+     {
+      "id": "chk-logo-target-size",
+      "type": "touch_target_min",
+      "route": "/",
+      "selector": "body > header > div > a",
+      "minPx": 44
+     }
+    ],
+    "mode": "standard"
+   }
+  ]
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-001",
+    "verdict": "FAIL",
+    "reason": "reviewers disagree after sync (designer PASS, frontend PARTIAL)",
+    "designer": "PASS",
+    "frontend": "PARTIAL",
+    "checks": {
+     "pass": 3,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": true,
+    "unresolved": true,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-002",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-003",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-004",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-005",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 2 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 2,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-006",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [
+   {
+    "orderId": "CO-001",
+    "reviewer": "frontend",
+    "verdict": "PARTIAL",
+    "note": "#theme-toggle button exists in the header with 44x44px touch target. Nav links meet the >=44x44px touch target (Shop 51.78x44, Story 51.47x44, Contact 69.67x44).",
+    "evidence": [
+     "check:CO-001/chk-toggle-exists",
+     "check:CO-001/chk-toggle-target",
+     "check:CO-001/chk-nav-target",
+     "S-001",
+     "S-001 dom: #theme-toggle width=44"
+    ]
+   }
+  ],
+  "newDefects": [
+   {
+    "title": "Theme toggle button icon has insufficient contrast in dark theme",
+    "area": "header",
+    "severity": "major",
+    "kind": "violation",
+    "decisionRef": "A4",
+    "evidence": [
+     "S-001 dom: #theme-toggle color=rgb(0, 0, 0)",
+     "S-001 dom: #theme-toggle contrastRatio=1.07",
+     "S-001",
+     "S-002",
+     "S-003"
+    ],
+    "expected": "Theme toggle button content should use text color #E5E7EB or accent #F2F0EB to ensure legible contrast (>=4.5:1) against dark background #0B0C10 per decision A4",
+    "actual": "Button content color is unstyled black rgb(0, 0, 0) against rgb(11, 12, 16) resulting in contrastRatio=1.07 (LOW-CONTRAST), rendering the icon inside virtually invisible",
+    "by": [
+     "designer"
+    ]
+   },
+   {
+    "title": "Theme toggle button content has near-zero contrast against dark header background",
+    "area": "header #theme-toggle",
+    "severity": "medium",
+    "kind": "violation",
+    "decisionRef": "A4",
+    "evidence": [
+     "S-001 dom: #theme-toggle color=rgb(0, 0, 0)",
+     "S-001 dom: #theme-toggle contrastRatio=1.07",
+     "S-001"
+    ],
+    "expected": "Theme toggle button text/icon should use text color #E5E7EB or accent #F2F0EB per Decision A4, meeting WCAG AA contrast >= 3:1 against #0B0C10.",
+    "actual": "color is rgb(0, 0, 0) on backgroundColor rgb(11, 12, 16), producing contrastRatio=1.07 (LOW-CONTRAST) which makes the toggle icon/content invisible.",
+    "by": [
+     "frontend"
+    ]
+   },
+   {
+    "title": "Header logo touch target is smaller than 44x44px",
+    "area": "body > header > div > a",
+    "severity": "minor",
+    "kind": "violation",
+    "evidence": [
+     "S-001 dom: body > header > div > a height=21",
+     "S-001 dom: body > header > div > a width=37.05",
+     "S-001"
+    ],
+    "expected": "Header logo link should have minimum touch target dimensions of 44x44px for touch accessibility.",
+    "actual": "Logo <a> dimensions are 37.05x21px, flagged as touch TOO-SMALL.",
+    "by": [
+     "frontend"
+    ]
+   }
+  ],
+  "regressions": [],
+  "disagreements": [
+   "CO-001"
+  ],
+  "allPass": false
+ },
+ "next": {
+  "next": "CONTINUE",
+  "reason": "COs not PASS: CO-001 · open defects ≥ medium: D-001 (blocker), D-008 (major), D-009 (medium) · unlisted minor defects: D-010, D-011",
+  "leftoverMinor": []
+ },
+ "added": [
+  "D-008",
+  "D-009",
+  "D-010",
+  "D-011"
+ ],
+ "duplicates": []
+}

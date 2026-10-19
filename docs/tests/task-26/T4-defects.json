@@ -1,0 +1,77 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "id": "D-001",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "area": "typography",
+   "severity": "medium",
+   "title": "Lead paragraph is all-caps (text-transform: uppercase)",
+   "evidence": [
+    "S-001",
+    "S-001 dom: p.lead textTransform=uppercase"
+   ],
+   "expected": "A1: sentence case, no uppercase",
+   "actual": "p.lead text-transform: uppercase",
+   "status": "REOPENED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-001 FAIL (designer PASS, frontend FAIL, checks 1P/0F/0E) · round 1 reverted: made things worse (7 regression(s))",
+     "cause": "REVERTED"
+    }
+   ]
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "header",
+   "severity": "major",
+   "title": "Theme toggle button is missing from the header",
+   "evidence": [
+    "S-001",
+    "S-001 dom: #theme-toggle not found"
+   ],
+   "expected": "A2: <button id=theme-toggle> at the right end of the header",
+   "actual": "no toggle",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-003",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "layout",
+   "severity": "medium",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth=660 clientWidth=375"
+   ],
+   "expected": "A3: no horizontal scroll at 375",
+   "actual": ".promo-strip width 640px",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  }
+ ]
+}

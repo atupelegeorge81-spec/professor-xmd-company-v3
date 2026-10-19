@@ -1,0 +1,47 @@
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > wote PASS + checks PASS → PASS 4ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > check FAIL inapindua PASS ya wote 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > check ERROR inapindua PASS ya wote 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > checks hazikuendeshwa → FAIL 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > wanatofautiana, bila sync → FAIL (+concern: check ilipita) 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > wanatofautiana → sync: wote PASS → PASS 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > wanatofautiana → sync bado wanatofautiana → FAIL 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > wote FAIL lakini checks PASS → FAIL + concern 2 (defect mpya + check mpya) 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > FAIL vs PARTIAL si tofauti (hakuna sync) 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > reviewer mmoja hana jibu → FAIL 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decide — kanuni za verdict (jedwali) > disagreements: PASS dhidi ya isiyo PASS tu; findings za wawili zinaunganishwa (title+area) 3ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > verifyOne: wito ulioanguka (429) unarudiwa; plan goal iko kwenye prompt > 429 mara 1 → jaribio la pili linafaulu (transport retry haihesabiwi kama validation retry) 9ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > newlyOccluded: regression ya code (maandishi yamefunikwa na raundi hii) > h1 ilionekana R0 → imefunikwa R1 na header fixed = regression; iliyokuwa imefunikwa tayari / baseline bila `occluded` / selector mpya = si regression 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > newlyOccluded: regression ya code (maandishi yamefunikwa na raundi hii) > roundOutcome: harness regression moja inatosha kurudisha nyuma hata defects zikipungua 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > nextCoNumber: ids za CO hazirudiwi > max(namba, idadi)+1 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > dedupe ya findings kati ya reviewers (T4 halisi: overflow ileile, vichwa tofauti) > vichwa vinavyofanana ≥0.5 vya reviewers TOFAUTI → defect moja; reviewer mmoja haunganishwi na nafsi yake 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > kila kitu PASS → SIGN_OFF 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > CO moja FAIL → CONTINUE 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > check ya global FAIL → CONTINUE 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > defect wazi medium → CONTINUE 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > minor ISIYOorodheshwa → CONTINUE 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > minor iliyoorodheshwa → SIGN_OFF (leftover) 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > receipts ≠ diffs → CONTINUE 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > raundi 10 + kasoro → CAP_REACHED 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > raundi 10 bila kasoro → SIGN_OFF (si CAP) 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > raundi 9 + kasoro → CONTINUE 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > reviewer batili → BLOCKED 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > consolidation batili → BLOCKED 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > hakuna COs → CONTINUE (si SIGN_OFF) 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > T1: decideNext — SIGN_OFF | CONTINUE | CAP_REACHED | BLOCKED (jedwali) > jedwali lina kesi 23 (≥15) 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > roundOutcome (git best / revert) > { openBefore: 3, openAfter: 1, regressions: +0 } → BEST 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > roundOutcome (git best / revert) > { openBefore: 1, openAfter: 3, regressions: +0 } → REVERT 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > roundOutcome (git best / revert) > { openBefore: 3, openAfter: 1, regressions: 1 } → REVERT 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > roundOutcome (git best / revert) > { openBefore: 2, openAfter: 2, regressions: +0 } → SAME 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > applyVerifyToDefects + nextAttempt > PASS → VERIFIED_FIXED · FAIL → REOPENED · mpya: regression + newDefect + concern (CHECK_MISSED_IT) 2ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > applyVerifyToDefects + nextAttempt > finding inayofanana na defect iliyo wazi tayari haiongezwi (duplicate inarekodiwa) 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > applyVerifyToDefects + nextAttempt > raundi iliyorudishwa nyuma: defects zote za raundi → REOPENED, mpya hazihesabiwi 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > prompt ya uthibitisho + validateVerify > RoundHeader + OCB (REVIEW_VERIFY) ziko juu; prompts za reviewers wawili ni tofauti (lens) 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > prompt ya uthibitisho + validateVerify > JSON: CO zote mara moja · evidence ndani ya pack · check ya raundi inakubalika 1ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > test hooks (inert bila XMD_TEST_HOOKS=1) > XMD_TEST_VERIFY_INPUT / XMD_TEST_STOP_AFTER_ROUND 0ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > runVerifyRound (loop) > R1 FAIL → Optimus COs (attempt 2, RoundHeader ya R1 kutoka DB) → FIXING R2 → R2 PASS → BEST tag → SIGNED_OFF 16ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > runVerifyRound (loop) > check FAIL inapindua PASS ya reviewers wote (CO FAIL → CONTINUE) 4ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > runVerifyRound (loop) > tofauti → sync MOJA → wote PASS → SIGNED_OFF 5ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > runVerifyRound (loop) > T4 (code): raundi inaongeza defects → git revert + Optimus anaambiwa 'round 1 reverted: made things worse' 6ms
+ ✓ src/lib/milestone/__tests__/verify.test.ts > runVerifyRound (loop) > T5 (code): crash ndani ya decide → resume: raundi ileile, reviewers HAWARUDIWI, rekodi moja ya uthibitisho 9ms
+ Test Files  1 passed (1)
+      Tests  45 passed (45)

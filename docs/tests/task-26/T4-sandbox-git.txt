@@ -1,0 +1,20 @@
+03ea98c xmd: revert M1 R1 — made things worse (7 regression(s))
+35701ac M1 R1: CO-001
+99c67c8 xmdtest-site: seed
+---
+21:.site-header {
+22-  display: flex;
+23-  align-items: center;
+24-  justify-content: space-between;
+25-  gap: 16px;
+26-  padding: 16px 20px;
+27-}
+28-
+57:.lead {
+58-  font-size: 18px;
+59-  text-transform: uppercase;
+
+ .xmd/receipts/R1.json | 16 ----------------
+ src/styles.css        |  8 +-------
+ 2 files changed, 1 insertion(+), 23 deletions(-)
+

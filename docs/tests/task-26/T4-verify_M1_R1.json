@@ -1,0 +1,412 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 1,
+ "header": "ROUND 1/10 (M1) — closed defects: 0 · open: 3 (D-001 attempt 2, D-002 attempt 1, D-003 attempt 1) · waivers: 0 · rounds left: 9",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-001",
+      "verdict": "FAIL",
+      "evidence": [
+       "S-001",
+       "S-002",
+       "S-003",
+       "check:CO-001/lead-case"
+      ],
+      "note": "While the lead paragraph text-transform was corrected to none, adding position: fixed to .site-header without providing corresponding padding-top on body or main causes the header to overlap and obscure the hero H1 heading across all viewports."
+     }
+    ],
+    "regressions": [
+     {
+      "title": "Fixed header obscures hero heading",
+      "area": "header / layout",
+      "severity": "major",
+      "kind": "broken",
+      "evidence": [
+       "S-001",
+       "S-002",
+       "S-003"
+      ],
+      "expected": "Content flows below the fixed header with proper clearance/padding",
+      "actual": "Fixed site header overlaps the top of the page, clipping and obscuring the hero H1 element"
+     }
+    ],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "CO-001 partially succeeded on typography (.lead), but introduced a major layout defect by positioning the header fixed without accounting for document flow clearance."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "3786eec3d989dfc39982d61737048601c6a36d4ca9a83c845330b1e46ee04680",
+   "promptChars": 16452,
+   "imageParts": 3,
+   "model": "gemini-3.5-flash-lite",
+   "ms": 13646,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-001\",\n      \"verdict\": \"FAIL\",\n      \"evidence\": [\n        \"S-001\",\n        \"S-002\",\n        \"S-003\",\n        \"check:CO-001/lead-case\"\n      ],\n      \"note\": \"While the lead paragraph text-transform was corrected to none, adding position: fixed to .site-header without providing corresponding padding-top on body or main causes the header to overlap and obscure the hero H1 heading across all viewports.\"\n    }\n  ],\n  \"regressions\": [\n    {\n      \"title\": \"Fixed header obscures hero heading\",\n      \"area\": \"header / layout\",\n      \"severity\": \"major\",\n      \"kind\": \"broken\",\n      \"evidence\": [\n        \"S-001\",\n        \"S-002\",\n        \"S-003\"\n      ],\n      \"expected\": \"Content flows below the fixed header with proper clearance/padding\",\n      \"actual\": \"Fixed site header overlaps the top of the page, clipping and obscuring the hero H1 element\"\n    }\n  ],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"CO-001 partially succeeded on typography (.lead), but introduced a major layout defect by positioning the header fixed without accounting for document flow clearance.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-001",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-001/lead-case",
+       "S-003 dom: body > header"
+      ],
+      "note": "Lead paragraph text-transform successfully updated to none and site-header fixed positioning and background applied correctly."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "CO-001 verified PASS. Global horizontal overflow at 375px (D-003) and missing theme toggle button (D-002) remain open in the defect ledger."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "9fa86a03db5d2015270937f78441cb3b7edb0fa5904cda2facc916797868c7f9",
+   "promptChars": 16473,
+   "imageParts": 3,
+   "model": "gemini-3.5-flash-lite",
+   "ms": 10343,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-001\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-001/lead-case\",\n        \"S-003 dom: body > header\"\n      ],\n      \"note\": \"Lead paragraph text-transform successfully updated to none and site-header fixed positioning and background applied correctly.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"CO-001 verified PASS. Global horizontal overflow at 375px (D-003) and missing theme toggle button (D-002) remain open in the defect ledger.\"\n}\n```"
+  }
+ },
+ "disputed": [
+  "CO-001"
+ ],
+ "sync": {
+  "designer": {
+   "CO-001": "PASS"
+  },
+  "frontend": {
+   "CO-001": "FAIL"
+  }
+ },
+ "at": "2026-10-19T06:54:18.411Z",
+ "syncTranscript": [
+  {
+   "reviewer": "designer",
+   "text": "```json\n{\"cos\":[{\"orderId\":\"CO-001\",\"verdict\":\"PASS\",\"note\":\"Header fixed per requirements; layout padding will be refined in M2 header milestone.\"}]}\n```"
+  },
+  {
+   "reviewer": "frontend",
+   "text": "{\"cos\":[{\"orderId\":\"CO-001\",\"verdict\":\"FAIL\",\"note\":\"Ultron is correct; fixed site-header causes content overlap with hero H1 due to missing body padding.\"}]}"
+  }
+ ],
+ "defectsBefore": [
+  {
+   "id": "D-001",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "area": "typography",
+   "severity": "medium",
+   "title": "Lead paragraph is all-caps (text-transform: uppercase)",
+   "evidence": [
+    "S-001",
+    "S-001 dom: p.lead textTransform=uppercase"
+   ],
+   "expected": "A1: sentence case, no uppercase",
+   "actual": "p.lead text-transform: uppercase",
+   "status": "IN_FIX",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ]
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "header",
+   "severity": "major",
+   "title": "Theme toggle button is missing from the header",
+   "evidence": [
+    "S-001",
+    "S-001 dom: #theme-toggle not found"
+   ],
+   "expected": "A2: <button id=theme-toggle> at the right end of the header",
+   "actual": "no toggle",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-003",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "layout",
+   "severity": "medium",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth=660 clientWidth=375"
+   ],
+   "expected": "A3: no horizontal scroll at 375",
+   "actual": ".promo-strip width 640px",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  }
+ ],
+ "harnessRegressions": [
+  {
+   "route": "/",
+   "viewport": "375x667",
+   "selector": "body > main",
+   "text": "Quiet goods for slow mornings Hand-throw",
+   "by": "body > header",
+   "screenshotId": "S-001"
+  },
+  {
+   "route": "/",
+   "viewport": "375x667",
+   "selector": "body > main > section:nth-of-type(1) > h1",
+   "text": "Quiet goods for slow mornings",
+   "by": "body > header",
+   "screenshotId": "S-001"
+  },
+  {
+   "route": "/",
+   "viewport": "768x1024",
+   "selector": "body > main",
+   "text": "Quiet goods for slow mornings Hand-throw",
+   "by": "body > header",
+   "screenshotId": "S-002"
+  },
+  {
+   "route": "/",
+   "viewport": "768x1024",
+   "selector": "body > main > section:nth-of-type(1) > h1",
+   "text": "Quiet goods for slow mornings",
+   "by": "body > header",
+   "screenshotId": "S-002"
+  },
+  {
+   "route": "/",
+   "viewport": "1280x800",
+   "selector": "body > main",
+   "text": "Quiet goods for slow mornings Hand-throw",
+   "by": "body > header",
+   "screenshotId": "S-003"
+  },
+  {
+   "route": "/",
+   "viewport": "1280x800",
+   "selector": "body > main > section:nth-of-type(1) > h1",
+   "text": "Quiet goods for slow mornings",
+   "by": "body > header",
+   "screenshotId": "S-003"
+  }
+ ],
+ "git": {
+  "op": "revert",
+  "ok": true,
+  "sha": "03ea98c32c3ad754710cc4e99834b887d43bb665",
+  "detail": "reverted 1 commit(s) since 99c67c8"
+ },
+ "outcome": {
+  "outcome": "REVERT",
+  "reason": "7 regression(s)",
+  "openBefore": 3,
+  "openAfter": 4,
+  "regressions": 7
+ },
+ "consolidation": {
+  "valid": true,
+  "attempts": 1,
+  "errors": [],
+  "discussed": false,
+  "changeOrders": [
+   {
+    "id": "CO-002",
+    "defectIds": [
+     "D-002"
+    ],
+    "decisionIds": [],
+    "attempt": 1,
+    "priority": 1,
+    "location": {
+     "route": "/",
+     "selector": "header",
+     "files": []
+    },
+    "current": "Header lacks a theme toggle button (evidence: S-001 dom: #theme-toggle not found).",
+    "desired": "A <button id=\"theme-toggle\" aria-label=\"Toggle theme\"> placed at the right end of the header, minimum 44x44px touch target, that switches html[data-theme] between dark and light.",
+    "visionNote": "Theme toggle is a core accessibility and user-preference feature required by the design system (A2).",
+    "acceptance": [
+     {
+      "id": "check-1",
+      "type": "dom_exists",
+      "route": "/",
+      "selector": "#theme-toggle"
+     },
+     {
+      "id": "check-2",
+      "type": "touch_target_min",
+      "route": "/",
+      "selector": "#theme-toggle",
+      "minPx": 44
+     },
+     {
+      "id": "check-3",
+      "type": "computed_style",
+      "route": "/",
+      "selector": "#theme-toggle",
+      "property": "aria-label",
+      "expected": "Toggle theme"
+     }
+    ],
+    "mode": "standard"
+   },
+   {
+    "id": "CO-003",
+    "defectIds": [
+     "D-003"
+    ],
+    "decisionIds": [],
+    "attempt": 1,
+    "priority": 2,
+    "location": {
+     "route": "/",
+     "selector": ".promo-strip",
+     "files": []
+    },
+    "current": "Promo strip has fixed width 640px causing horizontal overflow at 375px viewport (evidence: S-001 page: scrollWidth=660 clientWidth=375).",
+    "desired": "Promo strip must be responsive and not exceed viewport width at any breakpoint (375, 768, 1280). Use max-width: 100% or fluid width.",
+    "visionNote": "Mobile-first layout (A3) requires no horizontal scrolling at 375px; promo strip must adapt to viewport.",
+    "acceptance": [
+     {
+      "id": "check-4",
+      "type": "no_horizontal_overflow",
+      "routes": [
+       "/"
+      ],
+      "viewports": [
+       "375x667",
+       "768x1024",
+       "1280x800"
+      ]
+     },
+     {
+      "id": "check-5",
+      "type": "computed_style",
+      "route": "/",
+      "selector": ".promo-strip",
+      "property": "max-width",
+      "expected": "100%"
+     }
+    ],
+    "mode": "standard"
+   },
+   {
+    "id": "CO-004",
+    "defectIds": [
+     "D-001"
+    ],
+    "decisionIds": [],
+    "attempt": 2,
+    "priority": 3,
+    "location": {
+     "route": "/",
+     "selector": "p.lead",
+     "files": []
+    },
+    "current": "Lead paragraph uses text-transform: uppercase (evidence: S-001 dom: p.lead textTransform=uppercase).",
+    "desired": "Lead paragraph must use sentence case with text-transform: none (or no text-transform), per A1 typography rules.",
+    "visionNote": "Typography consistency (A1) forbids all-caps; sentence case improves readability and brand voice.",
+    "acceptance": [
+     {
+      "id": "check-6",
+      "type": "computed_style",
+      "route": "/",
+      "selector": "p.lead",
+      "property": "text-transform",
+      "expected": "none"
+     }
+    ],
+    "mode": "standard"
+   }
+  ]
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-001",
+    "verdict": "FAIL",
+    "reason": "reviewers disagree after sync (designer PASS, frontend FAIL)",
+    "designer": "PASS",
+    "frontend": "FAIL",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": true,
+    "unresolved": true,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [
+   {
+    "orderId": "CO-001",
+    "reviewer": "frontend",
+    "verdict": "FAIL",
+    "note": "Lead paragraph text-transform successfully updated to none and site-header fixed positioning and background applied correctly.",
+    "evidence": [
+     "check:CO-001/lead-case",
+     "S-003 dom: body > header"
+    ]
+   }
+  ],
+  "newDefects": [],
+  "regressions": [
+   {
+    "title": "Fixed header obscures hero heading",
+    "area": "header / layout",
+    "severity": "major",
+    "kind": "broken",
+    "evidence": [
+     "S-001",
+     "S-002",
+     "S-003"
+    ],
+    "expected": "Content flows below the fixed header with proper clearance/padding",
+    "actual": "Fixed site header overlaps the top of the page, clipping and obscuring the hero H1 element",
+    "by": [
+     "designer"
+    ]
+   }
+  ],
+  "disagreements": [
+   "CO-001"
+  ],
+  "allPass": false
+ },
+ "next": {
+  "next": "CONTINUE",
+  "reason": "COs not PASS: CO-001 · checks 1 FAIL / 0 ERROR · open defects ≥ medium: D-001 (medium), D-002 (major), D-003 (medium)",
+  "leftoverMinor": []
+ },
+ "added": [],
+ "duplicates": []
+}

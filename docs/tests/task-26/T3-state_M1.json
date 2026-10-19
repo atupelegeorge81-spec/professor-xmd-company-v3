@@ -1,0 +1,113 @@
+{
+ "id": "M1",
+ "status": "FIXING",
+ "round": 4,
+ "maxRounds": 10,
+ "currentStepId": "M1.R3.decide",
+ "startedAt": "2026-10-19T07:13:34.838Z",
+ "updatedAt": "2026-10-19T07:25:03.906Z",
+ "lanesUsed": [],
+ "steps": [
+  {
+   "stepId": "M1.R0.plan",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.838Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.build",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.838Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.review",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.838Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.838Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.838Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.838Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.838Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.fix",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.839Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.evidence",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.839Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.verify",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.839Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R2.decide",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-19T07:13:34.839Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R3.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T07:23:04.215Z"
+  },
+  {
+   "stepId": "M1.R3.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T07:23:16.736Z"
+  },
+  {
+   "stepId": "M1.R3.verify",
+   "status": "DONE",
+   "attempts": 2,
+   "updatedAt": "2026-10-19T07:24:38.033Z"
+  },
+  {
+   "stepId": "M1.R3.decide",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-19T07:25:03.905Z"
+  }
+ ]
+}

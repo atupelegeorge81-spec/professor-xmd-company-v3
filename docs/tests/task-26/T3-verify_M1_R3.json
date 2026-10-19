@@ -1,0 +1,274 @@
+{
+ "version": 1,
+ "id": "M1",
+ "round": 3,
+ "header": "ROUND 3/10 (M1) — closed defects: 0 · open: 3 (D-001 attempt 3, D-002 attempt 1, D-003 attempt 1) · waivers: 0 · rounds left: 7",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-003",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-003/lead-case",
+       "S-001",
+       "S-002",
+       "S-003"
+      ],
+      "note": "Lead paragraph styling verified: text-transform is none and letter-spacing is normal. Text is cleanly rendered in sentence case across 375px, 768px, and 1280px viewports per ledger decision A1."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "CO-003 passes cleanly and resolves D-001. Open defects D-002 (promo strip horizontal overflow at 375px) and D-003 (missing theme toggle button in header) remain to be addressed."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "486906b7fe8484cff8dfa73b3f8766cbdaf0bdb77f2eb57d139eb224f71ac19b",
+   "promptChars": 16329,
+   "imageParts": 3,
+   "model": "gemini-3.8-flash",
+   "ms": 28603,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-003/lead-case\",\n        \"S-001\",\n        \"S-002\",\n        \"S-003\"\n      ],\n      \"note\": \"Lead paragraph styling verified: text-transform is none and letter-spacing is normal. Text is cleanly rendered in sentence case across 375px, 768px, and 1280px viewports per ledger decision A1.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"CO-003 passes cleanly and resolves D-001. Open defects D-002 (promo strip horizontal overflow at 375px) and D-003 (missing theme toggle button in header) remain to be addressed.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-003",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-003/lead-case",
+       "S-001",
+       "S-002",
+       "S-003"
+      ],
+      "note": "CO-003 is verified. In src/styles.css, text-transform: uppercase was removed from .lead and letter-spacing reset to normal. check:CO-003/lead-case PASS confirms text-transform is none at 1280x800, and screenshots S-001 through S-003 confirm sentence case rendering across all viewports."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "CO-003 passes and resolves D-001. No regressions introduced. D-002 (overflow at 375px) and D-003 (theme toggle missing from header) remain open on the defect ledger."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "b8db90164999abcaa4fbfe0ad5328343e763fa0fe483f4cb720787a1eab00a0c",
+   "promptChars": 16350,
+   "imageParts": 3,
+   "model": "gemini-3.8-flash",
+   "ms": 20129,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-003/lead-case\",\n        \"S-001\",\n        \"S-002\",\n        \"S-003\"\n      ],\n      \"note\": \"CO-003 is verified. In src/styles.css, text-transform: uppercase was removed from .lead and letter-spacing reset to normal. check:CO-003/lead-case PASS confirms text-transform is none at 1280x800, and screenshots S-001 through S-003 confirm sentence case rendering across all viewports.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"CO-003 passes and resolves D-001. No regressions introduced. D-002 (overflow at 375px) and D-003 (theme toggle missing from header) remain open on the defect ledger.\"\n}\n```"
+  }
+ },
+ "disputed": [],
+ "sync": null,
+ "at": "2026-10-19T07:25:02.862Z",
+ "defectsBefore": [
+  {
+   "id": "D-001",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "area": "typography",
+   "severity": "medium",
+   "title": "Lead paragraph is all-caps (text-transform: uppercase)",
+   "evidence": [
+    "S-001",
+    "S-001 dom: p.lead textTransform=uppercase"
+   ],
+   "expected": "A1: sentence case, no uppercase",
+   "actual": "p.lead text-transform: uppercase",
+   "status": "IN_FIX",
+   "attempts": 3,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 0P/1F/0E",
+     "cause": "ATTEMPTED_WRONG"
+    },
+    {
+     "round": 2,
+     "result": "CO-002: APPLIED · checks 0P/1F/0E",
+     "cause": "ATTEMPTED_WRONG"
+    },
+    {
+     "round": 3,
+     "result": "CO-003: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ]
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 2,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "layout",
+   "severity": "medium",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth=660 clientWidth=375"
+   ],
+   "expected": "A3: no horizontal scroll at 375",
+   "actual": ".promo-strip width 640px",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  },
+  {
+   "id": "D-003",
+   "milestoneId": "M1",
+   "foundInRound": 2,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "header",
+   "severity": "major",
+   "title": "Theme toggle button is missing from the header",
+   "evidence": [
+    "S-001",
+    "S-001 dom: #theme-toggle not found"
+   ],
+   "expected": "A2: <button id=theme-toggle> at the right end of the header",
+   "actual": "no toggle",
+   "status": "OPEN",
+   "attempts": 0,
+   "history": []
+  }
+ ],
+ "harnessRegressions": [],
+ "git": {
+  "op": "tag",
+  "ok": true,
+  "sha": "235a62fa160fb67a55e73b35b03432e8565eda62",
+  "detail": "tag xmd-best-M1"
+ },
+ "outcome": {
+  "outcome": "BEST",
+  "reason": "open defects 3 → 2",
+  "openBefore": 3,
+  "openAfter": 2,
+  "regressions": 0
+ },
+ "consolidation": {
+  "valid": true,
+  "attempts": 1,
+  "errors": [],
+  "discussed": false,
+  "changeOrders": [
+   {
+    "id": "CO-004",
+    "defectIds": [
+     "D-003"
+    ],
+    "decisionIds": [],
+    "attempt": 1,
+    "priority": 1,
+    "location": {
+     "route": "/",
+     "selector": "header",
+     "files": [
+      "src/index.html",
+      "src/styles.css",
+      "src/main.js"
+     ]
+    },
+    "current": "Theme toggle button is missing from header; #theme-toggle not found in DOM per evidence S-001.",
+    "desired": "Add <button id=\"theme-toggle\" aria-label=\"Toggle theme\"> to the right end of the header with dimensions at least 44x44px, switching html[data-theme] between 'dark' and 'light' per ledger decision A2.",
+    "visionNote": "Header theme toggle allows users instant control over visual accessibility and dark/light modes.",
+    "acceptance": [
+     {
+      "id": "check:CO-004/toggle-exists",
+      "type": "dom_exists",
+      "route": "/",
+      "selector": "#theme-toggle"
+     },
+     {
+      "id": "check:CO-004/toggle-target-size",
+      "type": "touch_target_min",
+      "route": "/",
+      "selector": "#theme-toggle",
+      "minPx": 44
+     }
+    ],
+    "mode": "standard"
+   },
+   {
+    "id": "CO-005",
+    "defectIds": [
+     "D-002"
+    ],
+    "decisionIds": [],
+    "attempt": 1,
+    "priority": 2,
+    "location": {
+     "route": "/",
+     "selector": ".promo-strip",
+     "files": [
+      "src/styles.css"
+     ]
+    },
+    "current": ".promo-strip width is fixed at 640px, causing scrollWidth=660 at clientWidth=375 per evidence S-001.",
+    "desired": "Remove the fixed 640px width on .promo-strip and enforce responsive max-width: 100% / box-sizing: border-box so that no horizontal overflow occurs at 375px, 768px, or 1280px per ledger decision A3.",
+    "visionNote": "Mobile-first responsive design ensures readability and usability across all devices without horizontal scroll.",
+    "acceptance": [
+     {
+      "id": "check:CO-005/no-overflow",
+      "type": "no_horizontal_overflow",
+      "routes": [
+       "/"
+      ],
+      "viewports": [
+       "375x667",
+       "768x1024",
+       "1280x800"
+      ]
+     }
+    ],
+    "mode": "standard"
+   }
+  ]
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-003",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [],
+  "newDefects": [],
+  "regressions": [],
+  "disagreements": [],
+  "allPass": true
+ },
+ "next": {
+  "next": "CONTINUE",
+  "reason": "checks 1 FAIL / 0 ERROR · open defects ≥ medium: D-002 (medium), D-003 (major) · receipts do not match the diffs",
+  "leftoverMinor": []
+ },
+ "added": [],
+ "duplicates": []
+}
