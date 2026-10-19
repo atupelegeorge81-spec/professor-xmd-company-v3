@@ -39,7 +39,7 @@ import { needsScreenshots } from "@/lib/milestone/evidence"; // TASK-19
 import { captureEvidence, evidenceSummary, type CaptureEvidenceResult, type EvidenceUploader } from "./evidence"; // TASK-19
 import { checkRegression, regressionSummary } from "@/lib/milestone/regression"; // TASK-22
 import { commitMessage, receiptsPath } from "@/lib/milestone/fixRound"; // TASK-25
-import { testFixNoop } from "@/lib/milestone/testHooks"; // TASK-25 (T2 sabotage, inert bila XMD_TEST_HOOKS=1)
+import { testFixNoop, testFixNoopAll } from "@/lib/milestone/testHooks"; // TASK-25 (T2 sabotage, inert bila XMD_TEST_HOOKS=1)
 const STARTPACK_JSON = ".xmd/startpack.json"; // TASK-18 (cu/gate.py STARTPACK_JSON)
 
 /* ============================ env ============================ */
@@ -906,10 +906,10 @@ export const __t19 = { evidenceUploader };
 async function msReadFix(sbx: any, hooks: CuHooks, id: string, fx: MilestoneFixInput, headBefore: string): Promise<MsFixRaw> {
   const base = /^[0-9a-f]{7,40}$/.test(fx.diffBase || "") ? String(fx.diffBase) : headBefore;
   const raw: MsFixRaw = { headBefore, diffBase: base, head: "", receiptsPath: receiptsPath(fx.round), receiptsRaw: null, changed: [], numstat: "" };
-  if (fx.attempt === 1 && testFixNoop(id) && /^[0-9a-f]{7,40}$/.test(headBefore)) {
+  if ((fx.attempt === 1 || testFixNoopAll(id)) && testFixNoop(id) && /^[0-9a-f]{7,40}$/.test(headBefore)) {
     await sbx.commands.run(`cd /home/user/ws && git reset -q --hard ${headBefore} && git clean -fdq -e .xmd/receipts`, { timeoutMs: 30_000 }).catch(() => {});
     raw.sabotaged = true;
-    hooks.blog("warning", `🧪 XMD_TEST_FIX_NOOP_${id}: kazi ya Computer (attempt 1) imefutwa kwa \`git reset --hard ${headBefore.slice(0, 7)}\` — harness lazima iitambue kama NO-OP.`);
+    hooks.blog("warning", `🧪 XMD_TEST_FIX_NOOP_${id}: kazi ya Computer (attempt ${fx.attempt}) imefutwa kwa \`git reset --hard ${headBefore.slice(0, 7)}\` — harness lazima iitambue kama NO-OP.`);
   }
   const S1 = "@@XMD_RCPT_END@@", S2 = "@@XMD_DIFF_END@@";
   const diff = /^[0-9a-f]{7,40}$/.test(base) ? `git diff --name-only ${base} HEAD` : "git ls-tree -r --name-only HEAD";
