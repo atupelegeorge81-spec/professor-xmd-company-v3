@@ -68,6 +68,17 @@ export function applyInheritedResults(defects: Defect[], milestoneId: string, ro
   return { defects: out, fixed };
 }
 
+/** baselines (task 22) lazima zilingane na HEAD wakati wa sign-off: raundi iliyorudishwa (REVERT) imeondoa kazi yake, hivyo
+ *  HEAD = mwisho wa raundi iliyotangulia isiyorudishwa. outcomes[r] = outcome ya verify:Mk:Rr (null = rekodi haipo/stub → hakuna evidence ya kuaminika). */
+export function baselineRound(round: number, outcomes: Record<number, string | null | undefined>): number | null {
+  for (let r = round; r >= 1; r--) {
+    const o = outcomes[r];
+    if (!o) return null;
+    if (o !== "REVERT") return r;
+  }
+  return 0; // R0 (build) — hakuna raundi ya marekebisho iliyobaki
+}
+
 /* ───────────────────────────── ledger + ripoti ya mwisho (safi) ───────────────────────────── */
 
 type Brief = { id: string; title: string; severity: string };
@@ -146,7 +157,7 @@ export interface SignoffRecord {
   defects?: { inherited: string[]; at: string };
   ledger?: { id: string; at: string };
   git?: { ok: boolean; sha: string; tag: string; detail: string; at: string };
-  baselines?: { uploaded: number; entries: number; errors: string[]; manifestUrl?: string; at: string };
+  baselines?: { uploaded: number; entries: number; errors: string[]; manifestUrl?: string; fromRound?: number; at: string };
   report?: { at: string };
   event?: { at: string };
 }
@@ -157,7 +168,7 @@ export interface CloseoutDeps {
   /** commit + annotated tag (+ push ikiwa remote ipo) — idempotent ndani ya sandbox */
   git?: (tag: string, message: string) => Promise<SignoffGitResult>;
   /** task 22: screenshots zilizoidhinishwa (evidence ya raundi hii) → baselines */
-  saveBaselines?: (round: number) => Promise<{ uploaded: number; entries: number; errors: string[]; manifestUrl?: string }>;
+  saveBaselines?: (round: number) => Promise<{ uploaded: number; entries: number; errors: string[]; manifestUrl?: string; fromRound?: number }>;
   /** test hook (T5): kill -9 baada ya git, kabla ya rekodi */
   crashAfterGit?: () => void;
   bcast: (e: unknown) => void;
@@ -219,10 +230,10 @@ export async function closeOutMilestone(m: Milestone, round: number, status: Mil
     }
     // (d) baselines (task 22)
     if (!rec.baselines && d.saveBaselines) {
-      let b: { uploaded: number; entries: number; errors: string[]; manifestUrl?: string };
+      let b: { uploaded: number; entries: number; errors: string[]; manifestUrl?: string; fromRound?: number };
       try { b = await d.saveBaselines(round); } catch (e: any) { b = { uploaded: 0, entries: 0, errors: [String(e?.message || e).slice(0, 240)] }; }
       await save({ baselines: { ...b, at: now() } });
-      d.blog(b.errors.length ? "warning" : "success", `🖼️ ${m.id} baselines: ${b.entries} saved · uploaded ${b.uploaded}${b.errors.length ? ` · errors ${b.errors.slice(0, 2).join("; ")}` : ""}`);
+      d.blog(b.errors.length ? "warning" : "success", `🖼️ ${m.id} baselines${b.fromRound !== undefined && b.fromRound !== round ? ` (evidence ya R${b.fromRound} — R${round} ilirudishwa)` : ""}: ${b.entries} saved · uploaded ${b.uploaded}${b.errors.length ? ` · errors ${b.errors.slice(0, 2).join("; ")}` : ""}`);
       entry = { ...entry, baselines: `${b.entries} baseline(s), uploaded ${b.uploaded}${b.manifestUrl ? `, manifest ${b.manifestUrl}` : ""}` };
       await writeLedger(entry);
     }

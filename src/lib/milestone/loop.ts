@@ -24,7 +24,7 @@ import {
 } from "./verify"; // TASK-26
 import { buildOCB } from "./ocb";
 import { maybeCapturePrompt } from "./testHooks";
-import { allowedOpenAtSignoff, applyInheritedResults, closeOutMilestone, CLOSE_STATUSES, inheritedChecks, isInheritedCheck, signoffStatus, type CloseoutDeps } from "./signoff"; // TASK-28
+import { allowedOpenAtSignoff, applyInheritedResults, closeOutMilestone, CLOSE_STATUSES, baselineRound, inheritedChecks, isInheritedCheck, signoffStatus, type CloseoutDeps } from "./signoff"; // TASK-28
 import { testCrashAfterSignoffGit, testMaxRounds } from "./testHooks"; // TASK-28
 import { amendmentLine, applyEscalationToDefects, escalateChangeOrders, escalationChip, requirementChecksOf, type Amendment, type EscalateDeps, type EscalateResult, type Msg as EscMsg, type PrevAttemptFact, type Waiver } from "./escalation"; // TASK-27
 
@@ -194,7 +194,14 @@ export function closeoutDeps(runner: LoopRunner, m: Milestone, hooks: LoopHooks)
   return {
     sid, update: (key, mutate) => msUpdate(runner, key, mutate),
     git: vh ? async (tag, message) => vh.git(m, { kind: "signoff", tag, message }) : undefined,
-    saveBaselines: vh?.saveBaselines && m.reviewMode !== "technical" ? (round) => vh.saveBaselines!(m, round) : undefined,
+    saveBaselines: vh?.saveBaselines && m.reviewMode !== "technical" ? async (round) => {
+      // evidence inayolingana na HEAD (raundi iliyorudishwa → ya mwisho isiyorudishwa)
+      const outcomes: Record<number, string | null> = {};
+      for (let r = 1; r <= round; r++) outcomes[r] = (await getRecord<{ outcome?: { outcome?: string } }>(sid, verifyKey(m.id, r)))?.data?.outcome?.outcome ?? null;
+      const br = baselineRound(round, outcomes);
+      if (br === null) return { uploaded: 0, entries: 0, errors: [`skipped: R${round} was reverted and no earlier round has evidence that matches HEAD`] };
+      return { ...(await vh.saveBaselines!(m, br)), fromRound: br };
+    } : undefined,
     crashAfterGit: () => { if (testCrashAfterSignoffGit(m.id, sid)) { hooks.blog("warning", `🧪 XMD_TEST_CRASH_AFTER_SIGNOFF_GIT_${m.id}: kill -9 baada ya commit/tag (kabla ya rekodi)`); process.kill(process.pid, "SIGKILL"); } },
     bcast: hooks.bcast, addChip: hooks.addChip, blog: hooks.blog,
   };

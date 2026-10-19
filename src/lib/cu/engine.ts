@@ -995,7 +995,7 @@ export async function milestoneSignoffGit(runner: Runner, op: { tag: string; mes
     const cmd = [
       "cd /home/user/ws",
       `if git rev-parse -q --verify refs/tags/${t} >/dev/null; then echo XMD_TAG_EXISTS; else`,
-      `  if [ "$(git log -1 --format=%s 2>/dev/null)" = ${msg} ]; then echo XMD_COMMIT_EXISTS; else git add -A && ${MS_GIT} commit -q --allow-empty -m ${msg} && echo XMD_COMMITTED; fi &&`,
+      `  if [ "$(git log -1 --format=%s 2>/dev/null)" = ${msg} ]; then echo XMD_COMMIT_EXISTS; else git add -A -- . ':(exclude).xmd/checks' && ${MS_GIT} commit -q --allow-empty -m ${msg} && echo XMD_COMMITTED; fi &&`, // matokeo ya checks (manifest/server.log) si sehemu ya kazi
       `  ${MS_GIT} tag -a ${t} -m ${msg} && echo XMD_TAGGED;`,
       "fi",
       `R=$(git remote | head -1); if [ -n "$R" ]; then (git push -q "$R" HEAD 2>&1 && git push -q "$R" ${t} 2>&1 && echo XMD_PUSHED) || echo XMD_PUSH_FAILED; else echo XMD_NO_REMOTE; fi`,

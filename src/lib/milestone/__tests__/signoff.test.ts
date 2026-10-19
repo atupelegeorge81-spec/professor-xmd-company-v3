@@ -3,7 +3,7 @@
 import { rmSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  allowedOpenAtSignoff, applyInheritedResults, closeoutProblems, finalReportLine, finalReportRow, inheritedChecks, inheritedFor, inheritedLine,
+  allowedOpenAtSignoff, applyInheritedResults, baselineRound, closeoutProblems, finalReportLine, finalReportRow, inheritedChecks, inheritedFor, inheritedLine,
   inheritedSection, inheritOpenDefects, isInheritedCheck, milestoneLedgerEntry, milestoneTag, signoffStatus,
 } from "../signoff";
 import { testCrashAfterSignoffGit, testMaxRounds } from "../testHooks";
@@ -82,6 +82,16 @@ describe("CAP_REACHED → INHERITED", () => {
     expect(ok.defects[2].status).toBe("INHERITED"); // check yake haikuendeshwa
     expect(applyInheritedResults(after, "M2", 1, res("FAIL")).fixed).toEqual([]);
     expect(applyInheritedResults(after, "M1", 1, res("PASS")).fixed).toEqual([]);
+  });
+});
+
+describe("baselines = evidence inayolingana na HEAD", () => {
+  it("raundi ya sign-off imerudishwa (REVERT) → raundi ya mwisho isiyorudishwa; stub/haipo → null; R0 → 0", () => {
+    expect(baselineRound(2, { 1: "SAME", 2: "BEST" })).toBe(2);
+    expect(baselineRound(3, { 1: "BEST", 2: "REVERT", 3: "REVERT" })).toBe(1);
+    expect(baselineRound(4, { 4: "REVERT" })).toBeNull(); // T3 halisi: R1–R3 = stubs za harness
+    expect(baselineRound(1, { 1: "REVERT" })).toBe(0);
+    expect(baselineRound(0, {})).toBe(0);
   });
 });
 
