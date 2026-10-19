@@ -28,7 +28,7 @@ vi.mock("../store", async () => {
 });
 
 import {
-  applyVerifyToDefects, buildVerifyPrompt, decide, decideNext, disagreements, nextAttempt, roundOutcome, testStopAfterRound, testVerifyInput, titleSimilarity, validateVerify, verifyOne, planGoalOf, VERIFY_TRANSPORT_RETRIES,
+  applyVerifyToDefects, buildVerifyPrompt, decide, decideNext, disagreements, nextAttempt, roundOutcome, testStopAfterRound, testVerifyInput, titleSimilarity, validateVerify, verifyOne, planGoalOf, VERIFY_TRANSPORT_RETRIES, newlyOccluded,
   verifyKey, cosRoundKey, type DecideInput, type NextState, type VerifyContext, type VerifyFindings, type VerifyVerdict,
 } from "../verify";
 import { maybeCloseMilestones, type BuildOutcome, type LoopHooks, type LoopRunner } from "../loop";
@@ -118,6 +118,23 @@ describe("verifyOne: wito ulioanguka (429) unarudiwa; plan goal iko kwenye promp
     const dead = await verifyOne("frontend", ctx, { images: false, loadDom: async () => null, retryDelayMs: 1, complete: async () => { n++; throw new Error("429"); } });
     expect(dead.findings).toBeNull();
     expect(n).toBe(2 + 1 + VERIFY_TRANSPORT_RETRIES);
+  });
+});
+
+describe("newlyOccluded: regression ya code (maandishi yamefunikwa na raundi hii)", () => {
+  const meta = (vp: string, id = "S-003") => ({ route: "/", viewport: vp, state: "default", screenshotId: id });
+  const dom = (els: Record<string, any>[]) => ({ page: {}, elements: els });
+  it("h1 ilionekana R0 → imefunikwa R1 na header fixed = regression; iliyokuwa imefunikwa tayari / baseline bila `occluded` / selector mpya = si regression", () => {
+    const before = [{ meta: meta("1280x800"), dom: dom([{ selector: "main > h1", occluded: false }, { selector: "p.lead", occluded: true }, { selector: ".cta" }]) }];
+    const after = [{ meta: meta("1280x800"), dom: dom([
+      { selector: "main > h1", text: "Quiet goods", occluded: true, occludedBy: "body > header" },
+      { selector: "p.lead", occluded: true }, { selector: ".cta", occluded: true }, { selector: ".new", occluded: true }, { selector: "nav", occluded: false },
+    ]) }, { meta: meta("375x667", "S-001"), dom: dom([{ selector: "main > h1", occluded: true }]) }];
+    expect(newlyOccluded(before, after)).toEqual([{ route: "/", viewport: "1280x800", selector: "main > h1", text: "Quiet goods", by: "body > header", screenshotId: "S-003" }]);
+    expect(newlyOccluded(before, [{ meta: meta("1280x800"), dom: null }])).toEqual([]);
+  });
+  it("roundOutcome: harness regression moja inatosha kurudisha nyuma hata defects zikipungua", () => {
+    expect(roundOutcome({ openBefore: 3, openAfter: 2, regressions: 1 }).outcome).toBe("REVERT");
   });
 });
 

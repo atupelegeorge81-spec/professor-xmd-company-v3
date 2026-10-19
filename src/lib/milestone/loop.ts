@@ -7,6 +7,7 @@ import { HOLD_STATUSES, newMilestoneState, planSteps, setStep, stepIdOf, transit
 import type { MilestonePlanResult } from "./plan";
 import { BUILD_REPORT_INLINE_MAX, buildReportPath, crossCheckBuildReport, parseBuildReport, type BuildReportCommand } from "./buildReport";
 import { evidenceKey } from "./evidence"; // TASK-19
+import type { DomJson } from "./review"; // TASK-26 (occlusion)
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
 import { MAX_ROUNDS, type ChangeOrder, type Defect, type EvidenceCheckResult, type EvidencePack, type Milestone, type MilestoneMap, type MilestoneState, type MilestoneStatus, type RoundHeaderData } from "./types";
 import { formatRoundHeader, reviewRound0, REVIEWERS, type ReviewContext, type ReviewDeps, type ReviewerId } from "./review"; // TASK-24 (T23 analyses)
@@ -19,7 +20,7 @@ import {
 import {
   applyVerifyToDefects, bestKey, CHECK_MISSED_IT, cosRoundKey, decide, decideNext, disagreements, isOpenDefect, nextAttempt, revertNote, roundOutcome, syncTurn,
   verifyBoth, verifyKey, type Decision, type NextDecision, type VerifyContext, type VerifyDeps, type VerifyFindings, type VerifyRun, type VerifyVerdict,
-  planGoalOf,
+  planGoalOf, newlyOccluded, type OcclusionRegression,
 } from "./verify"; // TASK-26
 import { buildOCB } from "./ocb";
 import { maybeCapturePrompt } from "./testHooks";
@@ -586,6 +587,7 @@ interface VerifyRecord {
   consolidation?: { valid: boolean; attempts: number; errors: string[]; changeOrders: ChangeOrder[]; discussed: boolean };
   added?: string[];
   duplicates?: { title: string; of: string }[];
+  harnessRegressions?: OcclusionRegression[];
   at: string;
 }
 
@@ -594,6 +596,19 @@ interface VerifyRecord {
  *  `Mk.Rn.evidence` evidence upya (tasks 19–22) → `Mk.Rn.verify` reviewers WAWILI peke yao (RoundHeader + OCB REVIEW_VERIFY),
  *  sync MOJA wakitofautiana → `Mk.Rn.decide` decide()/roundOutcome()/git (tag au revert)/decideNext() → Optimus COs (CONTINUE).
  */
+/** evidence ya raundi iliyopita iliyopo (R(n-1) … R0) ↔ evidence mpya → `newlyOccluded` (DOM json kupitia URL). */
+async function occlusionRegressions(sid: string, m: Milestone, round: number, after: EvidencePack, loadDom?: (d: EvidencePack["domMetrics"][number]) => Promise<DomJson | null>): Promise<OcclusionRegression[]> {
+  let before: EvidencePack | null = null;
+  for (let r = round - 1; r >= 0 && !before; r--) before = (await getRecord<EvidencePack>(sid, evidenceKey(m.id, r)))?.data ?? null;
+  if (!before) return [];
+  const load = loadDom || (async (d: EvidencePack["domMetrics"][number]) => (/^https?:\/\//.test(d.url || "") ? ((await fetch(String(d.url))).json() as Promise<DomJson>) : null));
+  const side = async (p: EvidencePack) => Promise.all((p.screenshots || []).map(async (sh) => {
+    const dm = (p.domMetrics || []).find((d) => d.screenshotId === sh.id);
+    return { meta: { route: sh.route, viewport: sh.viewport, state: sh.state, screenshotId: sh.id }, dom: dm ? await load(dm).catch(() => null) : null };
+  }));
+  return newlyOccluded(await side(before), await side(after));
+}
+
 export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: number, hooks: LoopHooks): Promise<MilestoneState> {
   const vh = hooks.verify as NonNullable<LoopHooks["verify"]>;
   const sid = runner.sessionId as string;
@@ -675,7 +690,14 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
   const openBefore = fixRec?.openBefore ?? mineOpen(before).length;
   // concern (check ilipita, reviewer hakuridhika) = tatizo lilelile la CO → haihesabiwi kama "made things worse"
   const openAfter = mineOpen(trial.defects).length - trial.added.filter((d) => d.history[0]?.cause === CHECK_MISSED_IT).length;
-  const regressions = decision.regressions.length + (pack.regression || []).filter((r) => r.kind === "regression").length;
+  // regression ya CODE: maandishi yaliyofunikwa sasa (hayakuwa yamefunikwa kwenye evidence ya raundi iliyopita) — haitegemei LLM
+  if (!vr.harnessRegressions) {
+    const hr = await occlusionRegressions(sid, m, round, pack, vh.deps?.loadDom).catch(() => []);
+    vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), harnessRegressions: hr }))).data;
+    if (hr.length) hooks.blog("warning", `🧱 ${m.id} R${round}: harness — maandishi ${hr.length} yamefunikwa na raundi hii: ${hr.slice(0, 4).map((x) => `${x.selector} @${x.viewport} (chini ya ${x.by || "?"})`).join(" · ")}`);
+  }
+  const harnessRegs = vr.harnessRegressions || [];
+  const regressions = decision.regressions.length + (pack.regression || []).filter((r) => r.kind === "regression").length + harnessRegs.length;
   const outcome = { ...roundOutcome({ openBefore, openAfter, regressions }), openBefore, openAfter, regressions };
   let git = vr.git;
   if (!git) {

@@ -202,6 +202,23 @@ export function roundOutcome(o: { openBefore: number; openAfter: number; regress
   if (o.openAfter < o.openBefore) return { outcome: "BEST", reason: `open defects ${o.openBefore} → ${o.openAfter}` };
   return { outcome: "SAME", reason: `open defects unchanged (${o.openAfter})` };
 }
+/** TASK-26 (T4 halisi): regression inayoamuliwa na CODE — maandishi yaliyokuwa yanaonekana raundi iliyopita sasa yamefunikwa
+ *  na elementi nyingine (`occluded` ya xmd-evidence). Inalinganisha selector ileile kwenye route/viewport/state ileile;
+ *  baseline isiyo na sehemu `occluded` (evidence ya zamani) haihesabiwi (kihafidhina). */
+export interface OcclusionRegression { route: string; viewport: string; selector: string; text: string; by: string; screenshotId: string }
+export function newlyOccluded(before: { meta: { route: string; viewport: string; state: string }; dom: DomJson | null }[], after: { meta: { route: string; viewport: string; state: string; screenshotId: string }; dom: DomJson | null }[]): OcclusionRegression[] {
+  const out: OcclusionRegression[] = [];
+  for (const a of after) {
+    const b = before.find((x) => x.meta.route === a.meta.route && x.meta.viewport === a.meta.viewport && x.meta.state === a.meta.state);
+    if (!a.dom || !b?.dom) continue;
+    for (const e of a.dom.elements || []) {
+      if (e.occluded !== true) continue;
+      const prev = (b.dom.elements || []).find((x) => x.selector === e.selector);
+      if (prev && prev.occluded === false) out.push({ route: a.meta.route, viewport: a.meta.viewport, selector: String(e.selector), text: String(e.text || "").slice(0, 40), by: String(e.occludedBy || ""), screenshotId: a.meta.screenshotId });
+    }
+  }
+  return out;
+}
 export const revertNote = (round: number, why: string) => `round ${round} reverted: made things worse (${why})`;
 
 /* ===================== defect ledger baada ya verify (SAFI) ===================== */

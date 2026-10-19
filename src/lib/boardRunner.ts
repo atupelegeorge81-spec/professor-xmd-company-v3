@@ -3446,6 +3446,10 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
           const seed = await seedMilestoneWorkspace(runner as Runner, tv.files, "xmdtest-site: seed");
           blog("info", `🌱 XMD_TEST_VERIFY_INPUT: \`xmdtest-site\` imepandwa kwenye sandbox ${seed.sandboxId.slice(0, 8)}… · HEAD ${seed.head.slice(0, 7)}`);
           if (tv.changeOrders?.length) {
+            // baseline ya R0 (kama mtiririko halisi: evidence ya build ipo kabla ya fix) — harness inalinganisha raundi kwa raundi
+            const ev0 = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round: 0, planMarkdown: tv.planMarkdown, changeOrders: [] });
+            await msUpdate(lr, `evidence:${m.id}:R0`, () => ({ version: 1, ...ev0.pack, exit: ev0.exit, invalid: ev0.invalid.slice(0, 20), uploaded: ev0.uploaded, ms: ev0.ms, at: new Date().toISOString() }));
+            blog("info", `📸 XMD_TEST_VERIFY_INPUT: baseline R0 — screenshots ${ev0.pack.screenshots.length} · errors ${ev0.pack.errors.length}`);
             await msUpdate(lr, `cos:${m.id}`, () => ({ version: 1, changeOrders: tv.changeOrders }));
             await msUpdate(lr, "defects", () => ({ version: 1, defects: tv.defects || [] }));
             await msUpdate(lr, `state:${m.id}`, () => {
