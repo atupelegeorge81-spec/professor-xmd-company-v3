@@ -973,14 +973,14 @@ export async function milestoneGit(runner: Runner, op: { kind: "tag"; name: stri
   return runOnMilestoneSandbox(runner, async (sbx) => {
     const cmd = op.kind === "tag"
       ? `cd /home/user/ws && git tag -f ${q(op.name)} HEAD >/dev/null && git rev-parse HEAD`
-      : `cd /home/user/ws && git cat-file -e ${q(op.from)}^{commit} && if [ "$(git rev-parse HEAD)" = "$(git rev-parse ${q(op.from)})" ]; then echo XMD_NOTHING; else git revert --no-edit --no-commit ${q(op.from)}..HEAD && ${MS_GIT} commit -qm ${q(op.message)} && echo XMD_REVERTED && git rev-list --count ${q(op.from)}..HEAD~1 && git rev-parse HEAD; fi`;
+      : `cd /home/user/ws && git cat-file -e ${q(op.from)}^{commit} && if [ "$(git rev-parse HEAD)" = "$(git rev-parse ${q(op.from)})" ]; then echo XMD_NOTHING; else if git diff --quiet && git diff --cached --quiet; then :; else ${MS_GIT} stash push -q -m ${q(`xmd: uncommitted work before ${op.label}`)} && echo XMD_STASHED; fi && git revert --no-edit --no-commit ${q(op.from)}..HEAD && ${MS_GIT} commit -qm ${q(op.message)} && echo XMD_REVERTED && git rev-list --count ${q(op.from)}..HEAD~1 && git rev-parse HEAD; fi`;
     const r: any = await sbx.commands.run(`${cmd}; echo __XMD_RC=$?`, { timeoutMs: 60_000 }).catch((e: any) => ({ stdout: "", stderr: String(e?.message || e), exitCode: 1 }));
     const out = String(r?.stdout || "").trim();
     const rc = Number(/__XMD_RC=(\d+)/.exec(out)?.[1] ?? 1);
     const lines = out.replace(/__XMD_RC=\d+/, "").trim().split("\n").map((l) => l.trim()).filter(Boolean);
     const sha = /^[0-9a-f]{40}$/.test(lines[lines.length - 1] || "") ? lines[lines.length - 1] : "";
     if (op.kind === "revert" && rc === 0 && out.includes("XMD_REVERTED") && runner.cu && runner.cuHooks) await msSnapshot(sbx, runner.cu, runner.cuHooks, op.label);
-    const detail = op.kind === "tag" ? `tag ${op.name}` : out.includes("XMD_NOTHING") ? "nothing to revert (HEAD == round base)" : out.includes("XMD_REVERTED") ? `reverted ${lines[lines.indexOf("XMD_REVERTED") + 1] || "?"} commit(s) since ${op.from.slice(0, 7)}` : `git failed: ${String(r?.stderr || out).slice(-300)}`;
+    const detail = op.kind === "tag" ? `tag ${op.name}` : out.includes("XMD_NOTHING") ? "nothing to revert (HEAD == round base)" : out.includes("XMD_REVERTED") ? `reverted ${lines[lines.indexOf("XMD_REVERTED") + 1] || "?"} commit(s) since ${op.from.slice(0, 7)}${out.includes("XMD_STASHED") ? " (uncommitted changes stashed first)" : ""}` : `git failed: ${String(r?.stderr || out).slice(-300)}`;
     return { ok: rc === 0 && !!sha, sha, detail };
   });
 }
