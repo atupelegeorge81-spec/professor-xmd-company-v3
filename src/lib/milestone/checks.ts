@@ -215,13 +215,15 @@ export async function withLocalServer<T>(ctx: CheckContext, needed: boolean, fn:
   const tag = (ctx.tag || "srv").replace(/[^\w.-]/g, "_");
   const log = `.xmd/tools/server-${tag}.log`;
   const probe = `curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:${port}/`;
-  const up = await sbxShell(ctx, `c=$(${probe}); echo "__UP=$c"\n`, 30_000).catch(() => ({ exit: -1, out: "" }));
-  if (/__UP=[1-5]\d\d/.test(up.out)) return { value: await fn(), note: `server already listening on ${port}` };
+  // Koyeb T4: server iliyoachwa hai (mf. na XMD Computer) ilikuwa na hali chafu / code ya zamani → checks zilidanganywa.
+  // Sasa: chochote kinachosikiliza port kinazimwa, kisha Start Command inawashwa UPYA (app safi, code ya sasa).
+  const up = await sbxShell(ctx, `c=$(${probe}); case "$c" in [1-5][0-9][0-9]) echo "__STALE=$c"; for p in $(ss -ltnpH "sport = :${port}" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); do kill "$p" 2>/dev/null; done; fuser -k ${port}/tcp >/dev/null 2>&1; for i in $(seq 1 10); do c=$(${probe}); case "$c" in [1-5][0-9][0-9]) sleep 1;; *) echo "__FREED"; exit 0;; esac; done; echo "__BUSY";; esac; exit 0\n`, 60_000).catch(() => ({ exit: -1, out: "" }));
+  const stale = /__STALE=/.test(up.out) ? (/__FREED/.test(up.out) ? ` (a stale process on port ${port} was stopped first)` : ` (WARNING: a stale process on port ${port} could not be stopped)`) : "";
   const secs = Math.round((ctx.startTimeoutMs ?? 120_000) / 1000);
   const st = await sbxShell(ctx, `mkdir -p .xmd/tools; PORT=${port} nohup setsid bash -c ${shq(ctx.startCommand)} > ${shq(log)} 2>&1 < /dev/null & echo $! > /tmp/xmd-srv-${tag}.pid
 for i in $(seq 1 ${secs}); do c=$(${probe}); case "$c" in [1-5][0-9][0-9]) echo "__UP=$c after $i s"; exit 0;; esac; sleep 1; done
 echo "__DOWN"; tail -n 15 ${shq(log)}\n`, (secs + 30) * 1000).catch((e) => ({ exit: -1, out: String(e?.message || e) }));
-  const note = /__UP=/.test(st.out) ? `started \`${ctx.startCommand}\` on port ${port}` : `Start Command did not answer on port ${port}: ${st.out.slice(-400)}`;
+  const note = (/__UP=/.test(st.out) ? `started \`${ctx.startCommand}\` on port ${port}` : `Start Command did not answer on port ${port}: ${st.out.slice(-400)}`) + stale;
   try { return { value: await fn(), note }; }
   finally {
     await sbxShell(ctx, `p=$(cat /tmp/xmd-srv-${tag}.pid 2>/dev/null); [ -n "$p" ] && kill -- -"$p" 2>/dev/null; kill "$p" 2>/dev/null; rm -f /tmp/xmd-srv-${tag}.pid; exit 0\n`, 30_000).catch(() => {});

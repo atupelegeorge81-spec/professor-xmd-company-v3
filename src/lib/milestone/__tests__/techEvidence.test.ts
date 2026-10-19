@@ -311,3 +311,18 @@ describe("TASK 29 — technical evidence haichafui workspace", () => {
     expect(execSync("git status --porcelain", { cwd: ws, encoding: "utf8" })).toBe("");
   }, 120_000);
 });
+
+describe("TASK 29 — server iliyochakaa kwenye port inazimwa kabla ya checks (Koyeb T4)", () => {
+  it("process ya zamani (code/hali ya zamani) → inazimwa, Start Command mpya inajibu", async () => {
+    const port = 4393;
+    const srv = (word: string) => `require("http").createServer((q, s) => s.end("${word}")).listen(${port}, "127.0.0.1");`;
+    const ws = fixtureRepo({ "server.js": srv("fresh-code"), "old.js": srv("stale-code") });
+    execSync(`cd ${ws} && (nohup setsid node old.js >/dev/null 2>&1 &) ; for i in $(seq 1 20); do curl -s --max-time 1 http://127.0.0.1:${port}/ && break; sleep 0.3; done`, { shell: "/bin/bash" });
+    expect(execSync(`curl -s http://127.0.0.1:${port}/`, { encoding: "utf8" })).toBe("stale-code");
+    const r = await runChecks([{ id: "fresh", type: "http", url: "/", expectStatus: 200, bodyContains: "fresh-code" }],
+      { sbx: localSbx() as any, ws, startCommand: "node server.js", port, tag: "t29stale", startTimeoutMs: 20_000 });
+    expect(r.results[0].result).toBe("PASS");
+    const down = execSync(`curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:${port}/ || true`, { shell: "/bin/bash", encoding: "utf8" });
+    expect(down).toBe("000");
+  }, 60_000);
+});

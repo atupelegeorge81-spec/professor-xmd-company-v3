@@ -165,6 +165,11 @@ describe("TASK 23 — LLM ikishindwa", () => {
     const r = await analyse("designer", pack(), ctx(), deps({ retryWaitMs: 0, complete: async ({ reviewer }) => { if (++n === 1) throw new Error("429 quota"); return { text: JSON.stringify(good(reviewer)), usage: null }; } }));
     expect([r.valid, r.meta.attempts]).toEqual([true, 2]);
   });
+  it("TASK 29: 429 haitumii nafasi za JSON — 429, JSON mbovu ×2, kisha sahihi → valid (attempts 4)", async () => {
+    let n = 0;
+    const r = await analyse("designer", pack(), ctx(), deps({ retryWaitMs: 0, complete: async ({ reviewer }) => { n++; if (n === 1) throw new Error("429 quota"); return { text: n < 4 ? "not json" : JSON.stringify(good(reviewer)), usage: null }; } }));
+    expect([r.valid, r.meta.attempts]).toEqual([true, 4]);
+  });
   it("lanes zimekwisha → valid=false + kosa wazi, reviewRound0 haianguki", async () => {
     const r = await reviewRound0(pack(), ctx(), deps({ retryWaitMs: 0, complete: async ({ reviewer }) => { if (reviewer === "designer") throw new Error("503 high demand"); return { text: JSON.stringify(good(reviewer)), usage: null }; } }));
     expect(r.designer.valid).toBe(false);

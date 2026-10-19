@@ -407,7 +407,7 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
   deps.log?.("info", `🔎 ${agentOf(reviewer, ctx.cast).name} (${reviewer}) ${pack.milestoneId} R${pack.round}: prompt ${built.text.length} chars · parts: text ${built.textParts} + image ${built.imageParts}${built.imageIds.length ? ` (${built.imageIds.join(", ")})` : ""} · hash ${built.hash.slice(0, 12)}`);
   let messages = built.messages;
   let raw = "", errors: string[] = ["not run"], findings: Findings | null = null, attempts = 0;
-  let lane = "", model = "", tier = "", usage: CompleteResult["usage"] = null;
+  let lane = "", model = "", tier = "", usage: CompleteResult["usage"] = null, llmFails = 0;
   for (let i = 0; i <= REVIEW_MAX_RETRIES; i++) {
     attempts++;
     let r: Awaited<ReturnType<typeof complete>>;
@@ -418,7 +418,9 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
       errors = [`LLM call failed: ${String(e?.message || e).slice(0, 300)}`];
       deps.log?.("error", `🔎 ${reviewer} attempt ${attempts}: ${errors[0]}`);
       // TASK-29 (Koyeb T4: 429 za Gemini kwa wote wawili ndani ya 1s) — subiri kisha jaribu tena; broker inaepuka lanes zilizochoka
-      if (i === REVIEW_MAX_RETRIES) break;
+      // kosa la LLM halitumii nafasi za kurekebisha JSON (Koyeb T4: Megatron alikosa jaribio la 3 la JSON) — kikomo chake ni tofauti
+      if (++llmFails > REVIEW_MAX_RETRIES) break;
+      i--;
       const wait = deps.retryWaitMs ?? 45_000;
       deps.log?.("warning", `🔎 ${reviewer}: LLM imeshindwa — jaribio jingine baada ya ${Math.round(wait / 1000)}s`);
       await new Promise((r) => setTimeout(r, wait));

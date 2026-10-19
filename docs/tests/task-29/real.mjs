@@ -116,4 +116,18 @@ if (which === "fx") { // node real.mjs fx <profile.json> — R0 technical eviden
     for (const c of t.checks) log(c.id, c.result, "—", c.detail.split("\n")[0].slice(0, 160));
   } finally { await sbx.raw.kill(); log("sandbox killed"); }
 }
+if (which === "stale") { // node real.mjs stale — server ya zamani kwenye 4173 ndani ya sandbox HALISI → inazimwa, mpya inajibu
+  const sbx = await sandbox();
+  try {
+    const srv = (w) => `require("http").createServer((q, s) => s.end("${w}")).listen(4173, "0.0.0.0");`;
+    await seed(sbx, { "server.js": srv("fresh-code"), "old.js": srv("stale-code") }, "xmdtest-t29 stale");
+    await sbx.raw.commands.run("cd /home/user/ws && (nohup setsid node old.js >/dev/null 2>&1 &); sleep 1; true", { timeoutMs: 30_000 });
+    log("before:", (await sbx.raw.commands.run("curl -s http://127.0.0.1:4173/; true")).stdout);
+    const { runChecks } = await jiti.import("@/lib/milestone/checks");
+    const r = await runChecks([{ id: "fresh", type: "http", url: "/", expectStatus: 200, bodyContains: "fresh-code" }], { sbx, ws: "/home/user/ws", startCommand: "node server.js", port: 4173, tag: "stale", startTimeoutMs: 30_000 });
+    log("check:", r.results[0].result, "—", r.results[0].detail);
+    log("after (000 = stopped):", (await sbx.raw.commands.run("curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:4173/; true")).stdout);
+    log(r.results[0].result === "PASS" ? "STALE PASS" : "STALE FAIL");
+  } finally { await sbx.raw.kill(); log("sandbox killed"); }
+}
 process.exit(0);
