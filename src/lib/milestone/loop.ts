@@ -11,7 +11,7 @@ import type { DomJson } from "./review"; // TASK-26 (occlusion)
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
 import { MAX_ROUNDS, type ChangeOrder, type Defect, type EvidenceCheckResult, type EvidencePack, type Milestone, type MilestoneMap, type MilestoneState, type MilestoneStatus, type RoundHeaderData } from "./types";
 import { formatRoundHeader, reviewRound0, REVIEWERS, type ReviewContext, type ReviewDeps, type ReviewerId } from "./review"; // TASK-24 (T23 analyses)
-import { consolidate, cosKey, makeReviewAgendaItem, reviewAgendaId, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
+import { consolidate, cosKey, makeReviewAgendaItem, nextCoNumber, reviewAgendaId, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
 import { brokerComplete } from "../broker/broker"; // TASK-24: Optimus consolidate
 import {
   applyRoundToDefects, fixChecksKey, fixKey, mergeAttempts, noOpReminder, parseNumstat, parseReceipts, prevChangesLines, renderFixPack, roundChecks,
@@ -421,7 +421,8 @@ export function fixRoundHeader(m: Milestone, round: number, maxRounds: number, d
   return {
     milestoneId: m.id, round, maxRounds,
     closedDefects: mine.filter((d) => CLOSED_DEFECT.includes(d.status)).length,
-    open: mine.filter((d) => OPEN_DEFECT.includes(d.status)).map((d) => ({ id: d.id, attempt: (d.attempts || 0) + 1 })),
+    // jaribio LINALOENDELEA: raundi hii ikishaijaribu (history ya raundi hii ipo — verify/consolidate) = attempts; kabla ya fix = attempts + 1 (T3 halisi)
+    open: mine.filter((d) => OPEN_DEFECT.includes(d.status)).map((d) => ({ id: d.id, attempt: (d.attempts || 0) + ((d.history || []).some((h) => h.round === round) ? 0 : 1) })),
     waivers: mine.filter((d) => d.status === "WAIVED").length,
     roundsLeft: Math.max(0, maxRounds - round),
   };
@@ -761,7 +762,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
         reviewId: reviewAgendaId(m.id, round), milestoneId: m.id, round: round + 1, reviewMode: m.reviewMode, defects: openList, decisions: [],
         ledgerLines: base.ledgerLines, discussion, routes: [...new Set([...(pack.screenshots || []).map((x) => x.route), ...(checksRec?.routes || [])])],
         domHints: [...new Set([...decision.newDefects, ...decision.regressions].flatMap((x) => x.evidence).concat(decision.concerns.flatMap((c) => c.evidence)).filter((e) => / dom: /.test(e)))],
-        nextCoNo: prevAll.length + 1, roundHeader: formatRoundHeader(nowHeader), notes: reverted ? [reverted] : [],
+        nextCoNo: nextCoNumber(prevAll), roundHeader: formatRoundHeader(nowHeader), notes: reverted ? [reverted] : [],
       });
       cons = { valid: r.valid, attempts: r.attempts, errors: r.errors, discussed, changeOrders: r.valid ? r.changeOrders.map((c) => ({ ...c, attempt: nextAttempt(c, res.defects) })) : [] };
       vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), consolidation: cons }))).data;

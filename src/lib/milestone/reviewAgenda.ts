@@ -342,6 +342,11 @@ export function isNoChanges(openDefects: Defect[], checks: EvidencePack["checks"
 }
 
 // ── Optimus: consolidate(discussion, defects) → ChangeOrder[] ────────────────
+/** TASK-26: namba ya CO inayofuata = max(namba zilizopo, idadi) + 1 — ids zisizofuatana hazirudiwi (T3 halisi: CO-003 ilitolewa mara 2). */
+export function nextCoNumber(cos: { id: string }[]): number {
+  return Math.max(cos.length, ...cos.map((c) => Number(/(\d+)\s*$/.exec(c.id)?.[1] || 0))) + 1;
+}
+
 export interface ConsolidateInput {
   reviewId: string;
   milestoneId: string;
@@ -620,7 +625,7 @@ export async function runReviewRound(inp: ReviewRoundInput, deps: ReviewRoundDep
     const res = await deps.consolidate({
       reviewId, milestoneId: mId, round, reviewMode: inp.reviewMode, defects: rules.openDefects, decisions: decisionsAll, roundHeader: inp.roundHeader,
       ledgerLines: inp.ledgerLines, discussion: discussion.transcript.map((t) => `${t.name}: ${t.text}`).join("\n\n"),
-      routes: [...new Set((inp.pack.screenshots || []).map((s) => s.route))], nextCoNo: prevCos.length + 1,
+      routes: [...new Set((inp.pack.screenshots || []).map((s) => s.route))], nextCoNo: nextCoNumber(prevCos),
       domHints: inp.domHints.length ? inp.domHints : [...new Set([...table.defects, ...table.proposals].flatMap((x) => x.evidence).filter((e) => / dom: /.test(e)))],
     });
     const { changeOrders: cos, ...meta } = res;

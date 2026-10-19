@@ -31,6 +31,7 @@ import {
   applyVerifyToDefects, buildVerifyPrompt, decide, decideNext, disagreements, nextAttempt, roundOutcome, testStopAfterRound, testVerifyInput, titleSimilarity, validateVerify, verifyOne, planGoalOf, VERIFY_TRANSPORT_RETRIES, newlyOccluded,
   verifyKey, cosRoundKey, type DecideInput, type NextState, type VerifyContext, type VerifyFindings, type VerifyVerdict,
 } from "../verify";
+import { nextCoNumber } from "../reviewAgenda";
 import { maybeCloseMilestones, type BuildOutcome, type LoopHooks, type LoopRunner } from "../loop";
 import { newMilestoneState, planSteps, setStep, stepIdOf, transition } from "../state";
 import { stateKey } from "../store";
@@ -135,6 +136,15 @@ describe("newlyOccluded: regression ya code (maandishi yamefunikwa na raundi hii
   });
   it("roundOutcome: harness regression moja inatosha kurudisha nyuma hata defects zikipungua", () => {
     expect(roundOutcome({ openBefore: 3, openAfter: 2, regressions: 1 }).outcome).toBe("REVERT");
+  });
+});
+
+describe("nextCoNumber: ids za CO hazirudiwi", () => {
+  it("max(namba, idadi)+1", () => {
+    expect(nextCoNumber([])).toBe(1);
+    expect(nextCoNumber([{ id: "CO-001" }, { id: "CO-002" }])).toBe(3);
+    expect(nextCoNumber([{ id: "CO-003" }])).toBe(4); // T3 halisi: seed ya raundi 3 ilikuwa na CO-003 pekee → kabla: CO-002, CO-003 (marudio)
+    expect(nextCoNumber([{ id: "CO-009" }, { id: "x" }])).toBe(10);
   });
 });
 
@@ -320,7 +330,10 @@ describe("runVerifyRound (loop)", () => {
     expect(st).toMatchObject({ status: "SIGNED_OFF", round: 2 });
     expect(st.steps.map((x: any) => x.stepId)).toEqual(expect.arrayContaining(["M1.R1.fix", "M1.R1.evidence", "M1.R1.verify", "M1.R1.decide", "M1.R2.fix", "M1.R2.decide"]));
     expect(h.cons).toHaveLength(1);
-    expect(h.cons[0].roundHeader).toBe("ROUND 1/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 2) · waivers: 0 · rounds left: 9");
+    expect(h.cons[0].roundHeader).toBe("ROUND 1/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 1) · waivers: 0 · rounds left: 9");
+    // verify ya R2 inaeleza jaribio LINALOTHIBITISHWA (2), si linalofuata (3) — T3 halisi
+    expect(db.get(`${SID}|${verifyKey("M1", 2)}`)!.data.header).toBe("ROUND 2/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 2) · waivers: 0 · rounds left: 8");
+    expect(db.get(`${SID}|${verifyKey("M1", 1)}`)!.data.header).toBe("ROUND 1/10 (M1) — closed defects: 0 · open: 1 (D-001 attempt 1) · waivers: 0 · rounds left: 9");
     const r2 = db.get(`${SID}|${cosRoundKey("M1", 2)}`)!.data.changeOrders;
     expect(r2.map((c: ChangeOrder) => [c.id, c.attempt])).toEqual([["CO-002", 2]]);
     expect(db.get(`${SID}|defects`)!.data.defects[0]).toMatchObject({ id: "D-001", status: "VERIFIED_FIXED", attempts: 2 });
