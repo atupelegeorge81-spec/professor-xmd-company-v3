@@ -39,7 +39,7 @@ describe("broker stall window (TASK-23)", () => {
     expect(String(err?.message)).toMatch(/^stalled:/);
   });
 
-  it("ni review.ts PEKEE inayopitisha stallFirstMs kwenye src/", () => {
+  it("ni review.ts (+ verify.ts = REVIEW_VERIFY, task 26) PEKEE zinazopitisha stallFirstMs kwenye src/", () => {
     const hits: string[] = [];
     const walk = (d: string) => {
       for (const f of readdirSync(d)) {
@@ -50,6 +50,6 @@ describe("broker stall window (TASK-23)", () => {
       }
     };
     walk("src");
-    expect(hits).toEqual(["src/lib/milestone/review.ts"]);
+    expect(hits.sort()).toEqual(["src/lib/milestone/review.ts", "src/lib/milestone/verify.ts"]);
   });
 });

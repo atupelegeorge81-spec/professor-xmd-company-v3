@@ -62,7 +62,8 @@ import { testFixInput, type TestFixInput } from "./milestone/fixRound"; // TASK-
 import { newMilestoneState, planSteps, setStep, stepIdOf, transition } from "./milestone/state"; // TASK-25 test hook // TASK-14 (XMD_TEST_HOOKS=1 pekee)
 import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
-import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace } from "./cu/engine"; // TASK-25
+import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace, captureRoundEvidence, milestoneGit } from "./cu/engine"; // TASK-25/26
+import { testStopAfterRound, testVerifyInput, type TestVerifyInput } from "./milestone/verify"; // TASK-26 test hooks
 import { cuEnabled, startComputerPhase, ensureCuState, cuChipItemOf, readCuChip, cuChipItem, pauseComputerFromServer, writeCuChip, type CuRunState, type CuHooks } from "./cu/engine";
 import {
   PLAN_PARTS, PLAN_SECTION_DEFS, PLAN_STEPS_MIN, PLAN_STEPS_MAX, planPartChip, PLAN_SAVED_CHIP,
@@ -1570,6 +1571,8 @@ async function run(runner: Runner) {
     // TASK-14 · XMD_MILESTONES=1 PEKEE: code inaamua milestone imefungwa (Ledger = ukweli) → runMilestoneBuild (stub kwa sasa)
     let testReview: TestReviewInput | null = null; // TASK-24 test hook (XMD_TEST_REVIEW_INPUT)
     let testFix: TestFixInput | null = null; // TASK-25 test hook (XMD_TEST_FIX_INPUT)
+    let testVerify: TestVerifyInput | null = null; // TASK-26 test hook (XMD_TEST_VERIFY_INPUT)
+    const lockedCount = () => runner.items.filter((it) => it.kind === "chip" && /^\s*🔒 LOCKED/.test(String((it as { text?: string }).text || ""))).length;
     const msHooks = (status: string): LoopHooks => ({
       bcast: (e) => bcast(e as BoardEvent), addChip, blog: (lvl, t) => blog(lvl, t),
       persist: () => persist(status, conversationTitle),
@@ -1630,7 +1633,7 @@ async function run(runner: Runner) {
       review: {
         context: async (m) => {
           const sid = sessionId || runner.id;
-          const all = testReview?.ledger ?? await finalBoardResolution(runner.id);
+          const all = testReview?.ledger ?? testVerify?.ledger ?? await finalBoardResolution(runner.id);
           const mine = all.filter((e) => e.agenda_index >= m.agendas.from && e.agenda_index <= m.agendas.to);
           const planMd = (await getRecord<{ markdown?: string }>(sid, planKey(m.id)))?.data?.markdown || "";
           const buildRep = (await getRecord<{ report?: string }>(sid, buildKey(m.id)))?.data?.report || testReview?.buildReport || "";
@@ -1645,7 +1648,7 @@ async function run(runner: Runner) {
               ledger: all, planMarkdown: planMd, buildReport: buildRep, defects, baselines: [],
             },
             ledgerLines: all.map((e) => `- A${e.agenda_index} [LOCKED] ${e.agenda_item}: ${String(e.decision_summary || "").replace(/\s+/g, " ").slice(0, 420)}`),
-            extraParticipants: testReview?.extraParticipants,
+            extraParticipants: testReview?.extraParticipants ?? testVerify?.extraParticipants,
           };
         },
         discuss: async (item) => (await discussAgenda(item)) as DiscussionOutcome,
@@ -1653,7 +1656,7 @@ async function run(runner: Runner) {
       // TASK-25: raundi ya marekebisho — Computer (mechanics za task 16) + receipts; checks za task 21 kwenye sandbox ileile
       fix: {
         ocb: async (m, round, openDefects) => {
-          const all = testFix?.ledger ?? await finalBoardResolution(runner.id);
+          const all = testFix?.ledger ?? testVerify?.ledger ?? await finalBoardResolution(runner.id);
           return buildOCBForComputer({
             project: { name: conversationTitle, summary: runner.project }, map: runner.msMap!, stage: "FIX", self: "computer", milestoneId: m.id, round: { current: round, max: MAX_ROUNDS },
             counts: { lockedDecisions: all.length, milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects, waivers: 0 },
@@ -1662,13 +1665,32 @@ async function run(runner: Runner) {
         run: async (m, planMarkdown, fix) => {
           if (!cuEnabled()) return { ok: false, finalState: "BLOCKED", reason: "XMD Computer imezimwa (CU_ENABLED=off au E2B_API_KEY haipo)" };
           runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle };
-          const startPack = buildStartPack({ m, planMarkdown, ledger: testFix?.ledger ?? await finalBoardResolution(runner.id), prevBuilds: [], defects: [], ocb: "" });
+          const startPack = buildStartPack({ m, planMarkdown, ledger: testFix?.ledger ?? testVerify?.ledger ?? await finalBoardResolution(runner.id), prevBuilds: [], defects: [], ocb: "" });
           // fix → sandbox haiuawi (raundi zinazofuata + checks zinaihitaji)
           return startComputerPhase(runner, runner.cuHooks, { milestoneId: m.id, planMarkdown, startPack, title: conversationTitle, last: false, reviewMode: m.reviewMode, fix });
         },
         checks: async (m, rc) => runOnMilestoneSandbox(runner as Runner, async (sbx) => runChecks(rc.checks, {
           sbx, ws: "/home/user/ws", script: await readEngineScript("xmd-evidence.mjs"), startCommand: rc.startCommand, port: EVIDENCE_PORT, tag: `${m.id}-fix`,
         })),
+      },
+      // TASK-26: raundi ya uthibitisho — evidence upya (tasks 19–22) kwenye sandbox ileile · reviewers 2 · git tag/revert
+      verify: {
+        evidence: async (m, round, planMarkdown, cos) => {
+          runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle };
+          const ev = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round, planMarkdown, changeOrders: cos });
+          return { pack: ev.pack, exit: ev.exit, invalid: ev.invalid, uploaded: ev.uploaded, ms: ev.ms };
+        },
+        context: async (m, round, openDefects) => {
+          const all = testVerify?.ledger ?? testFix?.ledger ?? await finalBoardResolution(runner.id);
+          return {
+            ocb: { project: { name: conversationTitle, summary: runner.project }, map: runner.msMap!, milestoneId: m.id, round: { current: round, max: MAX_ROUNDS },
+              counts: { lockedDecisions: lockedCount() || all.length, milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects, waivers: 0 } },
+            ledger: all,
+            ledgerLines: all.map((e) => `- A${e.agenda_index} [LOCKED] ${e.agenda_item}: ${String(e.decision_summary || "").replace(/\s+/g, " ").slice(0, 420)}`),
+          };
+        },
+        git: async (_m, op) => { runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle }; return milestoneGit(runner as Runner, op); },
+        stopAfterRound: testStopAfterRound(),
       },
     });
     const closeMilestones = async (status: string) => {
@@ -3398,6 +3420,55 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
         await maybeCloseMilestones(lr, { ...msHooks("test_fix"), resolvedAgendas: async () => range });
         const st = (await getRecord<{ status: string; round: number }>(runner.sessionId, `state:${m.id}`))?.data;
         blog("system", `🧪 XMD_TEST_FIX_INPUT: ${m.id} → ${st?.status} (round ${st?.round}) · sandbox ${String(runner.cu?.sandboxId || "").slice(0, 8)}… (inabaki hai kwa ukaguzi)`);
+        await persist("completed", conversationTitle);
+        runner.status = "completed";
+        bcast({ type: "done" });
+        return;
+      }
+    }
+
+    { // TASK-26 test hook (XMD_TEST_HOOKS=1 + XMD_TEST_VERIFY_INPUT PEKEE): site ndogo `xmdtest-site` kwenye sandbox → R0 evidence
+      // HALISI (tasks 19–22) → REVIEW R0 halisi (T23 + T24) → COs → fix (Computer halisi) → evidence upya → reviewers 2 → decide → ...
+      // `changeOrders` kwenye faili → anza FIXING R1 moja kwa moja (T4). Resume (session ileile) → haipandi upya, inaendelea pale pale.
+      const tv = testVerifyInput();
+      if (tv && runner.msMap && runner.sessionId) {
+        testVerify = tv;
+        const m = runner.msMap.milestones.find((x) => x.id === (tv.milestoneId || "M1")) || runner.msMap.milestones[0];
+        const lr = runner as unknown as Parameters<typeof msUpdate>[0];
+        const range = new Set(Array.from({ length: m.agendas.to - m.agendas.from + 1 }, (_, k) => m.agendas.from + k));
+        runner.cuHooks = { persist, bcast, blog, addChip, recordUsage, usage, byProvider, title: conversationTitle };
+        const existing = (await getRecord<{ status: string; round: number }>(runner.sessionId, `state:${m.id}`))?.data;
+        if (existing && existing.status !== "DISCUSSING") {
+          blog("warning", `🧪 XMD_TEST_VERIFY_INPUT: resume ya ${m.id} (${existing.status} R${existing.round}) — haipandi upya; inaendelea pale ilipoachwa.`);
+        } else {
+          blog("warning", `🧪 XMD_TEST_VERIFY_INPUT: ${m.id} — site \`xmdtest-site\` (faili ${Object.keys(tv.files).length}) · ${tv.changeOrders?.length ? `anza FIXING R1 (COs ${tv.changeOrders.length})` : "R0 halisi → fix → verify"}`);
+          await msUpdate(lr, planKey(m.id), () => ({ version: 1, milestoneId: m.id, status: "active", executable: true, markdown: tv.planMarkdown, generatedAt: new Date().toISOString() }));
+          const seed = await seedMilestoneWorkspace(runner as Runner, tv.files, "xmdtest-site: seed");
+          blog("info", `🌱 XMD_TEST_VERIFY_INPUT: \`xmdtest-site\` imepandwa kwenye sandbox ${seed.sandboxId.slice(0, 8)}… · HEAD ${seed.head.slice(0, 7)}`);
+          if (tv.changeOrders?.length) {
+            await msUpdate(lr, `cos:${m.id}`, () => ({ version: 1, changeOrders: tv.changeOrders }));
+            await msUpdate(lr, "defects", () => ({ version: 1, defects: tv.defects || [] }));
+            await msUpdate(lr, `state:${m.id}`, () => {
+              let st = newMilestoneState(m.id);
+              const ok = <T,>(r: { state: T } | { error: string }): T => { if ("error" in r) throw new Error(r.error); return r.state; };
+              st = ok(planSteps(st, ["plan", "build", "review"].map((x) => stepIdOf(m.id, 0, x))));
+              for (const x of ["plan", "build", "review"]) st = ok(setStep(st, stepIdOf(m.id, 0, x), "DONE"));
+              st = { ...st, steps: (st.steps || []).map((x) => ({ ...x, stub: true })) };
+              for (const to of ["PLANNING", "BUILDING", "EVIDENCE", "REVIEW_R0", "FIXING"] as const) st = ok(transition(st, { type: "GOTO", to }));
+              return st;
+            });
+          }
+        }
+        await maybeCloseMilestones(lr, {
+          ...msHooks("running"), resolvedAgendas: async () => range,
+          plan: async () => ({ milestoneId: m.id, status: "active", executable: true, reasons: [], markdown: tv.planMarkdown, steps: 1, checks: 0, routes: 0, problems: [], warnings: [], guardHits: [], repairs: { structure: 0, guard: 0 } }),
+          build: async () => {
+            const ev = await captureRoundEvidence(runner as Runner, { milestoneId: m.id, round: 0, planMarkdown: tv.planMarkdown, changeOrders: [] });
+            return { ok: true, finalState: "DONE", reason: "xmdtest-site (XMD_TEST_VERIFY_INPUT)", report: tv.buildReport || "", evidence: { pack: ev.pack, exit: ev.exit, invalid: ev.invalid, uploaded: ev.uploaded, ms: ev.ms } };
+          },
+        });
+        const st = (await getRecord<{ status: string; round: number }>(runner.sessionId, `state:${m.id}`))?.data;
+        blog("system", `🧪 XMD_TEST_VERIFY_INPUT: ${m.id} → ${st?.status} (round ${st?.round}) · sandbox ${String(runner.cu?.sandboxId || "").slice(0, 8)}…`);
         await persist("completed", conversationTitle);
         runner.status = "completed";
         bcast({ type: "done" });
