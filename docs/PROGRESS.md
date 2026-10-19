@@ -370,3 +370,35 @@ $ npm run cu:test        → Ran 186 tests — OK
   - hook ya uhakika kwa T5.
 - Hatari kwa CEO: session ya majaribio iliyokatika iliendelezwa na orphan-resume ya Koyeb (imesafishwa); pendekezo liko task-25.md.
 - Baselines: tsc 0 · vitest 616 + 2 skipped (+22) · unittest 271 OK (+8) · pytest 338 + 3 (+8) · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-25.md + docs/tests/task-25/ (bila `.log`).
+
+## Task 26 — Raundi za uthibitisho, kanuni za verdict, vihesabu vya raundi
+- Branch `task/26-verify-rounds`, nyuma ya `XMD_MILESTONES` (OFF kwa default). Inategemea T22–T25. Deploy ya T25 iliyotangulia: Koyeb `4614faf6` HEALTHY (main `c9b6559`).
+- `runFixVerifyLoop` (`milestone/loop.ts`) inaendesha FIXING → VERIFYING → FIXING(n+1) | SIGNED_OFF | CAP_REACHED | BLOCKED. Hatua `Mk.Rn.evidence` → `Mk.Rn.verify` → `Mk.Rn.decide` zinahifadhiwa kila moja na ni idempotent (resume haiongezi raundi).
+  - evidence upya (tasks 19–22, `captureRoundEvidence`);
+  - reviewers WAWILI tu, kila mmoja peke yake (RoundHeader + OCB `REVIEW_VERIFY` + PLAN GOAL), wanatoa PASS/FAIL/PARTIAL kwa kila CO pamoja na `regressions[]` na `newDefects[]`;
+  - wakitofautiana → zamu MOJA ya sync.
+- `milestone/verify.ts` (SAFI, ina unit tests):
+  - `decide`: PASS = wote PASS + checks PASS; check FAIL/ERROR inapindua; reviewer akiona tatizo ilhali check ilipita → defect mpya + check mpya (`CHECK_MISSED_IT`, concern moja kwa kila CO).
+  - `decideNext`: SIGN_OFF | CONTINUE | CAP_REACHED (raundi 10) | BLOCKED; minor zinaruhusiwa tu zikiwa kwenye orodha (T28).
+  - `roundOutcome`: BEST (`git tag -f xmd-best-Mk`, `best:Mk`) | REVERT | SAME.
+  - `applyVerifyToDefects` (dedupe ya reviewers wawili + ya defects zilizo wazi), `newlyOccluded`, `nextAttempt`.
+  - newDefects/regressions → Optimus `consolidate` (validation ya T24; mjadala wa timu ni pale tu reviewer anapouomba).
+- Git: REVERT = `git stash` (mabadiliko yasiyocommitiwa) + `git revert <base>..HEAD` + commit; Optimus anaambiwa "round N reverted: made things worse (…)" (`cu/engine.ts` `milestoneGit`).
+- RoundHeader inajengwa kutoka DB kwa KILA wito (computer, reviewers, sync, Optimus); `attempt` = jaribio linaloendelea.
+- Test hooks (inert bila `XMD_TEST_HOOKS=1`): `XMD_TEST_VERIFY_INPUT` (pamoja na `startRound`, baseline ya R0) na `XMD_TEST_STOP_AFTER_ROUND`.
+- REAL (E2B + OpenHands + Chromium + Supabase + LLMs, fixture `xmdtest-site`):
+  - T1: jedwali la kesi 45/45 (decide 11, decideNext 14);
+  - T2: kasoro 3 zilizopandwa → SIGNED_OFF kwenye raundi ya **2**; D-001 (toggle) ilihitaji majaribio 2;
+  - T3: mstari wa RoundHeader uko kwenye prompts za computer, designer, frontend na pm za raundi ya 3, na ni sahihi;
+  - T4: CO mbaya (header fixed inafunika hero) → `REVERT (7 regression(s))` + `git revert` ndani ya sandbox + D-001 REOPENED (cause REVERTED);
+  - T5: `kill -9` wakati wa VERIFYING → resume kwenye raundi ileile, `verify:M1:R3` ni rekodi moja, evidence haikurudiwa.
+- Kasoro 7 zilizopatikana kwenye runs halisi zimerekebishwa (zina tests):
+  - dedupe ya reviewers;
+  - kasoro zinazojulikana kuripotiwa tena;
+  - retry ya 429;
+  - regression ya code `occluded` (reviewers walipitisha madhara);
+  - `git stash` kabla ya revert;
+  - ids za CO (`nextCoNumber`);
+  - `attempt` ya header wakati wa verify.
+- Hatari kwa CEO: reviewers wa LLM hawagundui madhara yasiyotajwa ambayo si ya kufunika; pendekezo ni ulinganisho wa landmarks za DOM. Maelezo yako task-26.md.
+- Baselines: tsc 0 · vitest 661 + 2 skipped (+45) · pytest 338 + 3 · unittest 271 OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-26.md + docs/tests/task-26/ (bila `.log`).

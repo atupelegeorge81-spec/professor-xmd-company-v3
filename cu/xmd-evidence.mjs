@@ -126,6 +126,15 @@ function collectDomMetrics({ keySelectors, generic, max }) {
       interactive,
     };
     if (interactive) { o.touchTarget = { w: box.w, h: box.h }; o.tooSmall = visible && (box.w < 44 || box.h < 44); }
+    // TASK-26: imefunikwa? (elementi nyingine iko juu ya katikati yake ndani ya viewport) — harness inalinganisha raundi kwa raundi
+    if (hasText && visible) {
+      const cx = r.left + r.width / 2, cy = r.top + Math.min(r.height / 2, 12);
+      if (cx >= 0 && cy >= 0 && cx < window.innerWidth && cy < window.innerHeight) {
+        const top = document.elementFromPoint(cx, cy);
+        o.occluded = !!top && top !== el && !el.contains(top) && !top.contains(el);
+        if (o.occluded) o.occludedBy = sel(top);
+      }
+    }
     return o;
   });
 
@@ -162,7 +171,7 @@ function domSummary(d) {
   return {
     elements: d.elements.length, totalCandidates: d.totalCandidates, truncated: d.truncated,
     hasHorizontalOverflow: d.page.hasHorizontalOverflow, overflowPx: d.page.overflowPx,
-    tooSmall: v.filter((e) => e.tooSmall).length, lowContrast: v.filter((e) => e.lowContrast).length,
+    tooSmall: v.filter((e) => e.tooSmall).length, lowContrast: v.filter((e) => e.lowContrast).length, occluded: v.filter((e) => e.occluded).length,
     imagesWithoutAlt: d.page.imagesWithoutAlt.length, headingOrderProblems: d.page.headingOrderProblems.length,
   };
 }

@@ -955,6 +955,36 @@ export async function seedMilestoneWorkspace(runner: Runner, files: Record<strin
   });
 }
 
+/** TASK-26: evidence ya raundi n baada ya marekebisho (task 19) + regression dhidi ya baselines (task 22). */
+export async function captureRoundEvidence(runner: Runner, o: { milestoneId: string; round: number; planMarkdown: string; changeOrders: { id: string; location: any }[] }): Promise<CaptureEvidenceResult> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    const sessionId = runner.sessionId || runner.id;
+    const ev = await captureEvidence(sbx, { milestoneId: o.milestoneId, round: o.round, planMarkdown: o.planMarkdown, script: await readCuFile("xmd-evidence.mjs"), sessionId }, evidenceUploader);
+    if (ev.pack.screenshots.length) {
+      const rg = await checkRegression(sbx, { milestoneId: o.milestoneId, round: o.round, pack: ev.pack, changeOrders: o.changeOrders, script: await readCuFile("xmd-regression.mjs"), sessionId }, evidenceUploader);
+      runner.cuHooks?.blog(rg.entries.some((e) => e.kind === "regression") || rg.errors.length ? "warning" : "info", `🔍 ${o.milestoneId} R${o.round} regression: ${regressionSummary(rg)}`);
+    }
+    return ev;
+  });
+}
+
+/** TASK-26: git ya raundi — tag ya "best" au `git revert` ya commits za raundi iliyoharibu (kisha snapshot mpya). */
+export async function milestoneGit(runner: Runner, op: { kind: "tag"; name: string } | { kind: "revert"; from: string; message: string; label: string }): Promise<{ ok: boolean; sha: string; detail: string }> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    const cmd = op.kind === "tag"
+      ? `cd /home/user/ws && git tag -f ${q(op.name)} HEAD >/dev/null && git rev-parse HEAD`
+      : `cd /home/user/ws && git cat-file -e ${q(op.from)}^{commit} && if [ "$(git rev-parse HEAD)" = "$(git rev-parse ${q(op.from)})" ]; then echo XMD_NOTHING; else if git diff --quiet && git diff --cached --quiet; then :; else ${MS_GIT} stash push -q -m ${q(`xmd: uncommitted work before ${op.label}`)} && echo XMD_STASHED; fi && git revert --no-edit --no-commit ${q(op.from)}..HEAD && ${MS_GIT} commit -qm ${q(op.message)} && echo XMD_REVERTED && git rev-list --count ${q(op.from)}..HEAD~1 && git rev-parse HEAD; fi`;
+    const r: any = await sbx.commands.run(`${cmd}; echo __XMD_RC=$?`, { timeoutMs: 60_000 }).catch((e: any) => ({ stdout: "", stderr: String(e?.message || e), exitCode: 1 }));
+    const out = String(r?.stdout || "").trim();
+    const rc = Number(/__XMD_RC=(\d+)/.exec(out)?.[1] ?? 1);
+    const lines = out.replace(/__XMD_RC=\d+/, "").trim().split("\n").map((l) => l.trim()).filter(Boolean);
+    const sha = /^[0-9a-f]{40}$/.test(lines[lines.length - 1] || "") ? lines[lines.length - 1] : "";
+    if (op.kind === "revert" && rc === 0 && out.includes("XMD_REVERTED") && runner.cu && runner.cuHooks) await msSnapshot(sbx, runner.cu, runner.cuHooks, op.label);
+    const detail = op.kind === "tag" ? `tag ${op.name}` : out.includes("XMD_NOTHING") ? "nothing to revert (HEAD == round base)" : out.includes("XMD_REVERTED") ? `reverted ${lines[lines.indexOf("XMD_REVERTED") + 1] || "?"} commit(s) since ${op.from.slice(0, 7)}${out.includes("XMD_STASHED") ? " (uncommitted changes stashed first)" : ""}` : `git failed: ${String(r?.stderr || out).slice(-300)}`;
+    return { ok: rc === 0 && !!sha, sha, detail };
+  });
+}
+
 /** test-only (vitest) — helpers za snapshot ya milestone. */
 export const __t16Snapshot = { msSnapshot, msRestoreSnapshot, msReadBuildReport };
 

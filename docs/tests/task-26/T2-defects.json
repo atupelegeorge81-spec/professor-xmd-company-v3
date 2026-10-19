@@ -1,0 +1,298 @@
+{
+ "version": 1,
+ "defects": [
+  {
+   "id": "D-001",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "header",
+   "severity": "blocker",
+   "title": "Missing theme toggle button in header",
+   "evidence": [
+    "S-001",
+    "S-002",
+    "S-003",
+    "S-001 dom: body > header height=53",
+    "S-002 dom: body > header height=53",
+    "S-003 dom: body > header width=1280"
+   ],
+   "expected": "Locked decision A2 requires: 'The header holds the logo (left), the nav, and a theme toggle button at the right end: <button id=\"theme-toggle\" aria-label=\"Toggle theme\"> at least 44x44px that switches html[data-theme] between dark and light.'",
+   "actual": "Header only contains the logo link and the three navigation links ('Shop', 'Story', 'Contact'). The theme toggle button element is completely missing across all viewports.",
+   "status": "VERIFIED_FIXED",
+   "attempts": 2,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 3P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-001 FAIL (designer PASS, frontend PARTIAL, checks 3P/0F/0E)",
+     "cause": "reviewers disagree after sync (designer PASS, frontend PARTIAL)"
+    },
+    {
+     "round": 2,
+     "result": "CO-007: APPLIED · checks 3P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 2,
+     "result": "verify: CO-007 PASS (designer PASS, frontend PASS, checks 3P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ]
+  },
+  {
+   "id": "D-002",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "layout",
+   "severity": "blocker",
+   "title": "Horizontal overflow and scrolling on mobile viewport (375px)",
+   "evidence": [
+    "S-001",
+    "S-001 dom: body > header width=375",
+    "S-001 dom: body > main width=375"
+   ],
+   "expected": "Locked decision A3 requires: 'Mobile first: no horizontal scrolling at 375, 768 or 1280 px. Every block fits the viewport width; content max-width 1100px.'",
+   "actual": "On the 375px viewport (S-001), horizontal scrolling occurs with scrollWidth=660px against clientWidth=375px (overflowPx=285), caused by an inflexible fixed-width promo strip.",
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-002: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-002 PASS (designer PASS, frontend PASS, checks 1P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ]
+  },
+  {
+   "id": "D-003",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "typography",
+   "severity": "major",
+   "title": "Hero subtitle rendered in forbidden all-caps text",
+   "evidence": [
+    "S-001",
+    "S-002",
+    "S-003",
+    "S-001 dom: body > main > section:nth-of-type(1) > h1 fontSize=36px"
+   ],
+   "expected": "Locked decision A1 requires: 'Sentence case everywhere: NO all-caps text — text-transform: uppercase is forbidden on every element.'",
+   "actual": "The hero subtitle paragraph below h1 is rendered entirely in uppercase ('HAND-THROWN MUGS, LINEN AND SMALL-BATCH COFFEE FROM DAR ES SALAAM.').",
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-003: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-003 PASS (designer PASS, frontend PASS, checks 1P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ]
+  },
+  {
+   "id": "D-007",
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "header / layout",
+   "severity": "medium",
+   "title": "Header container is unconstrained by max-width 1100px on desktop",
+   "evidence": [
+    "S-003 dom: body > header width=1280",
+    "S-003 dom: body > main width=1100"
+   ],
+   "expected": "A3 locked decision mandates: 'content max-width 1100px' across blocks to keep content aligned.",
+   "actual": "On desktop 1280px, <header> width is 1280px and stretches logo to x=20 and nav to x=1260, whereas <main> is centered at max-width 1100px (x=90 to x=1190), resulting in visual misalignment between header items and main content.",
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-004: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-004 PASS (designer PASS, frontend PASS, checks 1P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ]
+  },
+  {
+   "id": "D-008",
+   "milestoneId": "M1",
+   "foundInRound": 1,
+   "reportedBy": [
+    "designer"
+   ],
+   "area": "header",
+   "severity": "major",
+   "title": "Theme toggle button icon has insufficient contrast in dark theme",
+   "evidence": [
+    "S-001 dom: #theme-toggle color=rgb(0, 0, 0)",
+    "S-001 dom: #theme-toggle contrastRatio=1.07",
+    "S-001",
+    "S-002",
+    "S-003"
+   ],
+   "expected": "Theme toggle button content should use text color #E5E7EB or accent #F2F0EB to ensure legible contrast (>=4.5:1) against dark background #0B0C10 per decision A4",
+   "actual": "Button content color is unstyled black rgb(0, 0, 0) against rgb(11, 12, 16) resulting in contrastRatio=1.07 (LOW-CONTRAST), rendering the icon inside virtually invisible",
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "found in verify R1",
+     "cause": "NEW_DEFECT"
+    },
+    {
+     "round": 2,
+     "result": "CO-007: APPLIED · checks 3P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 2,
+     "result": "verify: CO-007 PASS (designer PASS, frontend PASS, checks 3P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ]
+  },
+  {
+   "id": "D-009",
+   "milestoneId": "M1",
+   "foundInRound": 1,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "header #theme-toggle",
+   "severity": "medium",
+   "title": "Theme toggle button content has near-zero contrast against dark header background",
+   "evidence": [
+    "S-001 dom: #theme-toggle color=rgb(0, 0, 0)",
+    "S-001 dom: #theme-toggle contrastRatio=1.07",
+    "S-001"
+   ],
+   "expected": "Theme toggle button text/icon should use text color #E5E7EB or accent #F2F0EB per Decision A4, meeting WCAG AA contrast >= 3:1 against #0B0C10.",
+   "actual": "color is rgb(0, 0, 0) on backgroundColor rgb(11, 12, 16), producing contrastRatio=1.07 (LOW-CONTRAST) which makes the toggle icon/content invisible.",
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "found in verify R1",
+     "cause": "NEW_DEFECT"
+    },
+    {
+     "round": 2,
+     "result": "CO-007: APPLIED · checks 3P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 2,
+     "result": "verify: CO-007 PASS (designer PASS, frontend PASS, checks 3P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ]
+  },
+  {
+   "id": "D-010",
+   "milestoneId": "M1",
+   "foundInRound": 1,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "body > header > div > a",
+   "severity": "minor",
+   "title": "Header logo touch target is smaller than 44x44px",
+   "evidence": [
+    "S-001 dom: body > header > div > a height=21",
+    "S-001 dom: body > header > div > a width=37.05",
+    "S-001"
+   ],
+   "expected": "Header logo link should have minimum touch target dimensions of 44x44px for touch accessibility.",
+   "actual": "Logo <a> dimensions are 37.05x21px, flagged as touch TOO-SMALL.",
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "found in verify R1",
+     "cause": "NEW_DEFECT"
+    },
+    {
+     "round": 2,
+     "result": "CO-008: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 2,
+     "result": "verify: CO-008 PASS (designer PASS, frontend PASS, checks 1P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ]
+  },
+  {
+   "id": "D-011",
+   "milestoneId": "M1",
+   "foundInRound": 1,
+   "reportedBy": [
+    "frontend"
+   ],
+   "area": "header",
+   "severity": "minor",
+   "title": "CO-001: frontend sees a problem although its checks passed",
+   "evidence": [
+    "check:CO-001/chk-toggle-exists",
+    "check:CO-001/chk-toggle-target",
+    "check:CO-001/chk-nav-target",
+    "S-001",
+    "S-001 dom: #theme-toggle width=44"
+   ],
+   "expected": "Add <button id=\"theme-toggle\" aria-label=\"Toggle theme\" type=\"button\"> inside the header that switches html[data-theme] between dark and light. Ensure the toggle button and all header nav links have touch targets of at least 44x44px. — and a NEW check that measures what the reviewer saw",
+   "actual": "frontend PARTIAL: #theme-toggle button exists in the header with 44x44px touch target. Nav links meet the >=44x44px touch target (Shop 51.78x44, Story 51.47x44, Contact 69.67x44).",
+   "status": "VERIFIED_FIXED",
+   "attempts": 1,
+   "history": [
+    {
+     "round": 1,
+     "result": "found in verify R1",
+     "cause": "CHECK_MISSED_IT"
+    },
+    {
+     "round": 2,
+     "result": "CO-007: APPLIED · checks 3P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 2,
+     "result": "verify: CO-007 PASS (designer PASS, frontend PASS, checks 3P/0F/0E)",
+     "cause": "VERIFIED_FIXED"
+    }
+   ]
+  }
+ ]
+}

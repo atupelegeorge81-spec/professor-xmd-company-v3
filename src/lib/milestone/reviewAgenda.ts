@@ -342,6 +342,11 @@ export function isNoChanges(openDefects: Defect[], checks: EvidencePack["checks"
 }
 
 // ── Optimus: consolidate(discussion, defects) → ChangeOrder[] ────────────────
+/** TASK-26: namba ya CO inayofuata = max(namba zilizopo, idadi) + 1 — ids zisizofuatana hazirudiwi (T3 halisi: CO-003 ilitolewa mara 2). */
+export function nextCoNumber(cos: { id: string }[]): number {
+  return Math.max(cos.length, ...cos.map((c) => Number(/(\d+)\s*$/.exec(c.id)?.[1] || 0))) + 1;
+}
+
 export interface ConsolidateInput {
   reviewId: string;
   milestoneId: string;
@@ -356,6 +361,10 @@ export interface ConsolidateInput {
   /** mfano wa selectors/thamani halisi kutoka DOM metrics (Optimus aandike checks zinazotekelezeka) */
   domHints: string[];
   nextCoNo: number;
+  /** TASK-26: RoundHeader (kutoka DB) — kila wito wa Optimus kwenye kitanzi cha review/fix */
+  roundHeader?: string;
+  /** TASK-26: ujumbe wa harness (mf. "round 2 reverted: made things worse") */
+  notes?: string[];
 }
 export interface ConsolidateDeps {
   complete: (messages: { role: string; content: string }[], attempt: number) => Promise<string>;
@@ -385,8 +394,8 @@ Viewports are "WIDTHxHEIGHT" (375x667, 768x1024, 1280x800). Browser checks must 
 
 function consolidatePrompt(i: ConsolidateInput): { role: string; content: string }[] {
   const system = `You are Optimus, Chair of PROFESSOR XMD COMPANY. You consolidate the team's REVIEW ${i.reviewId} into Change Orders (COs) for XMD Computer, which executes them literally and cannot ask questions. Reply with ONE JSON object only.`;
-  const user = `MILESTONE ${i.milestoneId} · round ${i.round} · reviewMode ${i.reviewMode}
-
+  const user = `${i.roundHeader ? `${i.roundHeader}\n` : ""}MILESTONE ${i.milestoneId} · round ${i.round} · reviewMode ${i.reviewMode}
+${i.notes?.length ? `\nHARNESS NOTES:\n${i.notes.map((n) => `- ${n}`).join("\n")}\n` : ""}
 LOCKED LEDGER DECISIONS:
 ${i.ledgerLines.join("\n") || "- (none)"}
 
@@ -505,6 +514,8 @@ export interface ReviewRoundInput {
   ledgerLines: string[];
   domHints: string[];
   participants: string[];
+  /** TASK-26: RoundHeader (kutoka DB) kwa Optimus */
+  roundHeader?: string;
 }
 export interface ReviewRoundDeps {
   /** T23 reviewRound0 (wote wawili sambamba, huru) → findings */
@@ -612,9 +623,9 @@ export async function runReviewRound(inp: ReviewRoundInput, deps: ReviewRoundDep
     // 6) Optimus: COs (kila defect + kila uamuzi ≥1 CO); maamuzi yanayopingana na Ledger → CR
     const prevCos = (await deps.store.get<{ version: number; changeOrders: ChangeOrder[] }>(cosKey(mId)))?.changeOrders || [];
     const res = await deps.consolidate({
-      reviewId, milestoneId: mId, round, reviewMode: inp.reviewMode, defects: rules.openDefects, decisions: decisionsAll,
+      reviewId, milestoneId: mId, round, reviewMode: inp.reviewMode, defects: rules.openDefects, decisions: decisionsAll, roundHeader: inp.roundHeader,
       ledgerLines: inp.ledgerLines, discussion: discussion.transcript.map((t) => `${t.name}: ${t.text}`).join("\n\n"),
-      routes: [...new Set((inp.pack.screenshots || []).map((s) => s.route))], nextCoNo: prevCos.length + 1,
+      routes: [...new Set((inp.pack.screenshots || []).map((s) => s.route))], nextCoNo: nextCoNumber(prevCos),
       domHints: inp.domHints.length ? inp.domHints : [...new Set([...table.defects, ...table.proposals].flatMap((x) => x.evidence).filter((e) => / dom: /.test(e)))],
     });
     const { changeOrders: cos, ...meta } = res;
