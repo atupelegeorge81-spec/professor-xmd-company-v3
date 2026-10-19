@@ -300,3 +300,14 @@ describe("TASK 29 — marekebisho kutoka Koyeb T4 (COs za technical)", () => {
     expect(validateChangeOrder({ ...co([{ id: "a2", type: "dom_exists", route: "/", selector: "h1" }]), visionNote: "v" }, "visual").ok).toBe(true);
   });
 });
+
+describe("TASK 29 — technical evidence haichafui workspace", () => {
+  it("npm audit bila lockfile: lockfile ya muda inafutwa → git status safi (receipts hazipati UNLISTED_CHANGE)", async () => {
+    const ws = fixtureRepo({ "package.json": JSON.stringify({ name: "xmdtest-clean", private: true, version: "0.1.0" }), "server.js": "console.log(1)\n" });
+    const plan = "## 4. Tech Stack\nBuild Command: `node --check server.js`\n";
+    const t = await captureTechEvidence(localSbx() as any, { milestoneId: "M1", round: 0, planMarkdown: plan, ws });
+    expect(t.checks.find((c) => c.id === "tech/audit")).toBeTruthy();
+    expect(t.files).toEqual(["package.json", "server.js"]);
+    expect(execSync("git status --porcelain", { cwd: ws, encoding: "utf8" })).toBe("");
+  }, 120_000);
+});

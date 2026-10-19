@@ -75,7 +75,8 @@ fi; } > ${out} 2>&1; exit 0\n`, 120_000);
   // (2) amri za plan + npm audit
   const cmds = techCommandsOf(input.planMarkdown, hasPkg).map((c) => ({
     id: c.id, type: "command" as const, expectExit: c.expectExit,
-    cmd: c.id === "tech/audit" ? `[ -f package-lock.json ] || npm i --package-lock-only --ignore-scripts --no-audit --no-fund >/dev/null 2>&1; ${c.cmd}` : c.cmd,
+        // lockfile ya MUDA (audit inaihitaji) inafutwa baadaye — harness isichafue workspace (T4 Koyeb: UNLISTED_CHANGE package-lock.json)
+    cmd: c.id === "tech/audit" ? `( XL=0; [ -f package-lock.json ] || { npm i --package-lock-only --ignore-scripts --no-audit --no-fund >/dev/null 2>&1; XL=1; }; ${c.cmd}; rc=$?; [ "$XL" = 1 ] && rm -f package-lock.json; exit $rc )` : c.cmd,
   }));
   const commands: EvidenceCommand[] = [];
   if (cmds.length) {
