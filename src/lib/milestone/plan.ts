@@ -51,6 +51,8 @@ export interface MilestonePlanValidation {
   stats: { steps: number; structural: number; checks: number; routes: number; proofChecks: number };
 }
 
+/** TASK-32: huduma zisizopo kwenye sandbox ya build (Docker / Postgres ya ndani / Supabase CLI ya local stack) */
+export const SANDBOX_UNAVAILABLE_RE = /\b(?:docker(?:-compose)?|podman|supabase\s+(?:start|stop|status|test|db\s+(?:reset|start|test|lint|push|diff|dump))|psql|pg_prove|pg_ctl|(?:localhost|127\.0\.0\.1):5432)\b/i;
 const STYLING_RE = /Styling\s*\+\s*Dependencies\s*\**\s*:\s*\**\s*(.*)$/im;
 const ROUTE_RE = /route\s*:\s*`?(\/[^\s`·|;,]*)`?\s*[·|;,]\s*states?\s*:\s*([^·|;]+?)\s*[·|;]\s*viewports?\s*:\s*(.+)$/gim;
 const NO_FILES = /^(none|n\/a|-|—|no files?|not applicable)\b/i;
@@ -99,6 +101,12 @@ export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "rev
   else if (stVal.length < 6 || /^(not discussed|tbd|n\/a|none|unknown)\.?$/i.test(stVal)) errors.push(`${m.id} plan §4: "Styling + Dependencies:" is empty or vague (${JSON.stringify(stVal)}) — it must name the exact framework and the installed packages`);
 
   // 1b. TASK-18: Build Command (lango la kumaliza linaiendesha — lazima exit 0)
+  // TASK-32 (E2E halisi run 5): `Test Command: supabase test db` haiwezi kupita kwenye sandbox (hakuna Docker/Postgres)
+  // → lango PARTIAL → M1 BLOCKED. Amri kama hizi zinakataliwa hapa → Optimus anaandika upya (jaribio la muundo).
+  for (const [label, cmd] of [["Build Command", planGateCommands(md).buildCommand], ["Test Command", planGateCommands(md).testCommand]] as const) {
+    const hit = cmd ? cmd.match(SANDBOX_UNAVAILABLE_RE) : null;
+    if (hit) errors.push(`${m.id} plan §4: "${label}:" uses \`${hit[0]}\`, which cannot run in the build sandbox (no Docker, no local Postgres) — the completion gate would fail forever. Use a command that runs with Node/npm/Python only (static file/SQL checks or a Node script).`);
+  }
   if (!planGateCommands(md).buildCommand) errors.push(`${m.id} plan §4: missing the "Build Command:" line — one shell command run from the workspace root that exits 0 only when this milestone builds (e.g. "Build Command: \`npm run build\`" or, for a docs-only milestone, "Build Command: \`test -s README.md\`")`);
 
   // 2. Hatua + Checks za mashine kwa kila hatua ya muundo (inayounda/kubadilisha faili)
@@ -223,6 +231,7 @@ Styling + Dependencies: <exact styling approach/framework, e.g. "plain CSS in st
 The next two lines MUST be exactly (the completion gate runs them itself before the milestone may finish):
 Build Command: <ONE shell command run from the workspace root that exits 0 only when this milestone builds correctly, e.g. \`npm run build\`, \`node --check server.js\`, or for a docs-only milestone \`test -s README.md\`>
 Test Command: <ONE shell command that runs this milestone's automated tests, or "none" if the plan has no automated tests>
+Both commands run INSIDE the build sandbox: Linux with Node/npm and Python only — NO Docker, NO local Postgres/database server, so never \`supabase start\`, \`supabase test db\`, \`supabase db reset\`, \`docker …\` or \`psql\`. Verify database work statically (files/SQL content) or with a Node script.
 then fonts, colors (hex + where used), touch targets, layout rules.`;
   const visual = m.reviewMode !== "technical";
   const technical = m.reviewMode !== "visual";

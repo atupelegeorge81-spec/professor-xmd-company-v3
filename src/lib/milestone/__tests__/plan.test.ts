@@ -1,6 +1,6 @@
 // TASK 15 — plan ya milestone: validator (Styling + Dependencies, Checks, routes/viewports, proof), generator, lango.
 import { describe, expect, it } from "vitest";
-import { generateMilestonePlan, ledgerDecisionsSection, parseChecksJson, stepChecksBlock, validateMilestonePlan, type MilestonePlanDeps } from "../plan";
+import { SANDBOX_UNAVAILABLE_RE, generateMilestonePlan, ledgerDecisionsSection, parseChecksJson, stepChecksBlock, validateMilestonePlan, type MilestonePlanDeps } from "../plan";
 import type { Milestone } from "../types";
 
 const M1: Milestone = { id: "M1", title: "Page", agendas: { from: 1, to: 2 }, phase: "foundation", reviewMode: "mixed", roster: ["optimus", "ultron"], rationale: "" } as any;
@@ -187,5 +187,21 @@ describe("TASK-32: parseChecksJson — mabano ya ziada mwishoni (E2E run 3, M1 S
     expect(() => parseChecksJson('[{"id":"x"}] and more')).toThrow();
     expect(() => parseChecksJson('[{"id":"x"},')).toThrow();
     expect(() => parseChecksJson('{"id":"x"}}')).toThrow();
+  });
+});
+
+describe("TASK-32: amri za lango zisizowezekana kwenye sandbox (E2E run 5: `supabase test db` → M1 BLOCKED)", () => {
+  it("regex: docker/psql/supabase local stack → hit; amri za kawaida → hakuna", () => {
+    for (const c of ["supabase test db", "npx supabase test db", "npx supabase start && npm test", "docker compose up -d", "psql -f x.sql", "supabase db reset", "curl localhost:5432"])
+      expect(SANDBOX_UNAVAILABLE_RE.test(c), c).toBe(true);
+    for (const c of ["npm run build", "npm test", "node scripts/check-sql.mjs", "test -s supabase/migrations/001_contact.sql", "grep -q 'create table' supabase/migrations/001.sql", "npm i @supabase/supabase-js"])
+      expect(SANDBOX_UNAVAILABLE_RE.test(c), c).toBe(false);
+  });
+  it("validateMilestonePlan inakataa Test Command ya `supabase test db` (plan halisi ya E5 M1, mstari huu tu umebadilika)", () => {
+    const md = `## 4. Tech Stack\nStyling + Dependencies: plain CSS in styles.css ; packages: none\nBuild Command: \`npm run build\`\nTest Command: \`supabase test db\`\n`;
+    const v = validateMilestonePlan(md, { id: "M1", reviewMode: "mixed" });
+    expect(v.errors.some((e) => /"Test Command:" uses `supabase test`.*cannot run in the build sandbox/.test(e))).toBe(true);
+    const ok = validateMilestonePlan(md.replace("supabase test db", "node scripts/check-sql.mjs"), { id: "M1", reviewMode: "mixed" });
+    expect(ok.errors.some((e) => /cannot run in the build sandbox/.test(e))).toBe(false);
   });
 });
