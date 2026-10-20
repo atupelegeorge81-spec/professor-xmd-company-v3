@@ -69,6 +69,10 @@ export interface MilestoneState {
   steps?: StepEntry[];
   /** TASK-27: WAIVE za redecide (reviewers 2 + Optimus, sababu lazima) — zinaorodheshwa kwenye ripoti ya mwisho */
   waivers?: WaiverEntry[];
+  /** TASK-30: pause ya SYSTEM (task 1 origin) — PAUSED_QUOTA ya vision inasubiri hadi resumeAt kisha inakagua nafasi upya */
+  resumeAt?: string;
+  pauseOrigin?: "system" | "user";
+  pauseReason?: string;
 }
 
 export interface WaiverEntry { defectId: string; title: string; severity: string; round: number; reason: string; approvedBy: string[]; at: string }
@@ -96,6 +100,19 @@ export interface LaneUse {
   tokens: number;
   ms: number;
   fallback: boolean;
+  // ── TASK-30 (hiari — rekodi za zamani hazina) ──
+  usedFallback?: boolean;
+  tokensIn?: number;
+  tokensOut?: number;
+  /** thinking metadata (usage.completion_tokens_details.reasoning_tokens) */
+  reasoningTokens?: number;
+  purpose?: string;
+  laneClass?: string;
+  judge?: boolean;
+  /** picha zilibadilishwa na digest ya maandishi (lane bila vision) */
+  visionDegraded?: boolean;
+  /** bendera za ombi (si siri) — mf. reasoning_effort */
+  flags?: Record<string, unknown>;
 }
 
 // ── Defect ───────────────────────────────────────────────────────────────────

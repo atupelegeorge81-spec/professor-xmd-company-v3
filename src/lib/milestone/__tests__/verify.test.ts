@@ -362,6 +362,47 @@ describe("runVerifyRound (loop)", () => {
     expect(db.get(`${SID}|best:M1`)!.data).toMatchObject({ round: 2, tag: "xmd-best-M1" });
     expect(h.events.filter((e) => e.type === "verifyRound").map((e) => e.next)).toEqual(["CONTINUE", "SIGN_OFF"]);
   });
+  it("TASK-30 T4 (code): verdicts visionDegraded → sign-off ya visual INAKATALIWA → PAUSED_QUOTA (system resumeAt) → vision ikirudi: uthibitisho upya → SIGNED_OFF", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const h = harness({ 1: { designer: { cos: { "CO-001": "PASS" } }, frontend: { cos: { "CO-001": "PASS" } } } });
+    const base = h.hooks.verify!.deps!.complete!;
+    let degraded = 2; // wito 2 wa kwanza (reviewers wote) ulijibiwa na lane bila vision
+    h.hooks.verify!.deps!.complete = async (o) => { const r = await base(o); return degraded-- > 0 ? { ...r, visionDegraded: true } : r; };
+    const polls: boolean[] = [];
+    const states: string[] = [];
+    h.hooks.visionWait = { pollMs: 1, ready: () => {
+      states.push(db.get(`${SID}|state:M1`)!.data.status);
+      const ok = polls.length >= 1; polls.push(ok);
+      return { ready: ok, lane: ok ? "gemini-1:gemini-3.8-flash" : null };
+    } };
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data).toMatchObject({ status: "SIGNED_OFF", round: 1 });
+    expect(polls).toEqual([false, true]); // ukaguzi 1 bila nafasi → resumeAt mpya → ukaguzi 2 → RESUME
+    expect(states).toEqual(["PAUSED_QUOTA", "PAUSED_QUOTA"]);
+    const pe = h.events.find((e) => e.type === "milestonePaused");
+    expect(pe).toMatchObject({ status: "PAUSED_QUOTA", origin: "system" });
+    const ev = db.get(`${SID}|visionPause:M1`)!.data.events;
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ stepId: "M1.R1.decide", resumedOn: "gemini-1:gemini-3.8-flash" });
+    const vr = db.get(`${SID}|${verifyKey("M1", 1)}`)!.data;
+    expect(vr.degradedRuns).toHaveLength(1);
+    expect(vr.degradedRuns[0]).toMatchObject({ reviewers: ["designer", "frontend"], cos: [{ orderId: "CO-001", verdict: "PASS" }] });
+    expect(vr.rejudge).toBeUndefined();
+    expect(vr.runs.designer.visionDegraded).toBeFalsy();
+    expect(h.llm.filter((p) => p.startsWith("review-verify:")).length).toBe(4); // 2 degraded + 2 kwa vision halisi
+    expect(h.git.filter((g) => g.kind === "signoff")).toHaveLength(1); // sign-off MOJA tu, baada ya vision halisi
+  });
+  it("TASK-30: technical mode haiguswi na vision rule (hakuna pause)", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const h = harness({ 1: { designer: { cos: { "CO-001": "PASS" } }, frontend: { cos: { "CO-001": "PASS" } } } });
+    h.runner.msMap = { ...MAP, milestones: MAP.milestones.map((x) => ({ ...x, reviewMode: "technical" as const })) };
+    const base = h.hooks.verify!.deps!.complete!;
+    h.hooks.verify!.deps!.complete = async (o) => ({ ...(await base(o)), visionDegraded: true });
+    h.hooks.visionWait = { pollMs: 1, ready: () => { throw new Error("no pause expected"); } };
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data.status).toBe("SIGNED_OFF");
+    expect(db.get(`${SID}|visionPause:M1`)).toBeUndefined();
+  });
   it("check FAIL inapindua PASS ya reviewers wote (CO FAIL → CONTINUE)", async () => {
     await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
     const h = harness({ 1: { designer: { cos: { "CO-001": "PASS" } }, frontend: { cos: { "CO-001": "PASS" } } } }, { checkFail: (id, r) => r === 1 && id.startsWith("CO-001/") });

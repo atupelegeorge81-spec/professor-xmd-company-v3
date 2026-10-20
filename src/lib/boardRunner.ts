@@ -52,7 +52,9 @@ import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
 import { putRecord, getRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13 (getRecord: TASK-16)
 import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
-import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks, applyEscalation, escalateLlm, fixRoundHeader, freshMilestoneState } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16)
+import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks, applyEscalation, escalateLlm, fixRoundHeader, freshMilestoneState, recordLaneUse } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16) · TASK-30: recordLaneUse
+import { laneUseOf } from "./milestone/judge"; // TASK-30
+import { laneCallOf } from "./broker"; // TASK-30
 import { buildOCB, buildOCBForComputer, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14 (Computer OCB: TASK-16)
 import { buildStartPack, renderStartPack, type PrevBuild } from "./milestone/startpack"; // TASK-16
 import { applyTestProfile, maybeCapturePrompt, testMaxAgendas } from "./milestone/testHooks";
@@ -683,8 +685,8 @@ async function run(runner: Runner) {
     const planModeRun = runner.mode === "plan";
     // R16: title/agenda zinapitia Capacity Broker (client ya broker — model/key huchaguliwa kwa nafasi halisi)
     // R21: fast = njia ya haraka ya broker (Gemini Lite → Flash → Groq → XKiro …) kwa kazi zinazomsubirisha Mkuu
-    const pmClient = (purpose: string, cls: WorkClass, fast = false) => {
-      const c = brokerClient({ agentId: "pm", purpose, cls, priority: "live", fast }, (r, lane) => { const u = readUsage(r); if (u) recordUsage("pm", u, true, undefined, lane.provider); });
+    const pmClient = (purpose: string, cls: WorkClass, fast = false, allow?: ("gemini")[]) => {
+      const c = brokerClient({ agentId: "pm", purpose, cls, priority: "live", fast, allow }, (r, lane) => { const u = readUsage(r); if (u) recordUsage("pm", u, true, undefined, lane.provider); });
       // R16.1: Detach inakata wito huu pia; Resume inaurudia
       const create = (body: any) => pausable(`Optimus · ${purpose}`, (signal) => c.chat.completions.create(body, { signal }) as Promise<any>);
       return { chat: { completions: { create } } } as unknown as typeof c;
@@ -794,7 +796,7 @@ async function run(runner: Runner) {
       msgId: string,
       answer: boolean,
       maxTok = 2000,
-      o?: { cls?: WorkClass; priority?: Priority; critical?: boolean; effort?: "low" | "medium" | "high"; planWork?: boolean },
+      o?: { cls?: WorkClass; priority?: Priority; critical?: boolean; effort?: "low" | "medium" | "high"; planWork?: boolean; /** TASK-30: zamu ya mjadala wa REVIEW → lane ya judge + rekodi */ judge?: boolean; onLane?: (rec: ReturnType<typeof laneUseOf>) => void },
     ): Promise<string> => {
       await gate(agent.name);
       // R20: agizo la <think> ni kwa lanes zisizo na reasoning channel tu (XKiro, Gemini) — tazama thinkDirective.ts
@@ -804,7 +806,7 @@ async function run(runner: Runner) {
       const endWait = () => { if (waitAct) { activityEnd(waitAct); waitAct = null; } };
       const mkRun = () => brokerRun({
         agentId: agent.id, purpose: answer ? "board-turn" : "board-decide", cls: o?.cls ?? (answer ? "normal" : "light"),
-        messages: sent as never, maxOut: maxTok, priority: o?.priority ?? "live", reasoning: true, critical: o?.critical, effort: o?.effort, planWork: o?.planWork,
+        messages: sent as never, maxOut: maxTok, priority: o?.priority ?? "live", reasoning: true, critical: o?.critical, effort: o?.effort, planWork: o?.planWork, judge: o?.judge,
         onWait: (w) => {
           if (w && !waitAct) { waitAct = activityStart(`${agent.name} anasubiri nafasi…`); blog("info", `⏳ ${agent.name}: anasubiri nafasi ya lane (${w.cls})…`); }
           if (!w) endWait();
@@ -1032,6 +1034,7 @@ async function run(runner: Runner) {
           if (lengthCut) blog("error", `✂️ ${agent.name}: jibu bado limekatika baada ya kuendelezwa ${lengthHops} — halitafungwa kama uamuzi kamili.`);
           const cachedT = (exactUsage as ExactUsage | null)?.cached || 0;
           blog("success", `✅ ${agent.name} alimaliza kwa ${lease.label} (tokens: ${tokensUsed}${exactUsage ? "" : " ≈"}${finish && finish !== "stop" ? ` · finish ${finish}` : !finish && answer ? " · finish —" : ""}${cachedT ? ` · cache ${cachedT}` : ""}${lengthHops ? ` · imeendelezwa ${lengthHops}` : ""})`);
+          if (o?.judge && o.onLane) { try { o.onLane(laneUseOf(laneCallOf(lease, { prompt_tokens: finalUsage.prompt, completion_tokens: finalUsage.completion }, hop + 1, true), `review-discuss:${agent.id}`)); } catch { /* rekodi haiangushi zamu */ } }
           return full;
         } catch (err0: any) {
           endWait();
@@ -1239,7 +1242,8 @@ async function run(runner: Runner) {
       // ===== HATUA 1: AGENDA =====
       blog("system", "📋 Optimus anaunda agenda ya mradi...");
       addChip("📋 Optimus anaunda agenda ya mradi...");
-      const agendaResult = await generateAgenda(pmClient("agenda", "normal", true), pm.model, runner.project);
+      // TASK-30 (uamuzi wa mmiliki): XMD_MILESTONES ON → Optimus anaandika orodha ya agenda kwa Gemini Flash (heavy → Flash kwanza)
+      const agendaResult = await generateAgenda(milestonesEnabled() ? pmClient("agenda", "heavy", false, ["gemini"]) : pmClient("agenda", "normal", true), pm.model, runner.project);
       agenda = agendaResult.items;
       { // TASK-14 test hook (XMD_TEST_HOOKS=1 pekee): punguza agenda kwa majaribio mafupi
         const cap = testMaxAgendas();
@@ -2062,7 +2066,8 @@ ${delib.instructionFor(agent.id)}`;
             ],
             msgId,
             true,
-            rv ? REVIEW_TURN_MAX_TOKENS : 2400 // R26 (B1): 1100 ilikata maamuzi (A1 v1 / A3 v2 za R24) — thinking inakula bajeti pia · TASK-24: REVIEW ndefu
+            rv ? REVIEW_TURN_MAX_TOKENS : 2400, // R26 (B1): 1100 ilikata maamuzi (A1 v1 / A3 v2 za R24) — thinking inakula bajeti pia · TASK-24: REVIEW ndefu
+            rv ? { judge: true, onLane: (rec) => { void recordLaneUse(runner, rv.review.milestoneId, rec); } } : undefined, // TASK-30: mjadala wa REVIEW = judge
           );
 
           // Visible text must be clean.

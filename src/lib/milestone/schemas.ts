@@ -314,6 +314,10 @@ function laneInto(e: Errs, l: unknown, p: string): void {
   for (const k of ["visionCapable", "fallback"]) if (typeof l[k] !== "boolean") e.push(`${p}.${k}: must be a boolean (got ${show(l[k])})`);
   int(e, l, "tokens", p, 0);
   int(e, l, "ms", p, 0);
+  // TASK-30 (hiari): rekodi ya kila wito
+  for (const k of ["usedFallback", "judge", "visionDegraded"]) if (l[k] !== undefined && typeof l[k] !== "boolean") e.push(`${p}.${k}: must be a boolean (got ${show(l[k])})`);
+  for (const k of ["tokensIn", "tokensOut", "reasoningTokens"]) if (l[k] !== undefined) int(e, l, k, p, 0);
+  if (typeof l.keyId === "string" && l.keyId.length > 8 && !/^\*\*\*|\*\*\*$/.test(l.keyId)) e.push(`${p}.keyId: must be masked (got ${l.keyId.length} chars)`);
 }
 
 const STEP_ID = /^M\d+\.R\d+\.[a-z][a-z0-9_]*$/;
@@ -341,6 +345,9 @@ export function validateMilestoneState(s: unknown): ValidationResult<MilestoneSt
     if (HOLD_STATUSES.includes(s.resumeTo)) e.push(`${P}.resumeTo: must not be a pause/blocked status (got ${show(s.resumeTo)})`);
   }
   if (HOLD_STATUSES.includes(s.status) && s.resumeTo === undefined) e.push(`${P}.resumeTo: required when status is ${s.status}`);
+  // TASK-30: pause ya system (hiari)
+  if (s.resumeAt !== undefined && !isIso(s.resumeAt)) e.push(`${P}.resumeAt: must be an ISO date string (got ${show(s.resumeAt)})`);
+  if (s.pauseOrigin !== undefined && s.pauseOrigin !== "system" && s.pauseOrigin !== "user") e.push(`${P}.pauseOrigin: must be "system" or "user" (got ${show(s.pauseOrigin)})`);
   if (s.steps !== undefined) {
     if (!Array.isArray(s.steps)) e.push(`${P}.steps: must be an array (got ${show(s.steps)})`);
     else {

@@ -1,6 +1,6 @@
 // src/lib/broker/index.ts — mlango mmoja wa Capacity Broker.
-export { brokerRun, brokerComplete, brokerClient, brokerStatus, peekLane, continuationMessages, trimForContinuation, joinContinuation, looksCut, BrokerExhaustedError, isBrokerExhausted } from "./broker";
-export type { AcquireSpec, Lease, Run, WaitInfo, CompleteSpec, CompleteResult, WorkClass, Priority, Lane } from "./broker";
+export { brokerRun, brokerComplete, brokerClient, brokerStatus, peekLane, continuationMessages, trimForContinuation, joinContinuation, looksCut, BrokerExhaustedError, isBrokerExhausted, judgeVisionReady, laneCallOf, maskKeyTail } from "./broker";
+export type { AcquireSpec, Lease, Run, WaitInfo, CompleteSpec, CompleteResult, WorkClass, Priority, Lane, LaneCall } from "./broker";
 export { estimateTokens, classOf } from "./estimate";
 export { allLanes } from "./lanes";
 export { idleGuard, isStall, stallFirstMs, stallGapMs, type IdleGuard } from "./idle";

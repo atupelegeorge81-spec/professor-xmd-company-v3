@@ -41,7 +41,7 @@ export function transition(state: MilestoneState, event: MilestoneEvent, now = n
   if (event.type === "RESUME") {
     if (!isHold(from)) return { error: `illegal RESUME from ${from}: only PAUSED_QUOTA|PAUSED_INFRA|BLOCKED can resume` };
     if (!state.resumeTo || isHold(state.resumeTo)) return { error: `cannot RESUME ${state.id}: resumeTo missing or invalid (${String(state.resumeTo)})` };
-    const { resumeTo, ...rest } = state;
+    const { resumeTo, resumeAt: _ra, pauseOrigin: _po, pauseReason: _pr, ...rest } = state; // TASK-30: alama za pause zinaondoka
     return { state: { ...rest, status: resumeTo, updatedAt: now } };
   }
 
@@ -105,10 +105,12 @@ export function setStep(state: MilestoneState, stepId: string, status: StepStatu
 /** Ficha key: lebo fupi (≤8, mf. "uno#2") zinabaki; ndefu → herufi 4 za mwanzo + "***". */
 export function maskKeyId(k: string): string {
   const s = String(k || "");
-  if (s.endsWith("***")) return s;
+  if (s.endsWith("***") || s.startsWith("***")) return s; // TASK-30: "***a1b2" (herufi 4 za mwisho) tayari imefichwa
   return s.length <= 8 ? s : `${s.slice(0, 4)}***`;
 }
 
 export function appendLaneUse(state: MilestoneState, entry: LaneUse, now = nowIso()): MilestoneState {
-  return { ...state, lanesUsed: [...(state.lanesUsed || []), { ...entry, keyId: maskKeyId(entry.keyId) }], updatedAt: now };
+  // TASK-30: stepId tupu → hatua inayoendeshwa sasa (callers wa LLM hawajui ledger ya hatua)
+  const stepId = entry.stepId || state.currentStepId || `${state.id}.R${state.round}.review`;
+  return { ...state, lanesUsed: [...(state.lanesUsed || []), { ...entry, stepId, keyId: maskKeyId(entry.keyId) }], updatedAt: now };
 }

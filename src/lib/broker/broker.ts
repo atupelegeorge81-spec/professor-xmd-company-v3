@@ -19,7 +19,7 @@ import { nextUtcMidnight, noteRoute, takeUnoSlot } from "@/lib/server/usageLedge
 import { allLanes, type Lane } from "./lanes";
 import { classOf, estimateTokens, type Priority, type WorkClass } from "./estimate";
 import { classify, reroutable, type Verdict } from "./errors";
-import { admit, laneWeight, PLAN_PROVIDERS, score, SCARCE } from "./policy";
+import { admit, judgeTierOf, JUDGE_CHAIN, laneClassOf, laneWeight, PLAN_PROVIDERS, score, SCARCE, testLanesDown, visionCapable } from "./policy";
 import { isReasoningDump, repairHead } from "@/lib/board/turnText";
 import { bstate, recordOutcome, wakeAll, type Reservation } from "./state";
 import { idleGuard } from "./idle";
@@ -68,6 +68,11 @@ export interface AcquireSpec {
   fastTimeoutMs?: number;
   /** R26 · Gemini: reasoning_effort (thinking inakula max_tokens) — "low" kwa review/observer. Imethibitishwa: "none" → 400. */
   effort?: "low" | "medium" | "high";
+  /** TASK-30 · JUDGE: mnyororo wa policy.JUDGE_CHAIN pekee (Flash keys 4 → XKiro → Flash-Lite), thinking ON kwa Gemini */
+  judge?: boolean;
+  /** TASK-30 (vision rule): judge mwenye picha — lane YENYE vision ndani ya mnyororo inatangulia isiyo na vision
+   *  (degrade ni pale tu hakuna lane ya vision yenye nafasi) */
+  vision?: boolean;
 }
 
 export interface Lease {
@@ -82,6 +87,8 @@ export interface Lease {
   extraBody: Record<string, unknown>;
   cls: WorkClass;
   startedAt: number;
+  /** TASK-30: key iliyotumika — imefichwa (herufi 4 za mwisho tu) */
+  keyId: string;
   done(usage?: { total_tokens?: number } | null): void;
   fail(err: unknown): Verdict & { reroute: boolean };
   /** R20: achilia lane bila adhabu wala mafanikio (mtandao wetu ulikatika — si kosa la provider) */
@@ -119,26 +126,38 @@ function clientFor(lane: Lane, key: string): OpenAI {
 
 type Pick = { lane: Lane; maxTokens: number } | { waitUntil: number } | { exhausted: number | null };
 
-function pick(cls: WorkClass, estIn: number, maxOut: number, agentId: string, excluded: Set<string>, deadline: number, allow?: ProviderId[], now = Date.now(), critical = false, fast = false, planWork = false): Pick {
+/** TASK-30: mzunguko wa judge — matumizi kwa key (akaunti) na kwa lane tangu process ianze */
+const JR = ((globalThis as unknown as { __xmdJudgeRot?: { acct: Map<string, number>; lane: Map<string, number> } }).__xmdJudgeRot ||= { acct: new Map(), lane: new Map() });
+/** judge: daraja (Flash > XKiro > Lite) kwanza, kisha key iliyotumika kidogo, lane iliyotumika kidogo, model bora (rank) */
+const judgeBetter = (a: { lane: Lane; w: number }, b: { lane: Lane; w: number }) =>
+  a.w !== b.w ? a.w > b.w
+    : (JR.acct.get(a.lane.account) || 0) !== (JR.acct.get(b.lane.account) || 0) ? (JR.acct.get(a.lane.account) || 0) < (JR.acct.get(b.lane.account) || 0)
+      : (JR.lane.get(a.lane.id) || 0) !== (JR.lane.get(b.lane.id) || 0) ? (JR.lane.get(a.lane.id) || 0) < (JR.lane.get(b.lane.id) || 0)
+        : (a.lane.rank ?? 0) < (b.lane.rank ?? 0);
+
+function pick(cls: WorkClass, estIn: number, maxOut: number, agentId: string, excluded: Set<string>, deadline: number, allow?: ProviderId[], now = Date.now(), critical = false, fast = false, planWork = false, judge = false, vision = false): Pick {
   const S = bstate();
   const sticky = S.sticky.get(agentId);
   const stickyId = sticky && now - sticky.at < 10 * 60_000 ? sticky.laneId : undefined;
+  const down = judge ? testLanesDown() : new Set<string>(); // TASK-30 test hook (judge pekee)
   // R49: planWork = Mpango Kazi — providers zilizoruhusiwa PEKEE (Gemini/Groq zinaondolewa kabla ya score yoyote).
-  const lanes = allLanes().filter((l) => !excluded.has(l.id) && (!planWork || PLAN_PROVIDERS.includes(l.provider)) && laneWeight(cls, l, fast, planWork) > 0 && (!allow || allow.includes(l.provider)));
+  const lanes = allLanes().filter((l) => !excluded.has(l.id) && !down.has(laneClassOf(l)) && (!planWork || PLAN_PROVIDERS.includes(l.provider)) && laneWeight(cls, l, fast, planWork, judge) > 0 && (!allow || allow.includes(l.provider)));
   let best: { lane: Lane; maxTokens: number; s: number; w: number } | null = null;
   const upcoming: { at: number; w: number }[] = [];
   for (const lane of lanes) {
     const a = admit(lane, estIn, maxOut, now, { critical });
-    const w = laneWeight(cls, lane, fast, planWork);
+    const w = laneWeight(cls, lane, fast, planWork, judge) + (judge && vision && visionCapable(lane) ? 10 : 0);
     if (a.ok) {
-      const s = score(lane, cls, a.headroom, stickyId, fast, planWork);
-      if (!best || s > best.s) best = { lane, maxTokens: a.maxTokens, s, w };
+      const s = score(lane, cls, a.headroom, stickyId, fast, planWork, judge);
+      const cand = { lane, maxTokens: a.maxTokens, s, w };
+      if (!best || (judge ? judgeBetter(cand, best) : s > best.s)) best = cand;
     } else if (a.readyAt != null) upcoming.push({ at: a.readyAt, w });
   }
   if (best) {
     // lane bora iliyo wazi ni ya uzito mdogo (au ya provider adimu — OpenRouter), na bora zaidi itafunguka ndani
     // ya dirisha → subiri kidogo (thinking inaendelea kwenye UI; hakuna request adimu inayopotea)
-    if ((best.w < 0.6 || SCARCE.includes(best.lane.provider)) && now < deadline) {
+    // TASK-30 judge: daraja la juu (Flash) likifunguka ndani ya dirisha (rpm/cooling) → subiri — fall-through ni kwa quota/upatikanaji tu
+    if ((best.w < 0.6 || SCARCE.includes(best.lane.provider) || judge) && now < deadline) {
       const better = upcoming.filter((u) => u.w > best!.w && u.at <= deadline);
       if (better.length) return { waitUntil: Math.min(...better.map((u) => u.at)) };
     }
@@ -188,7 +207,7 @@ export function brokerRun(spec: AcquireSpec): Run {
       for (;;) {
         if (spec.signal?.aborted) throw abortError();
         const now = Date.now();
-        const p = pick(cls, estIn, spec.maxOut, spec.agentId, excluded, deadline, spec.allow, now, !!spec.critical, !!spec.fast, !!spec.planWork);
+        const p = pick(cls, estIn, spec.maxOut, spec.agentId, excluded, deadline, spec.allow, now, !!spec.critical, !!spec.fast, !!spec.planWork, !!spec.judge, !!spec.vision);
         if ("lane" in p) {
           if (waited) spec.onWait?.(null);
           return dispatch(p.lane, p.maxTokens);
@@ -203,7 +222,7 @@ export function brokerRun(spec: AcquireSpec): Run {
         if (PRIO_DELAY[prio] && Date.now() < p.waitUntil) await new Promise((r) => setTimeout(r, PRIO_DELAY[prio]));
         if (Date.now() >= deadline + PRIO_DELAY[prio]) {
           // dirisha limeisha: jaribio la mwisho bila kusubiri
-          const last = pick(cls, estIn, spec.maxOut, spec.agentId, excluded, 0, spec.allow, Date.now(), !!spec.critical, !!spec.fast, !!spec.planWork);
+          const last = pick(cls, estIn, spec.maxOut, spec.agentId, excluded, 0, spec.allow, Date.now(), !!spec.critical, !!spec.fast, !!spec.planWork, !!spec.judge, !!spec.vision);
           if ("lane" in last) { spec.onWait?.(null); return dispatch(last.lane, last.maxTokens); }
           throw new BrokerExhaustedError("waitUntil" in last ? last.waitUntil : "exhausted" in last ? last.exhausted : null, cls);
         }
@@ -235,9 +254,15 @@ export function brokerRun(spec: AcquireSpec): Run {
     };
     const extraBody: Record<string, unknown> = spec.reasoning && lane.reasoning ? { include_reasoning: true } : {};
     if (spec.effort && lane.provider === "gemini") extraBody.reasoning_effort = spec.effort;
+    if (spec.judge) {
+      // TASK-30: thinking ON kwa judge kwenye Gemini (helper ileile ya R26: reasoning_effort; thought signatures hazibadiliki)
+      if (lane.provider === "gemini") extraBody.reasoning_effort = spec.effort || "high";
+      JR.acct.set(lane.account, (JR.acct.get(lane.account) || 0) + 1);
+      JR.lane.set(lane.id, (JR.lane.get(lane.id) || 0) + 1);
+    }
     return {
       id, lane, model: lane.model, provider: lane.provider, account: lane.account, label: lane.label,
-      client: clientFor(lane, key), maxTokens, extraBody, cls, startedAt: now,
+      client: clientFor(lane, key), maxTokens, extraBody, cls, startedAt: now, keyId: maskKeyTail(key),
       done() {
         if (!settle()) return;
         recordOutcome(lane.id, true, Date.now() - now);
@@ -283,8 +308,32 @@ export interface CompleteSpec extends AcquireSpec {
   /** TASK-23: kimya cha juu kabla ya token ya kwanza (default BROKER_STALL_FIRST_MS = 90s). Thinking nzito (Gemini haitumi
    *  mawazo kwenye stream) + picha → reviewer anaweza kukaa kimya > 90s bila kukwama. */
   stallFirstMs?: number;
+  /** TASK-30 (vision rule): messages kwa lane iliyochaguliwa — mf. lane isiyo na vision → digest ya maandishi badala ya picha */
+  messagesFor?: (lane: Lane) => Msg[] | Promise<Msg[]>;
 }
-export interface CompleteResult { text: string; reasoning: string; usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null; lane: Lane; hops: number }
+/** TASK-30: rekodi ya wito mmoja (task 10 `lanesUsed`) — hakuna siri: keyId = herufi 4 za mwisho tu */
+export interface LaneCall {
+  callId: string; lane: string; model: string; provider: ProviderId; laneClass: string; keyId: string;
+  visionCapable: boolean; usedFallback: boolean; judge: boolean; judgeTier: number;
+  tokensIn: number; tokensOut: number; reasoningTokens: number; ms: number; hops: number;
+  /** bendera za ombi (si siri) — mf. reasoning_effort */
+  flags: Record<string, unknown>;
+}
+export interface CompleteResult { text: string; reasoning: string; usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } } | null; lane: Lane; hops: number; call: LaneCall }
+
+/** TASK-30: ficha key — herufi 4 za mwisho tu ("***a1b2"); fupi sana → "***" */
+export const maskKeyTail = (key: string): string => (String(key || "").length >= 12 ? `***${String(key).slice(-4)}` : "***");
+
+export function laneCallOf(lease: { id: string; lane: Lane; keyId: string; startedAt: number; extraBody: Record<string, unknown> }, usage: CompleteResult["usage"], hops: number, judge: boolean, now = Date.now()): LaneCall {
+  const tier = judgeTierOf(lease.lane);
+  return {
+    callId: `${lease.id}-${lease.startedAt.toString(36)}`, lane: lease.lane.id, model: lease.lane.model, provider: lease.lane.provider, laneClass: laneClassOf(lease.lane),
+    keyId: lease.keyId, visionCapable: visionCapable(lease.lane), usedFallback: judge ? tier !== 0 : hops > 1, judge, judgeTier: judge ? tier : -1,
+    tokensIn: Number(usage?.prompt_tokens) || 0, tokensOut: Number(usage?.completion_tokens) || 0,
+    reasoningTokens: Number(usage?.completion_tokens_details?.reasoning_tokens) || 0, ms: Math.max(0, now - lease.startedAt), hops,
+    flags: { ...lease.extraBody },
+  };
+}
 
 /**
  * R16.1 — wito "usio wa stream" unatumwa KAMA stream ndani kwa ndani na kukusanywa: provider aliyekwama
@@ -347,7 +396,7 @@ export async function brokerComplete(spec: CompleteSpec): Promise<CompleteResult
       const r: any = await collect(
         lease,
         {
-          messages: spec.messages as any,
+          messages: (spec.messagesFor ? await spec.messagesFor(lease.lane) : spec.messages) as any,
           temperature: spec.temperature ?? 0.3,
           ...(spec.responseFormat ? { response_format: spec.responseFormat } : {}),
         },
@@ -364,7 +413,7 @@ export async function brokerComplete(spec: CompleteSpec): Promise<CompleteResult
         continue;
       }
       lease.done(r?.usage);
-      return { text, reasoning, usage: r?.usage ?? null, lane: lease.lane, hops: hop + 1 };
+      return { text, reasoning, usage: r?.usage ?? null, lane: lease.lane, hops: hop + 1, call: laneCallOf(lease, r?.usage ?? null, hop + 1, !!spec.judge) };
     } catch (e) {
       lastErr = e;
       // R20: mtandao wetu umekatika → subiri urudi, kisha jaribu tena (hop haihesabiwi, lane haiadhibiwi)
@@ -489,6 +538,18 @@ export function joinContinuation(prefix: string, cont: string): string {
 export function peekLane(agentId: string, cls: WorkClass = "normal", estIn = 5000, maxOut = 2000): Lane | null {
   const p = pick(cls, estIn, maxOut, agentId, new Set(), 0);
   return "lane" in p ? p.lane : null;
+}
+
+/** TASK-30: je, kuna lane ya judge YENYE vision na nafasi sasa hivi? (sign-off ya visual inasubiri hii — PAUSED_QUOTA) */
+export function judgeVisionReady(now = Date.now(), estIn = 20_000, maxOut = 16_000): { ready: boolean; lane: string | null } {
+  const down = testLanesDown();
+  for (const cls of JUDGE_CHAIN) {
+    for (const l of allLanes()) {
+      if (laneClassOf(l) !== cls || down.has(cls) || !visionCapable(l)) continue;
+      if (admit(l, estIn, maxOut, now).ok) return { ready: true, lane: l.id };
+    }
+  }
+  return { ready: false, lane: null };
 }
 
 export function brokerStatus() {

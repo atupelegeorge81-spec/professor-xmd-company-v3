@@ -68,9 +68,33 @@ export const PLAN_PROVIDERS: ProviderId[] = ["xkiro", "unorouter", "openrouter"]
 const PLAN_WEIGHTS: Record<string, number> = { xkiro: 1, unorouter: 0.85, openrouter: 0.7 };
 export const planWeightOf = (lane: Lane): number => PLAN_WEIGHTS[lane.provider] ?? 0;
 
-/** Uzito unaotumika kweli: mpango → planWeightOf; njia ya haraka → fastWeightOf; vinginevyo darasa la kawaida. */
-export function laneWeight(cls: WorkClass, lane: Lane, fast?: boolean, plan?: boolean): number {
-  return plan ? planWeightOf(lane) : fast ? fastWeightOf(lane) : weightOf(cls, lane);
+/** TASK-30 · JUDGE (uamuzi wa mmiliki — usibadilishe): kila kinachohukumu au kuchambua picha (reviewer analysis,
+ *  verification, mjadala wa review) kinatumia mnyororo HUU PEKEE, kwa mpangilio huu:
+ *    1) Gemini Flash — models ZOTE za Flash kwenye keys ZOTE 4 (thinking ON) — zinazungushwa (broker.pick)
+ *    2) XKiro — Flash ikikosa nafasi (admission ya kawaida: quota/rpm/circuit)
+ *    3) Gemini Flash-Lite — XKiro ikikosa nafasi
+ *  Lanes nyingine zote na policies zake hazibadiliki (judge ni darasa jipya, si uzito mpya wa madarasa ya zamani). */
+export type LaneClassId = "gemini-flash" | "gemini-flash-lite" | Exclude<ProviderId, "gemini">;
+export const laneClassOf = (lane: Lane): LaneClassId => (lane.provider === "gemini" ? (lane.tier === "lite" ? "gemini-flash-lite" : "gemini-flash") : lane.provider);
+export const JUDGE_CHAIN: readonly LaneClassId[] = ["gemini-flash", "xkiro", "gemini-flash-lite"];
+/** nafasi kwenye mnyororo wa judge (0 = Flash) · -1 = lane haipo kwenye judge */
+export const judgeTierOf = (lane: Lane): number => JUDGE_CHAIN.indexOf(laneClassOf(lane));
+export const judgeWeightOf = (lane: Lane): number => { const t = judgeTierOf(lane); return t < 0 ? 0 : JUDGE_CHAIN.length - t; };
+
+/** FLOW-MAP F (jaribio halisi la picha 64×64): Flash, XKiro qwen na Flash-Lite ZOTE zilijibu "Red". Groq/Uno/OpenRouter hazikuthibitishwa. */
+export const VISION_PROVEN: readonly LaneClassId[] = ["gemini-flash", "xkiro", "gemini-flash-lite"];
+const testClasses = (name: string, env: Record<string, string | undefined>): Set<string> =>
+  env.XMD_TEST_HOOKS === "1" ? new Set(String(env[name] || "").split(",").map((x) => x.trim()).filter(Boolean)) : new Set();
+/** TASK-30 test hook (XMD_TEST_HOOKS=1 pekee): `XMD_TEST_LANES_DOWN=gemini-flash,xkiro` — lane classes hizo hazipatikani kwa judge. */
+export const testLanesDown = (env: Record<string, string | undefined> = process.env) => testClasses("XMD_TEST_LANES_DOWN", env);
+/** TASK-30 test hook (XMD_TEST_HOOKS=1 pekee; uamuzi wa CEO): `XMD_TEST_LANES_NOVISION=xkiro` — lane class ihesabiwe haina vision (T4). */
+export const testLanesNoVision = (env: Record<string, string | undefined> = process.env) => testClasses("XMD_TEST_LANES_NOVISION", env);
+export const visionCapable = (lane: Lane, env: Record<string, string | undefined> = process.env): boolean =>
+  VISION_PROVEN.includes(laneClassOf(lane)) && !testLanesNoVision(env).has(laneClassOf(lane));
+
+/** Uzito unaotumika kweli: judge → judgeWeightOf; mpango → planWeightOf; njia ya haraka → fastWeightOf; vinginevyo darasa la kawaida. */
+export function laneWeight(cls: WorkClass, lane: Lane, fast?: boolean, plan?: boolean, judge?: boolean): number {
+  return judge ? judgeWeightOf(lane) : plan ? planWeightOf(lane) : fast ? fastWeightOf(lane) : weightOf(cls, lane);
 }
 
 const gemLimits = (lane: Lane) => (lane.tier === "flash" ? { rpd: GEMINI_FLASH_RPD, rpm: GEMINI_FLASH_RPM } : { rpd: GEMINI_LITE_RPD, rpm: GEMINI_LITE_RPM });
@@ -199,8 +223,8 @@ export function admit(lane: Lane, estIn: number, wantOut: number, now = Date.now
  * Mpangilio wa darasa ndio mkuu (NORMAL inabaki XKiro mpaka iishe kweli — admission inaiweka kando); headroom
  * inaamua kati ya akaunti za provider mmoja (mf. XKiro 1 vs 2) na afya inashusha lane zinazoyumba.
  */
-export function score(lane: Lane, cls: WorkClass, headroom: number, stickyLaneId?: string, fast?: boolean, plan?: boolean): number {
-  const w = laneWeight(cls, lane, fast, plan);
+export function score(lane: Lane, cls: WorkClass, headroom: number, stickyLaneId?: string, fast?: boolean, plan?: boolean, judge?: boolean): number {
+  const w = laneWeight(cls, lane, fast, plan, judge);
   if (!w) return 0;
   const sticky = stickyLaneId === lane.id ? 0.05 : 0;
   return w * (0.85 + 0.15 * headroom) * healthScore(lane.id) + sticky;

@@ -3,15 +3,17 @@
 // runMilestoneBuild ni STUB kwa sasa (tasks 15+ zinabadilisha mwili wake). Inatumika TU XMD_MILESTONES=1.
 
 import { milestonesEnabled } from "./flag";
-import { HOLD_STATUSES, newMilestoneState, planSteps, setStep, stepIdOf, transition, TERMINAL_STATUSES } from "./state";
+import { appendLaneUse, HOLD_STATUSES, newMilestoneState, planSteps, setStep, stepIdOf, transition, TERMINAL_STATUSES } from "./state";
+import { digestKey, makeImageDigest, type ImageDigest } from "./judge"; // TASK-30
+import { judgeVisionReady } from "../broker/broker"; // TASK-30
 import type { MilestonePlanResult } from "./plan";
 import { BUILD_REPORT_INLINE_MAX, buildReportPath, crossCheckBuildReport, parseBuildReport, type BuildReportCommand } from "./buildReport";
 import { evidenceKey } from "./evidence"; // TASK-19
 import type { DomJson } from "./review"; // TASK-26 (occlusion)
 import { getRecord, msChip, MS_PREFIX, stateKey, updateRecord, type Versioned } from "./store";
-import { MAX_ROUNDS, type ChangeOrder, type Check, type Defect, type EvidenceCheckResult, type EvidencePack, type Milestone, type MilestoneMap, type MilestoneState, type MilestoneStatus, type RoundHeaderData, type WaiverEntry } from "./types";
+import { MAX_ROUNDS, type LaneUse, type ChangeOrder, type Check, type Defect, type EvidenceCheckResult, type EvidencePack, type Milestone, type MilestoneMap, type MilestoneState, type MilestoneStatus, type RoundHeaderData, type WaiverEntry } from "./types";
 import { formatRoundHeader, reviewRound0, REVIEWERS, type ReviewContext, type ReviewDeps, type ReviewerId } from "./review"; // TASK-24 (T23 analyses)
-import { consolidate, cosKey, DECISIONS_KEY, makeReviewAgendaItem, nextCoNumber, reviewAgendaId, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
+import { consolidate, cosKey, DECISIONS_KEY, findingsKey, reviewKey, makeReviewAgendaItem, nextCoNumber, reviewAgendaId, reviewParticipants, runReviewRound, type ConsolidateInput, type ConsolidateResult, type DiscussionOutcome, type ReviewAgendaItem, type ReviewRoundResult } from "./reviewAgenda"; // TASK-24
 import { brokerComplete } from "../broker/broker"; // TASK-24: Optimus consolidate
 import { castAgentId, reviewCast, technicalHints, type ReviewCast } from "./techEvidence"; // TASK-29
 import { validateMilestonePlan } from "./plan"; // TASK-29 (technicalHints)
@@ -44,6 +46,8 @@ export interface LoopHooks {
   addChip: (text: string) => void;
   blog: (level: "info" | "success" | "warning" | "error" | "system", text: string) => void;
   persist: () => Promise<void>;
+  /** TASK-30 (tests): muda wa ukaguzi wa PAUSED_QUOTA ya vision + chanzo cha "vision ina nafasi?" (default: broker.judgeVisionReady) */
+  visionWait?: { pollMs?: number; ready?: () => { ready: boolean; lane: string | null } };
   /** agenda zilizofungwa kwenye Ledger (chanzo cha ukweli) */
   resolvedAgendas: () => Promise<Set<number>>;
   /** TASK-15: Optimus anaandika plan ya milestone (bila hook → stub ya task 14) */
@@ -235,12 +239,14 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
     const cur = (await getRecord<MilestoneState>(runner.sessionId, stateKey(m.id)))?.data ?? null;
     const status = cur?.status ?? "DISCUSSING";
     if (TERMINAL_STATUSES.includes(status)) continue;
-    if (HOLD_STATUSES.includes(status)) continue; // TASK-15: BLOCKED (plan haitekelezeki) / PAUSED — hairudiwi yenyewe
+    const visionHold = isVisionHold(cur); // TASK-30: PAUSED_QUOTA ya SYSTEM (vision) — inasubiri resumeAt kisha inaendelea yenyewe
+    if (HOLD_STATUSES.includes(status) && !visionHold) continue; // TASK-15: BLOCKED (plan haitekelezeki) / PAUSED — hairudiwi yenyewe
     if ((status === "VERIFYING" && !hooks.verify) || (status === "FIXING" && !hooks.fix)) continue; // TASK-24/25/26: FIXING → hooks.fix · VERIFYING → hooks.verify
     const lockKey = `${runner.sessionId}:${m.id}`;
     if (running.has(lockKey)) continue;
     running.add(lockKey);
     try {
+      if (visionHold && !(await waitVisionThenResume(runner, m, hooks, hooks.visionWait))) continue;
       let won = false;
       if (status === "DISCUSSING") {
         try {
@@ -443,7 +449,8 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
     participants: reviewParticipants(ctx.extraParticipants, cast), roundHeader: formatRoundHeader(header0), cast,
   }, {
     analyse: async () => {
-      const r = await reviewRound0(ev, ctx.analyseCtx, { log: (lvl, t) => hooks.blog(lvl, t), ...(rh.analyseDeps || {}) });
+      const imageDigest = await ensureDigest(runner, m, 0, ev, hooks, rh.analyseDeps?.loadImage); // TASK-30: Flash vision MAPEMA
+      const r = await reviewRound0(ev, ctx.analyseCtx, { log: (lvl, t) => hooks.blog(lvl, t), imageDigest, onLane: laneSink(runner, m), ...(rh.analyseDeps || {}) });
       return {
         designer: r.designer.findings, frontend: r.frontend.findings,
         meta: { independence: { ok: r.independence.ok, hashesDiffer: r.independence.hashesDiffer, leaks: [r.independence.designerLeakIntoFrontend.length, r.independence.frontendLeakIntoDesigner.length] }, designer: r.designer.meta, frontend: r.frontend.meta },
@@ -469,9 +476,130 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
     await hooks.persist();
     return { ok: false, state: rec.data, result };
   }
+  // TASK-30: NO_CHANGES → sign-off ifuatayo; visual/mixed HAIKUBALI verdicts za visionDegraded → PAUSED_QUOTA → vision ikirudi: R0 upya
+  if (m.reviewMode !== "technical") {
+    const fr = (await getRecord<{ meta?: Record<string, { visionDegraded?: boolean; lane?: string } | undefined> }>(sid, findingsKey(m.id, 0)))?.data;
+    const deg = REVIEWERS.filter((r) => fr?.meta?.[r]?.visionDegraded);
+    if (deg.length) {
+      hooks.addChip(`🚫 ${m.id} R0: sign-off ya ${m.reviewMode} imekataliwa — verdicts ni visionDegraded (${deg.join(", ")})`);
+      const lanes = Object.fromEntries(REVIEWERS.map((r) => [r, String(fr?.meta?.[r]?.lane || "")]));
+      await msUpdate(runner, findingsKey(m.id, 0), (cur) => ({ ...(cur as object), superseded: true }));
+      await msUpdate(runner, reviewKey(m.id, 0), (cur) => ({ ...(cur as object), superseded: true }));
+      if (!(await pauseForVision(runner, m, hooks, id, `R0 verdicts visionDegraded (${deg.join(", ")})`, lanes))) return { ok: false, state: (await getRecord<MilestoneState>(sid, stateKey(m.id)))!.data, result };
+      return runReviewStep(runner, m, hooks, id);
+    }
+  }
+  await emitLaneDigest(runner, m, hooks, "R0");
   const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "DONE")));
   await hooks.persist();
   return { ok: true, state: rec.data, result };
+}
+
+/* ============================ TASK-30: judge lanes · vision rule ============================ */
+
+export const visionPauseKey = (milestoneId: string) => `visionPause:${milestoneId}`;
+/** muda kati ya ukaguzi wa nafasi ya vision wakati wa PAUSED_QUOTA (mmiliki: muda si tatizo — tunasubiri) */
+export const VISION_POLL_MS = 3 * 60_000;
+const isVisionHold = (s: MilestoneState | null | undefined) => s?.status === "PAUSED_QUOTA" && s.pauseOrigin === "system" && /^vision:/.test(s.pauseReason || "");
+
+/** rekodi ya wito wa judge → state.lanesUsed (append-only; CAS ya store inalinda wito sambamba). Haiangushi loop. */
+export async function recordLaneUse(runner: LoopRunner, milestoneId: string, rec: LaneUse): Promise<void> {
+  if (!runner.sessionId) return;
+  try { await msUpdate<MilestoneState>(runner, stateKey(milestoneId), (s) => appendLaneUse((s ?? freshMilestoneState(milestoneId)) as MilestoneState, rec)); }
+  catch (e) { console.warn(`[milestone] lanesUsed ${milestoneId}: ${String((e as Error)?.message || e).slice(0, 160)}`); }
+}
+const lanePending = new WeakMap<LoopRunner, Set<Promise<void>>>();
+const laneSink = (runner: LoopRunner, m: Milestone) => (rec: LaneUse) => {
+  const set = lanePending.get(runner) || new Set<Promise<void>>();
+  lanePending.set(runner, set);
+  const p = recordLaneUse(runner, m.id, rec).finally(() => set.delete(p));
+  set.add(p);
+};
+const laneShown = new WeakMap<LoopRunner, Map<string, number>>();
+/** chip INAYOONEKANA (inaingia kwenye Export .md): muhtasari wa lanes za judge + kila wito mpya tangu muhtasari uliopita. */
+async function emitLaneDigest(runner: LoopRunner, m: Milestone, hooks: LoopHooks, label: string): Promise<void> {
+  try {
+    await Promise.all([...(lanePending.get(runner) || [])]);
+    const all = (await getRecord<MilestoneState>(runner.sessionId as string, stateKey(m.id)))?.data?.lanesUsed || [];
+    const seen = laneShown.get(runner) || new Map<string, number>();
+    laneShown.set(runner, seen);
+    const fresh = all.slice(seen.get(m.id) ?? 0);
+    if (!fresh.length) return;
+    seen.set(m.id, all.length);
+    const by: Record<string, number> = {};
+    for (const x of all) by[x.laneClass || x.lane] = (by[x.laneClass || x.lane] || 0) + 1;
+    const keys: Record<string, number> = {};
+    for (const x of all) if (x.laneClass === "gemini-flash") keys[x.keyId] = (keys[x.keyId] || 0) + 1;
+    const n = (f: (x: LaneUse) => boolean) => all.filter(f).length;
+    const head = `🔌 ${m.id} lanes (${label}): wito ${all.length} · ${Object.entries(by).map(([k, v]) => `${k} ${v}`).join(" · ")}${Object.keys(keys).length ? ` · Flash keys ${Object.entries(keys).map(([k, v]) => `${k}×${v}`).join(" ")}` : ""} · fallback ${n((x) => !!(x.usedFallback ?? x.fallback))} · visionDegraded ${n((x) => !!x.visionDegraded)} · thinking tokens ${all.reduce((a, x) => a + (x.reasoningTokens || 0), 0)}`;
+    const rows = fresh.slice(-16).map((x) => `- ${x.callId} · ${x.stepId} · ${x.purpose || "?"} → ${x.lane} (${x.model}) key ${x.keyId} · vision ${x.visionCapable ? "yes" : "NO"}${x.visionDegraded ? " · visionDegraded" : ""}${(x.usedFallback ?? x.fallback) ? " · fallback" : ""} · in ${x.tokensIn ?? "?"} / out ${x.tokensOut ?? "?"}${x.reasoningTokens ? ` (thinking ${x.reasoningTokens})` : ""} · ${(x.ms / 1000).toFixed(1)}s`);
+    hooks.addChip([head, ...(fresh.length > 16 ? [`- … ${fresh.length - 16} za mwanzo ziko kwenye state:${m.id}.lanesUsed`] : []), ...rows].join("\n"));
+  } catch (e) { console.warn(`[milestone] lane digest ${m.id}: ${String((e as Error)?.message || e).slice(0, 160)}`); }
+}
+
+/** digest ya picha za raundi (wito wa Flash wenye vision, KABLA ya wito wa judge) — imehifadhiwa `digest:Mk:Rn`. */
+async function ensureDigest(runner: LoopRunner, m: Milestone, round: number, pack: EvidencePack, hooks: LoopHooks, loadImage?: ReviewDeps["loadImage"]): Promise<Record<string, string> | null> {
+  if (m.reviewMode === "technical" || !(pack.screenshots || []).length || !runner.sessionId) return null;
+  const have = (await getRecord<ImageDigest>(runner.sessionId, digestKey(m.id, round)))?.data;
+  if (have?.byId) return have.byId;
+  try {
+    const d = await makeImageDigest(pack, { loadImage, onLane: laneSink(runner, m) });
+    if (!d) { hooks.blog("warning", `🖼️ ${m.id} R${round}: digest ya picha haikupatikana — lane bila vision ingetumia DOM metrics pekee.`); return null; }
+    await msUpdate(runner, digestKey(m.id, round), () => d);
+    hooks.blog("info", `🖼️ ${m.id} R${round}: digest ya picha ${Object.keys(d.byId).length} (${d.lane}) — kwa lanes bila vision.`);
+    return d.byId;
+  } catch (e: any) {
+    hooks.blog("warning", `🖼️ ${m.id} R${round}: digest ya picha imeshindwa: ${String(e?.message || e).slice(0, 160)}`);
+    return null;
+  }
+}
+
+/** PAUSED_QUOTA (origin system, resumeAt) — hatua husika FAILED (resume inairudia), kisha INASUBIRI lane ya vision. */
+async function pauseForVision(runner: LoopRunner, m: Milestone, hooks: LoopHooks, stepId: string, why: string, lanes: Record<string, string> = {}): Promise<boolean> {
+  const resumeAt = new Date(Date.now() + (hooks.visionWait?.pollMs ?? VISION_POLL_MS)).toISOString();
+  await emitLaneDigest(runner, m, hooks, `kabla ya pause · ${stepId}`);
+  await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
+    const st = must(transition(must(setStep(s as MilestoneState, stepId, "FAILED")), { type: "GOTO", to: "PAUSED_QUOTA" }));
+    return { ...st, resumeAt, pauseOrigin: "system", pauseReason: `vision: ${why}` };
+  });
+  await msUpdate<{ version: number; events: unknown[] }>(runner, visionPauseKey(m.id), (cur) => ({ version: 1, events: [...(cur?.events || []), { stepId, why, lanes, pausedAt: new Date().toISOString(), resumeAt }] }));
+  hooks.bcast({ type: "milestonePaused", id: m.id, status: "PAUSED_QUOTA", origin: "system", reason: why, resumeAt });
+  hooks.addChip(`⏸️ ${m.id} PAUSED_QUOTA — ${why}. Inasubiri lane ya judge yenye vision (ukaguzi ${resumeAt.slice(11, 16)} UTC).`);
+  hooks.blog("warning", `⏸️ ${m.id} → PAUSED_QUOTA (system · resumeAt ${resumeAt}) — ${why}.`);
+  await hooks.persist();
+  return waitVisionThenResume(runner, m, hooks, hooks.visionWait);
+}
+
+/** Subiri resumeAt → kagua nafasi ya vision (broker) → RESUME, au resumeAt mpya na kusubiri tena. false = si pause ya vision / imesimamishwa. */
+export async function waitVisionThenResume(runner: LoopRunner, m: Milestone, hooks: LoopHooks, opts: { pollMs?: number; ready?: () => { ready: boolean; lane: string | null } } = {}): Promise<boolean> {
+  const sid = runner.sessionId as string;
+  const poll = opts.pollMs ?? VISION_POLL_MS;
+  for (;;) {
+    const st = (await getRecord<MilestoneState>(sid, stateKey(m.id)))?.data;
+    if (!isVisionHold(st)) return false;
+    const due = Date.parse(st!.resumeAt || "") || 0;
+    while (Date.now() < due) {
+      if ((runner as { stopRequested?: boolean }).stopRequested) return false;
+      await new Promise((r) => setTimeout(r, Math.min(15_000, Math.max(0, due - Date.now()))));
+    }
+    const ready = (opts.ready || judgeVisionReady)();
+    if (ready.ready) {
+      const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(s as MilestoneState, { type: "RESUME" })));
+      await msUpdate<{ version: number; events: Record<string, unknown>[] }>(runner, visionPauseKey(m.id), (cur) => {
+        const ev = [...(cur?.events || [])];
+        if (ev.length) ev[ev.length - 1] = { ...ev[ev.length - 1], resumedAt: new Date().toISOString(), resumedOn: ready.lane };
+        return { version: 1, events: ev };
+      });
+      hooks.addChip(`▶️ ${m.id}: lane ya vision ina nafasi tena (${ready.lane}) — inaendelea (${rec.data.status}).`);
+      hooks.blog("success", `▶️ ${m.id} RESUME → ${rec.data.status} (vision: ${ready.lane}).`);
+      await hooks.persist();
+      return true;
+    }
+    const next = new Date(Date.now() + poll).toISOString();
+    await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => ({ ...(s as MilestoneState), resumeAt: next, updatedAt: new Date().toISOString() }));
+    hooks.blog("info", `⏸️ ${m.id}: bado hakuna lane ya judge yenye vision na nafasi — ukaguzi ujao ${next.slice(11, 16)} UTC.`);
+    await hooks.persist();
+  }
 }
 
 /** TASK-29: cast ya reviewers ya milestone (visual/mixed → designer/frontend; technical → wataalamu wa roster). */
@@ -677,6 +805,9 @@ const emptyPack = (milestoneId: string, round: number, detail: string): Evidence
 interface VerifyRecord {
   version: number; id: string; round: number; header: string;
   runs: Record<ReviewerId, VerifyRun>;
+  /** TASK-30: sign-off ilikataliwa (verdicts visionDegraded) → uthibitisho unarudiwa vision ikirudi */
+  rejudge?: boolean;
+  degradedRuns?: { at: string; reviewers: string[]; cos: { orderId: string; verdict: string }[]; lanes: Record<string, string> }[];
   disputed: string[];
   sync: Partial<Record<ReviewerId, Record<string, VerifyVerdict>>> | null;
   syncTranscript?: { reviewer: ReviewerId; text: string }[];
@@ -821,19 +952,24 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
     receipts: (fixRec?.verification?.cos || []).map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus, touched: c.touched, diff: c.diff })),
     cast: milestoneCast(m), reviewMode: m.reviewMode, // TASK-29
   };
-  const deps: VerifyDeps = { log: (l, t) => hooks.blog(l, t), capture: (agent, phase, text) => { maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase, system: text }); }, ...(vh.deps || {}) };
+  const deps: VerifyDeps = { log: (l, t) => hooks.blog(l, t), capture: (agent, phase, text) => { maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase, system: text }); }, onLane: laneSink(runner, m), ...(vh.deps || {}) };
   const now = () => new Date().toISOString();
   let vr = (await getRecord<VerifyRecord>(sid, verifyKey(m.id, round)))?.data ?? null;
 
   // 2) reviewers wawili (peke yao) → sync MOJA wakitofautiana
-  if (!done(vId)) {
-    await running(vId);
+  const rejudge = !!vr && !vr.runs && !!vr.rejudge; // TASK-30: sign-off ilikataliwa (visionDegraded) → uthibitisho upya
+  if (!done(vId) || rejudge) {
+    if (!done(vId)) await running(vId);
     if (!vr?.runs) {
-      hooks.addChip(`🔍 ${m.id} R${round}: ${castNames(milestoneCast(m))} wanathibitisha COs ${orderIds.join(", ")} (peke yao)`);
+      hooks.addChip(`🔍 ${m.id} R${round}: ${castNames(milestoneCast(m))} wanathibitisha COs ${orderIds.join(", ")} (peke yao)${rejudge ? " — upya kwa vision halisi" : ""}`);
       hooks.blog("system", `🔍 ${formatRoundHeader(header)} — reviewers 2 wanathibitisha (REVIEW_VERIFY).`);
+      deps.imageDigest = deps.imageDigest ?? (await ensureDigest(runner, m, round, pack, hooks, deps.loadImage)); // TASK-30: Flash vision MAPEMA
       const runs = await verifyBoth(vctx, deps);
       const disputed = disagreements(orderIds, runs.designer.findings, runs.frontend.findings);
-      vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), () => ({ version: 1, id: m.id, round, header: formatRoundHeader(header), runs, disputed, sync: null, at: now() }))).data;
+      vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({
+        ...(cur?.rejudge ? { defectsBefore: cur.defectsBefore, harnessRegressions: cur.harnessRegressions, degradedRuns: cur.degradedRuns } : {}),
+        version: 1, id: m.id, round, header: formatRoundHeader(header), runs, disputed, sync: null, at: now(),
+      }))).data;
       await hooks.persist();
     } else hooks.blog("info", `♻️ ${m.id} R${round}: verdicts za reviewers zimeshahifadhiwa — hazirudiwi (resume).`);
     if (vr.disputed.length && !vr.sync && vr.runs.designer.findings && vr.runs.frontend.findings) {
@@ -842,7 +978,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
       const st = await syncTurn(header, ocbOf, vr.runs.designer.findings, vr.runs.frontend.findings, vr.disputed, deps, vctx.cast);
       vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), sync: st.sync, syncTranscript: st.transcript }))).data;
     }
-    await stepDone(vId);
+    if (!done(vId)) await stepDone(vId);
   }
   if (!vr) vr = (await getRecord<VerifyRecord>(sid, verifyKey(m.id, round)))?.data ?? null;
   if (!vr?.runs) {
@@ -969,6 +1105,24 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
   }
   const defsNow = (await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || [];
   let to: MilestoneStatus = nd.next === "SIGN_OFF" ? signoffStatus(defsNow, m.id) : nd.next === "CONTINUE" ? "FIXING" : nd.next === "CAP_REACHED" ? "CAP_REACHED" : "BLOCKED";
+  await emitLaneDigest(runner, m, hooks, `R${round}`);
+  // TASK-30: sign-off ya visual/mixed HAIKUBALI verdicts za visionDegraded → defects zinarudi kama kabla, PAUSED_QUOTA (system
+  // resumeAt) → lane ya vision ikirudi: uthibitisho wa raundi hii upya, kisha uamuzi upya
+  if ((to === "SIGNED_OFF" || to === "SIGNED_OFF_WITH_WAIVERS") && m.reviewMode !== "technical") {
+    const deg = REVIEWERS.filter((r) => vr!.runs[r]?.visionDegraded);
+    if (deg.length) {
+      hooks.addChip(`🚫 ${m.id} R${round}: sign-off ya ${m.reviewMode} imekataliwa — verdicts ni visionDegraded (${deg.join(", ")})`);
+      await msUpdate<{ version: number; defects: Defect[] }>(runner, "defects", () => ({ version: 1, defects: before }));
+      const lanes = Object.fromEntries(REVIEWERS.map((r) => [r, String(vr!.runs[r]?.model || "")]));
+      await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => {
+        const c = cur as VerifyRecord;
+        const { runs: _r, git: _g, outcome: _o, ...rest } = c;
+        return { ...rest, runs: undefined as unknown as VerifyRecord["runs"], sync: null, disputed: [], rejudge: true, degradedRuns: [...(c.degradedRuns || []), { at: now(), reviewers: deg, cos: decision.cos.map((x) => ({ orderId: x.orderId, verdict: x.verdict })), lanes }] };
+      });
+      if (!(await pauseForVision(runner, m, hooks, dId, `R${round} verdicts visionDegraded (${deg.join(", ")})`, lanes))) return (await getRecord<MilestoneState>(sid, stateKey(m.id)))!.data;
+      return runVerifyRound(runner, m, round, hooks);
+    }
+  }
   // TASK-28: sign-off / cap — utaratibu kamili KABLA ya mpito wa mwisho (kila hatua idempotent → kill -9 inaendelea hapa)
   if (CLOSE_STATUSES.includes(to)) {
     const co = await closeOutMilestone(m, round, to, nd.reason, closeoutDeps(runner, m, hooks));

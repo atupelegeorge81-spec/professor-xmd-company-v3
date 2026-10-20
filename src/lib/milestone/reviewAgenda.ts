@@ -551,8 +551,8 @@ export interface ReviewRoundResult {
   consolidation: Omit<ConsolidateResult, "changeOrders"> | null;
   reason: string;
 }
-interface FindingsRecord { version: number; designer: Findings | null; frontend: Findings | null; meta: Record<string, unknown>; at: string }
-interface ReviewRecord { version: number; reviewId: string; discussion: DiscussionOutcome; rules: ReviewRulesResult; table: ReviewTable; at: string }
+interface FindingsRecord { version: number; designer: Findings | null; frontend: Findings | null; meta: Record<string, unknown>; at: string; superseded?: boolean }
+interface ReviewRecord { version: number; reviewId: string; discussion: DiscussionOutcome; rules: ReviewRulesResult; table: ReviewTable; at: string; superseded?: boolean }
 
 export async function runReviewRound(inp: ReviewRoundInput, deps: ReviewRoundDeps): Promise<ReviewRoundResult> {
   const now = deps.now || (() => new Date().toISOString());
@@ -561,7 +561,7 @@ export async function runReviewRound(inp: ReviewRoundInput, deps: ReviewRoundDep
 
   // 1) Findings huru (T23) — zinahifadhiwa; resume haiziendeshi tena
   let fr = await deps.store.get<FindingsRecord>(findingsKey(mId, round));
-  if (!fr) {
+  if (!fr || fr.superseded) { // TASK-30: superseded = findings za visionDegraded zilikataliwa kwenye sign-off → upya
     const a = await deps.analyse();
     fr = await deps.store.update<FindingsRecord>(findingsKey(mId, round), () => ({ version: 1, designer: a.designer, frontend: a.frontend, meta: a.meta, at: now() }));
   }
@@ -580,7 +580,7 @@ export async function runReviewRound(inp: ReviewRoundInput, deps: ReviewRoundDep
 
   // 3) mjadala wa TIMU (mashine ya agenda) — matokeo yanahifadhiwa; resume hairudii mjadala uliokamilika
   let rv = await deps.store.get<ReviewRecord>(reviewKey(mId, round));
-  if (!rv) {
+  if (!rv || rv.superseded) {
     const item = makeReviewAgendaItem({
       reviewId, milestoneId: mId, milestoneTitle: inp.milestoneTitle, round, reviewMode: inp.reviewMode, table,
       ledgerLines: inp.ledgerLines,

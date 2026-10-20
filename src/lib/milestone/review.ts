@@ -8,7 +8,8 @@
 // Behind XMD_MILESTONES (inaitwa na pipeline ya milestone tu).
 import { createHash } from "node:crypto";
 import { AGENTS } from "@/lib/agents";
-import { brokerComplete, type CompleteResult } from "@/lib/broker";
+import { type CompleteResult } from "@/lib/broker";
+import { judgeComplete } from "./judge"; // TASK-30
 /** umbo la ujumbe wa broker (content: string au parts za OpenAI — text + image_url) */
 type Msg = { role: string; content?: unknown };
 import { buildOCB, type OcbInput } from "./ocb";
@@ -80,7 +81,11 @@ export interface ReviewImage { mime: string; base64: string }
 
 export interface ReviewDeps {
   /** LLM (default: broker → Gemini Flash, thinking ON) */
-  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string; agentId?: string; /** TASK-29: technical bila picha → lane yoyote nzito (si Gemini tu) */ textOnly?: boolean }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string; tier?: string; provider?: string } }>;
+  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string; agentId?: string; /** TASK-29: technical bila picha → lane yoyote nzito (si Gemini tu) */ textOnly?: boolean }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string; tier?: string; provider?: string }; visionDegraded?: boolean }>;
+  /** TASK-30: digest ya picha (id → maelezo, Flash vision mapema) — kwa lane isiyo na vision */
+  imageDigest?: Record<string, string> | null;
+  /** TASK-30: rekodi ya kila wito wa judge → state.lanesUsed */
+  onLane?: (rec: import("./types").LaneUse) => void;
   /** TASK-29: kusubiri kabla ya kujaribu tena LLM ikishindwa (default 45s; tests 0) */
   retryWaitMs?: number;
   /** PNG ya screenshot (default: fetch url ya storage) */
@@ -108,6 +113,8 @@ export interface ReviewMeta {
   tier: string;
   ms: number;
   usage: CompleteResult["usage"];
+  /** TASK-30: findings zilitoka kwenye lane bila vision (digest badala ya picha) — sign-off ya visual inazikataa */
+  visionDegraded?: boolean;
 }
 export interface ReviewRun {
   findings: Findings | null;
@@ -391,23 +398,24 @@ export function validateFindings(raw: unknown, reviewer: ReviewerId, pack: Evide
   };
 }
 
-/** Lane ya maelezo23 (hadi task 30): Gemini Flash, thinking ON, kupitia broker iliyopo. */
-const defaultComplete: NonNullable<ReviewDeps["complete"]> = async ({ reviewer, messages, purpose, agentId, textOnly }) =>
-  brokerComplete({ agentId: agentId || reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", allow: textOnly ? undefined : ["gemini"], maxHops: textOnly ? 10 : undefined, effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
+/** TASK-30: lane ya JUDGE — Gemini Flash (keys 4, thinking ON) → XKiro → Flash-Lite; picha kwenye lane bila vision → digest. */
+const judgeFor = (deps: ReviewDeps): NonNullable<ReviewDeps["complete"]> => async ({ reviewer, messages, purpose, agentId, textOnly }) =>
+  judgeComplete({ agentId: agentId || reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", maxHops: textOnly ? 10 : undefined, effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS },
+    { digest: deps.imageDigest, onLane: deps.onLane });
 
 /** maelezo23 #1 — reviewer MMOJA, peke yake. */
 export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omit<ReviewContext, "pack">, deps: ReviewDeps = {}): Promise<ReviewRun> {
   const t0 = Date.now();
   const full: ReviewContext = { ...ctx, pack };
   const built = await buildReviewPrompt(reviewer, full, deps);
-  const complete = deps.complete || defaultComplete;
+  const complete = deps.complete || judgeFor(deps);
   const purpose = `review-analyse:${pack.milestoneId}:R${pack.round}:${reviewer}`;
   const agentId = castAgentId(ctx.cast, reviewer); // TASK-29
   const textOnly = isTechnicalReview(full) && built.imageParts === 0; // TASK-29: hakuna picha → Gemini si lazima (T4 Koyeb: 429 ya Gemini iliua analysis)
   deps.log?.("info", `🔎 ${agentOf(reviewer, ctx.cast).name} (${reviewer}) ${pack.milestoneId} R${pack.round}: prompt ${built.text.length} chars · parts: text ${built.textParts} + image ${built.imageParts}${built.imageIds.length ? ` (${built.imageIds.join(", ")})` : ""} · hash ${built.hash.slice(0, 12)}`);
   let messages = built.messages;
   let raw = "", errors: string[] = ["not run"], findings: Findings | null = null, attempts = 0;
-  let lane = "", model = "", tier = "", usage: CompleteResult["usage"] = null, llmFails = 0;
+  let lane = "", model = "", tier = "", usage: CompleteResult["usage"] = null, llmFails = 0, visionDegraded = false;
   for (let i = 0; i <= REVIEW_MAX_RETRIES; i++) {
     attempts++;
     let r: Awaited<ReturnType<typeof complete>>;
@@ -426,7 +434,7 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
-    raw = r.text; usage = r.usage ?? null;
+    raw = r.text; usage = r.usage ?? null; visionDegraded = !!r.visionDegraded;
     lane = r.lane?.id || lane; model = r.lane?.model || model; tier = r.lane?.tier || tier;
     let parsed: unknown;
     try { parsed = extractJson(raw); } catch (e: any) { errors = [`invalid JSON: ${String(e?.message || e).slice(0, 200)}`]; parsed = undefined; }
@@ -445,7 +453,7 @@ export async function analyse(reviewer: ReviewerId, pack: EvidencePack, ctx: Omi
   }
   const meta: ReviewMeta = {
     reviewer, promptHash: built.hash, promptChars: built.text.length, imageParts: built.imageParts, textParts: built.textParts,
-    attempts, errors, lane, model, tier, ms: Date.now() - t0, usage,
+    attempts, errors, lane, model, tier, ms: Date.now() - t0, usage, ...(visionDegraded ? { visionDegraded: true } : {}),
   };
   deps.log?.(findings ? "success" : "error", `🔎 ${reviewer}: ${findings ? `defects ${findings.defects.length} · proposals ${findings.proposals.length}` : `INVALID after ${attempts} attempt(s)`} · ${model || "?"} · ${Math.round(meta.ms / 1000)}s`);
   return { findings, valid: !!findings, meta, promptText: built.text, raw };

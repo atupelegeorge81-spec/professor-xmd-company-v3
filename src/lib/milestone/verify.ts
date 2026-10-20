@@ -11,7 +11,8 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { AGENTS } from "@/lib/agents";
-import { brokerComplete, type CompleteResult } from "@/lib/broker";
+import { type CompleteResult } from "@/lib/broker";
+import { judgeComplete } from "./judge"; // TASK-30
 import { buildOCB } from "./ocb";
 import { classifyEvidence, domLines, extractJson, formatRoundHeader, REVIEW_STALL_FIRST_MS, REVIEWERS, type DefectFinding, type DomJson, type ReviewContext, type ReviewDeps, type ReviewerId, type ReviewImage } from "./review";
 import { castAgentId, TECH_LENS, type ReviewCast } from "./techEvidence"; // TASK-29
@@ -355,7 +356,10 @@ const cap = (s: unknown, n: number) => { const t = String(s ?? ""); return t.len
 export interface VerifyDeps {
   /** pumziko kabla ya kurudia wito ulioanguka (429 / provider down); default 30s, majaribio VERIFY_TRANSPORT_RETRIES */
   retryDelayMs?: number;
-  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string; agentId?: string }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string } }>;
+  complete?: (o: { reviewer: ReviewerId; messages: Msg[]; purpose: string; agentId?: string }) => Promise<Pick<CompleteResult, "text" | "usage"> & { lane?: { id: string; model: string }; visionDegraded?: boolean }>;
+  /** TASK-30: digest ya picha (Flash vision mapema) + rekodi ya kila wito wa judge */
+  imageDigest?: Record<string, string> | null;
+  onLane?: (rec: import("./types").LaneUse) => void;
   loadImage?: ReviewDeps["loadImage"];
   loadDom?: ReviewDeps["loadDom"];
   images?: boolean;
@@ -502,10 +506,12 @@ export function validateVerify(raw: unknown, reviewer: ReviewerId, orderIds: str
 export const VERIFY_MAX_RETRIES = 2;
 /** wito wa LLM ulioanguka (quota 429 / lanes zimekwisha) unarudiwa mara hizi kabla reviewer kuhesabiwa INVALID (T4 halisi: 429 moja ilizuia raundi nzima). */
 export const VERIFY_TRANSPORT_RETRIES = 2;
-const defaultComplete: NonNullable<VerifyDeps["complete"]> = async ({ reviewer, messages, purpose, agentId }) =>
-  brokerComplete({ agentId: agentId || reviewer, purpose, messages: messages as never, maxOut: 16_000, cls: "heavy", allow: ["gemini"], effort: "high", temperature: 0.3, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS });
+/** TASK-30: lane ya JUDGE (Flash keys 4 thinking ON → XKiro → Flash-Lite) + vision rule */
+const judgeFor = (deps: VerifyDeps): NonNullable<VerifyDeps["complete"]> => async ({ reviewer, messages, purpose, agentId }) =>
+  judgeComplete({ agentId: agentId || reviewer, purpose, messages: messages as never, maxOut: 16_000, cls: "heavy", effort: "high", temperature: 0.3, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS },
+    { digest: deps.imageDigest, onLane: deps.onLane });
 
-export interface VerifyRun { findings: VerifyFindings | null; attempts: number; errors: string[]; promptHash: string; promptChars: number; imageParts: number; model: string; ms: number; raw: string }
+export interface VerifyRun { findings: VerifyFindings | null; attempts: number; errors: string[]; promptHash: string; promptChars: number; imageParts: number; model: string; ms: number; raw: string; /** TASK-30 */ visionDegraded?: boolean }
 
 /** reviewer MMOJA, peke yake (maelezo26 #1). */
 export async function verifyOne(reviewer: ReviewerId, ctx: VerifyContext, deps: VerifyDeps = {}): Promise<VerifyRun> {
@@ -515,14 +521,14 @@ export async function verifyOne(reviewer: ReviewerId, ctx: VerifyContext, deps: 
   deps.capture?.(reviewer, `verify:${ctx.roundHeader.milestoneId}:R${ctx.roundHeader.round}`, built.text);
   const pack = verifyPack(ctx);
   const orderIds = ctx.changeOrders.map((c) => c.id);
-  const complete = deps.complete || defaultComplete;
-  let messages = built.messages, raw = "", errors: string[] = ["not run"], findings: VerifyFindings | null = null, attempts = 0, model = "";
+  const complete = deps.complete || judgeFor(deps);
+  let messages = built.messages, raw = "", errors: string[] = ["not run"], findings: VerifyFindings | null = null, attempts = 0, model = "", visionDegraded = false;
   let transport = 0;
   for (let k = 0; k <= VERIFY_MAX_RETRIES; k++) {
     attempts++;
     try {
       const r = await complete({ reviewer, messages, purpose, agentId: castAgentId(ctx.cast, reviewer) });
-      raw = r.text; model = r.lane?.model || model;
+      raw = r.text; model = r.lane?.model || model; visionDegraded = !!r.visionDegraded;
     } catch (err: any) {
       errors = [`LLM call failed: ${String(err?.message || err).slice(0, 300)}`];
       if (transport >= VERIFY_TRANSPORT_RETRIES) break;
@@ -543,7 +549,7 @@ export async function verifyOne(reviewer: ReviewerId, ctx: VerifyContext, deps: 
     messages = [...built.messages, { role: "assistant", content: cap(raw, 40_000) }, { role: "user", content: `Your JSON is not valid. Fix EVERY error and reply with the complete corrected JSON object only:\n${errors.slice(0, 40).map((x) => `- ${x}`).join("\n")}` }];
   }
   deps.log?.(findings ? "success" : "error", `🔍 ${reviewer} verify R${ctx.roundHeader.round}: ${findings ? findings.cos.map((c) => `${c.orderId} ${c.verdict}`).join(" · ") + ` · regressions ${findings.regressions.length} · new ${findings.newDefects.length}` : `INVALID after ${attempts}`} · ${Math.round((Date.now() - t0) / 1000)}s`);
-  return { findings, attempts, errors, promptHash: built.hash, promptChars: built.text.length, imageParts: built.imageParts, model, ms: Date.now() - t0, raw: cap(raw, 20_000) };
+  return { findings, attempts, errors, promptHash: built.hash, promptChars: built.text.length, imageParts: built.imageParts, model, ms: Date.now() - t0, raw: cap(raw, 20_000), ...(visionDegraded ? { visionDegraded: true } : {}) };
 }
 
 /** Wote wawili SAMBAMBA, kila mmoja peke yake. */
@@ -572,7 +578,7 @@ export function parseSync(raw: string, orderIds: string[]): Record<string, Verif
 }
 export async function syncTurn(header: RoundHeaderData, ocbOf: (r: ReviewerId) => string, a: VerifyFindings, b: VerifyFindings, disputed: string[], deps: VerifyDeps = {}, cast?: Partial<ReviewCast>):
   Promise<{ sync: Partial<Record<ReviewerId, Record<string, VerifyVerdict>>>; transcript: { reviewer: ReviewerId; text: string }[] }> {
-  const complete = deps.complete || defaultComplete;
+  const complete = deps.complete || judgeFor(deps); // TASK-30: sync = judge pia (maandishi tu)
   const pair: [ReviewerId, VerifyFindings, VerifyFindings][] = [["designer", a, b], ["frontend", b, a]];
   const res = await Promise.all(pair.map(async ([r, mine, other]) => {
     const items = disputed.map((id) => ({ orderId: id, mine: mine.cos.find((c) => c.orderId === id)!, other: other.cos.find((c) => c.orderId === id)! }));

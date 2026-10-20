@@ -1,5 +1,6 @@
 // TASK 24 (maelezo24) — REVIEW ya timu (R-Mk-n, si agenda yenye namba), kanuni za uamuzi (code), Optimus consolidate → COs,
 // hatua ya review ndani ya runMilestoneBuild. Mjadala halisi (Board) + Optimus halisi viko kwenye docs/tests/task-24.md.
+import type { ReviewContext } from "../review";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = new Map<string, { version: number; data: any }>();
@@ -276,6 +277,14 @@ function loopSetup(withEvidence: boolean, discuss: () => Promise<DiscussionOutco
   db.set(`${SID}|${findingsKey("M1", 0)}`, { version: 1, data: { version: 1, designer: F("designer", [["Touch 36px", "major"]], []), frontend: F("frontend", [], []), meta: {}, at: "" } });
   return { runner, hooks, events, discussed: () => discussed, st: () => db.get(`${SID}|${stateKey("M1")}`)!.data };
 }
+const ctx30 = (): Omit<ReviewContext, "pack"> => ({
+  ocb: { project: { name: "xmdtest KIVULI", summary: "dark streetwear store" }, map: { version: 1, sessionId: "s", totalAgendas: 2, generatedBy: "t", usedFallback: false, milestones: [{ id: "M1", title: "Storefront", agendas: { from: 1, to: 2 }, phase: "foundation", reviewMode: "visual", roster: ["optimus", "ultron", "vextron"], rationale: "" }] }, milestoneId: "M1", round: null, counts: { lockedDecisions: 2, milestonesDone: [], openDefects: 0, waivers: 0 } },
+  roundHeader: { milestoneId: "M1", round: 0, maxRounds: 10, closedDefects: 0, open: [], waivers: 0, roundsLeft: 10 },
+  miniReports: [{ agendaIndex: 1, title: "Brand", detail: "MINI-REPORT-FULL-TEXT accent only on CTAs" }],
+  ledger: [{ agenda_index: 1, agenda_item: "Brand", status: "LOCKED", decision_summary: "LEDGER-RULE no monospace" }],
+  planMarkdown: "PLAN-BODY header with SW/EN toggle", buildReport: "BUILD-REPORT-BODY", defects: [],
+  baselines: [{ milestoneId: "M0", route: "/", viewport: "375x667", state: "default" }],
+});
 const AGREE_NONE = "ACCEPTED PROPOSALS: none\nREJECTED PROPOSALS: none\nINVALID DEFECTS: none\nCHANGE REQUESTS: none";
 
 describe("TASK 24 — runMilestoneBuild → review step", () => {
@@ -302,6 +311,23 @@ describe("TASK 24 — runMilestoneBuild → review step", () => {
     await maybeCloseMilestones(t.runner, t.hooks);
     expect([t.st().status, t.discussed()]).toEqual(["SIGNED_OFF", 0]);
     expect(t.st().steps.find((s: any) => s.stepId === "M1.R0.review").stub).toBe(true);
+  });
+  it("TASK-30 T4 (code): R0 NO_CHANGES lakini findings ni visionDegraded → sign-off INAKATALIWA → PAUSED_QUOTA → vision ikirudi: R0 upya (picha halisi) → SIGNED_OFF", async () => {
+    const t = loopSetup(true, async () => outcome("ACCEPTED PROPOSALS: none\nREJECTED PROPOSALS: none\nINVALID DEFECTS: D-001 (measured 48px in DOM, both agree)\nCHANGE REQUESTS: none"));
+    const fk = `${SID}|${findingsKey("M1", 0)}`;
+    db.set(fk, { version: 1, data: { ...db.get(fk)!.data, meta: { designer: { visionDegraded: true, lane: "xkiro-1:qwen" }, frontend: {} } } });
+    const calls: string[] = [];
+    t.hooks.review!.context = async () => ({ analyseCtx: ctx30(), ledgerLines: [], extraParticipants: [] });
+    t.hooks.review!.analyseDeps = { images: false, loadDom: async () => null, complete: async (o) => { calls.push(o.purpose); return { text: JSON.stringify(F(o.reviewer, o.reviewer === "designer" ? [["Touch 36px", "major"]] : [], [])), usage: null }; } };
+    const polls: boolean[] = [];
+    t.hooks.visionWait = { pollMs: 1, ready: () => { polls.push(true); return { ready: true, lane: "gemini-2:gemini-3.7-flash" }; } };
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(t.st().status).toBe("SIGNED_OFF");
+    expect(polls).toEqual([true]);
+    expect(calls.length).toBeGreaterThanOrEqual(2); // reviewers wote walichambua UPYA (findings za zamani superseded)
+    expect(db.get(fk)!.data.superseded).toBeUndefined();
+    expect(db.get(`${SID}|visionPause:M1`)!.data.events[0]).toMatchObject({ stepId: "M1.R0.review", resumedOn: "gemini-2:gemini-3.7-flash" });
+    expect(t.events.find((e) => e.type === "milestonePaused")).toMatchObject({ origin: "system" });
   });
   it("NO_CHANGES → SIGNED_OFF", async () => {
     const t = loopSetup(true, async () => outcome("ACCEPTED PROPOSALS: none\nREJECTED PROPOSALS: none\nINVALID DEFECTS: D-001 (measured 48px in DOM, both agree)\nCHANGE REQUESTS: none"));
