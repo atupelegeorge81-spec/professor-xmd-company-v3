@@ -102,7 +102,8 @@ export async function checkPausedDue(force = false, graceMs = 0): Promise<number
 export const ORPHAN_STALE_MS = 10 * 60_000;
 export const ORPHAN_RESUME_DELAY_MS = 60_000;
 export const ORPHAN_CHIP_TEXT = "♻️ Recovered after crash — auto-resume in 60 s";
-const IN_PROGRESS = /^(running|title_created|agenda_created|facts_locked|report_saved|plan_saved|agenda_\d+_(locked|open|mini|mini_resume)|report_part_[\w-]+|plan_part_[\w-]+)$/;
+// TASK-32 (E2E halisi): `review_R-Mk-n` = REVIEW ya milestone (persist ya T24) — server ikifa wakati wa review, session haikurejeshwa kamwe
+const IN_PROGRESS = /^(running|title_created|agenda_created|facts_locked|report_saved|plan_saved|agenda_\d+_(locked|open|mini|mini_resume)|report_part_[\w-]+|plan_part_[\w-]+|review_R-M\d+-\d+)$/;
 const TERMINAL = ["completed", "error", "finale_incomplete", "stopped"];
 
 /** Kizingiti cha staleness — XMD_TEST_ORPHAN_STALE_MS inafanya kazi TU na XMD_TEST_HOOKS=1. */

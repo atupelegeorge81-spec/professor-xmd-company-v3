@@ -16,12 +16,12 @@ const base = { status: "agenda_1_locked", updatedAtMs: NOW - 11 * 60_000, items:
 
 describe("TASK-5 orphan — status (option A, allowlist)", () => {
   it("status za kazi inayoendelea = wagombea", () => {
-    for (const s of ["running", "title_created", "agenda_created", "facts_locked", "report_saved", "plan_saved", "agenda_2_locked", "agenda_3_open", "agenda_1_mini", "agenda_1_mini_resume", "report_part_A", "plan_part_2"]) {
+    for (const s of ["running", "title_created", "agenda_created", "facts_locked", "report_saved", "plan_saved", "agenda_2_locked", "agenda_3_open", "agenda_1_mini", "agenda_1_mini_resume", "report_part_A", "plan_part_2", "review_R-M1-0", "review_R-M12-3"]) {
       expect(isInProgressStatus(s), s).toBe(true);
     }
   });
   it("terminal / zisizojulikana hazigusiwi", () => {
-    for (const s of ["completed", "error", "paused", "finale_incomplete", "stopped", "", "in_progress", "agenda_x_locked", "running2"]) {
+    for (const s of ["completed", "error", "paused", "finale_incomplete", "stopped", "", "in_progress", "agenda_x_locked", "running2", "review_R-Mx-1", "review_"]) {
       expect(isInProgressStatus(s), s).toBe(false);
     }
   });
