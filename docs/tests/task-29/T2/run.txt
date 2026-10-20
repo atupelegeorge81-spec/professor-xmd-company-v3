@@ -1,0 +1,10 @@
+[1.3s] sandbox ixwvlzsg template (CU template)
+[1.6s] seed: 3e49e68 xmdtest-t29 T2: /api/admin is PUBLIC (bug)
+[4.5s] BEFORE plan/admin-noauth FAIL — GET http://127.0.0.1:4173/api/admin (no credentials) → HTTP 200 (expected 401)
+[4.5s] BEFORE plan/admin-auth PASS — GET http://127.0.0.1:4173/api/admin (authenticated) → HTTP 200 (expected 200) · body contains "xmdtest-alice"
+[4.6s] seed: 9215555 xmdtest-t29 T2: fix — /api/admin requires a bearer token
+[6.0s] AFTER  plan/admin-noauth PASS — GET http://127.0.0.1:4173/api/admin (no credentials) → HTTP 401 (expected 401)
+[6.0s] AFTER  plan/admin-auth PASS — GET http://127.0.0.1:4173/api/admin (authenticated) → HTTP 200 (expected 200) · body contains "xmdtest-alice"
+[6.1s] server after checks (000 = stopped): 000
+[6.1s] T2 PASS
+[6.1s] sandbox killed

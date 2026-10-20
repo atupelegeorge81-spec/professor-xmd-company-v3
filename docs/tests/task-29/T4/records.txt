@@ -1,0 +1,28 @@
+state:M1 → {"status": "SIGNED_OFF", "round": 1, "maxRounds": 4}
+signoff:M1 → {"version": 1, "id": "M1", "status": "SIGNED_OFF", "round": 1, "ledger": {"id": "MS-M1", "at": "2026-10-19T22:02:43.395Z"}, "git": {"ok": true, "sha": "99fbab7dccbe181f748fc96f74f351ae3fa9b1b2", "tag": "milestone-M1", "detail": "milestone-M1: committed \u00b7 tagged \u00b7 no remote", "at": "2026-10-19T22:02:45.549Z"}, "report": {"at": "2026-10-19T22:02:46.515Z"}, "event": {"at": "2026-10-19T22:02:46.821Z"}}
+finalReport → {"version": 1, "milestones": [{"milestoneId": "M1", "title": "Notes API", "status": "SIGNED_OFF", "round": 1, "tag": "milestone-M1", "clean": true, "waivers": [], "backlog": [], "inherited": [], "closed": 2, "at": "2026-10-19T22:02:43.395Z"}]}
+evidence:M1:R0 → screenshots 0 · domMetrics 0 · checks 10 · technical {"secrets": 0, "secretFiles": [], "checks": 10, "failed": 1, "ms": 10206, "files": [".gitignore", "README.md", "config.js", "package.json", "server.js"]}
+    tech/secrets PASS — no secrets found in 5 tracked files (private keys, GitHub tokens, sk- keys, JWTs, Supabase service keys, committed .env)
+    tech/build PASS — exit 0 (expected 0) — last lines:
+    tech/audit PASS — exit 0 (expected 0) — last lines:
+    plan/syntax PASS — exit 0 (expected 0) — last lines:
+    plan/health PASS — GET http://127.0.0.1:4173/api/health (no credentials) → HTTP 200 (expected 200) · body contains "\"ok\":true"
+    plan/notes-read PASS — GET http://127.0.0.1:4173/api/notes (no credentials) → HTTP 200 (expected 200) · body contains "xmdtest-first-note"
+    plan/post-noauth PASS — POST http://127.0.0.1:4173/api/notes (no credentials) → HTTP 401 (expected 401)
+    plan/post-auth PASS — POST http://127.0.0.1:4173/api/notes (authenticated) → HTTP 201 (expected 201)
+    plan/post-invalid PASS — POST http://127.0.0.1:4173/api/notes (authenticated) → HTTP 400 (expected 400)
+    plan/delete-noauth FAIL — DELETE http://127.0.0.1:4173/api/notes/1 (no credentials) → HTTP 200 (expected 401)
+evidence:M1:R1 → screenshots 0 · domMetrics 0 · checks 10 · technical {"secrets": 0, "secretFiles": [], "checks": 10, "failed": 0, "ms": 6748, "files": [".gitignore", ".xmd/receipts/R1.json", "README.md", "config.js", "package.json", "server.js"]}
+    tech/secrets PASS — no secrets found in 6 tracked files (private keys, GitHub tokens, sk- keys, JWTs, Supabase service keys, committed .env)
+    tech/build PASS — exit 0 (expected 0) — last lines:
+    tech/audit PASS — exit 0 (expected 0) — last lines:
+    plan/syntax PASS — exit 0 (expected 0) — last lines:
+    plan/health PASS — GET http://127.0.0.1:4173/api/health (no credentials) → HTTP 200 (expected 200) · body contains "\"ok\":true"
+    plan/notes-read PASS — GET http://127.0.0.1:4173/api/notes (no credentials) → HTTP 200 (expected 200) · body contains "xmdtest-first-note"
+    plan/post-noauth PASS — POST http://127.0.0.1:4173/api/notes (no credentials) → HTTP 401 (expected 401)
+    plan/post-auth PASS — POST http://127.0.0.1:4173/api/notes (authenticated) → HTTP 201 (expected 201)
+    plan/post-invalid PASS — POST http://127.0.0.1:4173/api/notes (authenticated) → HTTP 400 (expected 400)
+    plan/delete-noauth PASS — DELETE http://127.0.0.1:4173/api/notes/1 (no credentials) → HTTP 401 (expected 401)
+CO-001 defects ['D-001', 'D-002'] files ['server.js'] acceptance ['co1-syntax:command', 'co1-health:http', 'co1-notes-read:http', 'co1-post-noauth:http', 'co1-post-auth:http', 'co1-post-invalid:http', 'co1-delete-noauth:http', 'co1-secrets:grep']
+verify:M1:R1 decision → {"cos": [{"orderId": "CO-001", "verdict": "PASS", "reason": "both reviewers PASS \u00b7 checks 8 PASS", "designer": "PASS", "frontend": "PASS", "checks": {"pass": 8, "fail": 0, "error": 0}, "disagreement": false, "unresolved": false, "checkOverride": false}], "concerns": [], "newDefects": [], "regressions": [], "disagreements": [], "allPass": true}
+verify:M1:R1 next → {"next": "SIGN_OFF", "reason": "all 1 CO(s) PASS \u00b7 checks 9 PASS \u00b7 no open defect \u2265 medium \u00b7 receipts match", "leftoverMinor": []}

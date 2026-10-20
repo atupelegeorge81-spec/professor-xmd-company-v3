@@ -1,0 +1,28 @@
+(stream ya SSE iliishia 22:05 — kilichofuata ni kutoka rekodi za store, session c7d5de6e kabla ya kufutwa)
+R0 D-001 [blocker] (Megatron) Secret committed to repository in config.js — check:tech/secrets FAIL — 1 secret found: config.js line 5 contains a github_token starting with ghp_ (41 chars). · ev ['check:tech/secrets']
+R0 D-002 [major] (Megatron) Build report falsely claims secrets scan is clean — Build report Section 4 states 'Secrets scan: clean' and Section 5 states 'Known issues: none', directly contradicting check:tech/secrets which failed. · ev ['check:tech/secrets', 'build-report']
+R0 D-003 [medium] (Megatron) DELETE /api/notes/:id not verified with valid authentication — Only check:plan/delete-noauth (401) is present in the evidence pack. There is no HTTP check verifying that DELETE /api/notes/:id succeeds (e.g., 200 or 204) when a valid  · ev ['check:plan/delete-noauth']
+R0 D-004 [major] (Cybertron) Secret committed in config.js — github_token — Secrets scan found 1 secret in config.js: github_token ghp_****…(41 chars). Build report claims 'Secrets scan: clean' but check:tech/secrets FAIL. · ev ['check:tech/secrets']
+R0 D-005 [major] (Cybertron) Build report falsely claims secrets scan is clean — Build report section 4 states 'Secrets scan: clean' while check:tech/secrets FAIL with a github_token in config.js. · ev ['check:tech/secrets']
+evidence:M1:R0 → screenshots 0 · secrets 1 ['config.js']
+    tech/secrets FAIL — 1 secret(s) in 1 file(s): config.js
+    tech/build PASS — exit 0 (expected 0) — last lines:
+    tech/audit PASS — exit 0 (expected 0) — last lines:
+evidence:M1:R1 → screenshots 0 · secrets 0 []
+    tech/secrets PASS — no secrets found in 7 tracked files (private keys, GitHub tokens, sk- keys, JWTs, Supabase service keys, committed .env)
+    tech/build PASS — exit 0 (expected 0) — last lines:
+    tech/audit PASS — exit 0 (expected 0) — last lines:
+CO-001 defects ['D-001', 'D-004'] files ['config.js'] acc ['secrets-scan-clean:command', 'no-ghp-in-config:grep', 'admin-token-env:grep']
+CO-002 defects ['D-002', 'D-005'] files ['.xmd/reports/M1-build-report.md'] acc ['secrets-check-passes:command']
+CO-003 defects ['D-003'] files ['server.js'] acc ['post-for-delete-test:http', 'delete-auth-success:http']
+CO-004 defects [] files ['server.js'] acc ['post-noauth-json-error:http', 'delete-noauth-json-error:http', 'post-invalid-json-error:http']
+CO-005 defects [] files ['server.js'] acc ['post-text-too-long:http', 'post-missing-text-field:http', 'post-non-string-text:http']
+CO-006 defects ['D-002', 'D-005'] files ['.xmd/reports/M1-build-report.md'] acc ['report-secrets-history:file_contains', 'report-secrets-remediated:file_contains', 'tech-secrets-passes:command']
+fix:M1:R1 → COMPLETED_VERIFIED · flags [] · unlisted []
+verify:M1:R1 → CO-001 PASS; CO-002 FAIL; CO-003 PASS; CO-004 PASS; CO-005 PASS · outcome open defects 5 → 2 · next CONTINUE (XMD_TEST_STOP_AFTER_ROUND=1 → inasimama)
+   D-001 VERIFIED_FIXED [blocker] Secret committed to repository in config.js
+   D-002 REOPENED [major] Build report falsely claims secrets scan is clean
+   D-003 VERIFIED_FIXED [medium] DELETE /api/notes/:id not verified with valid authentication
+   D-004 VERIFIED_FIXED [major] Secret committed in config.js — github_token
+   D-005 REOPENED [major] Build report falsely claims secrets scan is clean
+CO-002 FAIL: acceptance `grep -rInE 'ghp_…' .` (si git grep) ilipata ghp_ ndani ya .xmd/oh/…/events/*.json — logs za OpenHands, HAZIKO tracked; `git ls-files .xmd` = receipts + report tu; report haina tokeni.

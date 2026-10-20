@@ -440,3 +440,17 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Koyeb: env mpya `XMD_TEST_PROFILE_DIR=docs/tests/task-28/inputs` (haina athari bila tag). Sheria ya CEO S1 (majaribio kwenye Koyeb) imehifadhiwa `task-docs/SHERIA-ZA-CEO.md`.
 - Hatari kwa CEO: kanuni ya T26 "defects ziliongezeka → REVERT" inahesabu kasoro mpya zilizokuwepo tangu mwanzo; push ya tag haijajaribiwa na remote halisi.
 - Baselines: tsc 0 · vitest 699 + 2 skipped (+16) · pytest 338 + 3 · unittest OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-28.md + docs/tests/task-28/ (bila `.log`).
+
+## Task 29 — Technical review mode (backend/security — bila screenshots)
+- Branch `task/29-technical-review` · nyuma ya `XMD_MILESTONES` · inategemea T21 + T26.
+- **Technical evidence** (`src/lib/cu/techEvidence.ts`): secrets scan juu ya faili za git (`git ls-files` / `git grep`, thamani zinafichwa: `ghp_****…(42 chars)`, `.env` iliyo-commitiwa),
+  amri za plan (build/test/lint/typecheck/migrations) + `npm audit --omit=dev` (lockfile ya muda inafutwa), checks za plan (`command`/`grep`/`http`/`file_*`/`db`),
+  http negative (bila credentials → 401) na app safi (process iliyochakaa kwenye port inazimwa), db/RLS kupitia client ya Supabase ya app (`dbProbe.ts` + rpc `docs/sql/xmd_table_security.sql`), git diff summary.
+- **Reviewers:** `reviewCast` — technical → Megatron (backend) + Cybertron (qa) kutoka roster; mjadala/COs ileile ya T23–T24 kwa prompt ya technical; Megatron hayupo bila backend kwenye roster.
+  Analysis bila picha inaweza kutumia lane yoyote nzito; kosa la LLM → retry baada ya kusubiri.
+- **COs:** Optimus anapata TECHNICAL HINTS (checks kamili za plan, matokeo, faili halisi); acceptance za technical ni `command`/`grep`/`http`/`db`/`file_*` tu; url `/path`, body ya JSON; hakuna globals za browser.
+- Hakuna hatua ya screenshot kwa technical (mixed: zote mbili). Mkataba wa receipts: log za app nje ya repo, `.gitignore` haiguswi bila order.
+- REAL: T1–T3 (E2B halisi + Supabase halisi, harness `docs/tests/task-29/real.mjs`); **T4 + T5 kwenye Koyeb** (S1) — T4 run 7 `SIGNED_OFF` + tag `milestone-M1` bila screenshots kwenye manifest;
+  T5 reviewers wote wawili (huru) waliflag "Build report falsely claims secrets scan is clean". Runs 6 za T4 kabla ya PASS zilifichua kasoro 15 (K0–K14), zote zimerekebishwa na zina unit tests.
+- Koyeb: env `XMD_TEST_PROFILE_DIR=docs/tests/task-29/inputs`. Hatari: uwezo wa LLM (Gemini/OpenRouter quotas), Optimus bado anaweza kubuni amri za acceptance.
+- Baselines: tsc 0 · vitest 730 + 2 skipped (+31) · pytest 338 + 3 · unittest OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-29.md + docs/tests/task-29/ (bila `.log`).

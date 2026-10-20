@@ -1,0 +1,30 @@
+99fbab7 xmd: sign-off M1 (SIGNED_OFF, round 1)
+9eff32e M1 R1: CO-001
+d39e473 xmdtest-site: seed
+milestone-M1    xmd: sign-off M1 (SIGNED_OFF, round 1)
+xmd-best-M1     M1 R1: CO-001
+
+    M1 R1: CO-001
+
+ .xmd/receipts/R1.json | 18 ++++++++++++++++++
+ server.js             |  1 +
+ 2 files changed, 19 insertions(+)
+commit 9eff32e9cdc27cddeb74107c7ad2c132e0e106e2
+Author: openhands <openhands@all-hands.dev>
+Date:   Mon Oct 19 22:01:18 2026 +0000
+
+    M1 R1: CO-001
+
+diff --git a/server.js b/server.js
+index e3ee8a1..40fad7f 100644
+--- a/server.js
++++ b/server.js
+@@ -35,6 +35,7 @@ http.createServer((req, res) => {
+     }
+     const m = /^\/api\/notes\/(\d+)$/.exec(url.pathname);
+     if (req.method === "DELETE" && m) {
++      if (!authed(req)) return send(res, 401, { error: "unauthorized" });
+       const i = notes.findIndex((n) => n.id === Number(m[1]));
+       if (i < 0) return send(res, 404, { error: "not found" });
+       notes.splice(i, 1);
+

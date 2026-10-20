@@ -1,0 +1,9 @@
+22:04:26 [warning] 🧪 XMD_TEST_VERIFY_INPUT: M1 — site `xmdtest-site` (faili 5) · R0 halisi → fix → verify
+22:04:29 [info] 🌱 XMD_TEST_VERIFY_INPUT: `xmdtest-site` imepandwa kwenye sandbox ipfr2znn… · HEAD 4cefb58
+22:04:40 [warning] 🛡️ M1 R0 technical: checks 9/10 PASS · secrets 1 · not passing: tech/secrets FAIL · 9s
+22:04:43 [info] 🛡️ M1: technical review — reviewers Megatron + Cybertron (roster: optimus, megatron, cybertron) · screenshots 0 · checks 10
+22:04:43 [info] 🔎 Megatron (designer) M1 R0: prompt 11969 chars · parts: text 1 + image 0 · hash cfb6fa48974b
+22:04:43 [info] 🔎 Cybertron (frontend) M1 R0: prompt 12071 chars · parts: text 1 + image 0 · hash a65869d39481
+22:04:52 [success] 🔎 frontend: defects 2 · proposals 2 · nemotron-3-ultra-550b-a55b:free · 9s
+22:05:04 [success] 🔎 designer: defects 3 · proposals 4 · qwen/qwen3.8-max:free · 21s
+22:05:09 [system] 🧑‍⚖️ R-M1-0: R-M1-0 — team review of milestone M1 "Notes API": backend / security / API defects and improvement proposals (technical review — no screenshots) | owners: Megatron + Cybertron + Optimus

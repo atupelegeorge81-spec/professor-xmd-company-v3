@@ -1,0 +1,11 @@
+[1.3s] sandbox i7y3qm3q template (CU template)
+[1.6s] seed: 1c40810 xmdtest-t29 T1 fixture (fake token + committed .env)
+[2.8s] summary: checks 2/3 PASS · secrets 3 · not passing: tech/secrets FAIL · 1s
+[2.8s] tech/secrets: FAIL
+3 secret(s) in 2 file(s): .env, server.js
+- .env committed_env (file is tracked by git)
+- .env:2 supabase_service_key eyJh****…(126 chars)
+- server.js:2 github_token ghp_****…(42 chars)
+[2.8s] raw ghp_ value present in result: false · raw JWT present: false
+[2.8s] T1 PASS
+[2.9s] sandbox killed

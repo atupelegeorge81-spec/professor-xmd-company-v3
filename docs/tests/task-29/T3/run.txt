@@ -1,0 +1,16 @@
+$ node real.mjs t3        (Supabase HALISI — DDL kupitia pg, probe kupitia supabase-js client ya app: defaultDbProbe)
+INSERT []
+NOTIFY []
+[3.1s] catalog: SELECT [{"relname":"xmdtest_nors","relrowsecurity":false}]
+[3.1s] db probe configured: true (Supabase client, service key from env — not printed)
+[4.6s] RLS OFF → plan/nors-rls FAIL — public.xmdtest_nors: table exists but Row Level Security is DISABLED (plan requires RLS)
+[4.6s] RLS OFF → plan/sessions-rls PASS — public.boardroom_sessions: table exists · RLS enabled (plan: rls true)
+[5.8s] enable RLS: ALTER []
+[6.5s] RLS ON  → plan/nors-rls PASS — public.xmdtest_nors: table exists · RLS enabled (plan: rls true)
+[6.5s] T3 PASS
+[7.7s] cleanup: DROP []
+NOTIFY []
+[9.1s] after cleanup: SELECT [{"count":"0"}]
+
+Jaribio la kwanza la T3 lilianguka KABLA ya matokeo: supabase-js (realtime-js) kwenye Node 20 → "Node.js 20 detected without
+native WebSocket support". Table ilifutwa (finally). Fix: dbProbe.ts → createClient(..., { realtime: { transport: ws } }) (commit f842090).

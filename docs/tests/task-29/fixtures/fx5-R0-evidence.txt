@@ -1,0 +1,14 @@
+[1.2s] sandbox i1hzjkqc template (CU template)
+[1.6s] seed: f540bab xmdtest-t29 fixture
+[6.4s] summary: checks 9/10 PASS · secrets 1 · not passing: tech/secrets FAIL · 5s
+[6.4s] tech/secrets FAIL — 1 secret(s) in 1 file(s): config.js
+[6.4s] tech/build PASS — exit 0 (expected 0) — last lines:
+[6.4s] tech/audit PASS — exit 0 (expected 0) — last lines:
+[6.4s] plan/syntax PASS — exit 0 (expected 0) — last lines:
+[6.4s] plan/health PASS — GET http://127.0.0.1:4173/api/health (no credentials) → HTTP 200 (expected 200) · body contains "\"ok\":true"
+[6.4s] plan/notes-read PASS — GET http://127.0.0.1:4173/api/notes (no credentials) → HTTP 200 (expected 200) · body contains "xmdtest-first-note"
+[6.4s] plan/post-noauth PASS — POST http://127.0.0.1:4173/api/notes (no credentials) → HTTP 401 (expected 401)
+[6.4s] plan/post-auth PASS — POST http://127.0.0.1:4173/api/notes (authenticated) → HTTP 201 (expected 201)
+[6.4s] plan/post-invalid PASS — POST http://127.0.0.1:4173/api/notes (authenticated) → HTTP 400 (expected 400)
+[6.4s] plan/delete-noauth PASS — DELETE http://127.0.0.1:4173/api/notes/1 (no credentials) → HTTP 401 (expected 401)
+[6.4s] sandbox killed

@@ -1,0 +1,28 @@
+21:49:51 [warning] 🧪 XMD_TEST_VERIFY_INPUT: M1 — site `xmdtest-site` (faili 5) · R0 halisi → fix → verify
+21:49:54 [info] 🌱 XMD_TEST_VERIFY_INPUT: `xmdtest-site` imepandwa kwenye sandbox iz2vrm4y… · HEAD d39e473
+21:49:54 [success] 🏁 Milestone M1 imefungwa (agenda 1–1 zote ziko kwenye Ledger) → PLANNING.
+21:49:55 [success] 🗺️ Plan ya M1: active · hatua 1 · checks 0 · routes 0 · marekebisho muundo 0/data 0.
+21:50:06 [warning] 🛡️ M1 R0 technical: checks 9/10 PASS · secrets 0 · not passing: plan/delete-noauth FAIL · 10s
+21:50:32 [info] 🛡️ M1: technical review — reviewers Megatron + Cybertron (roster: optimus, megatron, cybertron) · screenshots 0 · checks 10
+21:50:32 [info] 🔎 Megatron (designer) M1 R0: prompt 11950 chars · parts: text 1 + image 0 · hash 181a1055f2fa
+21:50:32 [info] 🔎 Cybertron (frontend) M1 R0: prompt 12052 chars · parts: text 1 + image 0 · hash 6baf4284b2f4
+21:50:34 [error] 🔎 designer attempt 1: LLM call failed: 429 [{"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.g
+21:50:34 [warning] 🔎 designer: LLM imeshindwa — jaribio jingine baada ya 45s
+21:50:34 [error] 🔎 frontend attempt 1: LLM call failed: 429 [{"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.g
+21:50:34 [warning] 🔎 frontend: LLM imeshindwa — jaribio jingine baada ya 45s
+21:51:35 [warning] 🔎 designer attempt 2: 8 error(s) — screenshots: must be an array with one entry per screenshot; defects[0].area: must be a non-empty string; defects[0].expected: must be a non-empty string
+21:52:27 [success] 🔎 designer: defects 1 · proposals 1 · nemotron-3-ultra-550b-a55b:free · 116s
+21:53:40 [warning] 🔎 frontend attempt 2: 8 error(s) — screenshots: must be an array with one entry per screenshot; defects[0].area: must be a non-empty string; defects[0].expected: must be a non-empty string
+21:54:27 [success] 🔎 frontend: defects 1 · proposals 1 · nemotron-3-ultra-550b-a55b:free · 236s
+21:54:28 [system] 🧑‍⚖️ R-M1-0: R-M1-0 — team review of milestone M1 "Notes API": backend / security / API defects and improvement proposals (technical review — no screenshots) | owners: Megatron + Cybertron + Optimus
+21:57:55 [success] 🧑‍⚖️ R-M1-0: consensus (all owners AGREE) · zamu 4 · searches 3.
+21:58:09 [success] 🧾 Optimus: COs 1 · ledger conflicts 0 (attempt 1)
+21:58:10 [success] 🧑‍⚖️ R-M1-0: consensus ✓ · defects wazi 2 · batili 0 · maamuzi 1 · CR 0 · COs 1 → CHANGES.
+21:58:10 [info] 🔧 M1 → FIXING (round 1) — COs 1 zinasubiri raundi za marekebisho (tasks 25+).
+22:02:16 [success] 🧾 M1 R1 attempt 1 (COMPLETED_VERIFIED): APPLIED 1 · NOT_ATTEMPTED 0 · BLOCKED 0
+22:02:24 [success] 🧾 M1 R1 imekamilika: APPLIED 1 · NOT_ATTEMPTED 0 · BLOCKED 0 · checks PASS 9 · FAIL 0 · ERROR 0 → VERIFYING (verify ya reviewers = task 26).
+22:02:33 [success] 🛡️ M1 R1 technical: checks 10/10 PASS · secrets 0 · 7s
+22:02:38 [success] 🔍 frontend verify R1: CO-001 PASS · regressions 0 · new 0 · 4s
+22:02:39 [success] 🔍 designer verify R1: CO-001 PASS · regressions 0 · new 0 · 4s
+22:02:47 [success] ✅ M1 R1 → SIGNED_OFF: all 1 CO(s) PASS · checks 9 PASS · no open defect ≥ medium · receipts match · defects fixed 2 · reopened 0 · new 0 · BEST (open defects 2 → 0).
+22:02:48 [system] 🧪 XMD_TEST_VERIFY_INPUT: M1 → SIGNED_OFF (round 1) · sandbox iz2vrm4y…
