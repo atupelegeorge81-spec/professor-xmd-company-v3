@@ -145,6 +145,8 @@ describe("TASK-30 · broker (judge: true)", () => {
     expect(c.keyId).not.toContain("test-gemini");
     expect(c).toMatchObject({ judge: true, usedFallback: false, visionCapable: true, reasoningTokens: 120, flags: { reasoning_effort: "high" } });
     expect(maskKeyTail("abc")).toBe("***");
+    // Gemini (OpenAI compat, stream): thoughts ziko ndani ya total_tokens tu → reasoningTokens = total − prompt − completion
+    expect(laneCallOf(l, { prompt_tokens: 31, completion_tokens: 1, total_tokens: 240 } as never, 1, true).reasoningTokens).toBe(208);
     expect(judgeVisionReady().ready).toBe(true);
     vi.stubEnv("XMD_TEST_HOOKS", "1");
     vi.stubEnv("XMD_TEST_LANES_DOWN", "gemini-flash,gemini-flash-lite");

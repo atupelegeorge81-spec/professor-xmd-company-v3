@@ -399,8 +399,8 @@ export function validateFindings(raw: unknown, reviewer: ReviewerId, pack: Evide
 }
 
 /** TASK-30: lane ya JUDGE — Gemini Flash (keys 4, thinking ON) → XKiro → Flash-Lite; picha kwenye lane bila vision → digest. */
-const judgeFor = (deps: ReviewDeps): NonNullable<ReviewDeps["complete"]> => async ({ reviewer, messages, purpose, agentId, textOnly }) =>
-  judgeComplete({ agentId: agentId || reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", maxHops: textOnly ? 10 : undefined, effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS },
+const judgeFor = (deps: ReviewDeps): NonNullable<ReviewDeps["complete"]> => async ({ reviewer, messages, purpose, agentId }) => // textOnly: mnyororo wa judge ni uleule (hops 32 — judgeComplete)
+  judgeComplete({ agentId: agentId || reviewer, purpose, messages, maxOut: 32_000, cls: "heavy", effort: "high", temperature: 0.4, priority: "background", waitMs: 120_000, stallFirstMs: REVIEW_STALL_FIRST_MS },
     { digest: deps.imageDigest, onLane: deps.onLane });
 
 /** maelezo23 #1 — reviewer MMOJA, peke yake. */

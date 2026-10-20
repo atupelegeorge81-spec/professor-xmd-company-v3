@@ -330,7 +330,8 @@ export function laneCallOf(lease: { id: string; lane: Lane; keyId: string; start
     callId: `${lease.id}-${lease.startedAt.toString(36)}`, lane: lease.lane.id, model: lease.lane.model, provider: lease.lane.provider, laneClass: laneClassOf(lease.lane),
     keyId: lease.keyId, visionCapable: visionCapable(lease.lane), usedFallback: judge ? tier !== 0 : hops > 1, judge, judgeTier: judge ? tier : -1,
     tokensIn: Number(usage?.prompt_tokens) || 0, tokensOut: Number(usage?.completion_tokens) || 0,
-    reasoningTokens: Number(usage?.completion_tokens_details?.reasoning_tokens) || 0, ms: Math.max(0, now - lease.startedAt), hops,
+    // Gemini (OpenAI compat, stream): thoughts haziko kwenye completion_tokens_details — ziko ndani ya total_tokens
+    reasoningTokens: Number(usage?.completion_tokens_details?.reasoning_tokens) || Math.max(0, (Number(usage?.total_tokens) || 0) - (Number(usage?.prompt_tokens) || 0) - (Number(usage?.completion_tokens) || 0)), ms: Math.max(0, now - lease.startedAt), hops,
     flags: { ...lease.extraBody },
   };
 }

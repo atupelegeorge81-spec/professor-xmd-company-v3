@@ -71,7 +71,9 @@ export async function judgeComplete(spec: Omit<CompleteSpec, "judge" | "vision" 
   const imgs = hasImages(spec.messages);
   const run = opts.complete || brokerComplete;
   const r = await run({
-    ...spec, judge: true, vision: imgs,
+    // hops: 429 (quota) ya lane moja = hop moja ya ~0.3s; Flash pekee ina lanes ~24 (models × keys 4) — ukomo wa default (5)
+    // ungesimamisha mnyororo kabla ya kufika XKiro/Flash-Lite (REAL T1: wito 2 ulirudisha 429 baada ya hops 5)
+    maxHops: 32, ...spec, judge: true, vision: imgs,
     ...(imgs ? { messagesFor: (lane) => (visionCapable(lane) ? spec.messages : degradeMessages(spec.messages, opts.digest)) } : {}),
   });
   const visionDegraded = imgs && !visionCapable(r.lane);

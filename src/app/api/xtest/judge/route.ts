@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   const saved = { down: process.env.XMD_TEST_LANES_DOWN, novision: process.env.XMD_TEST_LANES_NOVISION };
   const set = (k: string, v: unknown) => { if (v === undefined) return; const s = String(v || ""); if (s) process.env[k] = s; else delete process.env[k]; };
   set("XMD_TEST_LANES_DOWN", body.down); set("XMD_TEST_LANES_NOVISION", body.novision);
-  const out: { i: number; record?: LaneUse; answer?: string; reasoningChars?: number; error?: string }[] = [];
+  const out: { i: number; record?: LaneUse; answer?: string; reasoningChars?: number; usage?: unknown; error?: string }[] = [];
   try {
     for (let i = 0; i < n; i++) {
       try {
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
           { agentId: "designer", purpose: `xmdtest-judge:${i + 1}`, maxOut: 2000, cls: "heavy", effort: "high", temperature: 0.2, priority: "background", waitMs: 60_000, messages: [{ role: "user", content: content as never }] },
           { digest: body.image ? { "xmdtest-red": "A solid square filled entirely with one bright red colour (#FF0000); no text, no other shapes." } : null, onLane: (x) => { rec = x; } },
         );
-        out.push({ i, record: rec, answer: r.text.slice(0, 60), reasoningChars: r.reasoning.length });
+        out.push({ i, record: rec, answer: r.text.slice(0, 60), reasoningChars: r.reasoning.length, usage: r.usage }); // usage = namba tu (T3: thinking metadata)
       } catch (e) {
         out.push({ i, error: String((e as Error)?.message || e).slice(0, 200) });
       }
