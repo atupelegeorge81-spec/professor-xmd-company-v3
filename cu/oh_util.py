@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
+import time
 
 import shotlaw
 
@@ -499,3 +501,88 @@ def run_with_harness(run_goal_once, verify, send_message, rounds: int = 3, note=
             except Exception:
                 pass
         send_message(harness_feedback(hv, used, rounds))
+
+
+# ── TASK-32 (E2E halisi): watchdog ya amri za terminal ──────────────────────────────────────────
+# Run 5: agent aliendesha `curl -I http://localhost:4173/ | head -5` dhidi ya port iliyokwama. Progress meter
+# ya curl ilibadilisha output kila sekunde → no-change timeout ya SDK haikufika; amri haikuwa na `timeout`
+# → hard timeout haikuwepo. Amri ilidumu 685s bila tukio la bridge (liveness ya 15 dk → STUCK → BLOCKED).
+# Watchdog: kila shell ya terminal (`bash -i`) yenye foreground job (tpgid ≠ pgrp) kwa > cap sekunde → SIGINT,
+# kisha SIGKILL. Shell yenyewe haiguswi; agent anapata observation ya kawaida (exit 130) na anaendelea.
+CMD_CAP_S = int(os.environ.get("XMD_CU_CMD_CAP_S") or 480)
+
+
+def overdue_foreground(procs, now, seen, cap):
+    """procs: [(pid, pgrp, tpgid, cmdline)] → tpgids za foreground jobs zilizozidi `cap`. `seen` {(pid,tpgid): t0} inasasishwa."""
+    alive, out = set(), []
+    shells = [p for p in procs if re.search(r"(^|/)bash\b.*\s-i$", p[3].strip())]
+    shell_groups = {p[1] for p in shells}
+    for pid, pgrp, tpgid, cmd in shells:
+        # foreground ni shell nyingine (mf. `bash -i` ndani ya `bash -i`) → si job ya agent; usiiguse kamwe
+        if tpgid <= 0 or tpgid == pgrp or tpgid in shell_groups:
+            continue
+        k = (pid, tpgid)
+        alive.add(k)
+        t0 = seen.setdefault(k, now)
+        if now - t0 >= cap and tpgid not in out:  # shells za tty moja zinaripoti tpgid ileile
+            out.append(tpgid)
+    for k in list(seen):
+        if k not in alive:
+            del seen[k]
+    return out
+
+
+def _read_procs():
+    out = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            with open(f"/proc/{d}/cmdline", "rb") as fh:
+                cmd = fh.read().replace(b"\0", b" ").decode("utf-8", "replace").strip()
+            if "bash" not in cmd or "-i" not in cmd:
+                continue
+            with open(f"/proc/{d}/stat") as fh:
+                rest = fh.read().rsplit(")", 1)[1].split()
+            out.append((int(d), int(rest[2]), int(rest[5]), cmd))  # pgrp = field 5, tpgid = field 8
+        except Exception:
+            continue
+    return out
+
+
+def start_cmd_watchdog(emit, cap=None, every=15, pending_since=None):
+    """Thread ya daemon; emit(message) inaitwa kila amri inapokatwa. `pending_since()` → t0 ya amri ya terminal
+    ambayo agent anaisubiri (au None): server iliyoachwa foreground baada ya no-change timeout HAIGUSWI."""
+    import signal
+    import threading
+
+    cap = cap or CMD_CAP_S
+    seen = {}
+
+    def loop():
+        while True:
+            time.sleep(every)
+            try:
+                now = time.time()
+                overdue = overdue_foreground(_read_procs(), now, seen, cap)
+                if pending_since is not None:
+                    t0 = pending_since()
+                    if t0 is None or now - t0 < cap:
+                        overdue = []
+                for tp in overdue:
+                    try:
+                        os.killpg(tp, signal.SIGINT)
+                    except ProcessLookupError:
+                        continue
+                    emit(f"⏱️ amri ya terminal ilizidi {cap}s bila kumalizika — imesimamishwa (watchdog ya bridge)")
+                    time.sleep(5)
+                    try:
+                        os.killpg(tp, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+            except Exception:
+                pass
+
+    th = threading.Thread(target=loop, name="xmd-cmd-watchdog", daemon=True)
+    th.start()
+    return th

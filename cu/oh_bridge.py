@@ -32,7 +32,7 @@ import features_verify  # noqa: E402  (R51-Awamu2: harness ndiye mamlaka ya feat
 import lanes  # noqa: E402
 import oh_router  # noqa: E402
 import shotlaw  # noqa: E402
-from oh_util import (judge_verdict_valid, run_with_harness, _extract_steps, action_command, build_objective, clean_think, first_words,
+from oh_util import (start_cmd_watchdog, judge_verdict_valid, run_with_harness, _extract_steps, action_command, build_objective, clean_think, first_words,
                      is_text_toolcall, obs_failed, drop_echo, oh_tool_kind, reasoning_of, split_think,
                      read_shot_b64, shots_pending)
 
@@ -321,6 +321,9 @@ async def main_async() -> None:
 
     # ------------------------------------------------------------- event → UI
     cur_tools: dict[str, dict] = {}
+    # TASK-32: watchdog — amri ya terminal ambayo agent ANAISUBIRI (exec_start bila exec_end) > cap → SIGINT
+    start_cmd_watchdog(lambda msg: em.emit("error", message=msg),
+                       pending_since=lambda: min((v["t0"] for v in list(cur_tools.values()) if (v.get("name") or "").lower() == "terminal"), default=None))
     think_tids: set[str] = set()  # Task 3b: tool_call za `think`/`finish` (hazina exec card)
 
     def _obs_text(ev) -> str:
