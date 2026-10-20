@@ -434,14 +434,15 @@ export async function brokerComplete(spec: CompleteSpec): Promise<CompleteResult
  * Client ya OpenAI "bandia" (non-stream tu) kwa code inayopokea client (agenda, title): kila create() inapitia broker —
  * model/max_tokens/key zinachaguliwa na broker; makosa ya provider (na provider aliyekwama) yanazungushwa kimya kimya.
  */
-export function brokerClient(base: Omit<AcquireSpec, "maxOut" | "messages" | "estIn">, onUsage?: (usage: any, lane: Lane) => void): OpenAI {
+export function brokerClient(base: Omit<AcquireSpec, "maxOut" | "messages" | "estIn"> & { maxHops?: number }, onUsage?: (usage: any, lane: Lane) => void): OpenAI {
   const create = async (body: any, opts?: { signal?: AbortSignal }) => {
     if (body?.stream) throw new Error("brokerClient: stream haitumiki hapa — tumia brokerRun");
     const run = brokerRun({ ...base, messages: body.messages, maxOut: Number(body.max_tokens) || 2000, signal: opts?.signal ?? base.signal });
     const { model: _m, max_tokens: _x, stream: _s, ...rest } = body || {};
     let lastErr: unknown = null;
     const parent = opts?.signal ?? base.signal;
-    for (let hop = 0; hop < 5; hop++) {
+    const maxHops = base.maxHops ?? 5; // TASK-32: wito wa Gemini-pekee unahitaji hops nyingi (429 discovery)
+    for (let hop = 0; hop < maxHops; hop++) {
       const lease = await run.next();
       // R21 · fast: lane inayochelewa (mf. reasoning ndefu) inaachwa baada ya fastTimeoutMs → lane inayofuata.
       // Hops 3 za mwisho hazina kikomo (ombi lisishindwe kabisa); lane haiadhibiwi (si kosa lake — ni polepole tu).

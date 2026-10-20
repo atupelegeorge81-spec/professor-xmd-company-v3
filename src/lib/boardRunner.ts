@@ -688,7 +688,7 @@ async function run(runner: Runner) {
     // R16: title/agenda zinapitia Capacity Broker (client ya broker — model/key huchaguliwa kwa nafasi halisi)
     // R21: fast = njia ya haraka ya broker (Gemini Lite → Flash → Groq → XKiro …) kwa kazi zinazomsubirisha Mkuu
     const pmClient = (purpose: string, cls: WorkClass, fast = false, allow?: ("gemini")[]) => {
-      const c = brokerClient({ agentId: "pm", purpose, cls, priority: "live", fast, allow }, (r, lane) => { const u = readUsage(r); if (u) recordUsage("pm", u, true, undefined, lane.provider); });
+      const c = brokerClient({ agentId: "pm", purpose, cls, priority: "live", fast, allow, ...(allow ? { maxHops: 32 } : {}) }, (r, lane) => { const u = readUsage(r); if (u) recordUsage("pm", u, true, undefined, lane.provider); });
       // R16.1: Detach inakata wito huu pia; Resume inaurudia
       const create = (body: any) => pausable(`Optimus · ${purpose}`, (signal) => c.chat.completions.create(body, { signal }) as Promise<any>);
       return { chat: { completions: { create } } } as unknown as typeof c;
