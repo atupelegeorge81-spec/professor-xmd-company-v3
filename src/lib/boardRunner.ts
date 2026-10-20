@@ -3401,12 +3401,16 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
       const sid = runner.sessionId, map = runner.msMap;
       if (!sid || !map?.milestones.length) return null;
       const lr = runner as unknown as Parameters<typeof msUpdate>[0];
-      const last = map.milestones[map.milestones.length - 1];
+      // milestone ya mwisho ILIYOTEKELEZWA (yenye plan) — si ya mwisho kwenye map: milestone isiyoanza haina checks/screens (real run W)
+      let last = map.milestones[map.milestones.length - 1], planMd = "";
+      for (const m of [...map.milestones].reverse()) {
+        const md = (await getRecord<{ markdown?: string }>(sid, planKey(m.id)))?.data?.markdown || "";
+        if (md) { last = m; planMd = md; break; }
+      }
       const links = { repo: runner.cu?.links?.repo || undefined, live: o.liveUrl || runner.cu?.links?.live || undefined };
       let post: PostDeployResult | null = null;
       if (links.live) {
         blog("system", `🌐 Post-deploy checks: ${links.live} — routes + checks/screens za ${last.id}…`);
-        const planMd = (await getRecord<{ markdown?: string }>(sid, planKey(last.id)))?.data?.markdown || "";
         post = await milestonePostDeploy(runner as Runner, { milestoneId: last.id, planMarkdown: planMd, reviewMode: last.reviewMode, base: links.live })
           .catch((e: any) => ({ liveUrl: links.live!, ran: false, ok: false, reason: `post-deploy failed: ${String(e?.message || e).slice(0, 200)}`, routes: [], checks: [], screens: null, at: new Date().toISOString() }));
         blog(post.ok ? "success" : "warning", `🌐 Post-deploy: ${post.ok ? "PASS" : `FAIL — ${post.reason}`} · routes ${post.routes.map((r) => `${r.route} ${r.status}`).join(", ")} · checks ${post.checks.length}${post.screens ? ` · screens ${post.screens.count}` : ""}`);

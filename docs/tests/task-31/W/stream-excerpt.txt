@@ -1,0 +1,6 @@
+09:34:12 🪜 M1 R6 CO-007 attempt 6 (redecide) → no order · WAIVE (3 turns): Both reviewers voted WAIVE. The CSS correctly implements the amended decision (sentence case, letter-spacing: 0.05em, font-size: 0.875rem) per locked
+09:34:35 ✅ M1 R5 → SIGNED_OFF_WITH_WAIVERS: all remaining defects waived by redecide (D-001) · defects fixed 0 · reopened 1 · new 0 · SAME (open defects unchanged (1)).
+09:34:35 🧪 XMD_TEST_VERIFY_INPUT: M1 → SIGNED_OFF_WITH_WAIVERS (round 5) · sandbox ize9tjc4…
+09:34:38 🌐 Post-deploy checks: https://4180-ize9tjc4nzk8caq9rmn7q.e2b.app — routes + checks/screens za M2…
+09:34:40 🌐 Post-deploy: FAIL — screenshots exit 0 · errors 0 · count 0 · routes / 200 · checks 0 · screens 0
+09:35:39 📑 Ripoti ya mwisho: PARTIAL — see open defects · herufi 7468

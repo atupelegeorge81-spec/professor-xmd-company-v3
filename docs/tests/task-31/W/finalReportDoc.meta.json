@@ -1,0 +1,38 @@
+{
+ "version": 1,
+ "verdict": {
+  "complete": false,
+  "line": "PARTIAL — see open defects",
+  "why": [
+   "not signed off: M2 NOT_STARTED",
+   "post-deploy checks FAILED: screenshots exit 0 · errors 0 · count 0"
+  ]
+ },
+ "missingLlm": [],
+ "links": {
+  "live": "https://4180-ize9tjc4nzk8caq9rmn7q.e2b.app"
+ },
+ "postDeploy": {
+  "liveUrl": "https://4180-ize9tjc4nzk8caq9rmn7q.e2b.app",
+  "ran": true,
+  "ok": false,
+  "reason": "screenshots exit 0 · errors 0 · count 0",
+  "routes": [
+   {
+    "route": "/",
+    "status": 200,
+    "ok": true
+   }
+  ],
+  "checks": [],
+  "screens": {
+   "count": 0,
+   "errors": 0,
+   "exit": 0,
+   "urls": []
+  },
+  "at": "2026-10-20T09:34:40.314Z"
+ },
+ "chars": 7468,
+ "at": "2026-10-20T09:35:38.362Z"
+}

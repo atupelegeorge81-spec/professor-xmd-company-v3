@@ -1016,7 +1016,7 @@ export async function milestonePostDeploy(runner: Runner, o: { milestoneId: stri
     await runOnMilestoneSandbox(runner, async (sbx) => {
       const script = await readCuFile("xmd-evidence.mjs");
       if (live.length) res.checks = (await runChecks(live, { sbx, ws: "/home/user/ws", base, script, tag: `${o.milestoneId}-postdeploy`, commandTimeoutMs: 120_000 })).results;
-      if (o.reviewMode !== "technical") {
+      if (o.reviewMode !== "technical" && spec.routes.length) { // plan bila Screenshot matrix → hakuna screens za kudai
         const ev = await captureEvidence(sbx, { milestoneId: o.milestoneId, round: 99, planMarkdown: o.planMarkdown, script, sessionId: runner.sessionId || runner.id, base }, evidenceUploader);
         res.screens = { count: ev.pack.screenshots.length, errors: ev.pack.errors.length + ev.invalid.length, exit: ev.exit, urls: ev.pack.screenshots.map((s) => s.url).filter(Boolean).slice(0, 12) };
       }
