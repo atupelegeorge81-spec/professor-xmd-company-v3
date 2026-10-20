@@ -602,9 +602,15 @@ async def main_async() -> None:
                     passed=(verdict or {}).get("passed", 0), total=(verdict or {}).get("total", 0),
                     failures=(verdict or {}).get("failures", []), note=first_words(s, 200))
             if verdict and not verdict.get("ok") and status == "done":
-                status = "stuck"
                 harness_note = "\n\n⚠️ HARNESS (thibitisho ya uhakika): " + s
-                em.emit("error", message="harness: features hazijathibitishwa — " + first_words(s, 160))
+                status = harness_status(status, False, gate_guard is not None)
+                if gate_guard is not None:
+                    # TASK-32 (E2E halisi): awamu ya milestone — completion gate (build/report/git) ndiyo mamlaka; features
+                    # zisizothibitishwa zinaingia kwenye report → reviewers/COs/fix rounds (si STUCK → BLOCKED bila review).
+                    em.emit("usage", lane="harness", provider="", account="", model="", prompt=0, completion=0,
+                            total=0, ok=False, waiting=False, note=first_words("harness (milestone → review): " + s, 140))
+                else:
+                    em.emit("error", message="harness: features hazijathibitishwa — " + first_words(s, 160))
     except Exception as e:
         sys.stderr.write(f"[oh_bridge] harness gate: {type(e).__name__}: {str(e)[:160]}\n")
 
@@ -640,6 +646,14 @@ async def main_async() -> None:
             github=sorted(gh_urls), deploy=sorted(vc_urls),
             **({"resume_at": resume_at} if resume_at else {}),
             **({"gate": gate_guard.summary()} if gate_guard is not None else {}))
+
+
+def harness_status(status: str, features_ok: bool, milestone: bool) -> str:
+    """TASK-32: features za harness zisipothibitishwa — legacy: "done" → "stuck"; awamu ya milestone: completion gate
+    ndiyo mamlaka, status inabaki (kasoro zinaenda kwenye report → reviewers/COs), si STUCK → BLOCKED bila review."""
+    if features_ok or status != "done" or milestone:
+        return status
+    return "stuck"
 
 
 def main() -> None:
