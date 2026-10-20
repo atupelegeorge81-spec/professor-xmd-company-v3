@@ -1,0 +1,11 @@
+T1_1.json 0 gemini-flash gemini-1:gemini-3.8-flash ***0-Pw fb False vis True deg False in/out 31 1 think 197 total 229 {'reasoning_effort': 'high'} 34.5s YES
+T1_1.json 1 gemini-flash gemini-2:gemini-3.8-flash ***A4gA fb False vis True deg False in/out 31 1 think 184 total 216 {'reasoning_effort': 'high'} 35.7s YES
+T1_2.json 0 gemini-flash gemini-3:gemini-3.8-flash ***9VFw fb False vis True deg False in/out 31 1 think 86 total 118 {'reasoning_effort': 'high'} 37.9s YES
+T1_2.json 1 gemini-flash gemini-4:gemini-3.8-flash ***JAzw fb False vis True deg False in/out 31 1 think 224 total 256 {'reasoning_effort': 'high'} 53.5s YES
+T1_3.json 0 gemini-flash gemini-1:gemini-3.6-flash ***0-Pw fb False vis True deg False in/out 31 1 think 184 total 216 {'reasoning_effort': 'high'} 2.1s YES
+T1_3.json 1 gemini-flash gemini-2:gemini-3.6-flash ***A4gA fb False vis True deg False in/out 31 1 think 166 total 198 {'reasoning_effort': 'high'} 1.7s YES
+T1_4.json 0 gemini-flash gemini-3:gemini-3.6-flash ***9VFw fb False vis True deg False in/out 31 1 think 179 total 211 {'reasoning_effort': 'high'} 1.7s YES
+T1_4.json 1 gemini-flash gemini-4:gemini-3.6-flash ***JAzw fb False vis True deg False in/out 31 1 think 199 total 231 {'reasoning_effort': 'high'} 1.9s YES
+T1_5.json 0 gemini-flash gemini-1:gemini-3-flash-preview ***0-Pw fb False vis True deg False in/out 31 1 think 243 total 275 {'reasoning_effort': 'high'} 1.8s YES
+T1_5.json 1 gemini-flash gemini-2:gemini-3-flash-preview ***A4gA fb False vis True deg False in/out 31 1 think 155 total 187 {'reasoning_effort': 'high'} 1.4s YES
+calls 10 distribution: {('gemini-flash', '***0-Pw'): 3, ('gemini-flash', '***A4gA'): 3, ('gemini-flash', '***9VFw'): 2, ('gemini-flash', '***JAzw'): 2}

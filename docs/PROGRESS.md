@@ -454,3 +454,19 @@ $ npm run cu:test        → Ran 186 tests — OK
   T5 reviewers wote wawili (huru) waliflag "Build report falsely claims secrets scan is clean". Runs 6 za T4 kabla ya PASS zilifichua kasoro 15 (K0–K14), zote zimerekebishwa na zina unit tests.
 - Koyeb: env `XMD_TEST_PROFILE_DIR=docs/tests/task-29/inputs`. Hatari: uwezo wa LLM (Gemini/OpenRouter quotas), Optimus bado anaweza kubuni amri za acceptance.
 - Baselines: tsc 0 · vitest 730 + 2 skipped (+31) · pytest 338 + 3 · unittest OK · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-29.md + docs/tests/task-29/ (bila `.log`).
+
+## Task 30 — Judging lanes (Flash ×4 keys → XKiro → Flash-Lite), lane logging, vision rule
+- Branch `task/30-judging-lanes` · nyuma ya `XMD_MILESTONES` · inategemea T2, T23–T26 · broker imeguswa kidogo (darasa jipya `judge` pekee).
+- **Judge chain** (`policy.ts` `JUDGE_CHAIN`): Gemini Flash (models zote × keys 4, zinazunguka, thinking `reasoning_effort: high`) → XKiro → Flash-Lite;
+  fall-through kwa admission ya kawaida. Inatumika na reviewer analysis, verify na mjadala wa review (`milestone/judge.ts`). Lanes/policies nyingine hazijabadilika.
+- **Rekodi kwa kila wito** → `state:Mk.lanesUsed` (callId, stepId, lane, model, keyId iliyofichwa, visionCapable, usedFallback, tokensIn/Out, ms, visionDegraded) + chip `🔌 Mk lanes` kwenye export.
+- **Vision rule:** picha kwenye lane bila vision → digest ya Flash (iliyohifadhiwa) + DOM metrics, `visionDegraded:true`; sign-off ya visual/mixed kwa verdicts za degraded
+  inakataliwa → `PAUSED_QUOTA` (system, `resumeAt`) → inasubiri lane ya vision → re-verify → sign-off.
+- Test hooks (judge pekee): `XMD_TEST_LANES_DOWN`, `XMD_TEST_LANES_NOVISION`; routes `/api/xtest/lanes`, `/api/xtest/judge`.
+- REAL (Koyeb, S1): T1 10/10 Flash, keys 4 (3/3/2/2) · T2 Flash down → XKiro, zote → Flash-Lite (`usedFallback`) · T3 `reasoning_effort: high`, reasoning tokens 86–3357 ·
+  T4 (session f9f5cb7b) `visionDegraded` + digest → sign-off ya mixed imekataliwa → `PAUSED_QUOTA` → Flash inarudi → RESUME → `SIGNED_OFF` · T5 board turns XKiro,
+  observers Flash-Lite, heavy Flash licha ya hook (hook ni judge pekee) · T6 export `.md` ina chips 3 za lanes + records 8.
+- Kasoro 4 zilizopatikana kwenye runs halisi zimerekebishwa: judge `maxHops` 5 → 32 (429 discovery); thinking tokens kutoka `total_tokens`; digest `maxHops` 32;
+  `stepId` ya record wakati wa wito; (review ya docs) vigezo vya digest vilivyomezwa na comment.
+- Koyeb: env `XMD_TEST_PROFILE_DIR=docs/tests/task-30/inputs`. Hatari: reviewers wa degraded wanaflag touch-target minors (DOM) → REVERT inaweza kuzunguka; ledger ya usage haidumu kati ya deploys.
+- Baselines: tsc 0 · vitest 749 + 2 skipped (+19) · pytest 338 + 3 · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-30.md + docs/tests/task-30/ (bila `.log`).

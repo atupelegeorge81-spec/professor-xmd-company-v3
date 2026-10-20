@@ -1,0 +1,5 @@
+T2_a.json 0 xkiro xkiro-1:qwen/qwen3.8-max:free ***1910 fb True vis True deg False in/out 204 1 think 0 total 205 {} 3.0s 'YES' 
+T2_a.json 1 xkiro xkiro-2:qwen/qwen3.8-max:free ***4f51 fb True vis True deg False in/out 204 1 think 0 total 205 {} 3.6s 'YES' 
+T2_b.json 0 gemini-flash-lite gemini-3:gemini-3.5-flash-lite ***9VFw fb True vis True deg False in/out 31 1 think 147 total 179 {'reasoning_effort': 'high'} 0.8s 'YES' 
+T2_b.json 1 gemini-flash-lite gemini-4:gemini-3.5-flash-lite ***JAzw fb True vis True deg False in/out 31 1 think 150 total 182 {'reasoning_effort': 'high'} 0.8s 'YES' 
+calls 4 distribution: {('xkiro', '***1910'): 1, ('xkiro', '***4f51'): 1, ('gemini-flash-lite', '***9VFw'): 1, ('gemini-flash-lite', '***JAzw'): 1}

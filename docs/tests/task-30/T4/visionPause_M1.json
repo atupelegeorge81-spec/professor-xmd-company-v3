@@ -1,0 +1,17 @@
+{
+ "version": 1,
+ "events": [
+  {
+   "stepId": "M1.R2.decide",
+   "why": "R2 verdicts visionDegraded (designer, frontend)",
+   "lanes": {
+    "designer": "qwen/qwen3.8-max:free",
+    "frontend": "qwen/qwen3.8-max:free"
+   },
+   "pausedAt": "2026-10-20T07:24:43.913Z",
+   "resumeAt": "2026-10-20T07:27:43.333Z",
+   "resumedAt": "2026-10-20T07:30:46.572Z",
+   "resumedOn": "gemini-1:gemini-3.8-flash"
+  }
+ ]
+}

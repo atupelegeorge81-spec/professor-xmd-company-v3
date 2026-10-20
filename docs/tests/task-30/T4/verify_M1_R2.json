@@ -1,0 +1,267 @@
+{
+ "defectsBefore": [
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001",
+    "S-001 page: scrollWidth 640 > 375"
+   ],
+   "status": "IN_FIX",
+   "attempts": 2,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-001: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-001 PASS (designer PASS, frontend PASS, checks 1P/0F/0E) · round 1 reverted: made things worse (open defects 2 → 4)",
+     "cause": "REVERTED"
+    },
+    {
+     "round": 2,
+     "result": "ESCALATED attempt 2 (concrete) → CO-003",
+     "cause": "diagnosis REGRESSION_CAUSED: The previous fix for D-001 was reverted as part of a round that introduced new defects, causing the original issue to reappear.",
+     "mode": "concrete",
+     "diagnosis": {
+      "cause": "REGRESSION_CAUSED",
+      "reason": "The previous fix for D-001 was reverted as part of a round that introduced new defects, causing the original issue to reappear."
+     }
+    },
+    {
+     "round": 2,
+     "result": "CO-003: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ],
+   "id": "D-001",
+   "area": "layout",
+   "severity": "medium",
+   "title": "Promo strip overflows at 375px (width: 640px)",
+   "expected": "A3: no horizontal scroll at 375px",
+   "actual": ".promo-strip width: 640px"
+  },
+  {
+   "milestoneId": "M1",
+   "foundInRound": 0,
+   "reportedBy": [
+    "designer",
+    "frontend"
+   ],
+   "evidence": [
+    "S-001"
+   ],
+   "status": "IN_FIX",
+   "attempts": 2,
+   "history": [
+    {
+     "round": 1,
+     "result": "CO-002: APPLIED · checks 1P/0F/0E",
+     "cause": "receipt DONE"
+    },
+    {
+     "round": 1,
+     "result": "verify: CO-002 PASS (designer PASS, frontend PASS, checks 1P/0F/0E) · round 1 reverted: made things worse (open defects 2 → 4)",
+     "cause": "REVERTED"
+    },
+    {
+     "round": 2,
+     "result": "ESCALATED attempt 2 (concrete) → CO-004",
+     "cause": "diagnosis REGRESSION_CAUSED: The fix for D-002 passed verification in round 1 but was reverted after collateral changes caused regressions. · requirement restored (1 check(s)) — the consolidated order had changed it",
+     "mode": "concrete",
+     "diagnosis": {
+      "cause": "REGRESSION_CAUSED",
+      "reason": "The fix for D-002 passed verification in round 1 but was reverted after collateral changes caused regressions."
+     }
+    },
+    {
+     "round": 2,
+     "result": "CO-004: APPLIED · checks 2P/0F/0E",
+     "cause": "receipt DONE"
+    }
+   ],
+   "id": "D-002",
+   "area": "palette",
+   "severity": "medium",
+   "title": "Hero lead paragraph uses dim grey #4B5563 instead of the palette text colour",
+   "expected": "A4: text #E5E7EB — .lead computed color rgb(229, 231, 235)",
+   "actual": ".lead color #4B5563 (low contrast)"
+  }
+ ],
+ "harnessRegressions": [],
+ "degradedRuns": [
+  {
+   "at": "2026-10-20T07:24:43.025Z",
+   "reviewers": [
+    "designer",
+    "frontend"
+   ],
+   "cos": [
+    {
+     "orderId": "CO-003",
+     "verdict": "PASS"
+    },
+    {
+     "orderId": "CO-004",
+     "verdict": "PASS"
+    }
+   ],
+   "lanes": {
+    "designer": "qwen/qwen3.8-max:free",
+    "frontend": "qwen/qwen3.8-max:free"
+   }
+  }
+ ],
+ "version": 1,
+ "id": "M1",
+ "round": 2,
+ "header": "ROUND 2/10 (M1) — closed defects: 0 · open: 2 (D-001 attempt 2, D-002 attempt 2) · waivers: 0 · rounds left: 8",
+ "runs": {
+  "designer": {
+   "findings": {
+    "reviewer": "designer",
+    "cos": [
+     {
+      "orderId": "CO-003",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-003/CO-003-1",
+       "check:global/no_horizontal_overflow",
+       "S-001"
+      ],
+      "note": "Promo strip now fits the 375px mobile viewport cleanly without horizontal overflow (scrollWidth 375 vs clientWidth 375). Box-sizing and max-width 1100px conform to layout rule A3."
+     },
+     {
+      "orderId": "CO-004",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-004/CO-004-2",
+       "check:CO-004/lead-color#req",
+       "S-001 dom: body > main color=rgb(229, 231, 235)"
+      ],
+      "note": ".lead text color is now rgb(229, 231, 235) (#E5E7EB), meeting the A4 dark palette specification and establishing a clear 15.79:1 contrast ratio on dark background."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "Both change orders pass verification. The layout is cleanly responsive across mobile, tablet, and desktop viewports with proper max-width bounding, typography, and color contrast adhering to ledger decisions A1–A4."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "e04c647a313edd426ac1b2ca696538f3713f1d2b1c45eb48a13d8554ccbb9de6",
+   "promptChars": 18579,
+   "imageParts": 3,
+   "model": "gemini-3.8-flash",
+   "ms": 63531,
+   "raw": "```json\n{\n  \"reviewer\": \"designer\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-003/CO-003-1\",\n        \"check:global/no_horizontal_overflow\",\n        \"S-001\"\n      ],\n      \"note\": \"Promo strip now fits the 375px mobile viewport cleanly without horizontal overflow (scrollWidth 375 vs clientWidth 375). Box-sizing and max-width 1100px conform to layout rule A3.\"\n    },\n    {\n      \"orderId\": \"CO-004\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-004/CO-004-2\",\n        \"check:CO-004/lead-color#req\",\n        \"S-001 dom: body > main color=rgb(229, 231, 235)\"\n      ],\n      \"note\": \".lead text color is now rgb(229, 231, 235) (#E5E7EB), meeting the A4 dark palette specification and establishing a clear 15.79:1 contrast ratio on dark background.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"Both change orders pass verification. The layout is cleanly responsive across mobile, tablet, and desktop viewports with proper max-width bounding, typography, and color contrast adhering to ledger decisions A1–A4.\"\n}\n```"
+  },
+  "frontend": {
+   "findings": {
+    "reviewer": "frontend",
+    "cos": [
+     {
+      "orderId": "CO-003",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-003/CO-003-1",
+       "check:global/no_horizontal_overflow",
+       "S-001"
+      ],
+      "note": "Promo strip overflow resolved across all viewports. At 375px viewport scrollWidth is 375 vs clientWidth 375 with overflowPx=0; 768px and 1280px viewports also show 0 overflow."
+     },
+     {
+      "orderId": "CO-004",
+      "verdict": "PASS",
+      "evidence": [
+       "check:CO-004/lead-color#req",
+       "check:CO-004/CO-004-2",
+       "S-001"
+      ],
+      "note": "Hero lead paragraph color is now rgb(229, 231, 235) (#E5E7EB) with contrast ratio 15.79 on background rgb(11, 12, 16), comfortably exceeding the 4.5 minimum."
+     }
+    ],
+    "regressions": [],
+    "newDefects": [],
+    "requestDiscussion": null,
+    "notes": "Both change orders CO-003 and CO-004 have been verified and pass. The layout is responsive without horizontal overflow at 375, 768, and 1280px viewports, lead text contrast meets palette standards, and console errors are clean."
+   },
+   "attempts": 1,
+   "errors": [],
+   "promptHash": "b97ffcaeb0c9f0725eaa9018686bf9c488d88d8f784fc23f6e162db7c1d2b0cd",
+   "promptChars": 18601,
+   "imageParts": 3,
+   "model": "gemini-3.8-flash",
+   "ms": 70013,
+   "raw": "```json\n{\n  \"reviewer\": \"frontend\",\n  \"cos\": [\n    {\n      \"orderId\": \"CO-003\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-003/CO-003-1\",\n        \"check:global/no_horizontal_overflow\",\n        \"S-001\"\n      ],\n      \"note\": \"Promo strip overflow resolved across all viewports. At 375px viewport scrollWidth is 375 vs clientWidth 375 with overflowPx=0; 768px and 1280px viewports also show 0 overflow.\"\n    },\n    {\n      \"orderId\": \"CO-004\",\n      \"verdict\": \"PASS\",\n      \"evidence\": [\n        \"check:CO-004/lead-color#req\",\n        \"check:CO-004/CO-004-2\",\n        \"S-001\"\n      ],\n      \"note\": \"Hero lead paragraph color is now rgb(229, 231, 235) (#E5E7EB) with contrast ratio 15.79 on background rgb(11, 12, 16), comfortably exceeding the 4.5 minimum.\"\n    }\n  ],\n  \"regressions\": [],\n  \"newDefects\": [],\n  \"requestDiscussion\": null,\n  \"notes\": \"Both change orders CO-003 and CO-004 have been verified and pass. The layout is responsive without horizontal overflow at 375, 768, and 1280px viewports, lead text contrast meets palette standards, and console errors are clean.\"\n}\n```"
+  }
+ },
+ "disputed": [],
+ "sync": null,
+ "at": "2026-10-20T07:32:23.238Z",
+ "git": {
+  "op": "tag",
+  "ok": true,
+  "sha": "faf642ec8b749e6379d09c99765272c288826e31",
+  "detail": "tag xmd-best-M1"
+ },
+ "outcome": {
+  "outcome": "BEST",
+  "reason": "open defects 2 → 0",
+  "openBefore": 2,
+  "openAfter": 0,
+  "regressions": 0
+ },
+ "decision": {
+  "cos": [
+   {
+    "orderId": "CO-003",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 1 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 1,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   },
+   {
+    "orderId": "CO-004",
+    "verdict": "PASS",
+    "reason": "both reviewers PASS · checks 2 PASS",
+    "designer": "PASS",
+    "frontend": "PASS",
+    "checks": {
+     "pass": 2,
+     "fail": 0,
+     "error": 0
+    },
+    "disagreement": false,
+    "unresolved": false,
+    "checkOverride": false
+   }
+  ],
+  "concerns": [],
+  "newDefects": [],
+  "regressions": [],
+  "disagreements": [],
+  "allPass": true
+ },
+ "next": {
+  "next": "SIGN_OFF",
+  "reason": "all 2 CO(s) PASS · checks 6 PASS · no open defect ≥ medium · receipts match",
+  "leftoverMinor": []
+ },
+ "added": [],
+ "duplicates": []
+}

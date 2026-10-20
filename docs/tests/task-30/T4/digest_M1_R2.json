@@ -1,0 +1,13 @@
+{
+ "version": 1,
+ "milestoneId": "M1",
+ "round": 2,
+ "byId": {
+  "S-001": "Dark-themed mobile layout on a black background. At the top, a header shows the brand name \"Kivuli\", text links \"Shop\", \"Story\", \"Contact\", and a square border containing a circular theme toggle icon. The hero section features the heading \"Quiet goods for slow mornings\", body text \"Hand-thrown mugs, linen and small-batch coffee from Dar es Salaam.\", and a bordered rectangular button labelled \"Browse the shop\". Below is a dark grey banner reading \"Free delivery in Dar es Salaam on orders over 50,000 TZS\". Underneath are three vertically stacked dark grey cards: \"Mug\" with \"Stoneware, 300 ml.\", \"Linen\" with \"Natural, pre-washed.\", and \"Coffee\" with \"Kilimanjaro, medium roast.\"",
+  "S-002": "Dark-themed tablet layout on a black background. The top navigation bar displays \"Kivuli\" at the left, \"Shop\", \"Story\", \"Contact\" right of center, and a bordered theme toggle icon button on the far right. Below, the hero section has the heading \"Quiet goods for slow mornings\", supporting text \"Hand-thrown mugs, linen and small-batch coffee from Dar es Salaam.\", and a bordered button \"Browse the shop\". A full-width dark grey banner displays \"Free delivery in Dar es Salaam on orders over 50,000 TZS\". A three-column row of dark grey cards follows, featuring \"Mug\", \"Linen\", and \"Coffee\" with product details. The lower half of the viewport is blank dark space.",
+  "S-003": "Dark-themed desktop layout on a black background. The top header shows \"Kivuli\" at the left, links \"Shop\", \"Story\", \"Contact\" right of center, and a bordered theme toggle icon at the far right. The main section contains the heading \"Quiet goods for slow mornings\", descriptive text \"Hand-thrown mugs, linen and small-batch coffee from Dar es Salaam.\", and a bordered \"Browse the shop\" button. Directly beneath is a full-width dark grey banner reading \"Free delivery in Dar es Salaam on orders over 50,000 TZS\", followed by a three-column row of dark cards: \"Mug\", \"Linen\", and \"Coffee\" with their short descriptions. The lower portion of the screen consists of empty dark space."
+ },
+ "lane": "gemini-2:gemini-3.7-flash (gemini-flash)",
+ "model": "gemini-3.7-flash",
+ "at": "2026-10-20T07:24:06.540Z"
+}

@@ -1,0 +1,4 @@
+T4v_deg.json 0 xkiro xkiro-1:qwen/qwen3.8-max:free ***1910 fb True vis False deg True in/out 318 1 think 0 total 319 {} 3.2s 'Red' 
+T4v_flash.json 0 gemini-flash gemini-3:gemini-3-flash-preview ***9VFw fb False vis True deg False in/out 1122 1 think 41 total 1164 {'reasoning_effort': 'high'} 3.1s 'Red' 
+T4v_pref.json 0 gemini-flash-lite gemini-1:gemini-3.5-flash-lite ***0-Pw fb True vis True deg False in/out 1122 1 think 87 total 1210 {'reasoning_effort': 'high'} 2.3s 'Red' 
+calls 3 distribution: {('xkiro', '***1910'): 1, ('gemini-flash', '***9VFw'): 1, ('gemini-flash-lite', '***0-Pw'): 1}

@@ -1,0 +1,13 @@
+{
+ "version": 1,
+ "milestoneId": "M1",
+ "round": 1,
+ "byId": {
+  "S-001": "Mobile viewport featuring a dark-themed e-commerce page. At the top, a navigation bar displays 'Kivuli' alongside links 'Shop', 'Story', 'Contact', and a bordered theme toggle icon. Below, a hero section contains the headline 'Quiet goods for slow mornings', followed by body text 'Hand-thrown mugs, linen and small-batch coffee from Dar es Salaam.', and a bordered button labeled 'Browse the shop'. A muted dark grey horizontal banner reads 'Free delivery in Dar es Salaam on orders over 50,000 TZS'. Beneath this, three vertically stacked dark grey cards display product details: 'Mug' with 'Stoneware, 300 ml.', 'Linen' with 'Natural, pre-washed.', and 'Coffee' with 'Kilimanjaro, medium roast.' All elements are aligned with clean spacing.",
+  "S-002": "Tablet viewport in portrait mode with a dark theme. The top bar contains 'Kivuli' on the left, 'Shop', 'Story', and 'Contact' toward the center-right, and a square-bordered theme toggle icon on the far right. The main section displays the header 'Quiet goods for slow mornings', descriptive text 'Hand-thrown mugs, linen and small-batch coffee from Dar es Salaam.', and a bordered 'Browse the shop' button. Below sits a full-width dark grey notification bar with 'Free delivery in Dar es Salaam on orders over 50,000 TZS'. Underneath are three side-by-side dark cards showing 'Mug', 'Linen', and 'Coffee' with their respective subtitles. The lower half of the viewport is empty black background.",
+  "S-003": "Desktop viewport displaying a dark-themed layout. The header shows 'Kivuli' at the left, navigation links 'Shop', 'Story', 'Contact' centered, and a theme toggle button on the far right. Left-aligned content includes the headline 'Quiet goods for slow mornings', subtext 'Hand-thrown mugs, linen and small-batch coffee from Dar es Salaam.', and a rectangular bordered 'Browse the shop' button. Spanning the content width below is a grey banner: 'Free delivery in Dar es Salaam on orders over 50,000 TZS'. Three equal-width cards sit in a single horizontal row for 'Mug' (Stoneware, 300 ml.), 'Linen' (Natural, pre-washed.), and 'Coffee' (Kilimanjaro, medium roast.). The lower 40% of the viewport consists of solid dark background with no content."
+ },
+ "lane": "gemini-1:gemini-3.8-flash (gemini-flash)",
+ "model": "gemini-3.8-flash",
+ "at": "2026-10-20T07:07:15.398Z"
+}

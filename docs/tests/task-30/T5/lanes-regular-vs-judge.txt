@@ -1,0 +1,31 @@
+# T5 — session 2b916e43 (inputT5: milestones OFF · XMD_TEST_LANES_DOWN=gemini-flash,xkiro) — mistari ya lanes kutoka stream
+ 🧪 test profile inputT5: XMD_TEST_VERIFY_INPUT, XMD_TEST_MAX_AGENDAS, XMD_TEST_LANES_DOWN
+07:37:14 🧪 XMD_TEST_MAX_AGENDAS=1: agenda 3 → 1
+07:37:21 🔌 Optimus → XKiro 2 · qwen3.8-max
+07:37:30 ✅ Optimus alimaliza kwa XKiro 2 · qwen3.8-max (tokens: 8505)
+07:37:33 🔌 Ultron → XKiro 2 · qwen3.8-max
+07:37:41 ✅ Ultron alimaliza kwa XKiro 2 · qwen3.8-max (tokens: 10972)
+07:37:42 🔌 Optimus → XKiro 1 · qwen3.8-max
+07:37:57 ✅ Optimus alimaliza kwa XKiro 1 · qwen3.8-max (tokens: 10312)
+07:38:15 ✅ Ultron alimaliza kwa XKiro 2 · qwen3.8-max (tokens: 13311)
+07:38:30 ✅ Optimus alimaliza kwa XKiro 1 · qwen3.8-max (tokens: 11541)
+07:38:44 ✅ Ultron alimaliza kwa XKiro 2 · qwen3.8-max (tokens: 13977)
+07:38:44 🔌 Vextron → Gemini 3 · gemini-3.5-flash-lite
+07:38:45 ✅ Vextron alimaliza kwa Gemini 3 · gemini-3.5-flash-lite (tokens: 13238)
+07:38:45 🔌 Megatron → Gemini 4 · gemini-3.5-flash-lite
+07:38:47 ✅ Megatron alimaliza kwa Gemini 4 · gemini-3.5-flash-lite (tokens: 12503)
+07:38:47 🔌 Cybertron → Gemini 2 · gemini-3.5-flash-lite
+07:38:48 ✅ Cybertron alimaliza kwa Gemini 2 · gemini-3.5-flash-lite (tokens: 13764)
+07:40:28 📋 Mpango Kazi · lanes pekee: XKiro qwen (akaunti 1·2 = keys za Optimus) → UnoRouter/OpenRouter (nemotron-3-ultra-550b · space-bunny-alpha) — Gemini/Gro
+07:41:03 ✅ Optimus alimaliza kwa XKiro 1 · qwen3.8-max (tokens: 5675)
+07:41:45 ✅ Optimus alimaliza kwa XKiro 1 · qwen3.8-max (tokens: 6269 · cache 3200)
+07:41:46 🔌 Optimus → Gemini 2 · gemini-3.8-flash
+07:43:00 ✅ Optimus alimaliza kwa Gemini 2 · gemini-3.8-flash (tokens: 8179)
+07:43:55 ✅ Optimus alimaliza kwa Gemini 2 · gemini-3.8-flash (tokens: 9234)
+
+# /api/xtest/judge wakati huo huo (hook ya profile hai, process ileile)
+regular L16-mvgdgvjb board-turn → xkiro-1:qwen/qwen3.8-max:free ***929c judge False class xkiro usedFallback False flags {'include_reasoning': True} think 0
+regular L17-mvgdgxo4 board-turn → xkiro-1:qwen/qwen3.8-max:free ***929c judge False class xkiro usedFallback False flags {'include_reasoning': True} think 0
+judge L18-mvgdh5wf xmdtest-judge:1 → gemini-1:gemini-3.5-flash-lite ***0-Pw judge True class gemini-flash-lite usedFallback True flags {'reasoning_effort': 'high'} think 148
+
+# export (.md) ya T5: items 86 · chips '🔌 M1 lanes' 0 (records ni za milestone/judge tu)

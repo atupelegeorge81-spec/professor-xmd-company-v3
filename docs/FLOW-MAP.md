@@ -119,6 +119,15 @@
    - `xkiro` (qwen/qwen3.8-max:free via XTROUTER): **"Red"** ✅ (inapokea image kama content-block kupitia API ya OpenAI-compatible)
    - `gemini-flash-lite` (3.5-flash-lite, key1): **"Red"** ✅
    - Section §17.3 JAWABI: **ZOTE mbili (XKiro na Flash-lite) zinakubali picha** kupitia API hizi zilizopo. (Kumbuka: uamuzi wa policy ya kuchagua lanes zinazopewa vision haziko kwenye statement hii — matokeo haya ni ya API tu.)
+5. **JUDGE (Task 30, uamuzi wa mmiliki):** darasa jipya `judge` (`policy.ts:71-96` `JUDGE_CHAIN = gemini-flash → xkiro → gemini-flash-lite`,
+   `judgeWeightOf`, `laneWeight(…, judge)`; `broker.ts` `pick` inazungusha keys 4 × models za Flash; fall-through kwa admission ya kawaida (quota/rpm/circuit)).
+   Watumiaji: `milestone/judge.ts` `judgeComplete` (reviewer analysis, verify, mjadala wa review) — thinking `reasoning_effort: "high"` kwa Gemini, `maxHops` 32.
+   Madarasa ya zamani (`WEIGHTS`, `GEMINI_WEIGHTS`, fast, plan R49) **hayajabadilika**. Optimus: agenda + milestone map → Gemini Flash.
+   - **Rekodi:** `LaneUse` (`milestone/types.ts`) → `state:Mk.lanesUsed`: `callId, stepId, lane, model, keyId (***+4), visionCapable, usedFallback,
+     tokensIn/Out, reasoningTokens, ms, visionDegraded`; chip `🔌 Mk lanes (Rn)` kwenye export (`loop.ts` `emitLaneDigest`).
+   - **Vision rule:** picha + lane bila vision → digest ya maandishi (`makeImageDigest`, wito wa Flash vision, `digest:Mk:Rn`) + DOM metrics,
+     `visionDegraded:true`. Sign-off ya visual/mixed kwa verdicts za degraded → `PAUSED_QUOTA` (origin system, `resumeAt` +3 dk), `visionPause:Mk`; lane ya vision ikirudi → re-verify.
+   - **Test hooks** (`XMD_TEST_HOOKS=1` pekee, judge pekee): `XMD_TEST_LANES_DOWN`, `XMD_TEST_LANES_NOVISION`; runtime `/api/xtest/lanes`, `/api/xtest/judge`.
 
 ## G. Tooling
 - **`zod`:** HAPANA kwenye `package.json` (`grep -o '"zod"' package.json` = 0). validator ya schema mpya itaamuliwa na tasks zijazo.

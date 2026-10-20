@@ -1,0 +1,246 @@
+{
+ "id": "M1",
+ "status": "SIGNED_OFF",
+ "round": 2,
+ "maxRounds": 10,
+ "currentStepId": "M1.R2.decide",
+ "startedAt": "2026-10-20T07:00:56.676Z",
+ "updatedAt": "2026-10-20T07:32:23.722Z",
+ "lanesUsed": [
+  {
+   "callId": "L23-mvgcam6s",
+   "stepId": "M1.R1.verify",
+   "lane": "gemini-1:gemini-3.8-flash",
+   "model": "gemini-3.8-flash",
+   "keyId": "***0-Pw",
+   "visionCapable": true,
+   "tokens": 4009,
+   "ms": 63345,
+   "fallback": false,
+   "usedFallback": false,
+   "tokensIn": 3439,
+   "tokensOut": 570,
+   "reasoningTokens": 813,
+   "purpose": "image-digest:M1:R1",
+   "laneClass": "gemini-flash",
+   "judge": false,
+   "visionDegraded": false,
+   "flags": {}
+  },
+  {
+   "callId": "L24-mvgcc0a4",
+   "stepId": "M1.R1.verify",
+   "lane": "xkiro-1:qwen/qwen3.8-max:free",
+   "model": "qwen/qwen3.8-max:free",
+   "keyId": "***929c",
+   "visionCapable": false,
+   "tokens": 9004,
+   "ms": 19980,
+   "fallback": true,
+   "usedFallback": true,
+   "tokensIn": 8117,
+   "tokensOut": 887,
+   "reasoningTokens": 0,
+   "purpose": "review-verify:M1:R1:frontend",
+   "laneClass": "xkiro",
+   "judge": true,
+   "visionDegraded": true,
+   "flags": {}
+  },
+  {
+   "callId": "L25-mvgcc0d0",
+   "stepId": "M1.R1.verify",
+   "lane": "xkiro-2:qwen/qwen3.8-max:free",
+   "model": "qwen/qwen3.8-max:free",
+   "keyId": "***4f51",
+   "visionCapable": false,
+   "tokens": 9067,
+   "ms": 22496,
+   "fallback": true,
+   "usedFallback": true,
+   "tokensIn": 8108,
+   "tokensOut": 959,
+   "reasoningTokens": 0,
+   "purpose": "review-verify:M1:R1:designer",
+   "laneClass": "xkiro",
+   "judge": true,
+   "visionDegraded": true,
+   "flags": {}
+  },
+  {
+   "callId": "L36-mvgcx0as",
+   "stepId": "M1.R2.verify",
+   "lane": "gemini-2:gemini-3.7-flash",
+   "model": "gemini-3.7-flash",
+   "keyId": "***A4gA",
+   "visionCapable": true,
+   "tokens": 3967,
+   "ms": 29767,
+   "fallback": true,
+   "usedFallback": true,
+   "tokensIn": 3439,
+   "tokensOut": 528,
+   "reasoningTokens": 1352,
+   "purpose": "image-digest:M1:R2",
+   "laneClass": "gemini-flash",
+   "judge": false,
+   "visionDegraded": false,
+   "flags": {}
+  },
+  {
+   "callId": "L38-mvgcxqgh",
+   "stepId": "M1.R2.verify",
+   "lane": "xkiro-2:qwen/qwen3.8-max:free",
+   "model": "qwen/qwen3.8-max:free",
+   "keyId": "***4f51",
+   "visionCapable": false,
+   "tokens": 9145,
+   "ms": 19151,
+   "fallback": true,
+   "usedFallback": true,
+   "tokensIn": 8269,
+   "tokensOut": 876,
+   "reasoningTokens": 0,
+   "purpose": "review-verify:M1:R2:designer",
+   "laneClass": "xkiro",
+   "judge": true,
+   "visionDegraded": true,
+   "flags": {}
+  },
+  {
+   "callId": "L37-mvgcxqgd",
+   "stepId": "M1.R2.verify",
+   "lane": "xkiro-1:qwen/qwen3.8-max:free",
+   "model": "qwen/qwen3.8-max:free",
+   "keyId": "***929c",
+   "visionCapable": false,
+   "tokens": 9206,
+   "ms": 24509,
+   "fallback": true,
+   "usedFallback": true,
+   "tokensIn": 8278,
+   "tokensOut": 928,
+   "reasoningTokens": 0,
+   "purpose": "review-verify:M1:R2:frontend",
+   "laneClass": "xkiro",
+   "judge": true,
+   "visionDegraded": true,
+   "flags": {}
+  },
+  {
+   "callId": "L39-mvgd6b3l",
+   "stepId": "M1.R2.verify",
+   "lane": "gemini-1:gemini-3.8-flash",
+   "model": "gemini-3.8-flash",
+   "keyId": "***0-Pw",
+   "visionCapable": true,
+   "tokens": 11158,
+   "ms": 63104,
+   "fallback": false,
+   "usedFallback": false,
+   "tokensIn": 10764,
+   "tokensOut": 394,
+   "reasoningTokens": 1741,
+   "purpose": "review-verify:M1:R2:designer",
+   "laneClass": "gemini-flash",
+   "judge": true,
+   "visionDegraded": false,
+   "flags": {
+    "reasoning_effort": "high"
+   }
+  },
+  {
+   "callId": "L41-mvgd6deu",
+   "stepId": "M1.R2.verify",
+   "lane": "gemini-3:gemini-3.8-flash",
+   "model": "gemini-3.8-flash",
+   "keyId": "***9VFw",
+   "visionCapable": true,
+   "tokens": 11177,
+   "ms": 66593,
+   "fallback": false,
+   "usedFallback": false,
+   "tokensIn": 10772,
+   "tokensOut": 405,
+   "reasoningTokens": 3357,
+   "purpose": "review-verify:M1:R2:frontend",
+   "laneClass": "gemini-flash",
+   "judge": true,
+   "visionDegraded": false,
+   "flags": {
+    "reasoning_effort": "high"
+   }
+  }
+ ],
+ "steps": [
+  {
+   "stepId": "M1.R0.plan",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-20T07:00:56.677Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.build",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-20T07:00:56.770Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R0.review",
+   "status": "DONE",
+   "attempts": 0,
+   "updatedAt": "2026-10-20T07:00:56.770Z",
+   "stub": true
+  },
+  {
+   "stepId": "M1.R1.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-20T07:05:51.572Z"
+  },
+  {
+   "stepId": "M1.R1.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-20T07:06:09.173Z"
+  },
+  {
+   "stepId": "M1.R1.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-20T07:07:42.170Z"
+  },
+  {
+   "stepId": "M1.R1.decide",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-20T07:14:59.859Z"
+  },
+  {
+   "stepId": "M1.R2.fix",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-20T07:21:37.073Z"
+  },
+  {
+   "stepId": "M1.R2.evidence",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-20T07:21:51.568Z"
+  },
+  {
+   "stepId": "M1.R2.verify",
+   "status": "DONE",
+   "attempts": 1,
+   "updatedAt": "2026-10-20T07:24:36.780Z"
+  },
+  {
+   "stepId": "M1.R2.decide",
+   "status": "DONE",
+   "attempts": 2,
+   "updatedAt": "2026-10-20T07:32:23.722Z"
+  }
+ ]
+}
