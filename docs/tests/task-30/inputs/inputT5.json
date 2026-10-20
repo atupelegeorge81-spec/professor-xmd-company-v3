@@ -1,0 +1,6 @@
+{
+ "env": {
+  "XMD_TEST_MAX_AGENDAS": "1",
+  "XMD_TEST_LANES_DOWN": "gemini-flash,xkiro"
+ }
+}
