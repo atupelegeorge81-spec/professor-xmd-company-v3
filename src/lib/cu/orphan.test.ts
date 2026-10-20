@@ -60,6 +60,14 @@ describe("TASK-5 orphan — decideOrphan", () => {
   it("Computer imeisha (chip done) → skipped", () => {
     expect(decideOrphan({ ...base, status: "running", items: [stateChip(), cuChipItem({ v: 1, token: "t", maxI: 3, sandboxId: "s", done: true })] })).toMatchObject({ reason: "computer done" });
   });
+  it("TASK-32: XMD_MILESTONES — cu.done ni awamu moja; review iliyokufa (review_R-M1-0) → orphan → resume state inapata resumeAt", () => {
+    const ms = { kind: "chip", id: "ms-map", text: "__PROFESSOR_XMD_MILESTONE__:{\"k\":\"map\"}" };
+    const items = [stateChip(), cuChipItem({ v: 1, token: "t", maxI: 3, sandboxId: "s", done: true }), ms];
+    expect(decideOrphan({ ...base, status: "review_R-M1-0", items })).toMatchObject({ orphan: true });
+    const rec = markRecovered(items, NOW);
+    expect(pauseMetaOf(rec)).toMatchObject({ source: "resume_state", pauseOrigin: "system", resumeAt: NOW + 60_000 });
+    expect(pauseMetaOf([stateChip(), cuChipItem({ v: 1, token: "t", maxI: 3, sandboxId: "s", done: true })])).toBeNull(); // legacy haibadiliki
+  });
 });
 
 describe("TASK-5 orphan — markRecovered + pauseMetaOf (njia ya checkPausedDue)", () => {

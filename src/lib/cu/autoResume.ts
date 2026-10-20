@@ -149,10 +149,15 @@ function resumeStateOf(items: any[]): any | null {
 }
 
 /** Meta ya pause: CU chip ambayo haijaisha (awamu ya Computer), vinginevyo resume state (awamu ya mjadala). */
+/** TASK-32: session ya XMD_MILESTONES (chips za store `__PROFESSOR_XMD_MILESTONE__:`) — `cu.done` = awamu MOJA ya milestone imeisha,
+ *  si session (review/raundi/milestones zinazofuata bado) → haizuii recovery. Literal (si import ya milestone/store — mzunguko wa imports). */
+export const isMilestoneRun = (items: any[]): boolean =>
+  (items || []).some((it) => it?.kind === "chip" && String(it?.text || "").startsWith("__PROFESSOR_XMD_MILESTONE__:"));
+
 export function pauseMetaOf(items: any[]): { resumeAt?: number; pauseOrigin?: string; source: "cu" | "resume_state" } | null {
   const chip = readCuChip(items);
   if (chip && !chip.done) return { resumeAt: chip.resumeAt, pauseOrigin: (chip as any).pauseOrigin, source: "cu" };
-  if (chip && chip.done) return null; // Computer imeisha — haiendelezwi
+  if (chip && chip.done && !isMilestoneRun(items)) return null; // Computer imeisha — haiendelezwi (legacy)
   const st = resumeStateOf(items);
   return st ? { resumeAt: st.resumeAt, pauseOrigin: st.pauseOrigin, source: "resume_state" } : null;
 }
@@ -175,7 +180,7 @@ export function decideOrphan(x: OrphanInput): OrphanDecision {
     if (meta?.resumeAt) return { orphan: false, staleMin, reason: "paused with resumeAt (checkPausedDue)" };
     if (st?.pauseOrigin !== "system") return { orphan: false, staleMin, reason: "paused (not system)" };
   }
-  if (cu?.done) return { orphan: false, staleMin, reason: "computer done" };
+  if (cu?.done && !isMilestoneRun(x.items)) return { orphan: false, staleMin, reason: "computer done" }; // TASK-32: milestone → awamu tu
   const cuResumable = !!(cu && (cu.sandboxId || cu.snapshot));
   if (!st && !cuResumable) return { orphan: false, staleMin, reason: "no resume state" };
   if (age < x.staleMs) return { orphan: false, staleMin, reason: "fresh", becomesStaleInMs: x.staleMs - age };
