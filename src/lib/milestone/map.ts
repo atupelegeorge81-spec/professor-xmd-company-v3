@@ -140,7 +140,7 @@ export function forcedMapFromEnv(env: Record<string, string | undefined>, N: num
 }
 
 const defaultComplete = (signal?: AbortSignal): MapComplete => async (messages) => {
-  const r = await brokerComplete({ agentId: "pm", purpose: "milestone-map", cls: "heavy", priority: "live", allow: ["gemini"], maxOut: 4000, temperature: 0.2, messages, signal });
+  const r = await brokerComplete({ agentId: "pm", purpose: "milestone-map", cls: "heavy", priority: "live", allow: ["gemini"], maxHops: 32, maxOut: 4000, temperature: 0.2, messages, signal }); // TASK-32: 429 discovery
   return { text: r.text, lane: `${r.lane.label} (tier ${r.lane.tier ?? "?"})` };
 };
 

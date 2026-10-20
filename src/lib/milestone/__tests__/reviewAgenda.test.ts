@@ -189,6 +189,13 @@ describe("TASK 24 — ChangeOrder schema + consolidate (Optimus)", () => {
     expect([r.valid, r.attempts, r.changeOrders.length]).toEqual([true, 2, 2]);
     expect(seen[1]).toMatch(/^Your output is not valid/);
   });
+  it("TASK-32: wito wa LLM ukishindwa (429) → inasubiri retryDelayMs kisha jaribio la 2 sahihi", async () => {
+    const good = JSON.stringify({ changeOrders: [co({ defectIds: ["D-001", "D-002"] }), co({ defectIds: [], decisionIds: ["R-M1-0/P-02"] })], ledgerConflicts: [] });
+    const t0 = Date.now();
+    const r = await consolidate(cin(), { retryDelayMs: 60, complete: async (_m, a) => { if (a === 1) throw new Error("429 quota"); return good; } });
+    expect([r.valid, r.attempts]).toEqual([true, 2]);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(55);
+  });
   it("consolidate: batili mara 3 → valid:false, makosa yanarudishwa", async () => {
     let n = 0;
     const r = await consolidate(cin(), { complete: async () => { n++; return JSON.stringify({ changeOrders: [co()] }); } });

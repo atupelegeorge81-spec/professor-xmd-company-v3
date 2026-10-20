@@ -409,8 +409,10 @@ export async function defaultConsolidate(i: ConsolidateInput, log?: LoopHooks["b
     complete: async (messages, attempt) => (attempt === 1 && sessionId && maybeCapturePrompt({ sessionId, agent: "pm", agenda: 0, phase: `consolidate:${i.milestoneId}:R${i.round}`, system: messages.map((x) => x.content).join("\n\n") }), await brokerComplete({
       agentId: "pm", purpose: `review-consolidate:${i.milestoneId}:R${i.round}:a${attempt}`, messages: messages as never,
       maxOut: 16_000, cls: "heavy", temperature: 0.2, priority: "background", waitMs: 120_000, critical: true,
+      maxHops: 32, // TASK-32 (E2E halisi): quota ya Gemini ikiisha, hops 5 zote ziliangukia lanes za 429 → R0 BLOCKED
     })).text,
     log: log ? (lvl, t) => log(lvl, t) : undefined,
+    retryDelayMs: 45_000,
   });
 }
 
@@ -850,7 +852,7 @@ export const patchKey = (milestoneId: string, round: number) => `patch:${milesto
 
 export async function escalateLlm(sid: string, agent: string, purpose: string, messages: EscMsg[]): Promise<string> {
   if (/:a1$/.test(purpose)) maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase: purpose.replace(/:a1$/, ""), system: messages.map((x) => x.content).join("\n\n") });
-  return (await brokerComplete({ agentId: agent, purpose, messages: messages as never, maxOut: 12_000, cls: "heavy", temperature: 0.2, priority: "background", waitMs: 120_000, critical: true })).text;
+  return (await brokerComplete({ agentId: agent, purpose, messages: messages as never, maxOut: 12_000, cls: "heavy", temperature: 0.2, priority: "background", waitMs: 120_000, critical: true, maxHops: 32 })).text; // TASK-32
 }
 
 /** Majaribio yaliyopita kwa kila defect, kama yalivyopimwa na harness (fix:Mk:Rk + NO-OP detector + reviewers). */

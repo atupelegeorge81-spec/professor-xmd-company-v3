@@ -374,6 +374,8 @@ export interface ConsolidateInput {
 export interface ConsolidateDeps {
   complete: (messages: { role: string; content: string }[], attempt: number) => Promise<string>;
   log?: (level: "info" | "warning" | "error" | "success", text: string) => void;
+  /** TASK-32: kusubiri kabla ya jaribio linalofuata wito wa LLM ukishindwa (429/quota) — default 0 */
+  retryDelayMs?: number;
 }
 export interface ConsolidateResult {
   changeOrders: ChangeOrder[];
@@ -490,6 +492,7 @@ export async function consolidate(i: ConsolidateInput, deps: ConsolidateDeps): P
     } catch (e: any) {
       errors = [`LLM call failed: ${String(e?.message || e).slice(0, 300)}`];
       deps.log?.("error", `🧾 consolidate ${i.reviewId} attempt ${attempt}: ${errors[0]}`);
+      if (deps.retryDelayMs && attempt < CONSOLIDATE_MAX_TRIES) await new Promise((r) => setTimeout(r, deps.retryDelayMs));
       continue;
     }
     let parsed: unknown;
