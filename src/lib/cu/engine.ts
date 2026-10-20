@@ -40,6 +40,10 @@ import { needsTechEvidence } from "@/lib/milestone/techEvidence"; // TASK-29
 import { defaultDbProbe } from "@/lib/milestone/dbProbe"; // TASK-29
 import { captureTechEvidence, mergeTechEvidence, techEvidenceSummary } from "./techEvidence"; // TASK-29
 import { captureEvidence, evidenceSummary, type CaptureEvidenceResult, type EvidenceUploader } from "./evidence"; // TASK-19
+import { runChecks, BROWSER_CHECK_TYPES } from "@/lib/milestone/checks"; // TASK-31
+import { validateMilestonePlan } from "@/lib/milestone/plan"; // TASK-31
+import { planEvidenceSpec } from "@/lib/milestone/evidence"; // TASK-31
+import type { PostDeployResult } from "@/lib/milestone/finalReport"; // TASK-31
 import { checkRegression, regressionSummary, saveBaselines } from "@/lib/milestone/regression"; // TASK-22
 import type { EvidencePack } from "@/lib/milestone/types"; // TASK-28
 import { commitMessage, receiptsPath } from "@/lib/milestone/fixRound"; // TASK-25
@@ -989,6 +993,55 @@ export async function captureRoundEvidence(runner: Runner, o: { milestoneId: str
       runner.cuHooks?.blog(rg.entries.some((e) => e.kind === "regression") || rg.errors.length ? "warning" : "info", `🔍 ${o.milestoneId} R${o.round} regression: ${regressionSummary(rg)}`);
     }
     return ev;
+  });
+}
+
+/** TASK-31: post-deploy checks (harness, halisi) — live URL: HTTP 200 kwenye routes muhimu (kutoka server) + checks za http/browser
+ *  za plan ya milestone ya mwisho dhidi ya site hai + screenshots za deployed mode (task 19 `--base`). Checks za repo
+ *  (command/grep/file/db) zilipita kwenye sign-off — haziwezi kuendeshwa dhidi ya URL. */
+export async function milestonePostDeploy(runner: Runner, o: { milestoneId: string; planMarkdown: string; reviewMode?: string; base: string }): Promise<PostDeployResult> {
+  const base = o.base.replace(/\/+$/, "");
+  const at = () => new Date().toISOString();
+  const spec = planEvidenceSpec(o.planMarkdown);
+  const routes = [...new Set(["/", ...spec.routes.map((r) => r.route)])].slice(0, 12);
+  const res: PostDeployResult = { liveUrl: base, ran: true, ok: false, reason: "", routes: [], checks: [], screens: null, at: at() };
+  for (const route of routes) {
+    let status = 0;
+    try { status = (await fetch(base + route, { redirect: "follow", signal: AbortSignal.timeout(20_000) })).status; } catch { status = 0; }
+    res.routes.push({ route, status, ok: status === 200 });
+  }
+  const live = (validateMilestonePlan(o.planMarkdown, { id: o.milestoneId, reviewMode: (o.reviewMode || "visual") as never }).checks || [])
+    .filter((c: any) => c?.type === "http" || (BROWSER_CHECK_TYPES as readonly string[]).includes(String(c?.type)));
+  try {
+    await runOnMilestoneSandbox(runner, async (sbx) => {
+      const script = await readCuFile("xmd-evidence.mjs");
+      if (live.length) res.checks = (await runChecks(live, { sbx, ws: "/home/user/ws", base, script, tag: `${o.milestoneId}-postdeploy`, commandTimeoutMs: 120_000 })).results;
+      if (o.reviewMode !== "technical") {
+        const ev = await captureEvidence(sbx, { milestoneId: o.milestoneId, round: 99, planMarkdown: o.planMarkdown, script, sessionId: runner.sessionId || runner.id, base }, evidenceUploader);
+        res.screens = { count: ev.pack.screenshots.length, errors: ev.pack.errors.length + ev.invalid.length, exit: ev.exit, urls: ev.pack.screenshots.map((s) => s.url).filter(Boolean).slice(0, 12) };
+      }
+    });
+  } catch (e: any) {
+    res.reason = `sandbox for live checks unavailable: ${String(e?.message || e).slice(0, 160)}`;
+  }
+  const bad = [
+    ...res.routes.filter((r) => !r.ok).map((r) => `GET ${r.route} → ${r.status}`),
+    ...res.checks.filter((c) => c.result !== "PASS").map((c) => `${c.id} ${c.result}`),
+    ...(res.screens && (res.screens.exit !== 0 || res.screens.errors > 0 || !res.screens.count) ? [`screenshots exit ${res.screens.exit} · errors ${res.screens.errors} · count ${res.screens.count}`] : []),
+  ];
+  if (res.reason) bad.unshift(res.reason);
+  res.ok = bad.length === 0;
+  res.reason = bad.join(" · ").slice(0, 600);
+  res.at = at();
+  return res;
+}
+
+/** TASK-31 test hook pekee (XMD_TEST_LIVE_URL=sandbox): fixture ya static inatolewa kwenye host ya umma ya sandbox ya milestone
+ *  (badala ya deploy ya Vercel ambayo fixture haina) — post-deploy checks zinapima URL hii halisi kutoka nje. */
+export async function testServeLive(runner: Runner, port = 4180): Promise<string> {
+  return runOnMilestoneSandbox(runner, async (sbx) => {
+    await sbx.commands.run(`cd /home/user/ws && (ss -ltn 2>/dev/null | grep -q ':${port} ' || (nohup python3 -m http.server ${port} --bind 0.0.0.0 >/tmp/xmd-live.log 2>&1 &)); sleep 2; echo ok`, { timeoutMs: 30_000 });
+    return `https://${sbx.getHost(port)}`;
   });
 }
 

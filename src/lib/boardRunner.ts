@@ -65,6 +65,8 @@ import { newMilestoneState, planSteps, setStep, stepIdOf, transition } from "./m
 import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
 import { defaultDbProbe } from "./milestone/dbProbe"; // TASK-29
+import { milestonePostDeploy, testServeLive } from "./cu/engine"; // TASK-31
+import { assembleFinalReport, enforceHonesty, FINAL_REPORT_DOC_KEY, gatherFinalReportData, narrativePrompt, verdictOf, type FinalReportDoc, type PostDeployResult } from "./milestone/finalReport"; // TASK-31
 import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace, captureRoundEvidence, milestoneGit, milestonePatch, milestoneReadFiles, milestoneSaveBaselines } from "./cu/engine"; // TASK-25/26
 import { testStopAfterRound, testVerifyInput, type TestVerifyInput, nextAttempt, planGoalOf } from "./milestone/verify"; // TASK-26 test hooks
 import { escalateChangeOrders, requirementChecksOf } from "./milestone/escalation"; // TASK-27
@@ -3394,6 +3396,41 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
     };
     if (isResume) await closeMilestones("running");
 
+    // TASK-31: ripoti ya mwisho ya milestone mode (Optimus → CEO) — data ya code, verdict ya code (honesty), post-deploy checks, HAKUNA plan
+    const writeMsFinalReport = async (o: { liveUrl?: string; ledger?: { agenda_index: number; agenda_item: string; status?: string; decision_summary?: string }[] } = {}): Promise<FinalReportDoc | null> => {
+      const sid = runner.sessionId, map = runner.msMap;
+      if (!sid || !map?.milestones.length) return null;
+      const lr = runner as unknown as Parameters<typeof msUpdate>[0];
+      const last = map.milestones[map.milestones.length - 1];
+      const links = { repo: runner.cu?.links?.repo || undefined, live: o.liveUrl || runner.cu?.links?.live || undefined };
+      let post: PostDeployResult | null = null;
+      if (links.live) {
+        blog("system", `🌐 Post-deploy checks: ${links.live} — routes + checks/screens za ${last.id}…`);
+        const planMd = (await getRecord<{ markdown?: string }>(sid, planKey(last.id)))?.data?.markdown || "";
+        post = await milestonePostDeploy(runner as Runner, { milestoneId: last.id, planMarkdown: planMd, reviewMode: last.reviewMode, base: links.live })
+          .catch((e: any) => ({ liveUrl: links.live!, ran: false, ok: false, reason: `post-deploy failed: ${String(e?.message || e).slice(0, 200)}`, routes: [], checks: [], screens: null, at: new Date().toISOString() }));
+        blog(post.ok ? "success" : "warning", `🌐 Post-deploy: ${post.ok ? "PASS" : `FAIL — ${post.reason}`} · routes ${post.routes.map((r) => `${r.route} ${r.status}`).join(", ")} · checks ${post.checks.length}${post.screens ? ` · screens ${post.screens.count}` : ""}`);
+      }
+      const ledger = (o.ledger || (await finalBoardResolution(runner.id))).map((e) => ({ agenda_index: e.agenda_index, agenda_item: e.agenda_item, status: String(e.status || "LOCKED"), decision_summary: e.decision_summary }));
+      const minis = [...(await minisMap().catch(() => new Map())).values()].map((d: any) => ({ agenda_index: Number(d.agenda_index), summary: String(d.decision_summary || d.detail || "") }));
+      const data = await gatherFinalReportData({ get: async <T,>(k: string) => (await getRecord<T>(sid, k))?.data ?? null, sessionId: sid, title: conversationTitle, project: runner.project, ledger, minis, links, postDeploy: post });
+      const v = verdictOf(data);
+      brain.state({ phase: "report" });
+      const sys = await brain.prompt(pm.id, { phase: "report", role: "report writer", date: nowDate() });
+      blog("system", `📑 Optimus anaandika ripoti ya mwisho kwa CEO (milestones ${data.milestones.length} · verdict ya code: ${v.line})…`);
+      const repId = addMsg(pm.id);
+      let text = "";
+      try {
+        text = await streamTurn(pm, [{ role: "system", content: sys }, { role: "user", content: narrativePrompt(data, v) }], repId, true, 16000, { critical: true });
+        setItemContent(repId, enforceHonesty(text, v.complete));
+      } catch (e: any) { blog("error", `❌ Ripoti ya mwisho (Optimus): ${String(e?.message || e).slice(0, 200)} — sehemu za code zinabaki.`); }
+      bcast({ type: "msg_done", id: repId });
+      const doc = assembleFinalReport(data, text);
+      await msUpdate(lr, FINAL_REPORT_DOC_KEY, () => ({ version: 1, verdict: doc.verdict, missingLlm: doc.missingLlm, links, postDeploy: post, chars: doc.markdown.length, markdown: doc.markdown, at: new Date().toISOString() }));
+      blog(doc.verdict.complete ? "success" : "warning", `📑 Ripoti ya mwisho: ${doc.verdict.line} · herufi ${doc.markdown.length}${doc.missingLlm.length ? ` · Optimus hakuandika sehemu ${doc.missingLlm.join(", ")} (data ya code imewekwa)` : ""}`);
+      return doc;
+    };
+
     { // TASK-24 test hook (XMD_TEST_HOOKS=1 + XMD_TEST_REVIEW_INPUT PEKEE): REVIEW R0 halisi bila Computer — plan/evidence/findings
       // kutoka faili; runMilestoneBuild → review step → discussAgenda (mashine ya agenda) → Optimus COs → store. Board inaishia hapo.
       const tr = testReviewInput();
@@ -3535,6 +3572,13 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
           const text = renderStartPack(sp, { tree: "(xmdtest: next milestone not built — StartPack only)", gitLog: "(xmdtest)" });
           await msUpdate(lr, `startpack:${nextM.id}`, () => ({ version: 1, id: nextM.id, defects: sp.defects, text, at: new Date().toISOString() }));
           blog("system", `🧪 XMD_TEST_VERIFY_INPUT: ${nextM.id} plan (${pr.status}, hatua ${pr.steps}) + StartPack — inherited defects ${sp.defects.length}: ${sp.defects.map((x) => x.split(" ")[0]).join(", ") || "none"}`);
+        }
+        // TASK-31 test hook: ripoti ya mwisho kutoka hali HALISI ya run hii (XMD_TEST_LIVE_URL=sandbox → host ya umma ya sandbox)
+        if (/^(1|true|on)$/i.test(String(process.env.XMD_TEST_FINAL_REPORT || ""))) {
+          let live = String(process.env.XMD_TEST_LIVE_URL || "").trim() || undefined;
+          if (live === "sandbox") live = await testServeLive(runner as Runner).catch((e: any) => { blog("warning", `🧪 live URL ya sandbox haikupatikana: ${String(e?.message || e).slice(0, 160)}`); return undefined; });
+          const doc = await writeMsFinalReport({ liveUrl: live, ledger: tv.ledger || [] });
+          if (doc) addChip(`📑 Ripoti ya mwisho (xmdtest): ${doc.verdict.line} · herufi ${doc.markdown.length}`);
         }
         await persist("completed", conversationTitle);
         runner.status = "completed";
@@ -3854,6 +3898,8 @@ Rewrite ONLY the affected sections (same headings, same structure), with every v
     }
 
 // ===== HATUA 7: RIPOTI KUTOKA LEDGER (FBR) =====
+    // TASK-31: milestone mode → ripoti ya mwisho ya milestones (sehemu 7, verdict ya code) badala ya ripoti ya sehemu 10
+    const msFinal = milestonesEnabled() && runner.msMap && runner.sessionId ? await writeMsFinalReport() : null;
     const fbr = await finalBoardResolution(runner.id);
     const __cap = (s: string | undefined, n: number): string => ((s || "").length > n ? (s as string).slice(0, n) + " […]" : s || "");
     // R10: MINI-REPORT ya mwisho ndiyo chanzo kikuu cha ripoti (Optimus aliisoma agenda yote);
@@ -3920,7 +3966,7 @@ const fullTranscript = Object.keys(byItem)
             : ""),
       },
     ];
-    for (const pp of partSpecs) {
+    for (const pp of msFinal ? [] : partSpecs) {
       if (pp.nums.every((n) => collected[n])) {
         blog("info", `♻️ Endeleza: Kipande ${pp.label} tayari kimeandikwa kamili — kinarukwa.`);
         continue;
@@ -3959,7 +4005,7 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
       }
       await persist(`report_part_${pp.label}`, conversationTitle);
     }
-    for (let repair = 0; repair < 2; repair++) {
+    for (let repair = 0; !msFinal && repair < 2; repair++) {
       const missing = SECTION_DEFS.filter((d) => !collected[d[0]]);
       if (missing.length === 0) break;
       addChip(`🛠️ Optimus anarekebisha ripoti: ${missing.map((m) => m[2]).join(", ")}...`);
@@ -4191,19 +4237,19 @@ KWENYE SEHEMU YA 4 (Maamuzi): taja KILA agenda ya Ledger (1 hadi ${agenda.length
     }
     // R30.1 (E1): Plan mode — HAKUNA hatua iliyotekelezwa (computer-use agent ndiye atakayetekeleza).
     // LLM ikidai [x] = udanganyifu wa R29 unaorudi → guard ya mfumo inarudisha kuwa [ ] + log.
-    const rawReport = assembled.join("\n").replace(thinkRe, "");
+    const rawReport = msFinal ? msFinal.markdown : assembled.join("\n").replace(thinkRe, "");
     const planFalseDone = planModeRun ? (rawReport.match(/- \[x\]/gi) || []).length : 0;
     if (planFalseDone) {
       blog("warning", `☑️ Guard ya Plan Mode: ripoti ilidai hatua ${planFalseDone} imekamilika ([x]) — HAKUNA utekelezaji mpaka sasa; zimerudishwa kuwa [ ].`);
     }
     const cleanReport = (planModeRun ? rawReport.replace(/- \[x\]/gi, "- [ ]") : rawReport).trim();
     onReport(cleanReport, [...boardSources, ...runner.items.flatMap((it: any) => (Array.isArray(it?.sources) ? it.sources : []))], blog);
-    const missingFinal = SECTION_DEFS.filter((d) => !collected[d[0]]).map((d) => d[2]);
-    if (missingFinal.length === 0 && cleanReport.length >= 2000 && runner.finale?.reportId) {
+    const missingFinal = msFinal ? [] : SECTION_DEFS.filter((d) => !collected[d[0]]).map((d) => d[2]);
+    if (missingFinal.length === 0 && cleanReport.length >= (msFinal ? 500 : 2000) && runner.finale?.reportId) {
       // R20: ripoti ilikwisha kuhifadhiwa kabla ya kukatika (Endeleza kwa ajili ya memory tu) — haihifadhiwi mara ya pili
       bcast({ type: "report", id: runner.finale.reportId, title: reportTitle, content: cleanReport });
       blog("info", `♻️ Endeleza: ripoti tayari iko Reports (${runner.finale.reportId.slice(0, 8)}…) — haihifadhiwi upya.`);
-    } else if (missingFinal.length === 0 && cleanReport.length >= 2000) {
+    } else if (missingFinal.length === 0 && cleanReport.length >= (msFinal ? 500 : 2000)) {
       // R20: mtandao ukikatika wakati wa kuhifadhi → subiri urudi, jaribu tena (mara 3 zaidi ikiwa mtandao upo)
       let rid = await saveReport({ title: reportTitle, project: runner.project, agents: "Timu ya Agents 5", content: cleanReport });
       for (let tries = 0; !rid && tries < 40 && !runner.stopRequested; tries++) {
