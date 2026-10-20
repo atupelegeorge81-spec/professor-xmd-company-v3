@@ -63,6 +63,30 @@ export function stepChecksBlock(body: string): string | null {
   return m ? m[1].trim() : null;
 }
 
+/** TASK-32 (E2E halisi): LLM iliandika `[...]}` (mabano ya ziada mwishoni) mara 2 mfululizo → plan structure_failed.
+ *  Array ya kwanza ikifungwa kikamilifu na kinachobaki ni mabano/koma za kufunga TU, tunaisoma; vinginevyo kosa la awali. */
+export function parseChecksJson(raw: string): unknown {
+  try { return JSON.parse(raw); } catch (e) {
+    const t = raw.trim();
+    if (t[0] !== "[") throw e;
+    let depth = 0, inStr = false, esc = false;
+    for (let i = 0; i < t.length; i++) {
+      const c = t[i];
+      if (inStr) { if (esc) esc = false; else if (c === "\\") esc = true; else if (c === '"') inStr = false; continue; }
+      if (c === '"') inStr = true;
+      else if (c === "[" || c === "{") depth++;
+      else if (c === "]" || c === "}") {
+        depth--;
+        if (depth === 0) {
+          if (!/^[\s\]},]*$/.test(t.slice(i + 1))) throw e;
+          return JSON.parse(t.slice(0, i + 1));
+        }
+      }
+    }
+    throw e;
+  }
+}
+
 export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "reviewMode">): MilestonePlanValidation {
   const errors: string[] = [];
   const sec = extractPlanSections(md);
@@ -91,7 +115,7 @@ export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "rev
     let arr: unknown[] | null = null;
     if (raw !== null) {
       try {
-        const j = JSON.parse(raw);
+        const j = parseChecksJson(raw);
         if (Array.isArray(j)) arr = j;
         else errors.push(`${m.id} plan Step ${s.n} ("${s.title.slice(0, 60)}"): Checks block must be a JSON array of Check objects`);
       } catch (e: any) {

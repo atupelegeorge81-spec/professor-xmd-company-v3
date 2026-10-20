@@ -1,6 +1,6 @@
 // TASK 15 — plan ya milestone: validator (Styling + Dependencies, Checks, routes/viewports, proof), generator, lango.
 import { describe, expect, it } from "vitest";
-import { generateMilestonePlan, ledgerDecisionsSection, stepChecksBlock, validateMilestonePlan, type MilestonePlanDeps } from "../plan";
+import { generateMilestonePlan, ledgerDecisionsSection, parseChecksJson, stepChecksBlock, validateMilestonePlan, type MilestonePlanDeps } from "../plan";
 import type { Milestone } from "../types";
 
 const M1: Milestone = { id: "M1", title: "Page", agendas: { from: 1, to: 2 }, phase: "foundation", reviewMode: "mixed", roster: ["optimus", "ultron"], rationale: "" } as any;
@@ -170,5 +170,22 @@ describe("TASK-18 · validator inadai Build Command", () => {
     const v = validateMilestonePlan(doc(PART1.replace(/Build Command:.*\n/, ""), PART2(GOOD_STEPS)), M1);
     expect(v.ok).toBe(false);
     expect(v.errors.some((e) => e.includes('missing the "Build Command:" line'))).toBe(true);
+  });
+});
+
+describe("TASK-32: parseChecksJson — mabano ya ziada mwishoni (E2E run 3, M1 Step 3)", () => {
+  const real = '[{"id":"M1-S3-a","type":"file_exists","path":"src/lib/design-tokens.ts"},{"id":"M1-S3-b","type":"file_contains","path":"src/lib/design-tokens.ts","text":"export const colors"}]}';
+  it("`[...]}` inasomwa kama array", () => {
+    const j = parseChecksJson(real) as { id: string }[];
+    expect(j.map((c) => c.id)).toEqual(["M1-S3-a", "M1-S3-b"]);
+  });
+  it("mabano ndani ya strings hayachanganyi; JSON sahihi haibadiliki", () => {
+    expect(parseChecksJson('[{"text":"a ] } \\" ["}]')).toEqual([{ text: 'a ] } " [' }]);
+    expect(parseChecksJson('[{"id":"x"}] ]\n')).toEqual([{ id: "x" }]);
+  });
+  it("maandishi mengine baada ya array, au array isiyofungwa → bado ni kosa", () => {
+    expect(() => parseChecksJson('[{"id":"x"}] and more')).toThrow();
+    expect(() => parseChecksJson('[{"id":"x"},')).toThrow();
+    expect(() => parseChecksJson('{"id":"x"}}')).toThrow();
   });
 });
