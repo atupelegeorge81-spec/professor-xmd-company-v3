@@ -470,3 +470,16 @@ $ npm run cu:test        → Ran 186 tests — OK
   `stepId` ya record wakati wa wito; (review ya docs) vigezo vya digest vilivyomezwa na comment.
 - Koyeb: env `XMD_TEST_PROFILE_DIR=docs/tests/task-30/inputs`. Hatari: reviewers wa degraded wanaflag touch-target minors (DOM) → REVERT inaweza kuzunguka; ledger ya usage haidumu kati ya deploys.
 - Baselines: tsc 0 · vitest 749 + 2 skipped (+19) · pytest 338 + 3 · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-30.md + docs/tests/task-30/ (bila `.log`).
+
+## Task 31 — Final report (Optimus → CEO), ya kweli na yenye ushahidi
+- Branch `task/31-final-report` · nyuma ya `XMD_MILESTONES` · inategemea T26–T30 · ripoti ya sehemu 10 ya non-milestone mode haijaguswa.
+- **`milestone/finalReport.ts`:** data kwa code (map, `state:Mk` raundi + lanesUsed, defects OPEN/INHERITED/WAIVED, `waivers:Mk`, proposals zilizokubaliwa, Build Reports,
+  evidence/checks, technical checks, Ledger, mini-reports, repo/live links, post-deploy) → sehemu 7; 2/4/5/6 = code, 1/3/7 = Optimus (report skill). Hakuna plan.
+- **Sheria ya ukweli (code):** `COMPLETED` tu milestones zote zimesainiwa + hakuna INHERITED + post-deploy PASS; vinginevyo `CAP_REACHED in Mk` / `PARTIAL — see open defects`
+  + sababu; `enforceHonesty` → `[PARTIAL]` badala ya complete/completed/imekamilika. `maskSecrets`. Rekodi `finalReportDoc`.
+- **Post-deploy (`cu/engine.ts` `milestonePostDeploy`):** GET routes muhimu = 200, checks za http/browser za plan ya milestone ya mwisho iliyotekelezwa, screenshots za deployed mode.
+  Hooks: `XMD_TEST_FINAL_REPORT=1`, `XMD_TEST_LIVE_URL=sandbox` (live ya majaribio = host ya umma ya E2B port 4180 — si Vercel).
+- REAL (Koyeb, S1): run C (3d94cb62) CAP → T1–T5 PASS · run W (91faa597) WAIVE → `SIGNED_OFF_WITH_WAIVERS`, waiver + sababu (T3 PASS) — ilifichua post-deploy kuchagua M2
+  (haijaanza) → fix `d821776` · run W2 (775f358c) baada ya fix: post-deploy M1 PASS (screens 3), `CAP_REACHED in M1`, T1–T5 PASS. COMPLETED: unit tests pekee.
+- Koyeb: env `XMD_TEST_PROFILE_DIR=docs/tests/task-31/inputs`. Hatari: Gemini Flash 503 (high demand) wakati wa majaribio; scrub ya honesty ni ya maneno.
+- Baselines: tsc 0 · vitest 754 + 2 skipped (+5) · pytest 338 + 3 · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-31.md + docs/tests/task-31/ (bila `.log`).

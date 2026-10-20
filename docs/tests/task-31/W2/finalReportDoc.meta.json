@@ -1,0 +1,42 @@
+{
+ "version": 1,
+ "verdict": {
+  "complete": false,
+  "line": "CAP_REACHED in M1",
+  "why": [
+   "not signed off: M1 CAP_REACHED, M2 NOT_STARTED",
+   "inherited defects: D-001"
+  ]
+ },
+ "missingLlm": [],
+ "links": {
+  "live": "https://4180-i5002r5xc5y2gdcr80apc.e2b.app"
+ },
+ "postDeploy": {
+  "liveUrl": "https://4180-i5002r5xc5y2gdcr80apc.e2b.app",
+  "ran": true,
+  "ok": true,
+  "reason": "",
+  "routes": [
+   {
+    "route": "/",
+    "status": 200,
+    "ok": true
+   }
+  ],
+  "checks": [],
+  "screens": {
+   "count": 3,
+   "errors": 0,
+   "exit": 0,
+   "urls": [
+    "https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/e46dd1aa-49c1-4960-bd53-599ba6a1f7a8",
+    "https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/73ef938a-cd2b-44fc-bea9-17ea7910bfec",
+    "https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/058658cc-b98e-416f-9081-f83a00649efa"
+   ]
+  },
+  "at": "2026-10-20T10:24:04.936Z"
+ },
+ "chars": 5125,
+ "at": "2026-10-20T10:24:46.591Z"
+}

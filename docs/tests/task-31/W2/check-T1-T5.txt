@@ -1,0 +1,14 @@
+session 775f358c · report chars 5122 · sections [1, 2, 3, 4, 5, 6, 7] · verdict: CAP_REACHED in M1
+verdict.why: ['not signed off: M1 CAP_REACHED, M2 NOT_STARTED', 'inherited defects: D-001'] · missingLlm []
+postDeploy: https://4180-i5002r5xc5y2gdcr80apc.e2b.app ok True | routes [('/', 200)] | checks [] | screens 3 | reason 
+  spot OK  M1 status = CAP_REACHED
+  spot OK  M1 rounds = 5
+  spot OK  lanes calls (sum lanesUsed) = 22
+  spot OK  D-001 INHERITED listed = Nav links must be uppercase (CEO brand s
+  spot OK  M1 evidence screenshots = 3
+  T2 'complete' words: [] · cap: ['M1']
+  T3 lines:
+    - D-001 [medium] kutoka M1: Nav links must be uppercase (CEO brand sheet: 'SHOP · STORY · CONTACT') — sababu: still REOPENED after 5 attempt(s)
+  T4 urls: 7 {'https://4180-i5002r5xc5y2gdcr80apc.e2b.app': 200, 'https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/0586': 200, 'https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/1c44': 200, 'https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/3be6': 200, 'https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/73ef': 200, 'https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/7fb1': 200, 'https://pgxjepplhmyurkgohngn.supabase.co/storage/v1/object/public/professor-xmd-files/e46d': 200}
+  T5 plan headings: [] · secret hits: 0
+RESULT {'T1': True, 'T2': True, 'T3': True, 'T4': True, 'T5': True}
