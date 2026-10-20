@@ -43,6 +43,12 @@ export async function runSystemPauseForTest(reason: string, resumeMs: number): P
   return cooldown(reason, resumeMs, true);
 }
 
+/** TASK-32: KWA MAJARIBIO TU — njia ya RAM (bila force, kama mpigo wa 30s ukiona RAM ≥ COOLDOWN_AT). */
+export async function runRamCooldownForTest(reason: string, resumeMs: number): Promise<void> {
+  G.lastCooldownAt = 0;
+  return cooldown(reason, resumeMs, false);
+}
+
 export function watchdogState() {
   return {
     on: G.startedAt > 0,
@@ -84,6 +90,12 @@ async function cooldown(reason: string, resumeMs: number, force = false, waitBus
       // TASK-1 (hatua 5): user-paused runner HAIWAKABILIWI na system — mrundikano (msingi mkubwa wa ram)
       if (r.pauseOrigin === "user") {
         ev("log", (await readRam()).pct, `${reason} — runner ka-pause DETACH (user) — haigusiwi kabisa`);
+      } else if (!force && cu && !cu.done && !cu.pausedNow && !cu.pausing && (cu as any).msMode) {
+        // TASK-32 (E2E halisi run 5): pause ya CU katikati ya build ya MILESTONE = build ERROR → milestone BLOCKED
+        // (njia ya milestone haina resume ya pause ya system). RAM 78% iliua M4. Hapa: GC tu; SIGTERM (force) bado inapumzisha.
+        (globalThis as any).gc?.();
+        ev("log", (await readRam()).pct, `${reason} — build ya milestone (msMode): CU haipumzishwi (ingekuwa BLOCKED) — GC tu`);
+        return;
       } else if (r.cuHooks && cu && !cu.done && !cu.pausedNow && !cu.pausing) {
         const { pauseComputerFromServer, PRESSURE_SNAPSHOT_LIMITS } = await import("@/lib/cu/engine");
         // TASK-6: persist KWANZA, kisha snapshot yenye bajeti 20s + kikomo 8MB (RAM juu / SIGTERM) + auto-resume timer
