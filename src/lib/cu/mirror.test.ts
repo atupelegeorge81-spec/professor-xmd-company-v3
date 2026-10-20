@@ -1,6 +1,6 @@
 // mirror.test.ts — R44-A: kiovu cha faili (pure logic) + liveness ping.
 import { describe, expect, it } from "vitest";
-import { applyMirrorEvent, mirrorPathOf, sandboxAlive, mirrorMapOf } from "./mirror";
+import { applyMirrorEvent, mirrorPathOf, resumeIfPaused, sandboxAlive, mirrorMapOf } from "./mirror";
 
 describe("mirrorPathOf", () => {
   it("inaleta path ya ws kama relative", () => {
@@ -73,5 +73,24 @@ describe("mirrorMapOf", () => {
     expect(m1).toBe(m2);
     m1.set("a", "b");
     expect(mirrorMapOf(cu).get("a")).toBe("b");
+  });
+});
+
+describe("resumeIfPaused (TASK-32: kikomo cha session ya E2B saa 1 → pause, si kifo)", () => {
+  it("sandbox iliyopauzwa: connect inairudisha → ping inapita → true", async () => {
+    let paused = true;
+    const sbx = { sandboxId: "sbx-paused", commands: { run: async () => { if (paused) throw new Error("paused"); return {}; } } };
+    const ids: string[] = [];
+    const ok = await resumeIfPaused(sbx, async (id) => { ids.push(id); paused = false; });
+    expect([ok, ids]).toEqual([true, ["sbx-paused"]]);
+  });
+  it("imekufa kweli (connect inashindwa) au hakuna id → false", async () => {
+    const dead = { sandboxId: "sbx-dead", commands: { run: async () => { throw new Error("not found"); } } };
+    await expect(resumeIfPaused(dead, async () => { throw new Error("404 sandbox not found"); })).resolves.toBe(false);
+    await expect(resumeIfPaused({ commands: dead.commands }, async () => {})).resolves.toBe(false);
+  });
+  it("connect inafaulu lakini ping bado inashindwa → false (strike inahesabiwa)", async () => {
+    const sbx = { sandboxId: "sbx-x", commands: { run: async () => { throw new Error("down"); } } };
+    await expect(resumeIfPaused(sbx, async () => {})).resolves.toBe(false);
   });
 });

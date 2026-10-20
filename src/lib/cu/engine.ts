@@ -16,7 +16,7 @@ import { Sandbox } from "@e2b/code-interpreter";
 import { InputFile } from "node-appwrite/file";
 import { appwriteConfigured, databases, DB, storage, SCREENSHOTS_BUCKET } from "@/lib/server/appwrite";
 import { publicFileUrl } from "@/lib/server/supabase"; // R42.1
-import { mirrorEvent, mirrorMapOf, restoreFromMirror, sandboxAlive } from "./mirror"; // R44: kiovu + liveness
+import { mirrorEvent, mirrorMapOf, restoreFromMirror, resumeIfPaused, sandboxAlive } from "./mirror"; // R44: kiovu + liveness
 import { type CuGateInfo, computeFinalOutcome, type CuFinalState } from "./finalState"; // TASK-3
 import { isPlanExecutable } from "./planGate"; // TASK-4
 import { FEATURE_LIST_SANDBOX_PATH, featureListJson, featuresFromPlan } from "./features"; // R50-Awamu 1
@@ -396,7 +396,7 @@ async function getSandbox(cu: CuRunState): Promise<any> {
   // R44-C (kosa la KilimoSmart): sandbox ya mkononi PING kwanza — maiti isirudishwe
   // (resume ilirudisha cu.sandbox iliyo kufa → "not found" kila mara, create haikufika).
   if (cu.sandbox) {
-    if (await sandboxAlive(cu.sandbox)) return cu.sandbox;
+    if (await sandboxAlive(cu.sandbox) || await resumeIfPaused(cu.sandbox)) return cu.sandbox; // TASK-32: iliyopauzwa (saa 1) → resume
     cu.sandbox = undefined;
     cu.sandboxId = undefined;
   }
@@ -1300,7 +1300,10 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
       if (Date.now() - lastPing >= 3 * 60_000) {
         lastPing = Date.now();
         if (await sandboxAlive(sbx)) strikes = 0;
-        else if (++strikes >= 2) {
+        else if (await resumeIfPaused(sbx)) {
+          strikes = 0;
+          hooks.blog("warning", `♻️ ${id}: sandbox ilipauzwa na E2B (kikomo cha session ya saa 1) — imerejeshwa (resume); build inaendelea.`);
+        } else if (++strikes >= 2) {
           hooks.blog("error", `🧊 ${id}: sandbox haipiti ping mara 2 — imekufa.`);
           await handleCuEvent(runner, hooks, { i: cu.maxI + 1, type: "run_end", status: "error", steps: cu.step, ms: Date.now() - cu.startedAt, fatal: "sandbox ya E2B imekufa wakati wa build" });
           break;
@@ -1422,6 +1425,7 @@ function startLiveness(runner: Runner, hooks: CuHooks, cu: CuRunState, sbx: any)
   const t = setInterval(async () => {
     if (!runner.cu || cu.done || cu.pausedNow || cu.pausing) { stopLiveness(cu); return; }
     if (await sandboxAlive(sbx)) { strikes = 0; return; }
+    if (await resumeIfPaused(sbx)) { strikes = 0; hooks.blog("warning", "♻️ Sandbox ilipauzwa na E2B (kikomo cha session ya saa 1) — imerejeshwa (resume)."); return; } // TASK-32
     strikes += 1;
     hooks.blog("warning", `🧊 Sandbox haipiti ping (${strikes}/2)…`);
     if (strikes >= 2) {

@@ -95,6 +95,29 @@ export async function restoreFromMirror(sessionId: string, sbx: any): Promise<nu
 }
 
 /** R44-C: sandbox ipumzi? Ping ya haraka (echo) — maiti isirudishwe tena na getSandbox. */
+/** TASK-32 (E2E halisi): mpango wa E2B una kikomo cha session cha SAA 1 — `setTimeout` haikivuki; sandbox
+ *  (lifecycle onTimeout:"pause") INAPAUZWA, si kufa. Ping ikishindwa: connect (= resume ya iliyopauzwa, memory
+ *  na bridge vinaendelea) kisha ping tena. Run 5: M2/M3 zilikufa baada ya dk 62.8 kila moja kwa sababu hii. */
+export async function resumeIfPaused(
+  sbx: any,
+  connect: (id: string) => Promise<unknown> = async (id) => {
+    const { Sandbox } = await import("@e2b/code-interpreter");
+    return Sandbox.connect(id, { apiKey: process.env.E2B_API_KEY!, timeoutMs: 60 * 60_000 } as any);
+  },
+): Promise<boolean> {
+  const id = sbx?.sandboxId;
+  if (!id) return false;
+  try {
+    await Promise.race([
+      connect(id),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("E2B connect timeout (25s)")), 25_000).unref?.()),
+    ]);
+  } catch {
+    return false;
+  }
+  return sandboxAlive(sbx);
+}
+
 export async function sandboxAlive(sbx: any): Promise<boolean> {
   if (!sbx) return false;
   try {
