@@ -449,8 +449,8 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
     participants: reviewParticipants(ctx.extraParticipants, cast), roundHeader: formatRoundHeader(header0), cast,
   }, {
     analyse: async () => {
-      const imageDigest = await ensureDigest(runner, m, 0, ev, hooks, rh.analyseDeps?.loadImage); // TASK-30: Flash vision MAPEMA
-      const r = await reviewRound0(ev, ctx.analyseCtx, { log: (lvl, t) => hooks.blog(lvl, t), imageDigest, onLane: laneSink(runner, m), ...(rh.analyseDeps || {}) });
+      const imageDigest = await ensureDigest(runner, m, 0, ev, hooks, rh.analyseDeps?.loadImage, id); // TASK-30: Flash vision MAPEMA
+      const r = await reviewRound0(ev, ctx.analyseCtx, { log: (lvl, t) => hooks.blog(lvl, t), imageDigest, onLane: laneSink(runner, m, id), ...(rh.analyseDeps || {}) });
       return {
         designer: r.designer.findings, frontend: r.frontend.findings,
         meta: { independence: { ok: r.independence.ok, hashesDiffer: r.independence.hashesDiffer, leaks: [r.independence.designerLeakIntoFrontend.length, r.independence.frontendLeakIntoDesigner.length] }, designer: r.designer.meta, frontend: r.frontend.meta },
@@ -509,10 +509,11 @@ export async function recordLaneUse(runner: LoopRunner, milestoneId: string, rec
   catch (e) { console.warn(`[milestone] lanesUsed ${milestoneId}: ${String((e as Error)?.message || e).slice(0, 160)}`); }
 }
 const lanePending = new WeakMap<LoopRunner, Set<Promise<void>>>();
-const laneSink = (runner: LoopRunner, m: Milestone) => (rec: LaneUse) => {
+/** stepId inawekwa WAKATI wa wito (rekodi inaandikwa async — currentStepId ingeweza kuwa hatua inayofuata: REAL T4 run 1) */
+const laneSink = (runner: LoopRunner, m: Milestone, stepId?: string) => (rec: LaneUse) => {
   const set = lanePending.get(runner) || new Set<Promise<void>>();
   lanePending.set(runner, set);
-  const p = recordLaneUse(runner, m.id, rec).finally(() => set.delete(p));
+  const p = recordLaneUse(runner, m.id, { ...rec, stepId: rec.stepId || stepId || "" }).finally(() => set.delete(p));
   set.add(p);
 };
 const laneShown = new WeakMap<LoopRunner, Map<string, number>>();
@@ -538,12 +539,12 @@ async function emitLaneDigest(runner: LoopRunner, m: Milestone, hooks: LoopHooks
 }
 
 /** digest ya picha za raundi (wito wa Flash wenye vision, KABLA ya wito wa judge) — imehifadhiwa `digest:Mk:Rn`. */
-async function ensureDigest(runner: LoopRunner, m: Milestone, round: number, pack: EvidencePack, hooks: LoopHooks, loadImage?: ReviewDeps["loadImage"]): Promise<Record<string, string> | null> {
+async function ensureDigest(runner: LoopRunner, m: Milestone, round: number, pack: EvidencePack, hooks: LoopHooks, loadImage?: ReviewDeps["loadImage"], stepId?: string): Promise<Record<string, string> | null> {
   if (m.reviewMode === "technical" || !(pack.screenshots || []).length || !runner.sessionId) return null;
   const have = (await getRecord<ImageDigest>(runner.sessionId, digestKey(m.id, round)))?.data;
   if (have?.byId) return have.byId;
   try {
-    const d = await makeImageDigest(pack, { loadImage, onLane: laneSink(runner, m) });
+    const d = await makeImageDigest(pack, { loadImage, onLane: laneSink(runner, m, stepId) });
     if (!d) { hooks.blog("warning", `🖼️ ${m.id} R${round}: digest ya picha haikupatikana — lane bila vision ingetumia DOM metrics pekee.`); return null; }
     await msUpdate(runner, digestKey(m.id, round), () => d);
     hooks.blog("info", `🖼️ ${m.id} R${round}: digest ya picha ${Object.keys(d.byId).length} (${d.lane}) — kwa lanes bila vision.`);
@@ -952,7 +953,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
     receipts: (fixRec?.verification?.cos || []).map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus, touched: c.touched, diff: c.diff })),
     cast: milestoneCast(m), reviewMode: m.reviewMode, // TASK-29
   };
-  const deps: VerifyDeps = { log: (l, t) => hooks.blog(l, t), capture: (agent, phase, text) => { maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase, system: text }); }, onLane: laneSink(runner, m), ...(vh.deps || {}) };
+  const deps: VerifyDeps = { log: (l, t) => hooks.blog(l, t), capture: (agent, phase, text) => { maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase, system: text }); }, onLane: laneSink(runner, m, stepIdOf(m.id, round, "verify")), ...(vh.deps || {}) };
   const now = () => new Date().toISOString();
   let vr = (await getRecord<VerifyRecord>(sid, verifyKey(m.id, round)))?.data ?? null;
 
@@ -963,7 +964,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
     if (!vr?.runs) {
       hooks.addChip(`🔍 ${m.id} R${round}: ${castNames(milestoneCast(m))} wanathibitisha COs ${orderIds.join(", ")} (peke yao)${rejudge ? " — upya kwa vision halisi" : ""}`);
       hooks.blog("system", `🔍 ${formatRoundHeader(header)} — reviewers 2 wanathibitisha (REVIEW_VERIFY).`);
-      deps.imageDigest = deps.imageDigest ?? (await ensureDigest(runner, m, round, pack, hooks, deps.loadImage)); // TASK-30: Flash vision MAPEMA
+      deps.imageDigest = deps.imageDigest ?? (await ensureDigest(runner, m, round, pack, hooks, deps.loadImage, vId)); // TASK-30: Flash vision MAPEMA
       const runs = await verifyBoth(vctx, deps);
       const disputed = disagreements(orderIds, runs.designer.findings, runs.frontend.findings);
       vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({

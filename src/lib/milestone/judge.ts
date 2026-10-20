@@ -118,7 +118,7 @@ export async function makeImageDigest(pack: EvidencePack, deps: DigestDeps = {})
   if (!n) return null;
   const purpose = `image-digest:${pack.milestoneId}:R${pack.round}`;
   const r = await (deps.complete || brokerComplete)({
-    agentId: "designer", purpose, cls: "heavy", allow: ["gemini"], maxOut: 8_000, temperature: 0.1, priority: "background", waitMs: 120_000,
+    agentId: "designer", purpose, cls: "heavy", allow: ["gemini"], maxHops: 32, maxOut: 8_000, // hops: tazama judgeComplete (REAL T4 run 1: 429 baada ya hops 5) temperature: 0.1, priority: "background", waitMs: 120_000,
     messages: [{ role: "user", content: content as never }],
   });
   try { deps.onLane?.(laneUseOf(r.call, purpose)); } catch { /* */ }
