@@ -1,0 +1,4 @@
+{
+ "_note": "TASK-32 E2E: XMD_MILESTONES=1 kwa session hii TU (tag [xmdtest:e2e]); hakuna fixture (files/planMarkdown hazipo -> testVerifyInput = null -> flow HALISI)",
+ "env": { "XMD_MILESTONES": "1" }
+}
