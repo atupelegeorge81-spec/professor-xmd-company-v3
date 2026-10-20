@@ -19,7 +19,7 @@ import { nextUtcMidnight, noteRoute, takeUnoSlot } from "@/lib/server/usageLedge
 import { allLanes, type Lane } from "./lanes";
 import { classOf, estimateTokens, type Priority, type WorkClass } from "./estimate";
 import { classify, reroutable, type Verdict } from "./errors";
-import { admit, judgeTierOf, JUDGE_CHAIN, laneClassOf, laneWeight, PLAN_PROVIDERS, score, SCARCE, testLanesDown, visionCapable } from "./policy";
+import { admit, judgeTierOf, JUDGE_CHAIN, laneClassOf, laneWeight, PLAN_PROVIDERS, score, SCARCE, testLanesDown, visionCapable, visionJudgeAllowed } from "./policy";
 import { isReasoningDump, repairHead } from "@/lib/board/turnText";
 import { bstate, recordOutcome, wakeAll, type Reservation } from "./state";
 import { idleGuard } from "./idle";
@@ -141,7 +141,7 @@ function pick(cls: WorkClass, estIn: number, maxOut: number, agentId: string, ex
   const stickyId = sticky && now - sticky.at < 10 * 60_000 ? sticky.laneId : undefined;
   const down = judge ? testLanesDown() : new Set<string>(); // TASK-30 test hook (judge pekee)
   // R49: planWork = Mpango Kazi — providers zilizoruhusiwa PEKEE (Gemini/Groq zinaondolewa kabla ya score yoyote).
-  const lanes = allLanes().filter((l) => !excluded.has(l.id) && !down.has(laneClassOf(l)) && (!planWork || PLAN_PROVIDERS.includes(l.provider)) && laneWeight(cls, l, fast, planWork, judge) > 0 && (!allow || allow.includes(l.provider)));
+  const lanes = allLanes().filter((l) => !excluded.has(l.id) && !down.has(laneClassOf(l)) && (!planWork || PLAN_PROVIDERS.includes(l.provider)) && (!(judge && vision) || visionJudgeAllowed(l)) && laneWeight(cls, l, fast, planWork, judge) > 0 && (!allow || allow.includes(l.provider)));
   let best: { lane: Lane; maxTokens: number; s: number; w: number } | null = null;
   const upcoming: { at: number; w: number }[] = [];
   for (const lane of lanes) {
@@ -547,7 +547,7 @@ export function judgeVisionReady(now = Date.now(), estIn = 20_000, maxOut = 16_0
   const down = testLanesDown();
   for (const cls of JUDGE_CHAIN) {
     for (const l of allLanes()) {
-      if (laneClassOf(l) !== cls || down.has(cls) || !visionCapable(l)) continue;
+      if (laneClassOf(l) !== cls || down.has(cls) || !visionCapable(l) || !visionJudgeAllowed(l)) continue; // TASK-32: XKiro si judge wa picha
       if (admit(l, estIn, maxOut, now).ok) return { ready: true, lane: l.id };
     }
   }

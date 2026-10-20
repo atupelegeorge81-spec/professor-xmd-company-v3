@@ -77,6 +77,11 @@ export const planWeightOf = (lane: Lane): number => PLAN_WEIGHTS[lane.provider] 
 export type LaneClassId = "gemini-flash" | "gemini-flash-lite" | Exclude<ProviderId, "gemini">;
 export const laneClassOf = (lane: Lane): LaneClassId => (lane.provider === "gemini" ? (lane.tier === "lite" ? "gemini-flash-lite" : "gemini-flash") : lane.provider);
 export const JUDGE_CHAIN: readonly LaneClassId[] = ["gemini-flash", "xkiro", "gemini-flash-lite"];
+/** TASK-32 (uamuzi wa CEO 2026-10-21): XKiro ina kikomo cha tokens 500k/siku na picha zinakula tokens nyingi →
+ *  judge YENYE picha (vision) HATUMII XKiro kamwe (filter ngumu kwenye broker.pick + judgeVisionReady).
+ *  Judge wa maandishi tu bado anaweza kutumia XKiro kwenye mnyororo. */
+export const VISION_JUDGE_EXCLUDED: readonly LaneClassId[] = ["xkiro"];
+export const visionJudgeAllowed = (lane: Lane): boolean => !VISION_JUDGE_EXCLUDED.includes(laneClassOf(lane));
 /** nafasi kwenye mnyororo wa judge (0 = Flash) · -1 = lane haipo kwenye judge */
 export const judgeTierOf = (lane: Lane): number => JUDGE_CHAIN.indexOf(laneClassOf(lane));
 export const judgeWeightOf = (lane: Lane): number => { const t = judgeTierOf(lane); return t < 0 ? 0 : JUDGE_CHAIN.length - t; };

@@ -117,9 +117,23 @@ describe("TASK-30 · broker (judge: true)", () => {
     expect(textOnly.lane.provider).toBe("xkiro"); // bila picha: mpangilio wa kawaida wa mnyororo
     textOnly.done();
     vi.stubEnv("XMD_TEST_LANES_DOWN", "gemini-flash,gemini-flash-lite");
-    const onlyNoVision = await run(true);
-    expect(onlyNoVision.lane.provider).toBe("xkiro"); // hakuna lane ya vision → XKiro (judgeComplete ita-degrade + visionDegraded)
-    onlyNoVision.done();
+    // TASK-32 (CEO 2026-10-21): XKiro si judge wa picha tena → hakuna Flash/Flash-Lite = BrokerExhausted (si degrade kwa XKiro)
+    const { isBrokerExhausted } = await import("@/lib/broker");
+    await expect(run(true)).rejects.toSatisfy(isBrokerExhausted);
+    const txt = await run(false);
+    expect(txt.lane.provider).toBe("xkiro"); // maandishi tu: XKiro bado yupo kwenye mnyororo
+    txt.done();
+  });
+
+  it("TASK-32: judge wa picha HATUMII XKiro hata ikiwa na vision na nafasi (Flash down → Flash-Lite moja kwa moja)", async () => {
+    const { brokerRun, judgeVisionReady } = await import("@/lib/broker");
+    vi.stubEnv("XMD_TEST_HOOKS", "1");
+    vi.stubEnv("XMD_TEST_LANES_DOWN", "gemini-flash");
+    const r = await brokerRun({ agentId: "judge-t32-img", purpose: "review-verify:M1:R1:designer", maxOut: 2000, cls: "heavy", messages: [{ role: "user", content: "x" }], judge: true, vision: true, waitMs: 0 }).next();
+    expect(r.lane.tier).toBe("lite");
+    r.done();
+    vi.stubEnv("XMD_TEST_LANES_DOWN", "gemini-flash,gemini-flash-lite");
+    expect(judgeVisionReady()).toEqual({ ready: false, lane: null }); // XKiro haihesabiwi kama judge wa picha
   });
 
   it("hook ni ya judge PEKEE na inert bila XMD_TEST_HOOKS=1; zamu ya kawaida ya Board (normal) bado ni XKiro", async () => {
@@ -153,6 +167,6 @@ describe("TASK-30 · broker (judge: true)", () => {
     vi.stubEnv("XMD_TEST_LANES_NOVISION", "xkiro");
     expect(judgeVisionReady()).toEqual({ ready: false, lane: null });
     vi.stubEnv("XMD_TEST_LANES_NOVISION", "");
-    expect(judgeVisionReady().lane).toMatch(/^xkiro-/);
+    expect(judgeVisionReady()).toEqual({ ready: false, lane: null }); // TASK-32 (CEO): XKiro si judge wa picha hata ikiwa na vision
   });
 });
