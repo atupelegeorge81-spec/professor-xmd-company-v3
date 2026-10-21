@@ -457,6 +457,9 @@ export function validateConsolidation(raw: unknown, i: ConsolidateInput): { ok: 
     const P = `changeOrders[${k}]`;
     // TASK-29: technical — prompt inasema visionNote si lazima; ikikosekana = "" (Koyeb T4 run 6: "must be a string (got undefined)" ×3)
     if (i.reviewMode === "technical" && co && typeof co === "object" && co.visionNote === undefined) co.visionNote = "";
+    // TASK-32 (E2E halisi, E7 M1 R1): verify inapitisha decisions: [] na Optimus aliweka marejeo ya ledger ("A1", "A2") ndani ya decisionIds
+    // → "unknown decision A1" ×7 → BLOCKED. Ids za ledger si maamuzi (maamuzi ni "R-M1-0/P-04") — zinaondolewa, haziharibu CO.
+    if (co && typeof co === "object" && Array.isArray(co.decisionIds)) co.decisionIds = co.decisionIds.filter((id: unknown) => !/^A\d+$/.test(String(id)) || decIds.has(String(id)));
     const v = validateChangeOrder(co, i.reviewMode);
     if (!v.ok) { v.errors.forEach((x) => e.push(`${P}: ${x}`)); return; }
     for (const id of co.defectIds || []) if (!dIds.has(id)) e.push(`${P}.defectIds: unknown defect ${id}`);

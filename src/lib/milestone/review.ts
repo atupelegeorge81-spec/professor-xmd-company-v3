@@ -308,8 +308,40 @@ export function extractJson(text: string): unknown {
   const body = fence ? fence[1] : t;
   try { return JSON.parse(body); } catch { /* jaribu kipande cha { … } */ }
   const a = body.indexOf("{"), b = body.lastIndexOf("}");
-  if (a >= 0 && b > a) return JSON.parse(body.slice(a, b + 1));
+  if (a >= 0 && b > a) {
+    const obj = body.slice(a, b + 1);
+    try { return JSON.parse(obj); } catch (e) {
+      // TASK-32 (E2E halisi, E7 M1 R1): Optimus alivunja JSON mara 2 mfululizo (koma iliyokosekana) → consolidation invalid → BLOCKED
+      try { return JSON.parse(repairJson(obj)); } catch { throw e; }
+    }
+  }
   throw new Error("no JSON object found");
+}
+
+/** Urekebishaji mdogo wa makosa ya kawaida ya LLM NJE ya strings: koma iliyokosekana kati ya mistari, trailing comma.
+ *  Matokeo bado yanapita validation kamili ya mpigaji — hii haibuni maudhui. */
+export function repairJson(src: string): string {
+  let out = "", inStr = false, esc = false, lastSig = "";
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (inStr) {
+      out += c;
+      if (esc) esc = false; else if (c === "\\") esc = true; else if (c === '"') { inStr = false; lastSig = '"'; }
+      continue;
+    }
+    if (c === '"' || c === "{" || c === "[") {
+      // thamani mpya inaanza baada ya thamani iliyokamilika bila koma → ongeza koma
+      if (lastSig && /["}\]\deEtl]/.test(lastSig) && /\n/.test(out.slice(out.search(/\S\s*$/) + 1))) out = out.replace(/(\S)(\s*)$/, "$1,$2");
+      out += c;
+      if (c === '"') inStr = true;
+      lastSig = c;
+      continue;
+    }
+    if (c === "}" || c === "]") { out = out.replace(/,(\s*)$/, "$1"); out += c; lastSig = c; continue; }
+    out += c;
+    if (!/\s/.test(c)) lastSig = c;
+  }
+  return out;
 }
 
 const SHOT_RE = /^(S-\d{3,})\b/;

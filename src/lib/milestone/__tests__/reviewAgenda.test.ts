@@ -176,6 +176,15 @@ describe("TASK 24 — ChangeOrder schema + consolidate (Optimus)", () => {
     expect(ok.ok).toBe(true);
     expect((ok as any).changeOrders.map((c: any) => [c.id, c.attempt])).toEqual([["CO-004", 1], ["CO-005", 1]]);
   });
+  it("TASK-32: marejeo ya ledger (A1, A2) ndani ya decisionIds yanaondolewa — si kosa; uamuzi usiojulikana bado ni kosa", () => {
+    const ok = validateConsolidation({ changeOrders: [co({ defectIds: ["D-001", "D-002"], decisionIds: ["A1", "A2"] }), co({ defectIds: [], decisionIds: ["R-M1-0/P-02", "A7"] })], ledgerConflicts: [] }, cin());
+    expect(ok.ok).toBe(true);
+    expect((ok as any).changeOrders.map((c: any) => c.decisionIds)).toEqual([[], ["R-M1-0/P-02"]]);
+    const bad = validateConsolidation({ changeOrders: [co({ defectIds: ["D-001", "D-002"], decisionIds: ["R-M1-0/P-99"] }), co({ defectIds: [], decisionIds: ["R-M1-0/P-02"] })] }, cin());
+    expect((bad as any).errors.join("\n")).toMatch(/unknown decision R-M1-0\/P-99/);
+    const onlyLedger = validateConsolidation({ changeOrders: [co({ defectIds: [], decisionIds: ["A3"] })] }, { ...cin(), decisions: [] });
+    expect(onlyLedger.ok).toBe(false); // defectIds tupu + decisionIds tupu baada ya kuondoa → validateChangeOrder inakataa
+  });
   it("uamuzi unaopingana na ledger → ledgerConflicts (CR), si CO; route/viewport mbovu ni kosa", () => {
     const ok = validateConsolidation({ changeOrders: [co({ defectIds: ["D-001", "D-002"] })], ledgerConflicts: [{ decisionId: "R-M1-0/P-02", conflictsWith: "A2", reason: "x" }] }, cin());
     expect(ok.ok).toBe(true);
