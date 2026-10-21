@@ -16,7 +16,7 @@ import { Sandbox } from "@e2b/code-interpreter";
 import { InputFile } from "node-appwrite/file";
 import { appwriteConfigured, databases, DB, storage, SCREENSHOTS_BUCKET } from "@/lib/server/appwrite";
 import { publicFileUrl } from "@/lib/server/supabase"; // R42.1
-import { mirrorEvent, mirrorMapOf, restoreFromMirror, resumeIfPaused, sandboxAlive } from "./mirror"; // R44: kiovu + liveness
+import { mirrorEvent, mirrorMapOf, restoreFromMirror, resumeIfPaused, sandboxAlive, e2bSaysRunning } from "./mirror"; // R44: kiovu + liveness
 import { type CuGateInfo, computeFinalOutcome, type CuFinalState } from "./finalState"; // TASK-3
 import { isPlanExecutable } from "./planGate"; // TASK-4
 import { FEATURE_LIST_SANDBOX_PATH, featureListJson, featuresFromPlan } from "./features"; // R50-Awamu 1
@@ -1303,6 +1303,9 @@ async function startMilestonePhase(runner: Runner, hooks: CuHooks, ph: Milestone
         else if (await resumeIfPaused(sbx)) {
           strikes = 0;
           hooks.blog("warning", `♻️ ${id}: sandbox ilipauzwa na E2B (kikomo cha session ya saa 1) — imerejeshwa (resume); build inaendelea.`);
+        } else if (await e2bSaysRunning(sbx)) {
+          strikes = 0; // TASK-32: ping imeshindwa lakini E2B API inasema running → ina mzigo, si kifo (liveness inalinda)
+          hooks.blog("warning", `🐢 ${id}: sandbox haikujibu ping (mzigo mkubwa) lakini E2B inasema running — build inaendelea.`);
         } else if (++strikes >= 2) {
           hooks.blog("error", `🧊 ${id}: sandbox haipiti ping mara 2 — imekufa.`);
           await handleCuEvent(runner, hooks, { i: cu.maxI + 1, type: "run_end", status: "error", steps: cu.step, ms: Date.now() - cu.startedAt, fatal: "sandbox ya E2B imekufa wakati wa build" });

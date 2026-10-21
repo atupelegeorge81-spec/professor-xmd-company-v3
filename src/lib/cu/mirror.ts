@@ -118,6 +118,29 @@ export async function resumeIfPaused(
   return sandboxAlive(sbx);
 }
 
+/** TASK-32 (E2E run 6, M2 R5): ping ya `echo 1` (9s) ilishindwa mara 2 sandbox ikiwa na mzigo (next build + evidence, RAM ya
+ *  server 80%+) → "sandbox imekufa" ya UONGO (sandbox ilikuwa hai, M3 iliitumia baadaye). Kabla ya hukumu ya kifo: uliza
+ *  E2B API — `state: "running"` = hai (ina shughuli tu); liveness (CU_LIVENESS_MS) bado inalinda ikikwama kweli. */
+export async function e2bSaysRunning(
+  sbx: any,
+  getInfo: (id: string) => Promise<{ state?: string }> = async (id) => {
+    const { Sandbox } = await import("@e2b/code-interpreter");
+    return Sandbox.getInfo(id, { apiKey: process.env.E2B_API_KEY! } as any) as Promise<{ state?: string }>;
+  },
+): Promise<boolean> {
+  const id = sbx?.sandboxId;
+  if (!id) return false;
+  try {
+    const info = await Promise.race([
+      getInfo(id),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("E2B getInfo timeout (20s)")), 20_000).unref?.()),
+    ]);
+    return info?.state === "running";
+  } catch {
+    return false;
+  }
+}
+
 export async function sandboxAlive(sbx: any): Promise<boolean> {
   if (!sbx) return false;
   try {

@@ -1,6 +1,6 @@
 // mirror.test.ts — R44-A: kiovu cha faili (pure logic) + liveness ping.
 import { describe, expect, it } from "vitest";
-import { applyMirrorEvent, mirrorPathOf, resumeIfPaused, sandboxAlive, mirrorMapOf } from "./mirror";
+import { applyMirrorEvent, mirrorPathOf, resumeIfPaused, sandboxAlive, mirrorMapOf, e2bSaysRunning } from "./mirror";
 
 describe("mirrorPathOf", () => {
   it("inaleta path ya ws kama relative", () => {
@@ -92,5 +92,18 @@ describe("resumeIfPaused (TASK-32: kikomo cha session ya E2B saa 1 → pause, si
   it("connect inafaulu lakini ping bado inashindwa → false (strike inahesabiwa)", async () => {
     const sbx = { sandboxId: "sbx-x", commands: { run: async () => { throw new Error("down"); } } };
     await expect(resumeIfPaused(sbx, async () => {})).resolves.toBe(false);
+  });
+});
+
+describe("e2bSaysRunning (TASK-32 run 6: ping ilishindwa kwa mzigo → kifo cha uongo)", () => {
+  it("E2B API state running → true (ina mzigo, si kifo)", async () => {
+    const ids: string[] = [];
+    await expect(e2bSaysRunning({ sandboxId: "sbx-busy" }, async (id) => { ids.push(id); return { state: "running" }; })).resolves.toBe(true);
+    expect(ids).toEqual(["sbx-busy"]);
+  });
+  it("paused / 404 / bila id → false (strike inahesabiwa kama zamani)", async () => {
+    await expect(e2bSaysRunning({ sandboxId: "p" }, async () => ({ state: "paused" }))).resolves.toBe(false);
+    await expect(e2bSaysRunning({ sandboxId: "d" }, async () => { throw new Error("404 not found"); })).resolves.toBe(false);
+    await expect(e2bSaysRunning({}, async () => ({ state: "running" }))).resolves.toBe(false);
   });
 });
