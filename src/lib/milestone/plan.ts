@@ -11,7 +11,7 @@ import type { FactSheet } from "@/lib/board/factSheet";
 import type { GuardHit } from "@/lib/board/dataGuard";
 import { isPlanExecutable, planStatusOf, planWarningsOf } from "@/lib/cu/planGate";
 import { validateCheck } from "./schemas";
-import { planGateCommands } from "./startpack"; // TASK-18
+import { cmdLine, planGateCommands } from "./startpack"; // TASK-18 · TASK-32: cmdLine (Start Command)
 import { inheritedSection } from "./signoff"; // TASK-28
 import type { Check, Milestone } from "./types";
 
@@ -155,6 +155,8 @@ export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "rev
       if (/\d{3,4}\s*x\s*\d{3,4}/i.test(r[3])) routes++;
       else errors.push(`${m.id} plan §7: screenshot line for route ${r[1]} has no viewport sizes (use ${PLAN_VIEWPORTS.join(", ")})`);
     }
+    // TASK-32 (E2E run 8 M2): plan bila Start Command ilipita validator → harness haikuweza kuwasha app → sign-off imekataliwa → BLOCKED
+    if (!cmdLine(md, "Start Command")) errors.push(`${m.id} plan §7: missing the "Start Command:" line (reviewMode ${m.reviewMode}) — add one line \`Start Command: <command that builds and serves the app on port ${EVIDENCE_PORT}>\`, e.g. \`npm run build && npm run start -- -p ${EVIDENCE_PORT}\` (the harness runs it to take the screenshots)`);
     if (!routes) errors.push(`${m.id} plan §7: missing the screenshot matrix (reviewMode ${m.reviewMode}) — add lines like "- route: / · states: default, error · viewports: ${PLAN_VIEWPORTS.join(", ")}"`);
   }
 
@@ -269,6 +271,11 @@ export function ledgerDecisionsSection(entries: LedgerLike[]): string {
   return entries.map((e) => `- **A${e.agenda_index} [${e.status}] ${e.agenda_item}:** ${String(e.decision_summary || "").trim() || "_(no summary)_"}`).join("\n");
 }
 
+/** TASK-32: majaribio ya kurekebisha muundo wa plan (zamani 1 — kosa la PART 1 halikuweza kurekebishwa). */
+export const PLAN_REPAIR_MAX = 2;
+/** kosa la validator lililo kwenye PART 1 (sehemu 1–4: Objective, Data, Constraints, Tech Stack/Styling/Build+Test Command). */
+export const isPart1Error = (e: string): boolean => /\bplan §[1-4]\b/.test(e);
+
 export async function generateMilestonePlan(m: Milestone, deps: MilestonePlanDeps): Promise<MilestonePlanResult> {
   const log = deps.log || (() => {});
   const max = Math.max(1, deps.maxSteps || PLAN_STEPS_MAX);
@@ -320,13 +327,29 @@ ${RULES}`;
   let cur = assemble();
   const repairs = { structure: 0, guard: 0 };
 
-  // Muundo: jaribio 1 la kuandika upya PART 2 kwa makosa halisi ya validator
+  // Muundo: hadi majaribio PLAN_REPAIR_MAX ya kuandika upya kwa makosa halisi ya validator.
+  // TASK-32 (E2E run 8 M1): makosa ya §1–§4 (mf. "Styling + Dependencies:" / Build Command) yako PART 1 — zamani PART 2 tu
+  // ndiyo iliandikwa upya, kwa hiyo kosa la §4 halingeweza kurekebishwa kamwe → structure_failed → BLOCKED.
   const structErrs = () => [...cur.a.problems.filter((p) => /hatua \d+ > kubwa|sehemu ya 6|Work Steps/.test(p)), ...cur.v.errors];
-  if (structErrs().length) {
+  for (let attempt = 1; attempt <= PLAN_REPAIR_MAX && structErrs().length; attempt++) {
+    const errs = structErrs();
+    if (errs.some(isPart1Error)) {
+      repairs.structure++;
+      log("warning", `🗺️ Plan ${m.id}: validator imekataa §1–§4 (${errs.filter(isPart1Error).length}) — Optimus anaandika upya kipande 1 (jaribio ${attempt}/${PLAN_REPAIR_MAX})…`);
+      const fixed1 = await deps.write({
+        label: `${m.id} rekebisha kipande 1 (${attempt})`,
+        user: `${task(1)}\n\n=== VALIDATOR FEEDBACK ===\nThe code validator REJECTED your previous PART 1 of the ${m.id} plan:\n${errs.filter(isPart1Error).map((e) => `- ${e}`).join("\n")}\n\nRewrite PART 1 COMPLETELY (sections 1, 2, 3 and 4) and fix EVERY point above. Output ONLY PART 1.`,
+        maxOut: 12000,
+      });
+      planTexts[0] = fixed1;
+      cur = assemble();
+      if (!structErrs().length) break;
+    }
+    if (!structErrs().filter((e) => !isPart1Error(e)).length) continue;
     repairs.structure++;
-    log("warning", `🗺️ Plan ${m.id}: validator imekataa (${structErrs().length}) — Optimus anaandika upya kipande 2…`);
+    log("warning", `🗺️ Plan ${m.id}: validator imekataa (${structErrs().length}) — Optimus anaandika upya kipande 2 (jaribio ${attempt}/${PLAN_REPAIR_MAX})…`);
     const fixed = await deps.write({
-      label: `${m.id} rekebisha muundo`,
+      label: `${m.id} rekebisha muundo${attempt > 1 ? ` (${attempt})` : ""}`,
       user: `${ctx}\n\n=== YOUR TASK ===\nThe code validator REJECTED your ${m.id} plan:\n${structErrs().map((e) => `- ${e}`).join("\n")}\n\nRewrite PART 2 COMPLETELY (sections 5, 6, 7 and 8 — same headings) fixing every error above. Same step template.\n\n${sectionsSpec(2, m, max)}\n\n${RULES}`,
       maxOut: 24000,
     });

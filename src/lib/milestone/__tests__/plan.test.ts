@@ -37,6 +37,7 @@ ${steps}
 - [ ] contrast
 **Screenshots:**
 - route: / · states: default, error · viewports: 375x667, 768x1024, 1280x800
+Start Command: \`npx serve -l 4173\`
 **Proof:**
 - \`node --check server.js\`
 ## 8. Agent Rules
@@ -93,6 +94,13 @@ describe("validateMilestonePlan", () => {
     expect(validateMilestonePlan(doc(PART1, p2), { ...M1, reviewMode: "technical" }).ok).toBe(true);
   });
 
+  it("TASK-32: visual/mixed bila Start Command → kosa la §7 (harness isingeweza kuwasha app); technical haihitaji", () => {
+    const p2 = PART2(GOOD_STEPS).replace(/Start Command:.*\n/, "");
+    for (const mode of ["visual", "mixed"] as const)
+      expect(validateMilestonePlan(doc(PART1, p2), { ...M1, reviewMode: mode }).errors.some((e) => /§7: missing the "Start Command:" line/.test(e))).toBe(true);
+    expect(validateMilestonePlan(doc(PART1, p2), { ...M1, reviewMode: "technical" }).errors.some((e) => /Start Command/.test(e))).toBe(false);
+  });
+
   it("stepChecksBlock inasoma ```checks au ```json baada ya Checks:", () => {
     expect(stepChecksBlock("- **Checks:**\n```json\n[1]\n```")).toBe("[1]");
     expect(stepChecksBlock("no checks here\n```checks\n[]\n```")).toBeNull();
@@ -128,15 +136,36 @@ describe("generateMilestonePlan", () => {
     expect(r.warnings.some((w) => /< ndogo ya 8/.test(w))).toBe(true); // onyo tu (Task 4)
   });
 
-  it("muundo mbovu → jaribio 1 la kurekebisha; likishindwa → structure_failed, haitekelezeki", async () => {
+  it("muundo mbovu → majaribio 2 ya kurekebisha (TASK-32); yakishindwa → structure_failed, haitekelezeki", async () => {
     const noChecks = PART2(GOOD_STEPS.replace(/\n- \*\*Checks:\*\*\n```checks\n[^`]*```/g, ""));
-    const d = deps([PART1, noChecks, noChecks]);
+    const d = deps([PART1, noChecks, noChecks, noChecks]);
     const r = await generateMilestonePlan(M1, d);
-    expect(d.calls).toHaveLength(3);
+    expect(d.calls).toHaveLength(4);
     expect(d.calls[2]).toMatch(/rekebisha muundo/);
+    expect(d.calls[3]).toMatch(/rekebisha muundo \(2\)/);
+    expect(r.repairs.structure).toBe(2);
     expect(r.status).toBe("structure_failed");
     expect(r.executable).toBe(false);
     expect(r.reasons[0]).toMatch(/structure_failed/);
+  });
+
+  it("TASK-32: kosa la §4 (Styling + Dependencies haipo) → PART 1 inaandikwa upya kwa maoni ya validator → active", async () => {
+    const p1bad = PART1.replace(/Styling \+ Dependencies:.*\n/, "");
+    const d = deps([p1bad, PART2(GOOD_STEPS), PART1]);
+    const r = await generateMilestonePlan(M1, d);
+    expect(d.calls).toHaveLength(3);
+    expect(d.calls[2]).toMatch(/rekebisha kipande 1 \(1\)/);
+    expect(r.status).toBe("active");
+    expect(r.executable).toBe(true);
+    expect(r.repairs).toEqual({ structure: 1, guard: 0 });
+  });
+
+  it("TASK-32: kosa la §4 linaendelea → jaribio la 2 la PART 1, kisha structure_failed (si loop isiyoisha)", async () => {
+    const p1bad = PART1.replace(/Styling \+ Dependencies:.*\n/, "");
+    const d = deps([p1bad, PART2(GOOD_STEPS), p1bad, p1bad]);
+    const r = await generateMilestonePlan(M1, d);
+    expect(d.calls.map((c) => c.split("::")[0])).toEqual(["M1 1/2", "M1 2/2", "M1 rekebisha kipande 1 (1)", "M1 rekebisha kipande 1 (2)"]);
+    expect(r.status).toBe("structure_failed");
   });
 
   it("muundo mbovu → urekebishaji unafaulu → active", async () => {
