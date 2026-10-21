@@ -48,7 +48,7 @@ import { saveMiniReport, miniDetailsMap, MINI_LEDGER_POINTER, isMiniPointer, typ
 import { saveProjectPlan, getPlanBySession } from "./server/plans";
 // R31 · XMD COMPUTER (computer-use): engine ya phase ya mwisho — baada ya memory ya Board
 import { serialQueue } from "./serialQueue"; // TASK-6
-import { milestonesEnabled } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES, default OFF)
+import { milestonesEnabled, milestoneResumeBlocked } from "./milestone/flag"; // TASK-12 (XMD_MILESTONES, default OFF)
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
 import { putRecord, getRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13 (getRecord: TASK-16)
 import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
@@ -457,6 +457,15 @@ function startLoop(runner: Runner) {
   // TASK-28: test profile (tag `[xmdtest:<jina>]` kwenye brief + XMD_TEST_PROFILE_DIR) — majaribio halisi kwenye Koyeb; bila tag → env za majaribio zinaondolewa
   const prof = applyTestProfile(runner.project);
   if (prof) chip(runner, "error" in prof ? `🧪 test profile: ${prof.error}` : `🧪 test profile ${prof.name}: ${prof.keys.join(", ")}`);
+  // TASK-32: session ya milestones + server bila XMD_MILESTONES → HAIENDELEZWI (ingechukua njia ya zamani na kuitangaza completed)
+  if (milestoneResumeBlocked(!!runner.msMap)) {
+    runner.status = "paused";
+    runner.pauseOrigin = "user"; // system (auto-resume/orphan) haitaigusa tena kwenye server hii
+    runner.pausedAt = Date.now();
+    chip(runner, "⛔ Session hii ni ya milestones (XMD_MILESTONES) lakini server hii imezimwa flag — HAIENDELEZWI hapa (ingetumia njia ya zamani). Iendeleze kwenye server yenye flag.");
+    console.warn(`[resume] ${runner.id}: session ya milestones — server hii haina XMD_MILESTONES → imeachwa paused (haiendelezwi).`);
+    return;
+  }
   // R20: mtandao ukikatika — chip moja inaonekana (na kupona kunatangazwa); zamu/kazi zinasubiri ndani ya broker
   const offNet = onNetState((offline) => {
     if (runner.status !== "running") return;
