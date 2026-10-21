@@ -483,3 +483,12 @@ $ npm run cu:test        → Ran 186 tests — OK
   (haijaanza) → fix `d821776` · run W2 (775f358c) baada ya fix: post-deploy M1 PASS (screens 3), `CAP_REACHED in M1`, T1–T5 PASS. COMPLETED: unit tests pekee.
 - Koyeb: env `XMD_TEST_PROFILE_DIR=docs/tests/task-31/inputs`. Hatari: Gemini Flash 503 (high demand) wakati wa majaribio; scrub ya honesty ni ya maneno.
 - Baselines: tsc 0 · vitest 754 + 2 skipped (+5) · pytest 338 + 3 · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-31.md + docs/tests/task-31/ (bila `.log`).
+
+## Task 32 — End-to-end REAL run (acceptance ya mfumo mzima) · **ACCEPTANCE FAIL** (ripoti ya ukweli)
+- Branch `task/32-e2e` · Koyeb (S1) · `XMD_MILESTONES=1` kwa test profile `[xmdtest:e2e]` pekee · brief ya portfolio (dark, sw/en, Supabase contact, Vercel).
+- Runs 8 halisi E1–E8 (~36 h): hakuna milestone iliyosainiwa kwa haki; raundi nyingi zaidi E6 M2 R5 / E8 M3 R3; E8 final report (code) = **PARTIAL** (M1–M4 BLOCKED, hakuna live URL).
+- PASS: Recovery (E2, review R0 bila duplicate) · Detach (E6, dakika 10 paused → Resume) · lane log judges 82, `visionDegraded` 0 · sign-off ya uongo inakataliwa (Fix 15, live E8 M2).
+- Fixes 17 (kila moja commit ndogo + test): 1–15 live; **16** plan repair hadi 2× + PART 1 kwa makosa ya §1–§4 + validator ya Start Command; **17** BLOCKED ya R0 inarudiwa mara 1 (re-plan) — unit tests tu (CEO: hakuna E9).
+- Gharama: Computer 3 492 requests / ~1.02 B tokens · judges 2.18 M in / 98 k out · ujumbe 729. Pendekezo: **usiwashe flag kwenye prod**.
+- Usafi: sessions 8 + screenshots 189 zimefutwa, sandbox ya E8 imeuawa; QUESTIONS.md (maswali 3 + majibu ya CEO).
+- Baselines: tsc 0 · vitest 786 + 2 skipped (+32) · pytest 346 + 3 · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-32.md + docs/tests/task-32/shots/ (bila `.log`).
