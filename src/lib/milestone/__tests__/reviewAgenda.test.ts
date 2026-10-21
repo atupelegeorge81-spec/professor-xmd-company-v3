@@ -328,6 +328,28 @@ describe("TASK 24 — runMilestoneBuild → review step", () => {
     expect([t.st().status, t.discussed()]).toEqual(["SIGNED_OFF", 0]);
     expect(t.st().steps.find((s: any) => s.stepId === "M1.R0.review").stub).toBe(true);
   });
+  it("TASK-32 (E7 M2): evidence ina errors (server 500) bila screenshots → si SIGNED_OFF; kujenga upya mara 2 → bado → BLOCKED", async () => {
+    const t = loopSetup(false, async () => outcome(AGREE_NONE));
+    const bad = { ...pack(), screenshots: [], checks: [], errors: [{ kind: "server", detail: "server did not answer HTTP 200 (last: HTTP 500; exit 1)" }] } as any;
+    const notes: string[] = [];
+    t.hooks.build = async (_m, md) => { notes.push(md); return { ok: true, finalState: "COMPLETED_VERIFIED", reason: "", evidence: { pack: bad, exit: 1, invalid: [], uploaded: 0, ms: 1 } }; };
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(t.st().status).toBe("BLOCKED");
+    expect(t.st().steps.find((s: any) => s.stepId === "M1.R0.review").status).toBe("FAILED");
+    expect(notes.length).toBe(3); // build ya kawaida + kujenga upya 2
+    expect(notes[1]).toMatch(/EVIDENCE HARNESS FAILURE[\s\S]*HTTP 500/);
+    expect(t.discussed()).toBe(0);
+  });
+  it("TASK-32: evidence errors → kujenga upya kunatoa screenshots → review ya kawaida inaendelea (si stub)", async () => {
+    const t = loopSetup(false, async () => outcome(AGREE_NONE));
+    const bad = { ...pack(), screenshots: [], checks: [], errors: [{ kind: "server", detail: "HTTP 500" }] } as any;
+    let n = 0;
+    t.hooks.build = async () => ({ ok: true, finalState: "COMPLETED_VERIFIED", reason: "", evidence: { pack: n++ === 0 ? bad : pack(), exit: 0, invalid: [], uploaded: 1, ms: 1 } });
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(n).toBe(2);
+    expect(t.st().steps.find((s: any) => s.stepId === "M1.R0.review").stub).toBeFalsy();
+    expect(t.discussed()).toBe(1);
+  });
   it("TASK-30 T4 (code): R0 NO_CHANGES lakini findings ni visionDegraded → sign-off INAKATALIWA → PAUSED_QUOTA → vision ikirudi: R0 upya (picha halisi) → SIGNED_OFF", async () => {
     const t = loopSetup(true, async () => outcome("ACCEPTED PROPOSALS: none\nREJECTED PROPOSALS: none\nINVALID DEFECTS: D-001 (measured 48px in DOM, both agree)\nCHANGE REQUESTS: none"));
     const fk = `${SID}|${findingsKey("M1", 0)}`;

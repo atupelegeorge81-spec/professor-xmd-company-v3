@@ -56,6 +56,8 @@ export interface LoopHooks {
   plan?: (m: Milestone) => Promise<MilestonePlanResult>;
   /** TASK-16: XMD Computer anajenga milestone MOJA kutoka plan yake (bila hook → stub) */
   build?: (m: Milestone, planMarkdown: string) => Promise<BuildOutcome>;
+  /** TASK-32: mara ngapi kujenga upya evidence ikiwa na errors bila screenshots (default EVIDENCE_REBUILDS) */
+  evidenceRebuilds?: number;
   /** TASK-24: REVIEW (R-Mk-0) baada ya evidence — context ya reviewers + mjadala kupitia mashine ya agenda ya Board.
    *  run() ya boardRunner ni closure moja: hook hii inajengwa ndani yake (msHooks) na `discuss` = `discussAgenda(item)`. */
   review?: {
@@ -429,7 +431,34 @@ export async function defaultConsolidate(i: ConsolidateInput, log?: LoopHooks["b
 async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, id: string): Promise<{ ok: boolean; state: MilestoneState; result?: ReviewRoundResult }> {
   const rh = hooks.review as NonNullable<LoopHooks["review"]>;
   const sid = runner.sessionId as string;
-  const ev = sid ? (await getRecord<EvidencePack>(sid, evidenceKey(m.id, 0)))?.data : null;
+  let ev = sid ? (await getRecord<EvidencePack>(sid, evidenceKey(m.id, 0)))?.data : null;
+  // TASK-32 (E2E halisi, E7 M2): harness haikupata screenshots kwa sababu app HAIKUHUDUMIA (next start → HTTP 500), lakini
+  // tawi la "hakuna evidence" liliruka review → M2 SIGNED_OFF ya uongo. Evidence yenye errors ≠ hakuna evidence:
+  // XMD Computer inajenga upya ikiwa na kosa (hadi mara EVIDENCE_REBUILDS); ikishindikana → BLOCKED, kamwe si sign-off.
+  for (let k = 1; ev && hooks.build && !(ev.screenshots || []).length && !ev.technical && (ev.errors || []).length; k++) {
+    const why = (ev.errors || []).map((e) => `${e.kind}: ${String(e.detail || "").slice(0, 700)}`).join("\n");
+    if (k > (hooks.evidenceRebuilds ?? EVIDENCE_REBUILDS)) {
+      const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "FAILED")), { type: "GOTO", to: "BLOCKED" })));
+      hooks.addChip(`⛔ ${m.id}: app haihudumii kwenye evidence harness hata baada ya kujenga upya mara ${k - 1} — sign-off IMEKATALIWA (${why.slice(0, 160)})`);
+      hooks.blog("error", `⛔ ${m.id}: evidence errors bila screenshots → BLOCKED (si SIGNED_OFF): ${why.slice(0, 400)}`);
+      await hooks.persist();
+      return { ok: false, state: rec.data };
+    }
+    const plan = (await getRecord<{ markdown?: string }>(sid, planKey(m.id)))?.data?.markdown || "";
+    hooks.addChip(`🔁 ${m.id}: evidence harness haikupata screenshots — app haihudumii (${why.slice(0, 140)}) → XMD Computer inajenga upya (${k}/${hooks.evidenceRebuilds ?? EVIDENCE_REBUILDS})`);
+    const out = await hooks.build(m, `${plan}\n\n## EVIDENCE HARNESS FAILURE — MUST FIX FIRST\nAfter your last build the independent evidence harness ran \`npm run build && npm run start -- -p 4173\` and the app did NOT serve HTTP 200 on / — no screenshots could be taken, so this milestone cannot be reviewed or signed off. Harness error:\n${why}\nFind the root cause (read .xmd/evidence/${m.id}/R0/server.log), fix it, and confirm the production server answers HTTP 200 on every planned route before you finish.`);
+    if (out.finalState === "PAUSED" || out.finalState === "PAUSED_QUOTA") {
+      hooks.blog("warning", `⏸️ ${m.id}: kujenga upya baada ya evidence errors kumesimama (${out.finalState}) — kutarudiwa.`);
+      const cur = (await getRecord<MilestoneState>(sid, stateKey(m.id)))?.data;
+      return { ok: false, state: (cur ?? newMilestoneState(m.id)) as MilestoneState };
+    }
+    try { await recordBuildReport(runner, m, hooks, out.buildReport); } catch { /* si lazima */ }
+    if (out.evidence) {
+      try { await recordEvidence(runner, m, hooks, out.evidence); }
+      catch (e: any) { hooks.blog("warning", `📸 Evidence ya ${m.id} haikuhifadhiwa: ${String(e?.message || e).slice(0, 160)}`); }
+    }
+    ev = (await getRecord<EvidencePack>(sid, evidenceKey(m.id, 0)))?.data ?? null;
+  }
   if (!ev || (!(ev.screenshots || []).length && !ev.technical)) {
     // hakuna screenshots WALA ushahidi wa technical (TASK-29) → review ya R0 inarukwa (njia ya zamani)
     const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
@@ -516,6 +545,7 @@ const isLegacyBuildHold = (s: MilestoneState | null | undefined) => s?.status ==
 const isVisionHold = (s: MilestoneState | null | undefined) => (s?.status === "PAUSED_QUOTA" && s.pauseOrigin === "system" && /^(vision|build):/.test(s.pauseReason || "")) || isLegacyBuildHold(s);
 const isBuildHold = (s: MilestoneState | null | undefined) => /^build:/.test(s?.pauseReason || "") || isLegacyBuildHold(s);
 /** TASK-32 (E2E run 7): muda kabla ya kujaribu tena build iliyosimama kwa quota (ikiwa bado hakuna quota → hold mpya) */
+export const EVIDENCE_REBUILDS = 2;
 export const BUILD_QUOTA_POLL_MS = 20 * 60_000;
 
 /** rekodi ya wito wa judge → state.lanesUsed (append-only; CAS ya store inalinda wito sambamba). Haiangushi loop. */
