@@ -347,6 +347,7 @@ export function validateMilestoneState(s: unknown): ValidationResult<MilestoneSt
   if (HOLD_STATUSES.includes(s.status) && s.resumeTo === undefined) e.push(`${P}.resumeTo: required when status is ${s.status}`);
   // TASK-30: pause ya system (hiari)
   if (s.resumeAt !== undefined && !isIso(s.resumeAt)) e.push(`${P}.resumeAt: must be an ISO date string (got ${show(s.resumeAt)})`);
+  if (s.blockedRetries !== undefined && !(Number.isInteger(s.blockedRetries) && s.blockedRetries >= 0 && s.blockedRetries <= 1)) e.push(`${P}.blockedRetries: must be 0 or 1 (TASK-32: BLOCKED is retried once) (got ${show(s.blockedRetries)})`);
   if (s.pauseOrigin !== undefined && s.pauseOrigin !== "system" && s.pauseOrigin !== "user") e.push(`${P}.pauseOrigin: must be "system" or "user" (got ${show(s.pauseOrigin)})`);
   if (s.steps !== undefined) {
     if (!Array.isArray(s.steps)) e.push(`${P}.steps: must be an array (got ${show(s.steps)})`);

@@ -196,15 +196,56 @@ describe("TASK-16: hatua ya build kupitia hooks.build (XMD Computer kwa kila mil
   });
 
   for (const fs of ["STUCK", "BLOCKED", "ERROR", "PARTIAL"]) {
-    it(`${fs} → build FAILED, M1 BLOCKED (resumeTo BUILDING), sababu wazi, hairudiwi yenyewe`, async () => {
+    it(`${fs} → build FAILED, M1 BLOCKED (resumeTo BUILDING), sababu wazi; TASK-32: inarudiwa MARA MOJA (re-plan) kisha haiguswi tena`, async () => {
       const t = await run({ ok: false, finalState: fs, reason: "liveness: no bridge event for 60s" });
       expect([t.st.status, t.st.resumeTo]).toEqual(["BLOCKED", "BUILDING"]);
       expect(t.st.steps.map((s: any) => [s.stepId, s.status])).toEqual([["M1.R0.plan", "DONE"], ["M1.R0.build", "FAILED"]]);
       expect(t.chips.some((c) => c.startsWith(`⛔ Build ya Milestone M1: ${fs} — liveness`))).toBe(true);
-      await maybeCloseMilestones(t.runner, t.hooks);
       expect(t.calls()).toBe(1);
+      await maybeCloseMilestones(t.runner, t.hooks); // retry 1/1: plan mpya → build tena (bado inashindwa)
+      expect(t.calls()).toBe(2);
+      const st2 = db.get(`${SID}|${stateKey("M1")}`)!.data;
+      expect([st2.status, st2.blockedRetries]).toEqual(["BLOCKED", 1]);
+      expect(st2.steps.map((s: any) => [s.stepId, s.status])).toEqual([["M1.R0.plan", "DONE"], ["M1.R0.build", "FAILED"]]);
+      expect(t.chips.some((c) => c.startsWith("🔁 Milestone M1 ilikuwa BLOCKED (hatua: build)"))).toBe(true);
+      expect(t.events.filter((e) => e.type === "milestoneRetry").map((e) => [e.id, e.failedStep])).toEqual([["M1", "build"]]);
+      expect(validateMilestoneState(st2).ok).toBe(true);
+      await maybeCloseMilestones(t.runner, t.hooks); // kikomo: haiendeshwi tena
+      expect(t.calls()).toBe(2);
     });
   }
+
+  it("TASK-32: plan haitekelezeki → BLOCKED → retry: plan mpya inafaa → build → SIGNED_OFF (blockedRetries 1)", async () => {
+    const t = setup([1, 2]);
+    let p = 0, b = 0;
+    t.hooks.plan = async () => (p++ === 0 ? { ...plan, status: "structure_failed", executable: false, reasons: ["structure_failed: §4 Styling"] } : plan);
+    t.hooks.build = async () => { b++; return { ok: true, finalState: "COMPLETED_UNVERIFIED", reason: "" }; };
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(db.get(`${SID}|${stateKey("M1")}`)!.data.status).toBe("BLOCKED");
+    expect(b).toBe(0);
+    await maybeCloseMilestones(t.runner, t.hooks);
+    const st = db.get(`${SID}|${stateKey("M1")}`)!.data;
+    expect([p, b, st.status, st.blockedRetries]).toEqual([2, 1, "SIGNED_OFF", 1]);
+    expect(db.get(`${SID}|plan:M1`)!.data.executable).toBe(true);
+    expect(validateMilestoneState(st).ok).toBe(true);
+  });
+
+  it("TASK-32: BLOCKED kwenye review BAADA ya findings za reviewers → hairudiwi (rekodi za raundi zisichanganyike)", async () => {
+    const t = setup([1, 2]);
+    let calls = 0;
+    t.hooks.plan = async () => plan;
+    t.hooks.build = async () => { calls++; return { ok: true, finalState: "COMPLETED_UNVERIFIED", reason: "" }; };
+    db.set(`${SID}|${stateKey("M1")}`, { version: 1, data: { id: "M1", status: "BLOCKED", resumeTo: "REVIEW_R0", round: 0, maxRounds: 10, currentStepId: "M1.R0.review", startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), lanesUsed: [], steps: [{ stepId: "M1.R0.plan", status: "DONE", attempts: 1, updatedAt: new Date().toISOString() }, { stepId: "M1.R0.build", status: "DONE", attempts: 1, updatedAt: new Date().toISOString() }, { stepId: "M1.R0.review", status: "FAILED", attempts: 1, updatedAt: new Date().toISOString() }] } });
+    db.set(`${SID}|findings:M1:R0`, { version: 1, data: { findings: [] } });
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(calls).toBe(0);
+    expect(db.get(`${SID}|${stateKey("M1")}`)!.data.status).toBe("BLOCKED");
+    db.delete(`${SID}|findings:M1:R0`); // evidence ilikwama kabla ya reviewers → retry inaruhusiwa
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(calls).toBe(1);
+    expect(db.get(`${SID}|${stateKey("M1")}`)!.data.blockedRetries).toBe(1);
+    expect(db.get(`${SID}|digest:M1:R0`)!.data.byId).toBeNull();
+  });
 
   it("TASK-32: PAUSED_QUOTA → hold ya SYSTEM (build:, resumeAt) → muda ukiisha build inarudiwa yenyewe → SIGNED_OFF", async () => {
     const t = setup([1, 2]);

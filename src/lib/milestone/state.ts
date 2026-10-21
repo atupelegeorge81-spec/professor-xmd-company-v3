@@ -70,6 +70,31 @@ export function transition(state: MilestoneState, event: MilestoneEvent, now = n
   return { state: { ...state, status: to, round, updatedAt: now } };
 }
 
+// ── TASK-32: BLOCKED inarudiwa MARA MOJA kwa re-plan ─────────────────────────
+/** E2E halisi (run 8): M1 (plan structure_failed) na M2 (plan bila Start Command) zilibaki BLOCKED milele. */
+export const BLOCKED_RETRY_MAX = 1;
+/** Hatua ya R0 iliyoshindwa (plan | build | review) — null ikiwa hakuna / kizuizi cha raundi ya marekebisho. */
+export const failedR0Step = (state: MilestoneState): "plan" | "build" | "review" | null => {
+  const f = (state.steps || []).find((s) => s.status === "FAILED" && s.stepId.startsWith(`${state.id}.R0.`));
+  const name = f?.stepId.split(".")[2];
+  return name === "plan" || name === "build" || name === "review" ? name : null;
+};
+/** BLOCKED (kabla ya raundi ya kwanza ya marekebisho) → PLANNING, hatua za R0 zinaanza upya (plan → build → evidence → review).
+ *  Hii ndiyo njia PEKEE ambapo hatua DONE inarudiwa — kwa makusudi, mara BLOCKED_RETRY_MAX tu, na inahesabiwa. */
+export function replanBlocked(state: MilestoneState, now = nowIso()): TransitionResult {
+  if (state.status !== "BLOCKED") return { error: `replan only from BLOCKED (is ${state.status})` };
+  if (state.round !== 0) return { error: `replan only before fix rounds (round ${state.round})` };
+  if ((state.blockedRetries || 0) >= BLOCKED_RETRY_MAX) return { error: `${state.id}: BLOCKED retry already used (${state.blockedRetries}/${BLOCKED_RETRY_MAX})` };
+  if (!failedR0Step(state)) return { error: `${state.id}: no failed R0 step — nothing to retry` };
+  const { resumeTo: _rt, resumeAt: _ra, pauseOrigin: _po, pauseReason: _pr, ...rest } = state;
+  return {
+    state: {
+      ...rest, status: "PLANNING", currentStepId: "", blockedRetries: (state.blockedRetries || 0) + 1,
+      steps: (state.steps || []).filter((s) => !s.stepId.startsWith(`${state.id}.R0.`)), updatedAt: now,
+    },
+  };
+}
+
 // ── Step ledger ──────────────────────────────────────────────────────────────
 const STEP_ID = /^M\d+\.R\d+\.[a-z][a-z0-9_]*$/;
 export const stepIdOf = (milestoneId: string, round: number, step: string) => `${milestoneId}.R${round}.${step}`;

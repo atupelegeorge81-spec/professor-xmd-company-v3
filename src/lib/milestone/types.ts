@@ -73,6 +73,8 @@ export interface MilestoneState {
   resumeAt?: string;
   pauseOrigin?: "system" | "user";
   pauseReason?: string;
+  /** TASK-32: mara ngapi milestone BLOCKED imerudiwa kwa re-plan (kikomo BLOCKED_RETRY_MAX = 1) */
+  blockedRetries?: number;
 }
 
 export interface WaiverEntry { defectId: string; title: string; severity: string; round: number; reason: string; approvedBy: string[]; at: string }

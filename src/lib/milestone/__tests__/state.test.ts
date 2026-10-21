@@ -1,6 +1,6 @@
 // TASK 10 · T1 (pure): jedwali la transitions — kila kingo halali kinapita, 10 haramu zinashindwa, kikomo cha round.
 import { describe, expect, it } from "vitest";
-import { appendLaneUse, FORWARD_EDGES, HOLD_STATUSES, maskKeyId, newMilestoneState, nextStep, planSteps, setStep, TERMINAL_STATUSES, transition, type TransitionResult } from "../state";
+import { appendLaneUse, BLOCKED_RETRY_MAX, failedR0Step, FORWARD_EDGES, HOLD_STATUSES, maskKeyId, newMilestoneState, nextStep, planSteps, setStep, TERMINAL_STATUSES, replanBlocked, transition, type TransitionResult } from "../state";
 import { MILESTONE_STATUSES, type MilestoneState, type MilestoneStatus } from "../types";
 import { validateMilestoneState } from "../schemas";
 
@@ -102,5 +102,25 @@ describe("step ledger + lane log (pure)", () => {
     expect(s.lanesUsed.map((l) => l.keyId)).toEqual(["sk-o***", "uno#2"]);
     expect(maskKeyId("sk-o***")).toBe("sk-o***");
     expect(validateMilestoneState(s).ok).toBe(true);
+  });
+});
+
+// TASK-32: BLOCKED → re-plan MARA MOJA
+describe("TASK-32: replanBlocked", () => {
+  const now = "2026-10-21T00:00:00.000Z";
+  const base = (over: any = {}) => ({ id: "M2", status: "BLOCKED", resumeTo: "EVIDENCE", round: 0, maxRounds: 10, currentStepId: "M2.R0.review", startedAt: now, updatedAt: now, lanesUsed: [{ x: 1 }],
+    steps: [{ stepId: "M2.R0.plan", status: "DONE", attempts: 1, updatedAt: now }, { stepId: "M2.R0.build", status: "DONE", attempts: 1, updatedAt: now }, { stepId: "M2.R0.review", status: "FAILED", attempts: 1, updatedAt: now }], ...over }) as any;
+  it("BLOCKED R0 → PLANNING, hatua za R0 zinafutwa, resumeTo inaondoka, lane log inabaki, blockedRetries 1", () => {
+    const r = replanBlocked(base(), now) as any;
+    expect(r.state).toMatchObject({ status: "PLANNING", round: 0, currentStepId: "", blockedRetries: 1, steps: [], lanesUsed: [{ x: 1 }] });
+    expect(r.state.resumeTo).toBeUndefined();
+    expect(failedR0Step(base())).toBe("review");
+  });
+  it("haramu: si BLOCKED · round ≥1 · retry imeshatumika · hakuna hatua iliyoshindwa", () => {
+    expect(BLOCKED_RETRY_MAX).toBe(1);
+    expect((replanBlocked(base({ status: "FIXING" })) as any).error).toMatch(/only from BLOCKED/);
+    expect((replanBlocked(base({ round: 2 })) as any).error).toMatch(/before fix rounds/);
+    expect((replanBlocked(base({ blockedRetries: 1 })) as any).error).toMatch(/already used/);
+    expect((replanBlocked(base({ steps: [] })) as any).error).toMatch(/no failed R0 step/);
   });
 });

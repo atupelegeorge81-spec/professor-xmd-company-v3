@@ -3,7 +3,7 @@
 // runMilestoneBuild ni STUB kwa sasa (tasks 15+ zinabadilisha mwili wake). Inatumika TU XMD_MILESTONES=1.
 
 import { milestonesEnabled } from "./flag";
-import { appendLaneUse, HOLD_STATUSES, newMilestoneState, planSteps, setStep, stepIdOf, transition, TERMINAL_STATUSES } from "./state";
+import { appendLaneUse, BLOCKED_RETRY_MAX, failedR0Step, HOLD_STATUSES, newMilestoneState, planSteps, replanBlocked, setStep, stepIdOf, transition, TERMINAL_STATUSES } from "./state";
 import { digestKey, makeImageDigest, type ImageDigest } from "./judge"; // TASK-30
 import { judgeVisionReady } from "../broker/broker"; // TASK-30
 import type { MilestonePlanResult } from "./plan";
@@ -244,13 +244,36 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
     const status = cur?.status ?? "DISCUSSING";
     if (TERMINAL_STATUSES.includes(status)) continue;
     const visionHold = isVisionHold(cur); // TASK-30: PAUSED_QUOTA ya SYSTEM (vision) — inasubiri resumeAt kisha inaendelea yenyewe
-    if (HOLD_STATUSES.includes(status) && !visionHold) continue; // TASK-15: BLOCKED (plan haitekelezeki) / PAUSED — hairudiwi yenyewe
+    const retry = status === "BLOCKED" && (await canRetryBlocked(runner.sessionId, m, cur, hooks)); // TASK-32: BLOCKED → re-plan MARA MOJA
+    if (HOLD_STATUSES.includes(status) && !visionHold && !retry) continue; // TASK-15: BLOCKED (baada ya retry 1) / PAUSED — hairudiwi yenyewe
     if ((status === "VERIFYING" && !hooks.verify) || (status === "FIXING" && !hooks.fix)) continue; // TASK-24/25/26: FIXING → hooks.fix · VERIFYING → hooks.verify
     const lockKey = `${runner.sessionId}:${m.id}`;
     if (running.has(lockKey)) continue;
     running.add(lockKey);
     try {
       if (visionHold && !(await waitVisionThenResume(runner, m, hooks, hooks.visionWait))) continue;
+      if (retry) {
+        let moved = false;
+        try {
+          await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
+            if (!s || s.status !== "BLOCKED") throw new NoChange(); // mwingine ameshairudia → si sisi
+            return must(replanBlocked(s));
+          });
+          moved = true;
+        } catch (e) {
+          if (!(e instanceof NoChange)) throw e;
+        }
+        if (!moved) continue;
+        await msUpdate(runner, digestKey(m.id, 0), () => ({ version: 1, byId: null, clearedBy: "blocked-retry", at: new Date().toISOString() })); // digest ya build ya zamani isitumike
+        const step = cur ? failedR0Step(cur) : null;
+        hooks.bcast({ type: "milestoneRetry", id: m.id, failedStep: step, attempt: 1, max: BLOCKED_RETRY_MAX });
+        hooks.addChip(`🔁 Milestone ${m.id} ilikuwa BLOCKED (hatua: ${step}) — inarudiwa MARA MOJA: plan mpya → build → evidence → review`);
+        hooks.blog("warning", `🔁 ${m.id}: BLOCKED (${step}) → PLANNING — retry ${1}/${BLOCKED_RETRY_MAX} (re-plan kamili ya R0).`);
+        await hooks.persist();
+        await runMilestoneBuild(runner, m, hooks);
+        done.push(m.id);
+        continue;
+      }
       let won = false;
       if (status === "DISCUSSING") {
         try {
@@ -278,6 +301,17 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
     }
   }
   return done;
+}
+
+/** TASK-32: BLOCKED inarudiwa (re-plan) MARA MOJA tu — kabla ya raundi za marekebisho, na hatua iliyoshindwa ni plan/build,
+ *  au review iliyokwama KABLA reviewers hawajaandika findings (mf. evidence errors). Kizuizi cha raundi 1+ hakirudiwi (rekodi za raundi). */
+export async function canRetryBlocked(sessionId: string, m: Milestone, cur: MilestoneState | null, hooks: Pick<LoopHooks, "plan" | "build">): Promise<boolean> {
+  if (!cur || cur.status !== "BLOCKED" || !hooks.plan || !hooks.build) return false;
+  if (cur.round !== 0 || (cur.blockedRetries || 0) >= BLOCKED_RETRY_MAX) return false;
+  const step = failedR0Step(cur);
+  if (step === "plan" || step === "build") return true;
+  if (step === "review") return !(await getRecord(sessionId, findingsKey(m.id, 0)))?.data;
+  return false;
 }
 
 /**
