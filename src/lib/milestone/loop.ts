@@ -48,6 +48,8 @@ export interface LoopHooks {
   persist: () => Promise<void>;
   /** TASK-30 (tests): muda wa ukaguzi wa PAUSED_QUOTA ya vision + chanzo cha "vision ina nafasi?" (default: broker.judgeVisionReady) */
   visionWait?: { pollMs?: number; ready?: () => { ready: boolean; lane: string | null } };
+  /** TASK-32 (tests): muda kabla ya kujaribu tena build/raundi iliyosimama kwa quota ya lanes za XMD Computer */
+  buildQuotaPollMs?: number;
   /** agenda zilizofungwa kwenye Ledger (chanzo cha ukweli) */
   resolvedAgendas: () => Promise<Set<number>>;
   /** TASK-15: Optimus anaandika plan ya milestone (bila hook → stub ya task 14) */
@@ -395,7 +397,13 @@ async function runBuildStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, 
     const cur = runner.sessionId ? (await getRecord<MilestoneState>(runner.sessionId, stateKey(m.id)))?.data : null;
     return { ok: false, state: (cur ?? newMilestoneState(m.id)) as MilestoneState };
   }
-  if (!out.ok) return fail(out.finalState === "PAUSED_QUOTA" ? "PAUSED_QUOTA" : "BLOCKED", `${out.finalState}${out.reason ? ` — ${out.reason}` : ""} (XMD Computer)`);
+  if (!out.ok && out.finalState === "PAUSED_QUOTA") {
+    // TASK-32: zamani FAILED + PAUSED_QUOTA bila origin → HOLD ya milele (M1 ya run 7). Sasa: subiri → jaribu build tena.
+    if (await holdForBuildQuota(runner, m, hooks, id, out.reason || "paused (quota)")) return runBuildStep(runner, m, hooks, id);
+    const cur = runner.sessionId ? (await getRecord<MilestoneState>(runner.sessionId, stateKey(m.id)))?.data : null;
+    return { ok: false, state: (cur ?? newMilestoneState(m.id)) as MilestoneState };
+  }
+  if (!out.ok) return fail("BLOCKED", `${out.finalState}${out.reason ? ` — ${out.reason}` : ""} (XMD Computer)`);
   const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "DONE")));
   hooks.addChip(`🧱 Build ya Milestone ${m.id}: ${out.finalState}${out.restored ? ` · faili ${out.restored} zimerejeshwa` : ""}`);
   hooks.blog("success", `🧱 Build ya ${m.id}: ${out.finalState} — hatua DONE.`);
@@ -502,7 +510,13 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
 export const visionPauseKey = (milestoneId: string) => `visionPause:${milestoneId}`;
 /** muda kati ya ukaguzi wa nafasi ya vision wakati wa PAUSED_QUOTA (mmiliki: muda si tatizo — tunasubiri) */
 export const VISION_POLL_MS = 3 * 60_000;
-const isVisionHold = (s: MilestoneState | null | undefined) => s?.status === "PAUSED_QUOTA" && s.pauseOrigin === "system" && /^vision:/.test(s.pauseReason || "");
+/** TASK-32: + `build:` — quota ya lanes za XMD Computer wakati wa build/raundi (zamani: PAUSED_QUOTA bila origin → hold ya milele) */
+/** rekodi za ZAMANI: fail("PAUSED_QUOTA") ya build/raundi iliandika PAUSED_QUOTA BILA origin (code mpya haiandiki hivyo tena) → nazo ni build hold */
+const isLegacyBuildHold = (s: MilestoneState | null | undefined) => s?.status === "PAUSED_QUOTA" && !s.pauseOrigin && (s.resumeTo === "BUILDING" || s.resumeTo === "FIXING");
+const isVisionHold = (s: MilestoneState | null | undefined) => (s?.status === "PAUSED_QUOTA" && s.pauseOrigin === "system" && /^(vision|build):/.test(s.pauseReason || "")) || isLegacyBuildHold(s);
+const isBuildHold = (s: MilestoneState | null | undefined) => /^build:/.test(s?.pauseReason || "") || isLegacyBuildHold(s);
+/** TASK-32 (E2E run 7): muda kabla ya kujaribu tena build iliyosimama kwa quota (ikiwa bado hakuna quota → hold mpya) */
+export const BUILD_QUOTA_POLL_MS = 20 * 60_000;
 
 /** rekodi ya wito wa judge → state.lanesUsed (append-only; CAS ya store inalinda wito sambamba). Haiangushi loop. */
 export async function recordLaneUse(runner: LoopRunner, milestoneId: string, rec: LaneUse): Promise<void> {
@@ -573,6 +587,20 @@ async function pauseForVision(runner: LoopRunner, m: Milestone, hooks: LoopHooks
   return waitVisionThenResume(runner, m, hooks, hooks.visionWait);
 }
 
+/** TASK-32: quota ya lanes za XMD Computer (build au raundi) → PAUSED_QUOTA ya SYSTEM (resumeAt) → subiri → RESUME → hatua inarudiwa. */
+async function holdForBuildQuota(runner: LoopRunner, m: Milestone, hooks: LoopHooks, stepId: string, why: string): Promise<boolean> {
+  const resumeAt = new Date(Date.now() + (hooks.buildQuotaPollMs ?? BUILD_QUOTA_POLL_MS)).toISOString();
+  await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => {
+    const st = must(transition(must(setStep(s as MilestoneState, stepId, "FAILED")), { type: "GOTO", to: "PAUSED_QUOTA" }));
+    return { ...st, resumeAt, pauseOrigin: "system", pauseReason: `build: ${why}`.slice(0, 300) };
+  });
+  hooks.bcast({ type: "milestonePaused", id: m.id, status: "PAUSED_QUOTA", origin: "system", reason: why, resumeAt });
+  hooks.addChip(`⏸️ ${m.id} PAUSED_QUOTA — lanes za XMD Computer hazina quota (${why.slice(0, 120)}). Itajaribu tena yenyewe ${resumeAt.slice(11, 16)} UTC.`);
+  hooks.blog("warning", `⏸️ ${m.id} → PAUSED_QUOTA (system · build · resumeAt ${resumeAt}) — ${why.slice(0, 300)}.`);
+  await hooks.persist();
+  return waitVisionThenResume(runner, m, hooks, hooks.visionWait);
+}
+
 /** Subiri resumeAt → kagua nafasi ya vision (broker) → RESUME, au resumeAt mpya na kusubiri tena. false = si pause ya vision / imesimamishwa. */
 export async function waitVisionThenResume(runner: LoopRunner, m: Milestone, hooks: LoopHooks, opts: { pollMs?: number; ready?: () => { ready: boolean; lane: string | null } } = {}): Promise<boolean> {
   const sid = runner.sessionId as string;
@@ -585,7 +613,15 @@ export async function waitVisionThenResume(runner: LoopRunner, m: Milestone, hoo
       if ((runner as { stopRequested?: boolean }).stopRequested) return false;
       await new Promise((r) => setTimeout(r, Math.min(15_000, Math.max(0, due - Date.now()))));
     }
-    const ready = (opts.ready || judgeVisionReady)();
+    const buildHold = isBuildHold(st);
+    const ready = buildHold ? { ready: true, lane: "build-retry" } : (opts.ready || judgeVisionReady)();
+    if (ready.ready && buildHold) {
+      const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(s as MilestoneState, { type: "RESUME" })));
+      hooks.addChip(`▶️ ${m.id}: muda wa kusubiri quota umeisha — XMD Computer inajaribu tena (${rec.data.status}).`);
+      hooks.blog("success", `▶️ ${m.id} RESUME → ${rec.data.status} (build: quota retry).`);
+      await hooks.persist();
+      return true;
+    }
     if (ready.ready) {
       const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(s as MilestoneState, { type: "RESUME" })));
       await msUpdate<{ version: number; events: Record<string, unknown>[] }>(runner, visionPauseKey(m.id), (cur) => {
@@ -766,7 +802,12 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
   const ck = perCo.global || { pass: 0, fail: 0, error: 0 };
   const all = Object.values(perCo).reduce((a, s) => ({ pass: a.pass + s.pass, fail: a.fail + s.fail, error: a.error + s.error }), { pass: 0, fail: 0, error: 0 });
   hooks.bcast({ type: "fixRound", id: m.id, round, phase: "done", finalState: out.finalState, ok: out.ok, flags: v.flags, unlisted: v.unlisted, perCo: v.cos.map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus, diff: c.diff, checks: perCo[c.orderId] })), checks: all, global: ck, rerun: v.rerun ? { before: v.rerun.before, after: v.rerun.after } : undefined });
-  if (!out.ok) return fail(out.finalState === "PAUSED_QUOTA" ? "PAUSED_QUOTA" : "BLOCKED", `${out.finalState}${out.reason ? ` — ${out.reason}` : ""} (XMD Computer, raundi ya marekebisho) · ${verificationLine(v)}`);
+  if (!out.ok && out.finalState === "PAUSED_QUOTA") {
+    // TASK-32: raundi iliyosimama kwa quota → subiri → raundi ileile inarudiwa (si hold ya milele)
+    if (await holdForBuildQuota(runner, m, hooks, id, out.reason || "paused (quota)")) return runFixRound(runner, m, round, hooks);
+    return ((await getRecord<MilestoneState>(sid, stateKey(m.id)))?.data ?? newMilestoneState(m.id)) as MilestoneState;
+  }
+  if (!out.ok) return fail("BLOCKED", `${out.finalState}${out.reason ? ` — ${out.reason}` : ""} (XMD Computer, raundi ya marekebisho) · ${verificationLine(v)}`);
   const done = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "DONE")), { type: "GOTO", to: "VERIFYING" })));
   hooks.addChip(`🧾 ${m.id} R${round}: ${verificationLine(v)} · checks ${all.pass}P/${all.fail}F/${all.error}E`);
   hooks.blog(all.error ? "warning" : "success", `🧾 ${m.id} R${round} imekamilika: ${verificationLine(v)} · checks PASS ${all.pass} · FAIL ${all.fail} · ERROR ${all.error} → VERIFYING (verify ya reviewers = task 26).`);

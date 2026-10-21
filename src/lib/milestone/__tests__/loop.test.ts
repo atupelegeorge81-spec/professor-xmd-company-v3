@@ -206,9 +206,38 @@ describe("TASK-16: hatua ya build kupitia hooks.build (XMD Computer kwa kila mil
     });
   }
 
-  it("PAUSED_QUOTA → M1 PAUSED_QUOTA (HOLD)", async () => {
-    const t = await run({ ok: false, finalState: "PAUSED_QUOTA", reason: "quota" });
-    expect([t.st.status, t.st.resumeTo]).toEqual(["PAUSED_QUOTA", "BUILDING"]);
+  it("TASK-32: PAUSED_QUOTA → hold ya SYSTEM (build:, resumeAt) → muda ukiisha build inarudiwa yenyewe → SIGNED_OFF", async () => {
+    const t = setup([1, 2]);
+    const outs: any[] = [{ ok: false, finalState: "PAUSED_QUOTA", reason: "quota" }, { ok: true, finalState: "COMPLETED_UNVERIFIED", reason: "" }];
+    const states: any[] = [];
+    let calls = 0;
+    t.hooks.plan = async () => plan;
+    t.hooks.buildQuotaPollMs = 5;
+    t.hooks.build = async () => outs[calls++];
+    const origChip = t.hooks.addChip;
+    t.hooks.addChip = (c: string) => { if (c.includes("PAUSED_QUOTA")) states.push({ ...db.get(`${SID}|${stateKey("M1")}`)!.data }); origChip(c); };
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(calls).toBe(2);
+    expect(states[0]).toMatchObject({ status: "PAUSED_QUOTA", resumeTo: "BUILDING", pauseOrigin: "system" });
+    expect(states[0].pauseReason).toMatch(/^build: quota/);
+    const st = db.get(`${SID}|${stateKey("M1")}`)!.data;
+    expect(st.status).toBe("SIGNED_OFF");
+    expect(t.chips.some((c) => c.includes("XMD Computer inajaribu tena"))).toBe(true);
+    expect(validateMilestoneState(st).ok).toBe(true);
+  });
+
+  it("TASK-32: rekodi ya ZAMANI (PAUSED_QUOTA bila origin, resumeTo BUILDING) → pass inayofuata inajaribu build tena", async () => {
+    const t = setup([1, 2]);
+    let calls = 0;
+    t.hooks.plan = async () => plan;
+    t.hooks.build = async () => (calls++ === 0 ? { ok: false, finalState: "BLOCKED", reason: "x" } : { ok: true, finalState: "COMPLETED_UNVERIFIED", reason: "" });
+    await maybeCloseMilestones(t.runner, t.hooks); // BLOCKED → kisha tunaigeuza kuwa umbo la zamani la quota hold
+    const k = `${SID}|${stateKey("M1")}`;
+    const cur = db.get(k)!;
+    db.set(k, { ...cur, data: { ...cur.data, status: "PAUSED_QUOTA", resumeTo: "BUILDING", pauseOrigin: undefined, pauseReason: undefined, resumeAt: undefined } });
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(calls).toBe(2);
+    expect(db.get(k)!.data.status).toBe("SIGNED_OFF");
   });
 
   it("PAUSED (Board pause) → hatua inabaki RUNNING, M1 BUILDING; wito unaofuata unairudia build", async () => {
