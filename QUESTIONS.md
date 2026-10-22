@@ -21,3 +21,14 @@ Kila fix inaziba tundu moja; LLM ya plan inaleta jingine. BLOCKED haijaribiwi te
 1. **Ndiyo** — plan iandikwe upya kwa maoni ya validator hadi mara 2 → Fix 16 `5a7ecd0` (PART 1 kwa makosa ya §1–§4; Start Command inadaiwa kwa visual/mixed).
 2. **Ndiyo** — milestone BLOCKED irudiwe mara 1 → Fix 17 `87368fc` (re-plan kamili ya R0, `blockedRetries`).
 3. **Hakuna runs zaidi (hakuna E9)** — E8 imaliziwe, kisha ripoti ya ukweli `docs/tests/task-32.md` + muhtasari wa CEO.
+
+---
+
+# QUESTIONS — TASK 35 (T32 follow-up, ripoti ya CEO) · 2026-10-22
+Ripoti: `docs/REPORT-task32-followup.md`. Hakuna kati ya haya kilichorekebishwa — naomba ruhusa kwanza.
+
+1. **Bug ya metering ya tokens za Computer (pointi 3).** `cu/oh_util.py:160-185` (`extract_usage`) inasoma `resp.metrics.accumulated_token_usage`. Kwenye SDK 1.46 hiyo ni jumla INAYOJILIMBIKIZA kwa kila LLM instance (lane), si wito mmoja. Matokeo: 1.02B iliyoripotiwa ≈ **~129M halisi** (×6–8.9). Pendekezo: tumia tofauti ya accumulated kwa kila lane (au `per_turn_token`), na urekodi `cache_read_tokens`/`reasoning_tokens` (sasa zinatupwa). Je, nirekebishe?
+2. **Sandbox ya build haina credentials za Supabase.** `src/lib/cu/engine.ts:447-485` haipitishi `SUPABASE_*`/`XMD_PROJECT_SUPABASE_*`. Checks za `db` zinaendeshwa nje ya sandbox (`dbProbe.ts:34-35`). Block ya uwezo inasema ukweli huu. Je, sandbox ipewe URL + anon key ya project (tables `xmdtest_`) ili tests za ndani ziende kwenye Supabase halisi kupitia HTTPS? (Kuna athari ya usalama: key ingeingia kwenye sandbox.)
+3. **Block ya uwezo inavunja uamuzi wa Ledger.** E8 A1 (LOCKED) iliamua `pnpm`, ambayo haipo kwenye sandbox. Plan mpya iliandika `npm` badala yake (`xmdtest/f1/plans/new-E8-M1.md`). Chaguo mbili: (a) uwezo wa sandbox ujulishwe kwa Board wakati wa agenda, au (b) `pnpm` iwekwe kwenye template (`corepack enable`)?
+4. **Kasoro iliyokuwepo kabla ya T35:** matatizo ya `assemblePlanDocument` ("sehemu 8 (Agent Rules) haipo", "hatua N < ndogo ya 8") hayaingii kwenye loop ya marekebisho, kwa hiyo plan inakuwa `structure_failed` bila jaribio jingine. Ilitokea kwenye plans 2/5 za "old" na 2/5 za "new". Nirekebishe?
+5. **Deploys wakati wa run (pointi 5).** Deploys 4 zilitokea wakati wa runs hai (E6 03:47; E7 05:55, 07:49, 09:57), na 3 zaidi wakati E2 ilikuwa imekwama. Je, niweke kinga, kwa mfano script ya push inayokataa ikiwa kuna session `running` kwenye DB?
