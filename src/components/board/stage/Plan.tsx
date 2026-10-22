@@ -1,7 +1,6 @@
 "use client";
-import Link from "next/link";
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, ChevronDown, ClipboardList, Download, FileText } from "lucide-react";
+import { ChevronDown, ClipboardList } from "lucide-react";
 import type { PlanItem } from "@/lib/stage/types";
 import { cn, compact } from "@/lib/utils";
 import { ReportBody } from "../../reports/ReportBody";
@@ -19,7 +18,8 @@ const SEG: Record<PlanItem["sections"][number]["state"], string> = {
   repaired: "#fbbf24",
 };
 
-export function PlanWriter({ it, sessionId }: { it: PlanItem; sessionId?: string | null }) {
+// TASK-34: card ya "Pakua" imeondolewa kabisa (amri ya CEO) — sessionId inabaki kwenye props kwa ulinganifu tu
+export function PlanWriter({ it }: { it: PlanItem; sessionId?: string | null }) {
   const saved = it.saved === "saved";
   const failed = it.saved === "failed";
   const writing = !saved && !failed && !it.settled && it.saved === "wait";
@@ -36,7 +36,7 @@ export function PlanWriter({ it, sessionId }: { it: PlanItem; sessionId?: string
   const done = it.sections.filter((s) => s.state === "done" || s.state === "repaired").length;
   const current = it.sections.find((s) => s.state === "writing" || s.state === "repairing");
   const currentStep = it.steps.length ? it.steps[it.steps.length - 1] : undefined;
-  const planUrl = sessionId ? `/api/plans?session=${encodeURIComponent(sessionId)}&download=1` : null;
+  const msTag = it.milestone ? ` · ${it.milestone}` : "";
 
   useLayoutEffect(() => {
     const el = page.current;
@@ -55,7 +55,7 @@ export function PlanWriter({ it, sessionId }: { it: PlanItem; sessionId?: string
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em]" style={{ color: tone.c }}>
-                {saved ? "Mpango Kazi umekamilika" : failed ? "Mpango Kazi haukuhifadhiwa" : saving ? "Inahifadhi Mpango Kazi" : finished ? "Mpango Kazi umeandikwa" : "Optimus anaandika Mpango Kazi wa Agent"}
+                {saved ? `Mpango Kazi${msTag} umekamilika` : failed ? `Mpango Kazi${msTag} haukuhifadhiwa` : saving ? `Inahifadhi Mpango Kazi${msTag}` : finished ? `Mpango Kazi${msTag} umeandikwa` : it.milestone ? `Optimus anaandika Mpango Kazi · ${it.milestone}` : "Optimus anaandika Mpango Kazi wa Agent"}
               </p>
               {writing && (
                 <span className="inline-flex h-[18px] items-center gap-1 rounded-full bg-[rgb(45_212_191/0.12)] px-1.5 text-[9.5px] font-bold tracking-[0.12em] text-[#5eead4]">
@@ -137,36 +137,15 @@ export function PlanWriter({ it, sessionId }: { it: PlanItem; sessionId?: string
           <span><b className="font-mono font-semibold text-[var(--color-fg-2)]">{compact(text.length)}</b> herufi</span>
           {streaming && <span><b className="font-mono font-semibold text-[var(--color-fg-2)]">{Math.round(words / secs)}</b> maneno/s</span>}
           <span className="ml-auto">
-            {saving ? <span className="shimmer-text font-medium">Inahifadhi kwa computer-use agent…</span>
+            {saving ? <span className="shimmer-text font-medium">{it.milestone ? "Inakaguliwa (validator ya plan)…" : "Inahifadhi kwa computer-use agent…"}</span>
               : failed ? <span className="text-[var(--color-bad)]">Imeshindwa kuhifadhiwa</span>
               : saved ? <span className="text-[var(--color-ok)]">Imehifadhiwa · hatua {it.steps.length || ""}</span>
-              : finished ? (planUrl ? <a href={planUrl} className="text-[var(--color-fg-2)] underline-offset-2 hover:underline">Pakua Mpango Kazi</a> : <Link href="/sessions" className="text-[var(--color-muted)] underline-offset-2 hover:underline">Angalia Sessions</Link>)
+              : finished ? <span className="text-[var(--color-muted)]">Mpango Kazi umeandikwa</span>
               : <span className="text-[var(--color-faint)]">inaandikwa live</span>}
           </span>
         </div>
       </div>
 
-      {saved && (
-        <div className="prism-border relative overflow-hidden rounded-2xl bg-[linear-gradient(135deg,rgb(45_212_191/0.08),rgb(61_123_255/0.06))] p-4 animate-[rise_0.5s_both]">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-prism text-white shadow-[0_8px_24px_-8px_rgb(45_212_191/0.8)]"><FileText size={18} /></span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[#5eead4]">Mpango Kazi wa Agent · English · hatua {it.steps.length}</p>
-              <p className="truncate text-[14px] font-semibold">{it.title}</p>
-              <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">Unausomwa na computer-use agent kupitia <code className="rounded bg-white/[0.06] px-1 py-px font-mono text-[10.5px]">/api/plans?session={sessionId ? sessionId.slice(0, 8) : "…"}…</code></p>
-            </div>
-            {planUrl ? (
-              <a href={planUrl} className="btn-white flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
-                <Download size={14} /> Pakua
-              </a>
-            ) : (
-              <Link href="/sessions" className="btn-white flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[12.5px] font-semibold">
-                Sessions <ArrowRight size={14} />
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

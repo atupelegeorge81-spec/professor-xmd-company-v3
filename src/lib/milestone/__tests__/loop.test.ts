@@ -195,6 +195,16 @@ describe("TASK-16: hatua ya build kupitia hooks.build (XMD Computer kwa kila mil
     expect(validateMilestoneState(t.st).ok).toBe(true);
   });
 
+  it("TASK-34: build ya kwanza → hooks.ui cu{r:0} (badge ya Computer), kabla ya hooks.build", async () => {
+    const t = setup([1, 2]);
+    const order: string[] = [];
+    t.hooks.plan = async () => plan;
+    t.hooks.ui = (e: any) => order.push(`ui:${e.t}:${e.id}:${e.r}`);
+    t.hooks.build = async () => { order.push("build"); return { ok: true, finalState: "COMPLETED_UNVERIFIED", reason: "", report: "r", restored: 0, freshSandbox: true }; };
+    await maybeCloseMilestones(t.runner, t.hooks);
+    expect(order).toEqual(["ui:cu:M1:0", "build"]);
+  });
+
   for (const fs of ["STUCK", "BLOCKED", "ERROR", "PARTIAL"]) {
     it(`${fs} → build FAILED, M1 BLOCKED (resumeTo BUILDING), sababu wazi; TASK-32: inarudiwa MARA MOJA (re-plan) kisha haiguswi tena`, async () => {
       const t = await run({ ok: false, finalState: fs, reason: "liveness: no bridge event for 60s" });

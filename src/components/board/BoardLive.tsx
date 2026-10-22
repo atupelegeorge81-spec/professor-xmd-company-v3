@@ -3,13 +3,13 @@
  * Kinasoma NDJSON HALISI ya engine (/api/boardroom*), kinapitisha kila tukio kwenye adapter,
  * na kinaweka session hai hata ukihama ukurasa. Pia huonyesha session zilizohifadhiwa (replay). */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { createBoardAdapter, savedToEvents, type AdapterEvent, type AdapterSnapshot, type BoardAdapter, type SavedItem } from "@/lib/board/adapter";
+import { createBoardAdapter, isLogOnlyChip, savedToEvents, type AdapterEvent, type AdapterSnapshot, type BoardAdapter, type SavedItem } from "@/lib/board/adapter";
 import { readUsageChip } from "@/lib/usageChip";
 import { missingParts, readResumeState } from "@/lib/board/finale";
 import { DEFAULT_TZ } from "@/lib/time";
 import { AGENTS, getAgent, type AgentId } from "@/lib/team";
 import { useApp, type UsageMap } from "../shell/AppState";
-import { boardMarkdown } from "./exportMarkdown";
+import { boardMarkdown, memosFromSaved } from "./exportMarkdown";
 import { readBriefChip } from "@/lib/board/factSheet";
 
 export type BoardMode = "idle" | "live" | "replay";
@@ -173,6 +173,8 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
     }
     if (e.type === "system") {
       const t = e.text.trim();
+      // TASK-34: chips za kiufundi za milestone (🧾 📸 🔍 🔌 ✅ 🔧 🖥️) hazionyeshwi kwenye chat — zinaenda Overview › Logs
+      if (!replayingRef.current && isLogOnlyChip(t)) a.addLog("system", t);
       if (/^(📋 Agenda \(|Agenda \d+\/\d+:)/.test(t) && !agendaFetched.current && runnerRef.current) fetchAgenda(runnerRef.current, g);
       if (/^(🔒 LOCKED|🟠 OPEN|🔁 SUPERSEDED)/.test(t)) fetchLedger(g);
       if (/^💾 Conversation imeundwa/.test(t)) {
@@ -504,7 +506,15 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
           if (b64.startsWith("data:")) shotData[x.fileId] = b64;
         } catch { /* picha inayokwama hairudishi export nzima */ }
       }));
-    const md = boardMarkdown(s.title, prompt, s.items, shotData);
+    // TASK-34: mini-report za review (memo:Mk) ziko kwenye items zilizohifadhiwa za session tu
+    let memos: ReturnType<typeof memosFromSaved> = [];
+    if (sessionId) {
+      try {
+        const j = await (await fetch(`/api/conversations?id=${encodeURIComponent(sessionId)}`, { cache: "no-store" })).json();
+        memos = memosFromSaved(j?.conversation?.items || []);
+      } catch { /* export inaendelea bila mini-report */ }
+    }
+    const md = boardMarkdown(s.title, prompt, s.items, shotData, memos);
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -512,7 +522,7 @@ export function BoardLiveProvider({ children }: { children: ReactNode }) {
     a.download = `${(s.title || "board-room").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "board-room"}.md`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
-  }, [prompt]);
+  }, [prompt, sessionId]);
 
   useEffect(() => {
     (window as any).__xmdExportConversation = exportMarkdown;

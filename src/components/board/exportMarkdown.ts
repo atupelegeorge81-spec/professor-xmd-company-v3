@@ -4,12 +4,28 @@
 // Memory: hali tu (idadi), maudhui HAYAONYESHWI (sheria ya Brain).
 import { getAgent, type AgentId } from "@/lib/team";
 import type { StageItem } from "@/lib/stage/types";
+import { renderMemo, type MemoRecord } from "@/lib/milestone/reviewMemory";
+
+/** TASK-34: rekodi za `memo:Mk` (mini-report ya review, TASK-33) kutoka items zilizohifadhiwa za session.
+ *  Chat inaonyesha badge ya "mini report imeandikwa" tu — maudhui kamili yanasomeka kwenye export hii. */
+const MS_STORE_PREFIX = "__PROFESSOR_XMD_MILESTONE__:";
+export function memosFromSaved(items: { kind?: string; text?: string }[]): MemoRecord[] {
+  const out: MemoRecord[] = [];
+  for (const it of items || []) {
+    if (it?.kind !== "chip" || typeof it.text !== "string" || !it.text.startsWith(MS_STORE_PREFIX)) continue;
+    try {
+      const r = JSON.parse(it.text.slice(MS_STORE_PREFIX.length));
+      if (typeof r?.key === "string" && r.key.startsWith("memo:") && Array.isArray(r.data?.entries)) out.push(r.data as MemoRecord);
+    } catch { /* rekodi iliyoharibika haizuii export */ }
+  }
+  return out.sort((a, b) => a.milestoneId.localeCompare(b.milestoneId, undefined, { numeric: true }));
+}
 
 const name = (id: AgentId) => getAgent(id)?.name || id;
 const fence = (lang: string, code: string) => ["```" + (lang || "text"), code.replace(/\s+$/, ""), "```"];
 const sources = (list?: { title: string; url: string }[]) => (list?.length ? [list.map((x) => `- [${x.title || x.url}](${x.url})`).join("\n"), ""] : []);
 
-export function boardMarkdown(title: string, prompt: string, items: StageItem[], shotData: Record<string, string> = {}): string {
+export function boardMarkdown(title: string, prompt: string, items: StageItem[], shotData: Record<string, string> = {}, memos: MemoRecord[] = []): string {
   const L: string[] = [`# ${title || "Board Room"}`, "",
     `_Imeandaliwa: ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC · Export kamili (R35): discussion → maamuzi → mpango → XMD Computer (mawazo, commands+output, diff, picha, nidhamu, ripoti)_`, ""];
   if (prompt) L.push(`> ${prompt.replace(/\n/g, "\n> ")}`, "");
@@ -59,6 +75,25 @@ export function boardMarkdown(title: string, prompt: string, items: StageItem[],
       case "summary":
         L.push("### 📊 Muhtasari wa session", "", `- Muda: ${Math.round(it.seconds / 60)} min · LOCKED ${it.locked} · SUPERSEDED ${it.superseded} · OPEN ${it.open} · sources ${it.sources} · requests ${it.requests}`, ...it.usage.map((u) => `- ${u.agent === "computer" ? "🖥️ XMD Computer" : name(u.agent)}: ${u.requests} requests · ${u.tokens.toLocaleString()} tokens`), "");
         break;
+      /* TASK-34: milestone mode */
+      case "msMap": L.push("### 🚩 Milestones", "", ...it.milestones.map((m) => `- **${m.id}** ${m.title} — A${m.from}–A${m.to} · ${m.status}${m.round ? ` · R${m.round}` : ""}`), ""); break;
+      case "msMark": {
+        const r = it.round ?? 0;
+        if (it.mark === "enter") L.push(`## 🚩 ${it.ms} · ${it.title || ""}`, "");
+        else if (it.mark === "computer") L.push(`#### 🖥️ ${it.ms} · XMD Computer ${r ? `— marekebisho R${r}` : "— build"}`, "");
+        else if (it.mark === "review") L.push(`#### 🔎 ${it.ms} · Reviewers ${r ? `— uthibitisho R${r}` : "— ukaguzi huru R0"}`, "");
+        else L.push(`#### 💬 ${it.reviewId || it.ms} · Mjadala${it.title ? ` — ${it.title}` : ""}`, "");
+        break;
+      }
+      case "msCos":
+        L.push(`**🔧 Marekebisho ya Optimus · ${it.ms} R${it.round}**`, "", ...it.cos.flatMap((c) => [
+          `- **${c.id}** (P${c.priority}, jaribio ${c.attempt}, ${c.mode}) ${c.defectIds.join(", ")} — ${c.desired}`,
+          ...(c.current ? [`  - Sasa: ${c.current}`] : []),
+          ...(c.files.length || c.route || c.selector ? [`  - Mahali: ${[...c.files, c.route, c.selector].filter(Boolean).join(" · ")}`] : []),
+          ...c.acceptance.map((a) => `  - ✓ ${a}`),
+        ]), "");
+        break;
+      case "msReport": if (it.doc) L.push("---", "", it.doc, ""); break;
       case "cuDivider":
         break;
       case "cuRun":
@@ -105,6 +140,11 @@ export function boardMarkdown(title: string, prompt: string, items: StageItem[],
         L.push("---", "", "### 📑 Ripoti ya XMD Computer", "", it.doc, "");
         break;
     }
+  }
+  // TASK-34: mini-report za review — KAMILI (ingizo zote, si 3 za mwisho tu kama kwenye prompts)
+  for (const rec of memos) {
+    if (!rec.entries?.length) continue;
+    L.push("---", "", `## 📝 Mini-report ya review · ${rec.milestoneId}`, "", renderMemo(rec, Infinity), "");
   }
   return L.join("\n").replace(/\n{3,}/g, "\n\n");
 }

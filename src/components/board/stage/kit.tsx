@@ -14,6 +14,8 @@ export const TONE = {
   violet: { c: "#a78bfa", rgb: "167 139 250" },
   pink: { c: "#f0abfc", rgb: "240 171 252" },
   muted: { c: "#9aa0ae", rgb: "154 160 174" },
+  /** TASK-34: rangi ya PEKEE ya milestone (machungwa → waridi) — badge ya milestone, header, card ya Milestones */
+  ms: { c: "#fdba74", rgb: "251 146 60" },
 } as const;
 export type Tone = keyof typeof TONE;
 

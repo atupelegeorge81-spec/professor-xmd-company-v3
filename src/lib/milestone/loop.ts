@@ -36,6 +36,7 @@ import {
   addMemoEntry, checkR0Coverage, closeFacts, confirmR0, defectHistoryLines, discussionFacts, entryText, escalationFactsText, fixFacts, memoEntryId, memoKey, ownR0Findings, r0Facts, r0RequiredIds,
   redecideFactsText, renderMemo, REQUESTED_DISCUSSION_MAX_TURNS, saveConfirmations, syncFacts, verifyFacts, type MemoComplete, type MemoKind, type MemoMsg, type MemoRecord, type MemoStore, type R0MemoInput,
 } from "./reviewMemory"; // TASK-33 (MISSION ONE)
+import { msUiCo, renderR0Findings, renderVerifyFindings, type MsUiEvent } from "./uiEvents"; // TASK-34 (MISSION TWO)
 import { amendmentLine, applyEscalationToDefects, escalateChangeOrders, escalationChip, requirementChecksOf, type Amendment, type EscalateDeps, type EscalateResult, type Msg as EscMsg, type PrevAttemptFact, type Waiver } from "./escalation"; // TASK-27
 
 export interface LoopRunner {
@@ -43,6 +44,8 @@ export interface LoopRunner {
   sessionId?: string | null;
   msMap?: MilestoneMap | null;
   msChips?: any[];
+  /** TASK-34: kila state:Mk inapobadilika (UI — card ya Milestones/header) */
+  onMsState?: (milestoneId: string, state: MilestoneState) => void;
 }
 
 export interface LoopHooks {
@@ -50,6 +53,10 @@ export interface LoopHooks {
   addChip: (text: string) => void;
   blog: (level: "info" | "success" | "warning" | "error" | "system", text: string) => void;
   persist: () => Promise<void>;
+  /** TASK-34 (MISSION TWO): tukio la UI (badges/cards) — chip iliyofichwa inayohifadhiwa */
+  ui?: (e: MsUiEvent) => void;
+  /** TASK-34: ujumbe kamili wa agent kwenye chat (reviewers — findings/uthibitisho/sync) */
+  say?: (agentId: string, text: string) => void;
   /** TASK-30 (tests): muda wa ukaguzi wa PAUSED_QUOTA ya vision + chanzo cha "vision ina nafasi?" (default: broker.judgeVisionReady) */
   visionWait?: { pollMs?: number; ready?: () => { ready: boolean; lane: string | null } };
   /** TASK-32 (tests): muda kabla ya kujaribu tena build/raundi iliyosimama kwa quota ya lanes za XMD Computer */
@@ -182,6 +189,7 @@ export async function msUpdate<T>(runner: LoopRunner, key: string, mutate: (cur:
 export function mirrorChip(runner: LoopRunner, key: string, rec: Versioned<unknown>): void {
   const chip = msChip(key, rec.version, rec.data);
   runner.msChips = [...(runner.msChips || []).filter((x: any) => x?.id !== chip.id), chip];
+  if (key.startsWith("state:") && runner.onMsState) { try { runner.onMsState(key.slice(6), rec.data as MilestoneState); } catch { /* UI tu */ } } // TASK-34
 }
 
 const must = (r: { state: MilestoneState } | { error: string }): MilestoneState => {
@@ -421,6 +429,7 @@ async function runBuildStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks, 
     return st;
   });
   await hooks.persist();
+  hooks.ui?.({ t: "cu", id: m.id, r: 0 }); // TASK-34: badge ya Computer (kila inapoingia)
   const out = await (hooks.build as NonNullable<LoopHooks["build"]>)(m, plan.markdown);
   await msUpdate(runner, buildKey(m.id), () => ({
     version: 1, id: m.id, title: m.title, ok: out.ok, finalState: out.finalState, reason: out.reason,
@@ -488,6 +497,7 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
     }
     const plan = (await getRecord<{ markdown?: string }>(sid, planKey(m.id)))?.data?.markdown || "";
     hooks.addChip(`🔁 ${m.id}: evidence harness haikupata screenshots — app haihudumii (${why.slice(0, 140)}) → XMD Computer inajenga upya (${k}/${hooks.evidenceRebuilds ?? EVIDENCE_REBUILDS})`);
+    hooks.ui?.({ t: "cu", id: m.id, r: 0 }); // TASK-34: Computer inaingia tena (kujenga upya)
     const out = await hooks.build(m, `${plan}\n\n## EVIDENCE HARNESS FAILURE — MUST FIX FIRST\nAfter your last build the independent evidence harness ran \`npm run build && npm run start -- -p 4173\` and the app did NOT serve HTTP 200 on / — no screenshots could be taken, so this milestone cannot be reviewed or signed off. Harness error:\n${why}\nFind the root cause (read .xmd/evidence/${m.id}/R0/server.log), fix it, and confirm the production server answers HTTP 200 on every planned route before you finish.`);
     if (out.finalState === "PAUSED" || out.finalState === "PAUSED_QUOTA") {
       hooks.blog("warning", `⏸️ ${m.id}: kujenga upya baada ya evidence errors kumesimama (${out.finalState}) — kutarudiwa.`);
@@ -524,6 +534,7 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
   const header0 = fixRoundHeader(m, 0, MAX_ROUNDS, (await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || []);
   const cast = milestoneCast(m); // TASK-29: technical → Megatron/Cybertron (kutoka roster)
   ctx.analyseCtx = { ...ctx.analyseCtx, roundHeader: header0, cast, reviewMode: m.reviewMode };
+  hooks.ui?.({ t: "rev", id: m.id, r: 0, who: [castAgentId(cast, "designer"), castAgentId(cast, "frontend")] }); // TASK-34: badge ya reviewers (R0)
   if (m.reviewMode === "technical") hooks.blog("info", `🛡️ ${m.id}: technical review — reviewers ${castNames(cast)} (roster: ${m.roster.join(", ")}) · screenshots 0 · checks ${(ev.checks || []).length}`);
   const result = await runReviewRound({
     milestoneId: m.id, milestoneTitle: m.title, round: 0, reviewMode: m.reviewMode, pack: ev, ledgerLines: ctx.ledgerLines, domHints: m.reviewMode === "technical" ? techHintsFor(m, ctx.analyseCtx.planMarkdown || "", ev) : [],
@@ -532,6 +543,10 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
     analyse: async () => {
       const imageDigest = await ensureDigest(runner, m, 0, ev, hooks, rh.analyseDeps?.loadImage, id); // TASK-30: Flash vision MAPEMA
       const r = await reviewRound0(ev, ctx.analyseCtx, { log: (lvl, t) => hooks.blog(lvl, t), imageDigest, onLane: laneSink(runner, m, id), ...(rh.analyseDeps || {}) });
+      if (hooks.say) { // TASK-34: findings za kila reviewer — kamili, kama ujumbe wake kwenye chat
+        const names = reviewerNames(m);
+        for (const rv of REVIEWERS) hooks.say(castAgentId(cast, rv), renderR0Findings(r[rv].findings, names[rv]));
+      }
       return {
         designer: r.designer.findings, frontend: r.frontend.findings,
         meta: { independence: { ok: r.independence.ok, hashesDiffer: r.independence.hashesDiffer, leaks: [r.independence.designerLeakIntoFrontend.length, r.independence.frontendLeakIntoDesigner.length] }, designer: r.designer.meta, frontend: r.frontend.meta },
@@ -814,6 +829,7 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
 
   await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "RUNNING")));
   await hooks.persist();
+  hooks.ui?.({ t: "cu", id: m.id, r: round, cos: cos.map(msUiCo) }); // TASK-34: card ya marekebisho + badge ya Computer
   hooks.addChip(`🔧 ${m.id} R${round}: XMD Computer anatekeleza COs ${orderIds.length} (${orderIds.join(", ")})`);
   hooks.blog("system", `🔧 ${m.id} R${round}: raundi ya marekebisho — COs ${orderIds.join(", ")} · ${header.open.length} defects wazi.`);
   hooks.bcast({ type: "fixRound", id: m.id, round, phase: "start", orderIds });
@@ -1186,10 +1202,12 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
   if (!done(vId) || rejudge) {
     if (!done(vId)) await running(vId);
     if (!vr?.runs) {
+      hooks.ui?.({ t: "rev", id: m.id, r: round, who: REVIEWERS.map((r) => castAgentId(vctx.cast, r)) }); // TASK-34
       hooks.addChip(`🔍 ${m.id} R${round}: ${castNames(milestoneCast(m))} wanathibitisha COs ${orderIds.join(", ")} (peke yao)${rejudge ? " — upya kwa vision halisi" : ""}`);
       hooks.blog("system", `🔍 ${formatRoundHeader(header)} — reviewers 2 wanathibitisha (REVIEW_VERIFY).`);
       deps.imageDigest = deps.imageDigest ?? (await ensureDigest(runner, m, round, pack, hooks, deps.loadImage, vId)); // TASK-30: Flash vision MAPEMA
       const runs = await verifyBoth(vctx, deps);
+      if (hooks.say) { const names = reviewerNames(m); for (const r of REVIEWERS) hooks.say(castAgentId(vctx.cast, r), renderVerifyFindings(runs[r].findings, names[r], round)); } // TASK-34
       const disputed = disagreements(orderIds, runs.designer.findings, runs.frontend.findings);
       vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({
         ...(cur?.rejudge ? { defectsBefore: cur.defectsBefore, harnessRegressions: cur.harnessRegressions, degradedRuns: cur.degradedRuns } : {}),
@@ -1202,6 +1220,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
       const ocbOf = (r: ReviewerId) => buildOCB({ ...vctx.ocb, stage: "REVIEW_VERIFY", self: castAgentId(vctx.cast, r) as Parameters<typeof buildOCB>[0]["self"] });
       const st = await syncTurn(header, ocbOf, vr.runs.designer.findings, vr.runs.frontend.findings, vr.disputed, deps, vctx.cast);
       vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), sync: st.sync, syncTranscript: st.transcript }))).data;
+      if (hooks.say) for (const x of st.transcript) if (x.text?.trim()) hooks.say(castAgentId(vctx.cast, x.reviewer), `**Sync R${round}** — ${x.text.trim()}`); // TASK-34
     }
     if (vr.disputed.length && vr.sync && vr.runs.designer.findings && vr.runs.frontend.findings) { // TASK-33 (sehemu 4)
       const fd = vr.runs.designer.findings, ff = vr.runs.frontend.findings;

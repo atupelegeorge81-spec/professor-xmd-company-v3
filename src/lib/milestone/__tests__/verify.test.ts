@@ -777,3 +777,45 @@ describe("TASK-33: mini-report ya review (rolling) — loop", () => {
     expect(memoOf()!.entries.filter((e) => e.id === "review:R0")).toHaveLength(1);
   });
 });
+
+describe("TASK-34: matukio ya UI ya milestone (hooks.ui / hooks.say) — loop", () => {
+  it("kila kuingia kwa Computer (raundi ya marekebisho) → cu{r,cos}; kila uthibitisho → rev{r} + ujumbe KAMILI wa kila reviewer", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const h = harness({ 1: { designer: { cos: { "CO-001": "FAIL" } }, frontend: { cos: { "CO-001": "FAIL" } } }, 2: { designer: { cos: { "CO-002": "PASS" } }, frontend: { cos: { "CO-002": "PASS" } } } }, { checkFail: (id, r) => r === 1 && id.startsWith("CO-") });
+    const ui: any[] = []; const said: [string, string][] = [];
+    h.hooks.ui = (e) => ui.push(e);
+    h.hooks.say = (a, t) => said.push([a, t]);
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data.status).toBe("SIGNED_OFF");
+    const cu = ui.filter((e) => e.t === "cu");
+    expect(cu.map((e) => e.r)).toEqual([1, 2]);
+    expect(cu[0].cos.map((c: any) => c.id)).toEqual(["CO-001"]);
+    expect(cu[1].cos.map((c: any) => [c.id, c.attempt])).toEqual([["CO-002", 2]]);
+    expect(cu[0].cos[0]).toEqual(expect.objectContaining({ desired: expect.any(String), acceptance: expect.any(Array), files: expect.any(Array) }));
+    const rev = ui.filter((e) => e.t === "rev");
+    expect(rev.map((e) => e.r)).toEqual([1, 2]);
+    expect(rev[0].who).toHaveLength(2);
+    // reviewers wawili × raundi 2 — kila ujumbe una COs na verdict zake (si chip fupi)
+    expect(said).toHaveLength(4);
+    expect(said[0][1]).toMatch(/uthibitisho R1/);
+    expect(said[0][1]).toMatch(/CO-001 FAIL/);
+    expect(said[2][1]).toMatch(/CO-002 PASS/);
+    expect(new Set(said.map((s) => s[0])).size).toBe(2);
+    // mpangilio: Computer inaingia → kisha reviewers wa raundi hiyo
+    expect(ui.map((e) => `${e.t}${e.r}`)).toEqual(["cu1", "rev1", "cu2", "rev2"]);
+  });
+  it("sync (wanatofautiana) → zamu ya kila reviewer inaonekana kama ujumbe wake", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const h = harness({ 1: { designer: { cos: { "CO-001": "PASS" } }, frontend: { cos: { "CO-001": "FAIL" } } } });
+    const said: string[] = [];
+    h.hooks.say = (_a, t) => said.push(t);
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(said.filter((t) => t.startsWith("**Sync R1**")).length).toBe(2);
+  });
+  it("bila hooks.ui/say (engine ya zamani) → loop inaendelea sawa (hakuna kosa)", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const h = harness({ 1: { designer: { cos: { "CO-001": "PASS" } }, frontend: { cos: { "CO-001": "PASS" } } } });
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data.status).toBe("SIGNED_OFF");
+  });
+});

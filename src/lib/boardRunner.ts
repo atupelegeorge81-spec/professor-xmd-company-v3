@@ -66,6 +66,7 @@ import type { MilestoneMap } from "./milestone/types";
 import { maybeSabotagePlan, planStatusOf, blockingPlanProblems, planWarningsOf, planStepsMaxFor } from "./cu/planGate"; // TASK-4 · TASK-6
 import { defaultDbProbe } from "./milestone/dbProbe"; // TASK-29
 import { milestonePostDeploy, testServeLive } from "./cu/engine"; // TASK-31
+import { msUiMilestones, msUiText, type MsUiEvent } from "./milestone/uiEvents"; // TASK-34 (MISSION TWO)
 import { assembleFinalReport, enforceHonesty, FINAL_REPORT_DOC_KEY, gatherFinalReportData, narrativePrompt, verdictOf, type FinalReportDoc, type PostDeployResult } from "./milestone/finalReport"; // TASK-31
 import { runOnMilestoneSandbox, readEngineScript, seedMilestoneWorkspace, captureRoundEvidence, milestoneGit, milestonePatch, milestoneReadFiles, milestoneSaveBaselines } from "./cu/engine"; // TASK-25/26
 import { testStopAfterRound, testVerifyInput, type TestVerifyInput, nextAttempt, planGoalOf } from "./milestone/verify"; // TASK-26 test hooks
@@ -122,6 +123,8 @@ export interface Runner {
   cu?: CuRunState;
   /** TASK-12: chips zilizofichwa za milestone store (map/state) — persist huchuja hidden chips, kwa hiyo zinarudishwa hapa. */
   msChips?: SessionItem[];
+  /** TASK-34: kila state:Mk inapobadilika → tukio la UI (card ya Milestones + header) */
+  onMsState?: (milestoneId: string, state: { status: string; round: number }) => void;
   /** TASK-13: ramani ya milestones (flag ON) — roster ya kila agenda */
   msMap?: MilestoneMap | null;
   /** R31: hooks za ndani za run() — endpoint ya cu-event zinazitumia (route haina access ya closure) */
@@ -1121,6 +1124,26 @@ async function run(runner: Runner) {
       runner.items.push({ kind: "chip", id, text });
       bcast({ type: "system", text });
     };
+    // TASK-34 (MISSION TWO): matukio ya UI ya milestone mode — chip ILIYOFICHWA (inahifadhiwa → replay sawa na live)
+    const msUi = (e: MsUiEvent) => {
+      const text = msUiText(e);
+      runner.items.push({ kind: "chip", id: nid(), text });
+      bcast({ type: "system", text });
+    };
+    // TASK-34: ujumbe kamili wa agent (reviewers) — unahifadhiwa kama msg ya kawaida (avatar + maandishi)
+    const say = (agentId: string, text: string) => {
+      const id = addMsg(agentId);
+      bcast({ type: "token", id, text });
+      setItemContent(id, text);
+      bcast({ type: "msg_done", id });
+    };
+    const msLastState = new Map<string, string>();
+    runner.onMsState = (id, st) => {
+      const k = `${st.status}|${st.round}`;
+      if (msLastState.get(id) === k) return;
+      msLastState.set(id, k);
+      msUi({ t: "st", id, s: st.status, r: st.round });
+    };
 
     // ===== [PATCH-XMD-V2] ACTIVITY (shimmer) — process ya background, SI ujumbe wa chat =====
     const activityStart = (text: string): string => {
@@ -1286,6 +1309,7 @@ async function run(runner: Runner) {
           runner.msChips = [...(runner.msChips || []).filter((x) => x.id !== chip.id), chip];
           runner.msMap = rec.data; // TASK-13
           bcast({ type: "milestoneMap", map: rec.data, usedFallback: res.usedFallback, attempts: res.attempts });
+          msUi({ t: "map", milestones: msUiMilestones(rec.data.milestones), fallback: res.usedFallback }); // TASK-34: card ya Milestones + header
           await persist("agenda_created", conversationTitle);
         } catch (e: any) {
           if (e?.name === "AbortError") throw e;
@@ -1617,6 +1641,7 @@ async function run(runner: Runner) {
     };
     const msHooks = (status: string): LoopHooks => ({
       bcast: (e) => bcast(e as BoardEvent), addChip, blog: (lvl, t) => blog(lvl, t),
+      ui: msUi, say, // TASK-34 (MISSION TWO): badges/cards + messages za reviewers
       persist: () => persist(status, conversationTitle),
       resolvedAgendas: async () => new Set((await finalBoardResolution(runner.id)).map((e) => e.agenda_index)),
       // TASK-33: Optimus anaandika mini-report ya review (rolling) + reviewers wanathibitisha R0 — LLM halisi ya broker
@@ -3436,6 +3461,7 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
       brain.state({ phase: "report" });
       const sys = await brain.prompt(pm.id, { phase: "report", role: "report writer", date: nowDate() });
       blog("system", `📑 Optimus anaandika ripoti ya mwisho kwa CEO (milestones ${data.milestones.length} · verdict ya code: ${v.line})…`);
+      msUi({ t: "final0" }); // TASK-34: card ya ripoti ya mwisho (maandishi ya Optimus yanaingia humo)
       const repId = addMsg(pm.id);
       let text = "";
       try {
@@ -3444,6 +3470,7 @@ Do NOT restate the objection; ANSWER the question. Under 120 words.
       } catch (e: any) { blog("error", `❌ Ripoti ya mwisho (Optimus): ${String(e?.message || e).slice(0, 200)} — sehemu za code zinabaki.`); }
       bcast({ type: "msg_done", id: repId });
       const doc = assembleFinalReport(data, text);
+      msUi({ t: "final", md: doc.markdown, line: doc.verdict.line, complete: !!doc.verdict.complete }); // TASK-34: hati kamili ndani ya card
       await msUpdate(lr, FINAL_REPORT_DOC_KEY, () => ({ version: 1, verdict: doc.verdict, missingLlm: doc.missingLlm, links, postDeploy: post, chars: doc.markdown.length, markdown: doc.markdown, at: new Date().toISOString() }));
       blog(doc.verdict.complete ? "success" : "warning", `📑 Ripoti ya mwisho: ${doc.verdict.line} · herufi ${doc.markdown.length}${doc.missingLlm.length ? ` · Optimus hakuandika sehemu ${doc.missingLlm.join(", ")} (data ya code imewekwa)` : ""}`);
       return doc;

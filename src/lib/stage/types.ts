@@ -220,6 +220,8 @@ export interface PlanItem {
   saved: "wait" | "saving" | "saved" | "failed";
   settled?: boolean;
   planId: string;
+  /** TASK-34: mpango kazi wa milestone (M1 …) — card yake; hakuna card ya kupakua */
+  milestone?: string;
 }
 
 /** engine: system chips za retry/rotation/error/halt */
@@ -317,7 +319,34 @@ export interface CuReportItem {
   startedAt: number;
 }
 
+/* ---------------- TASK-34 (MISSION TWO) · milestone mode ---------------- */
+export interface MsRow {
+  id: string; title: string; from: number; to: number; roster: AgentId[]; reviewMode: string;
+  /** MilestoneStatus ya engine (DISCUSSING … SIGNED_OFF / CAP_REACHED / BLOCKED) */
+  status: string; round: number;
+}
+/** card ya Milestones (baada ya card ya ajenda) — progress hai */
+export interface MsMapItem { kind: "msMap"; id: string; milestones: MsRow[]; fallback?: boolean; active?: string }
+/** badges za kugawanya mazungumzo: milestone (ya pekee) · Computer (kila inapoingia) · reviewers (R0 + kila uthibitisho) · mjadala wa watatu */
+export interface MsMarkItem {
+  kind: "msMark"; id: string; mark: "enter" | "computer" | "review" | "talk";
+  ms: string; title?: string; round?: number; agents?: AgentId[];
+  /** enter: ajenda za milestone · talk: R-Mk-n */
+  from?: number; to?: number; index?: number; total?: number; reviewId?: string;
+}
+/** marekebisho ya Optimus (Change Orders) ya raundi — maneno yenyewe ndani ya card */
+export interface MsCosItem {
+  kind: "msCos"; id: string; ms: string; round: number;
+  cos: { id: string; defectIds: string[]; decisionIds?: string[]; priority: number; attempt: number; mode: string; files: string[]; route?: string; selector?: string; current: string; desired: string; acceptance: string[] }[];
+}
+/** ripoti ya mwisho kwa CEO (milestone mode) — card yake */
+export interface MsReportItem {
+  kind: "msReport"; id: string; title: string; doc: string; shown: number; startedAt: number;
+  live?: boolean; line?: string; complete?: boolean; saved: "wait" | "saved"; reportId?: string;
+}
+
 export type StageItem =
+  | MsMapItem | MsMarkItem | MsCosItem | MsReportItem
   | UserItem | ConveneItem | ScopeItem | AgendaBuildItem | AgendaStartItem
   | EvidenceItem | TurnItem | ConsensusItem | ChairItem
   | ScriptItem | ReviewItem | DeliverableItem
@@ -345,4 +374,7 @@ export interface LiveStage {
   version: number;
   ledger: Record<number, { status: "LOCKED" | "OPEN" | "SUPERSEDED+LOCKED"; version: number }>;
   background: string | null; // shimmer text ya kazi ya background inayoendelea
+  /** TASK-34: milestones (header) + milestone inayoendelea sasa */
+  milestones?: MsRow[];
+  msActive?: string;
 }

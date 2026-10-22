@@ -499,3 +499,11 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Uthibitisho (`buildVerifyPrompt`): mini-report (3 kamili / za zamani zimefupishwa) + findings za R0 za reviewer mwenyewe + historia ya defects + mini-reports za agenda — bila transcript. Computer: historia ya defects kwenye fix pack.
 - requestDiscussion ≤6 zamu (sync 1 / redecide ≤4 kama zilivyokuwa); matokeo yote kwenye mini-report. UI: badge ya "mini report imeandikwa" tu.
 - Baselines: tsc 0 · vitest 804 + 2 skipped (+18) · eslint 29 = kabla. Ushahidi: docs/tests/task-33.md.
+
+## Task 34 — MISSION TWO: UI ya milestone mode · **DONE (mock/unit tests)**
+- Branch `task/34-ui` · spec: `task-docs/MISSION-2.md` (CEO 2026-10-22) · REAL test imeahirishwa kwa agizo la CEO; app haikuwashwa (S1).
+- Engine: `milestone/uiEvents.ts` (chip iliyofichwa `__XMD_MSUI__`: map/st/cu/rev/final) + hooks `ui`/`say` kwenye loop; findings za reviewers na sync zinaonyeshwa KAMILI.
+- UI: badge ya milestone ya pekee (machungwa→waridi), badges za Computer (kila kuingia) / reviewers (R0 + kila uthibitisho) / mjadala wa watatu; header M1/M2… (active highlighted);
+  card ya Milestones (progress live), Mpango Kazi kwa kila milestone, card ya marekebisho ya Optimus, card ya ripoti ya CEO; **"Pakua" imeondolewa**; chips 7 za kiufundi → Overview › Logs.
+- Export: items mpya + mini-report ya review kamili (`memo:Mk`). Non-milestone mode haijaguswa (test).
+- Baselines: tsc 0 · vitest 828 + 2 skipped (+24) · eslint 29 = kabla. Ushahidi: docs/tests/task-34.md.

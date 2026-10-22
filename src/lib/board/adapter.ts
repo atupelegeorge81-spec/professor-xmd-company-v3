@@ -11,7 +11,9 @@ import type {
   AgendaDef, AssemblyItem, LiveStage, MemoryItem, ObserversItem, PlanItem, ReportItem, ReviewItem, ScriptItem, SealItem,
   SearchTrace, StageItem, TaskItem, TaskKind, TurnItem,
   CuExecItem, CuReportItem, CuRunItem, CuShotItem, SummaryItem, CuTextItem, CuThinkItem,
+  MsMapItem, MsReportItem, MsRow,
 } from "@/lib/stage/types";
+import { parseMsUi, type MsUiEvent } from "@/lib/milestone/uiEvents"; // TASK-34 (MISSION TWO)
 import { pureCode } from "@/lib/codeFence";
 import { PLAN_SECTION_DEFS, PLAN_PART_RE, PLAN_SAVED_RE, PLAN_FAILED_RE, PLAN_REPAIR_RE, parsePlanSteps } from "@/lib/board/workPlan";
 import { readResumeState } from "./finale";
@@ -111,7 +113,21 @@ function extractCode(raw: string): { lang: string; code: string; closed: boolean
   return { lang, code, closed };
 }
 
-type MsgKind = "pending" | "search" | "turn" | "script" | "patch" | "review" | "observer" | "deliverable" | "assembly" | "report" | "plan" | "skip";
+type MsgKind = "pending" | "search" | "turn" | "script" | "patch" | "review" | "observer" | "deliverable" | "assembly" | "report" | "plan" | "msreport" | "skip";
+
+/** TASK-34 (MISSION TWO): chips za kiufundi za milestone mode — HAZIONEKANI kwenye chat; zinaenda kwenye logs za Overview (BoardLive).
+ *  Ni zile CEO alizoonyesha tu: 🧾 receipts · 📸 evidence · 🔍 uthibitisho unaanza · 🔌 lanes · ✅ verify · 🔧 raundi ya Computer · 🖥️ StartPack. */
+export const MS_LOG_ONLY: RegExp[] = [
+  /^🧾 M\d+ R\d+/u,
+  /^📸 (?:Evidence ya )?M\d+ R\d+/u,
+  /^🔍 M\d+ R\d+/u,
+  /^🔌 M\d+ lanes/u,
+  /^✅ M\d+ R\d+ verify/u,
+  /^🔧 M\d+ R\d+: XMD Computer/u,
+  /^🖥️ XMD Computer · Milestone/u,
+];
+export const isLogOnlyChip = (text: string): boolean => { const t = text.trim(); return MS_LOG_ONLY.some((r) => r.test(t)); };
+const MS_TERMINAL = new Set(["SIGNED_OFF", "SIGNED_OFF_WITH_WAIVERS", "CAP_REACHED", "BLOCKED"]);
 interface Msg {
   id: string; agent: AgentId; kind: MsgKind; ui: string | null;
   raw: string; think: string; t0: number; firstToken: number | null; done: boolean;
@@ -180,6 +196,12 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   let followTarget: { agent: AgentId; ui: string } | null = null;
   const taskStart = new Map<string, number>();
   let baseSeconds = 0;
+  // TASK-34 (MISSION TWO): milestone mode — ramani, hali, muktadha wa messages (plan / mjadala / reviewers / ripoti ya mwisho)
+  let msRows: MsRow[] = [];
+  let msMapUi: string | null = null;
+  let msCtx: null | "plan" | "talk" | "say" | "report" = null;
+  let msReportUi: string | null = null;
+  const msEntered = new Set<string>();
 
   /* ------------------------------------------------ item ops */
   const add = (it: StageItem) => {
@@ -284,6 +306,10 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   /* ------------------------------------------------ classification */
   const classify = (m: Msg): MsgKind => {
     const c = m.raw;
+    // TASK-34: milestone mode — plan ya milestone → card yake · ripoti ya mwisho → card yake · reviewers/mjadala wa watatu → zamu kamili
+    if (msCtx === "report" && m.agent === "optimus") return "msreport";
+    if (msCtx === "plan" && m.agent === "optimus") return "plan";
+    if (msCtx === "say" || msCtx === "talk") return "turn";
     if (finale === "plan" && m.agent === "optimus") return "plan";
     if (finale === "report" && m.agent === "optimus") return "report";
     if (finale === "assemble" && m.agent === "optimus") return "assembly";
@@ -313,7 +339,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   const startTurn = (m: Msg) => {
     flushPending(m.agent);
     const reuse = pendingSearch.get(m.agent);
-    const role: TurnItem["role"] = objection ? "responder" : cur?.owners.includes(m.agent) ? "owner" : "chair";
+    const role: TurnItem["role"] = objection ? "responder" : msCtx === "say" || msCtx === "talk" || cur?.owners.includes(m.agent) ? "owner" : "chair";
     if (objection && !responderTurn) responderTurn = m.id;
     if (reuse && get(reuse)?.kind === "turn") {
       m.ui = reuse;
@@ -426,8 +452,17 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         patch<PlanItem>(planUi, { live: true });
         break;
       }
+      case "msreport": {
+        if (!msReportUi || !get(msReportUi)) openMsReport();
+        m.ui = msReportUi;
+        patch<MsReportItem>(msReportUi, { live: true });
+        break;
+      }
       default: break;
     }
+  };
+  const openMsReport = () => {
+    msReportUi = add({ kind: "msReport", id: nid(), title: title || "Ripoti ya mwisho", doc: "", shown: 0, startedAt: now(), live: false, saved: "wait" });
   };
 
   /* ------------------------------------------------ report */
@@ -497,7 +532,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
     const stepHeads = [...doc.matchAll(/^###\s*Step\s+(\d+)\s*[—–-]+\s*(.+)$/gm)].map((m) => ({ n: Number(m[1]), title: m[2].trim(), at: m.index ?? 0 }));
     const lastHeadAt = stepHeads.length ? stepHeads[stepHeads.length - 1].at : -1;
     const steps = stepHeads.map((s) => ({ n: s.n, title: s.title, state: (streaming && s.at === lastHeadAt ? "writing" : "done") as "wait" | "writing" | "done" }));
-    patch<PlanItem>(planUi, { doc, shown: doc.length, repairFrom, sections, steps, title: title || it.title });
+    patch<PlanItem>(planUi, { doc, shown: doc.length, repairFrom, sections, steps, title: it.milestone ? it.title : title || it.title });
   };
 
   /* ------------------------------------------------ logs → search trace */
@@ -533,9 +568,104 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
   };
 
   /* ------------------------------------------------ chips */
+  /* ------------------------------------------------ TASK-34: milestone mode */
+  const msSync = () => {
+    if (msMapUi) patch<MsMapItem>(msMapUi, { milestones: msRows });
+    stageSet({ milestones: msRows });
+  };
+  const msSetActive = (id: string) => {
+    stageSet({ msActive: id });
+    if (msMapUi && get(msMapUi)) patch<MsMapItem>(msMapUi, { active: id });
+  };
+  const msTitle = (id: string) => msRows.find((r) => r.id === id)?.title;
+  const onMsUi = (e: MsUiEvent) => {
+    switch (e.t) {
+      case "map": {
+        msRows = e.milestones.map((x) => {
+          const old = msRows.find((r) => r.id === x.id);
+          return { id: x.id, title: x.title, from: x.from, to: x.to, roster: x.roster.map((r) => agentInText(r) || toUiAgent(r)), reviewMode: x.reviewMode, status: old?.status || "DISCUSSING", round: old?.round || 0 };
+        });
+        if (!msMapUi || !get(msMapUi)) msMapUi = add({ kind: "msMap", id: nid(), milestones: msRows, fallback: e.fallback });
+        msSync();
+        return;
+      }
+      case "st": {
+        msRows = msRows.map((r) => (r.id === e.id ? { ...r, status: e.s, round: e.r } : r));
+        if (!MS_TERMINAL.has(e.s) && e.s !== "DISCUSSING") msSetActive(e.id);
+        msSync();
+        return;
+      }
+      case "cu": {
+        flushPending();
+        msCtx = null;
+        if (e.cos?.length) add({ kind: "msCos", id: nid(), ms: e.id, round: e.r, cos: e.cos });
+        add({ kind: "msMark", id: nid(), mark: "computer", ms: e.id, round: e.r, title: msTitle(e.id) });
+        closeCuThink();
+        cuRunUi = null; // card mpya ya hali ya Computer kwa kila kuingia
+        msSetActive(e.id);
+        return;
+      }
+      case "rev": {
+        resetAgendaCtx();
+        msCtx = "say";
+        add({ kind: "msMark", id: nid(), mark: "review", ms: e.id, round: e.r, title: msTitle(e.id), agents: e.who.map((w) => toUiAgent(w)) });
+        msSetActive(e.id);
+        return;
+      }
+      case "final0": {
+        flushPending();
+        msCtx = "report";
+        if (!msReportUi || !get(msReportUi)) openMsReport();
+        patch<MsReportItem>(msReportUi, { live: true });
+        return;
+      }
+      case "final": {
+        if (!msReportUi || !get(msReportUi)) openMsReport();
+        patch<MsReportItem>(msReportUi, { doc: e.md, shown: e.md.length, live: false, line: e.line, complete: e.complete });
+        msCtx = null;
+        return;
+      }
+    }
+  };
+  const msPlanState = (id: string, saved: "saved" | "failed") => {
+    const it = [...items].reverse().find((x): x is PlanItem => x.kind === "plan" && x.milestone === id);
+    if (it) patch<PlanItem>(it.id, { saved, live: false });
+    msCtx = null;
+  };
+
   const onChip = (raw: string) => {
     const text = raw.trim();
     let m: RegExpMatchArray | null;
+    const msu = parseMsUi(text);
+    if (msu) { onMsUi(msu); return; }
+    if (isLogOnlyChip(text)) return; // TASK-34: → logs za Overview tu (BoardLive)
+    if ((m = text.match(/^🗺️ Optimus anaandika plan ya Milestone (M\d+) (.+)$/u))) {
+      // TASK-34: mpango kazi wa milestone → card yake (design ya Mpango Kazi), maandishi ya Optimus yanaingia humo
+      flushPending();
+      const id = m[1];
+      const part: 1 | 2 | 3 = /^1\/2/.test(m[2]) ? 1 : /^2\/2/.test(m[2]) ? 2 : 3;
+      const curPlan = get<PlanItem>(planUi);
+      if (part === 1 || !curPlan || curPlan.milestone !== id) {
+        planUi = null;
+        openPlan(part);
+        patch<PlanItem>(planUi, { milestone: id, title: `${id} · ${msTitle(id) || "Milestone"}` });
+      } else patch<PlanItem>(planUi, { part, saved: "wait" });
+      msCtx = "plan";
+      msSetActive(id);
+      return;
+    }
+    if ((m = text.match(/^🗺️ Plan ya Milestone (M\d+) iko tayari/u))) { msPlanState(m[1], "saved"); notice("info", text); return; }
+    if ((m = text.match(/^⛔ Plan ya Milestone (M\d+) haitekelezeki/u))) { msPlanState(m[1], "failed"); notice("info", text); return; }
+    if ((m = text.match(/^(R-(M\d+)-(\d+)):\s*([\s\S]*?) — owners:\s*(.*)$/))) {
+      // TASK-34: mjadala wa watatu (R-Mk-n) — badge yake + zamu kamili (si observers)
+      resetAgendaCtx();
+      msCtx = "talk";
+      const owners = m[5].split(/\s*\+\s*|,\s*/).map((n) => agentInText(n)).filter(Boolean) as AgentId[];
+      cur = { index: 0, title: m[4], owners, requiresCode: false };
+      add({ kind: "msMark", id: nid(), mark: "talk", ms: m[2], round: Number(m[3]), reviewId: m[1], title: m[4], agents: owners });
+      msSetActive(m[2]);
+      return;
+    }
     if ((m = text.match(/^🏛️ Board Room — "([\s\S]*)"$/))) {
       add({ kind: "convene", id: nid(), mode: "new", project: m[1], title: title, titleShown: title.length, sessionId: sessionShort || undefined });
       stageSet({ scope: "opening" });
@@ -582,8 +712,17 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         agendaDefs = agendaDefs.map((a) => (a.index === idx ? { ...a, owners } : a));
       }
       cur = agendaDefs.find((a) => a.index === idx)!;
+      // TASK-34: milestone mpya inaingia (ajenda yake ya kwanza) → badge ya pekee ya milestone kabla ya badge ya ajenda
+      msCtx = null;
+      const enter = msRows.find((r) => r.from === idx);
+      if (enter && !msEntered.has(enter.id)) {
+        msEntered.add(enter.id);
+        add({ kind: "msMark", id: nid(), mark: "enter", ms: enter.id, title: enter.title, from: enter.from, to: enter.to, agents: enter.roster, index: msRows.indexOf(enter) + 1, total: msRows.length });
+      }
       add({ kind: "agendaStart", id: nid(), agenda: cur, total: Number(m[2]) });
-      stageSet({ scope: "agenda", agenda: cur, total: Number(m[2]), phase: "evidence", owners: cur.owners, approvals: [], version: 0, hadCode: false, hadObjection: false });
+      const inMs = msRows.find((r) => idx >= r.from && idx <= r.to);
+      stageSet({ scope: "agenda", agenda: cur, total: Number(m[2]), phase: "evidence", owners: cur.owners, approvals: [], version: 0, hadCode: false, hadObjection: false, ...(inMs ? { msActive: inMs.id } : {}) });
+      if (inMs && msMapUi && get(msMapUi)) patch<MsMapItem>(msMapUi, { active: inMs.id });
       return;
     }
     if ((m = text.match(/^🔒 LOCKED:\s*([\s\S]*?) → ([\s\S]*)$/)) || (m = text.match(/^🟠 OPEN:\s*([\s\S]*?) → ([\s\S]*)$/))) {
@@ -802,6 +941,11 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       case "plan": {
         syncPlan(false);
         patch<PlanItem>(planUi, { live: false, saved: "saving" });
+        break;
+      }
+      case "msreport": {
+        // hati kamili (code + Optimus) inafika kwa tukio la `final` — hadi hapo maandishi ya Optimus yanabaki
+        if (get<MsReportItem>(m.ui)?.line === undefined) patch<MsReportItem>(m.ui, { doc: c, shown: c.length, live: false });
         break;
       }
       case "pending": {
@@ -1063,6 +1207,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
           }
           case "report": reportRaw[reportRaw.length - 1] = m.raw; syncReport(true); setStatus("optimus", "speaking"); break;
           case "plan": planRaw[planRaw.length - 1] = m.raw; syncPlan(true); setStatus("optimus", "speaking"); break;
+          case "msreport": { const d = visible(m.raw); patch<MsReportItem>(m.ui, { doc: d, shown: d.length, live: true }); setStatus("optimus", "speaking"); break; }
           default: setStatus(m.agent, "speaking"); break;
         }
         break;
@@ -1075,6 +1220,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         if (m.kind === "turn") patch<TurnItem>(m.ui, { content: "", phase: "retrying" });
         if (m.kind === "report") { reportRaw[reportRaw.length - 1] = ""; syncReport(true); }
         if (m.kind === "plan") { planRaw[planRaw.length - 1] = ""; syncPlan(true); }
+        if (m.kind === "msreport") patch<MsReportItem>(m.ui, { doc: "", shown: 0 });
         if (m.kind === "assembly") assemblyRaw = "";
         break;
       }
@@ -1096,6 +1242,8 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
         break;
       }
       case "report": {
+        // TASK-34: milestone mode — ripoti iko kwenye card yake (msReport), si card ya sehemu 10
+        if (msReportUi && get(msReportUi)) { patch<MsReportItem>(msReportUi, { saved: "saved", reportId: e.id, title: e.title || get<MsReportItem>(msReportUi)!.title }); break; }
         if (!reportUi) openReport(1);
         patch<ReportItem>(reportUi, { saved: "saved", reportId: e.id, title: e.title, live: false });
         break;
@@ -1199,7 +1347,7 @@ export function createBoardAdapter(opts: { instant?: boolean; now?: () => number
       case "divider":
       case "run_start": {
         // divider ya awamu (badge + mistari — mtindo wa agenda-start) inakuja mara moja
-        if (!items.some((x) => x.kind === "cuDivider")) add({ kind: "cuDivider", id: nid() });
+        if (!msRows.length && !items.some((x) => x.kind === "cuDivider")) add({ kind: "cuDivider", id: nid() }); // TASK-34: milestone mode → msMark "computer"
         if (cuRunUi) {
           if (t === "run_start" && cu.task) patch<CuRunItem>(cuRunUi, { task: String(cu.task) });
           return;

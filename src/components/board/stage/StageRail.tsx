@@ -1,8 +1,10 @@
 "use client";
-import { Link2, Lock, CircleDashed, Sparkles } from "lucide-react";
-import type { AgendaDef, AgendaPhase, FinalePhase, LiveStage } from "@/lib/stage/types";
+import { Fragment } from "react";
+import { Check, Flag, Link2, Lock, CircleDashed, Sparkles } from "lucide-react";
+import type { AgendaDef, AgendaPhase, FinalePhase, LiveStage, MsRow } from "@/lib/stage/types";
 import { cn } from "@/lib/utils";
 import { TONE } from "./kit";
+import { msStatus } from "./Milestones";
 
 /* Rail ya maendeleo (sticky) — inaonyesha agenda zote, awamu ya sasa na kazi ya background.
  * Awamu zinatoka kwenye matukio halisi ya engine (angalia lib/board/adapter.ts). */
@@ -49,17 +51,21 @@ export function StageRail({ stage, agenda, live }: { stage: LiveStage; agenda: A
     <div className="glass sticky top-0 z-20 -mx-4 border-b border-[var(--color-line)] px-4 py-2 sm:-mx-6 sm:px-6">
       <div className="st-fog-x st-noscroll flex items-center gap-1.5 overflow-x-auto">
         {agenda.map((a) => {
+          const ms = stage.milestones?.find((m) => m.from === a.index);
           const l = stage.ledger[a.index];
           const active = !inFinale && stage.agenda?.index === a.index && !l;
           const tone = l?.status === "OPEN" ? TONE.warn : l ? TONE.ok : null;
           return (
-            <a key={a.index} href={`#agenda-${a.index}`} title={`${a.title}${l ? ` · ${l.status}` : ""}`}
+            <Fragment key={a.index}>
+            {ms && <MsPill m={ms} active={stage.msActive === ms.id} />}
+            <a href={`#agenda-${a.index}`} title={`${a.title}${l ? ` · ${l.status}` : ""}`}
               className={cn("flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[10.5px] font-semibold transition-all", active ? "prism-border text-[var(--color-fg)]" : "border-[var(--color-line)] text-[var(--color-muted)]")}
               style={tone ? { color: tone.c, borderColor: `rgb(${tone.rgb} / 0.35)`, background: `rgb(${tone.rgb} / 0.08)` } : undefined}>
               {l?.status === "SUPERSEDED+LOCKED" ? <Link2 size={10} /> : l?.status === "OPEN" ? <CircleDashed size={10} /> : l ? <Lock size={10} /> : active ? <span className="h-1.5 w-1.5 rounded-full bg-prism animate-pulse" /> : null}
               A{a.index}
               {l && <span className="font-mono font-normal opacity-80">v{l.version}</span>}
             </a>
+            </Fragment>
           );
         })}
         <span className={cn("flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[10.5px] font-semibold", inFinale ? "prism-border text-[var(--color-fg)]" : "border-[var(--color-line)] text-[var(--color-faint)]")}>
@@ -84,5 +90,23 @@ export function StageRail({ stage, agenda, live }: { stage: LiveStage; agenda: A
         <p className="shimmer-text mt-1 truncate text-[11px] font-medium">{stage.background}</p>
       )}
     </div>
+  );
+}
+
+/** TASK-34: badge ya milestone kwenye header — rangi ya pekee (machungwa→waridi); inayoendelea imeangaziwa */
+function MsPill({ m, active }: { m: MsRow; active: boolean }) {
+  const st = msStatus(m, active);
+  const end = st.done ? TONE[st.tone] : null;
+  return (
+    <a href={`#ms-${m.id}`} title={`${m.id} · ${m.title} · ${st.label}`} data-ms={m.id} data-active={active || undefined}
+      className={cn("flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[10.5px] font-bold transition-all", active && "shadow-[0_0_14px_-3px_rgb(251_146_60/0.9)]")}
+      style={active
+        ? { background: "linear-gradient(135deg, #fdba74, #f472b6)", color: "#1c1008" }
+        : end
+          ? { color: end.c, background: `rgb(${end.rgb} / 0.08)`, boxShadow: `inset 0 0 0 1px rgb(${end.rgb} / 0.35)` }
+          : { color: "#fdba74", background: "rgb(251 146 60 / 0.06)", boxShadow: "inset 0 0 0 1px rgb(251 146 60 / 0.3)" }}>
+      {active ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1c1008]" /> : st.done && (m.status === "SIGNED_OFF" || m.status === "SIGNED_OFF_WITH_WAIVERS") ? <Check size={10} /> : <Flag size={10} />}
+      {m.id}
+    </a>
   );
 }

@@ -10,6 +10,7 @@ import { AssemblyCard, DeliverableCard, ReviewCard, ScriptCard } from "./Code";
 import { MemoryStrip, ObserversCard, OverruledCard, SealCard, SupersedeCard, TaskLine, ValidatorCard } from "./Ledger";
 import { NoticeLine, ReportWriter, SummaryCard } from "./Finale";
 import { PlanWriter } from "./Plan";
+import { MsCosCard, MsMapCard, MsMark, MsReportCard } from "./Milestones";
 import { CuRunCard, CuPauseView, CuReportView, CuDividerMark } from "./Computer";
 import { CuErrorView, CuHookView, CuExecView, CuLinkView, CuShotView, CuTextView, CuThinkingView } from "./cu/cards";
 
@@ -58,6 +59,11 @@ const StageNode = memo(function StageNode({ it, onResume, sessionId }: { it: Sta
     case "plan": return <PlanWriter it={it} sessionId={sessionId} />;
     case "notice": return <NoticeLine it={it} onResume={onResume} />;
     case "summary": return <SummaryCard it={it} />;
+    /* TASK-34: milestone mode */
+    case "msMap": return <MsMapCard it={it} />;
+    case "msMark": return <MsMark it={it} />;
+    case "msCos": return <MsCosCard it={it} />;
+    case "msReport": return <MsReportCard it={it} />;
     case "cuDivider": return <CuDividerMark />;
     case "cuRun": return <CuRunCard it={it} />;
     case "cuPause": return <CuPauseView it={it} />;
