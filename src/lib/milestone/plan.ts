@@ -128,6 +128,8 @@ export function preflightError(where: string, label: string, cmd: string, manife
   return `${where}: ${label} \`${cap(cmd, 160)}\` cannot run in the build sandbox — preflight: ${why.join(", ")}. Rewrite it with available commands only (see BUILD SANDBOX CAPABILITIES; npm tools via \`npm run …\` or \`npx <tool>\`).`;
 }
 export const isPreflightError = (e: string): boolean => /cannot run in the build sandbox/.test(e);
+/** "none (Supabase CLI not available)" — mstari wa amri unaosema hakuna amri, pamoja na maelezo (plan halisi ya E6 M3). */
+const NONE_WITH_NOTE_RE = /^(?:none|n\/a|hakuna)\b/i;
 
 const STYLING_RE = /Styling\s*\+\s*Dependencies\s*\**\s*:\s*\**\s*(.*)$/im;
 const ROUTE_RE = /route\s*:\s*`?(\/[^\s`·|;,]*)`?\s*[·|;,]\s*states?\s*:\s*([^·|;]+?)\s*[·|;]\s*viewports?\s*:\s*(.+)$/gim;
@@ -181,7 +183,7 @@ export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "rev
   // → lango PARTIAL → M1 BLOCKED. Amri kama hizi zinakataliwa hapa → Optimus anaandika upya (jaribio la muundo).
   // TASK-35 (b): preflight ya `command -v` kwa kila binary (si regex ya Docker/Postgres pekee) — kosa linarudi kwa Optimus.
   for (const [label, cmd] of [["Build Command", planGateCommands(md).buildCommand], ["Test Command", planGateCommands(md).testCommand]] as const) {
-    const pe = cmd ? preflightError(`${m.id} plan §4`, `"${label}:"`, cmd) : null;
+    const pe = cmd && !NONE_WITH_NOTE_RE.test(cmd) ? preflightError(`${m.id} plan §4`, `"${label}:"`, cmd) : null;
     if (pe) errors.push(pe);
   }
   if (!planGateCommands(md).buildCommand) errors.push(`${m.id} plan §4: missing the "Build Command:" line — one shell command run from the workspace root that exits 0 only when this milestone builds (e.g. "Build Command: \`npm run build\`" or, for a docs-only milestone, "Build Command: \`test -s README.md\`")`);
@@ -244,7 +246,7 @@ export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "rev
   // 3b. TASK-35 (b): preflight ya mistari ya amri ya §7 (harness inaziendesha ndani ya sandbox)
   for (const label of ["Start Command", "Lint Command", "Typecheck Command", "Migration Status Command"]) {
     const cmd = cmdLine(md, label);
-    const pe = cmd ? preflightError(`${m.id} plan §7`, `"${label}:"`, cmd) : null;
+    const pe = cmd && !NONE_WITH_NOTE_RE.test(cmd) ? preflightError(`${m.id} plan §7`, `"${label}:"`, cmd) : null;
     if (pe) errors.push(pe);
   }
 

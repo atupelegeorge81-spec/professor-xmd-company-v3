@@ -89,6 +89,11 @@ describe("TASK-35 (b): validateMilestonePlan — preflight ya kila amri", () => 
     expect(pf).toHaveLength(5);
   });
 
+  it("mstari \"none (maelezo)\" si amri → haupitiwi (plan halisi ya E6 M3)", () => {
+    const v = validateMilestonePlan(`${PART1()}\n${PART2("node --check a.js", "npx serve -l 4173", "\nMigration Status Command: none (Supabase CLI not assumed available in sandbox)")}`, M1);
+    expect(v.errors.filter(isPreflightError)).toEqual([]);
+  });
+
   it("amri iliyopo lakini inahitaji Postgres ya ndani (localhost:5432) → bado inakataliwa (SANDBOX_UNAVAILABLE_RE)", () => {
     const v = validateMilestonePlan(`${PART1()}\n${PART2("node scripts/db.js --url postgres://localhost:5432/x")}`, M1);
     expect(v.errors.some((e) => isPreflightError(e) && /needs Docker \/ a local Postgres/.test(e))).toBe(true);
