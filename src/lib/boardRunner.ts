@@ -8,6 +8,8 @@ import { brokerRun, brokerStatus, brokerComplete, brokerClient, continuationMess
 import { capacityMessage } from "./groq";
 import type { LlmOpts } from "./brain/llm";
 import { searchWeb, searchWebDirect, type SearchResult } from "./search";
+import { diversityWarning } from "./brain/memory/avoid";
+import { imageQueryOf } from "./imageSearch";
 import { curateSources, onOwnerTurn, onObserverNote, reviewFacts, onReviewVerdict, onReport } from "./brain/skills/runTools";
 import { saveReport, saveSession, updateSessionItems, getConversation, lastSaveError, type SessionItem } from "./reports";
 import { saveLedgerEntry, finalBoardResolution, markSuperseded, type LedgerObjection } from "./ledger";
@@ -924,7 +926,7 @@ async function run(runner: Runner) {
           const s = await lease.client.chat.completions.create({
             model: lease.model,
             messages: msgs as never,
-            temperature: 0.5,
+            temperature: agent.id === "designer" ? 0.8 : 0.5, // T36: Ultron — utofauti zaidi wa mawazo (Ledger/ripoti hazibadiliki)
             max_tokens: lease.maxTokens,
             stream: true,
             stream_options: { include_usage: true },
@@ -1504,7 +1506,7 @@ async function run(runner: Runner) {
 
       const sid = addMsg(agent.id);
 
-      if (hasSearchedItem[agent.id]) {
+      if (hasSearchedItem[agent.id] && !imageQueryOf(query)) { // T36: picha hazitafutwi kwenye memory ya maandishi
         blog("search", `🧠 ${agent.name} anaangalia memory ya mjadala huu kwanza (Appwrite tayari ilikaguliwa kwa item hii)...`);
         const mem = findInMemory(query, itemSources);
         if (mem) {
@@ -2074,6 +2076,9 @@ Your job in this exchange:
    RESEARCH_REQUEST: <query>
    as the LAST line. Plain keywords only (no site:, OR, filetype:, quotes). To read the FULL text of a listed
    source (web page or PDF) instead, write READ_SOURCE: <url> as the last line — prefer this over re-searching.
+   For visual sections (hero, banners, galleries, product or place photos) you MAY look up REAL sample photos:
+   RESEARCH_REQUEST: images: <subject keywords> — each result has IMAGE_URL, size, licence and credit. Put the chosen
+   IMAGE_URL(s) with licence/credit into your PROPOSED DECISION so the build uses them (never invent image URLs).
 10. If proposing a decision, use exactly:
    PROPOSED DECISION: <decision>
    RATIONALE: <reason>
@@ -3933,6 +3938,9 @@ Rewrite ONLY the affected sections (same headings, same structure), with every v
       if (planSavedId) {
         addChip(`${PLAN_SAVED_CHIP} (hatua ${planStepsTotal}${planHits.length ? ` · ⚠️ tofauti ${planHits.length} za data zimeandikwa wazi` : ""}${planStatus !== "active" ? ` · ⛔ status ${planStatus}` : ""}) — computer-use agent inaupata kwa /api/plans?session=${sessionId || runner.id}`);
         blog("success", `📋 Mpango Kazi wa Agent umehifadhiwa (hatua ${planStepsTotal} · status ${planStatus} · doc ${planSavedId.slice(0, 8)}… · herufi ${asm.markdown.length}).`);
+        // T36: kipimo cha utofauti — onyo (si kizuizi) kama mwonekano unafanana sana na mradi wa karibuni
+        const dw = await diversityWarning(sessionId || runner.id, planTitle, `${pc(asm.sections[1], 10_000)}\n${asm.markdown}`);
+        if (dw) blog("warning", dw);
       } else {
         addChip("❌ Mpango Kazi umeshindwa kuhifadhiwa Appwrite — ripoti inaendelea; bonyeza Endeleza kujaribu tena.");
         blog("error", "❌ [plans] Mpango Kazi haukuhifadhiwa Appwrite (angalia logs za server).");

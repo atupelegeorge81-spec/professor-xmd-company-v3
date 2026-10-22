@@ -51,7 +51,7 @@ export async function consolidateSelf(
       [
         {
           role: "system",
-          content: `You are ${who}, consolidating YOUR OWN long-term self memory (how you work, what you learned about yourself, your strengths, mistakes to avoid, your preferences). Board/project facts do NOT belong here. Output ONLY the SELF_MEMORY section. ${LINE_RULE} Keep it under ${COLUMN_MAX} characters.`,
+          content: `You are ${who}, consolidating YOUR OWN long-term self memory (how you work, what you learned about yourself, your strengths, mistakes to avoid, your working habits — NOT aesthetic taste or favourite stacks: every project picks its own look and stack from its brief). Board/project facts do NOT belong here. Output ONLY the SELF_MEMORY section. ${LINE_RULE} Keep it under ${COLUMN_MAX} characters.`,
         },
         {
           role: "user",
@@ -63,7 +63,7 @@ ${oldSelf || "(empty)"}
 YOUR NEW SELF NOTES (today):
 ${add.map(renderLine).join("\n") || "(none)"}
 
-Rules: merge duplicates into one line (keep the most exact wording and the highest imp); a newer fact replaces an older conflicting one; drop stale or trivial lines; keep exact values; never invent anything that is not in the lines above.
+Rules: merge duplicates into one line (keep the most exact wording and the highest imp); a newer fact replaces an older conflicting one; drop stale or trivial lines; keep exact values; never invent anything that is not in the lines above.\nT36 MEMORY RULES: a lesson must stay useful on a project with a COMPLETELY different look and stack — never turn this project's style or stack choice into a rule (no \"always use zero-radius/hairlines/<font>/<palette>\", no \"always pair <framework> with <database>\"); a style or stack choice is a fact of THIS project only. Never write \"Mkuu prefers/likes/approved …\" unless Mkuu himself said it in his brief or chat — then quote his words.
 
 SELF_MEMORY:
 - …`,
@@ -123,7 +123,7 @@ NEW BOARD NOTES FROM THE TEAM (today):
 ${byAgent}
 ${ctx.openNote ? `\n${ctx.openNote}\n` : ""}
 Rules: one lesson = one line even if several agents reported it; a newer lesson replaces an older conflicting one; drop stale or trivial lines.
-R30.1 LESSON RULES (strict): every line must be a TRANSFERABLE LESSON useful on ANY project — write it as "Kwenye <hali ya jumla>: <funzo>" style. Do NOT put project-specific values in the text (no hex colours, prices, sizes, phone numbers, library versions, viewport lists) — the [project] label already records where it was learned. A decision of one project is a fact OF THAT PROJECT only — write it as "used in <project>" (never "locked"/"final" as a general rule). Do NOT store business data values (prices, opening hours, phone numbers, emails, street addresses) — each brief's DATA RASMI is their only source. Keep the total under 30 lines.
+R30.1 LESSON RULES (strict): every line must be a TRANSFERABLE LESSON useful on ANY project — write it as "Kwenye <hali ya jumla>: <funzo>" style. Do NOT put project-specific values in the text (no hex colours, prices, sizes, phone numbers, library versions, viewport lists) and no visual style (typefaces, palettes, dark/light themes, clean lines, asymmetry, zero-radius) and no named stack picks as defaults — the [project] label already records where it was learned. A decision of one project is a fact OF THAT PROJECT only — write it as "used in <project>" (never "locked"/"final" as a general rule). Do NOT store business data values (prices, opening hours, phone numbers, emails, street addresses) — each brief's DATA RASMI is their only source. Keep the total under 30 lines.
 
 COMPANY_MEMORY:
 - …`,

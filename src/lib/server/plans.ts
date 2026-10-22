@@ -161,3 +161,15 @@ export async function getPlanByProject(projectId: string): Promise<ProjectPlanDo
     return null;
   }
 }
+
+/** T36: mipango ya karibuni (mpya kwanza) — kwa orodha ya "usirudie" ya mwonekano wa miradi iliyopita (brain/memory/avoid.ts) */
+export async function listRecentPlans(limit = 8): Promise<ProjectPlanDoc[]> {
+  if (!appwriteConfigured) return [];
+  try {
+    const res = await databases.listDocuments(DB, PROJECT_PLANS_COL, [Query.orderDesc("$createdAt"), Query.limit(Math.max(1, Math.min(25, limit)))]);
+    return res.documents.map(toDoc);
+  } catch (e: any) {
+    console.warn(`⚠️ [plans] listRecentPlans ilishindwa: ${String(e?.message || e).slice(0, 120)}`);
+    return [];
+  }
+}

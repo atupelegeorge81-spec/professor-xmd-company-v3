@@ -8,7 +8,16 @@ import { GOVERNANCE_BOARD, TOOLING_RULES, TOOLING_BOARD } from "./governance";
 import { liveContextBlock, type LiveOpts } from "./liveContext";
 import { understandingBlock } from "./understanding";
 import { searchPolicyBlock } from "./searchPolicy";
-import { recallMemory, memoryBlock } from "./memory/recall";
+import { recallMemory, memoryBlock, type Recall, type RecallTrace } from "./memory/recall";
+import { avoidBlock } from "./memory/avoid";
+
+/** T36: trace ya kumbukumbu za miradi mingine — vitambulisho vilivyoingia + idadi zilizozuiwa (si maudhui) */
+export function traceTag(t?: RecallTrace): string {
+  if (!t) return "";
+  const used = t.past.length ? `zamani ${t.past.map((x) => `${x.id}:${x.kind}`).join(",")}` : "zamani 0";
+  const b = Object.entries(t.blocked).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(", ");
+  return `${used}${b ? ` · zimezuiwa: ${b}` : ""}`;
+}
 import { selectSkills, catalogueFor, renderSkills, selectionTag, type Phase, type Surface } from "./skills/selector";
 import { brainLine, fmtChars, type BlogFn } from "./brainLog";
 import { personaOf } from "./ids";
@@ -51,19 +60,22 @@ export async function buildAgentPrompt(o: BuildOpts): Promise<BuiltPrompt> {
 
   // 5) memory (haipakiwi kwa ripoti / assembly / kazi za memory zenyewe)
   const wantsMemory = !["report", "assembly", "memory"].includes(o.phase);
-  let recall = { self: "", board: "", count: 0, chars: 0 };
+  let recall: Recall = { self: "", board: "", count: 0, chars: 0 };
   if (wantsMemory && !memoryOn()) memoryOffNote(o.blog);
   else if (wantsMemory) {
     const tr = Date.now();
     try {
-      recall = await recallMemory(p, { query: `${o.agenda?.item || ""} ${o.task || ""}`.slice(0, 1200), project: o.projectLabel || o.project, surface: o.surface });
+      recall = await recallMemory(p, { query: `${o.agenda?.item || ""} ${o.task || ""}`.slice(0, 1200), project: o.projectLabel || o.project, surface: o.surface, context: `${o.project || ""} ${o.agenda?.item || ""} ${o.task || ""}`.slice(0, 6000) });
       const n = (t: string) => t.split("\n").filter((l) => l.trim()).length;
-      o.blog?.("info", brainLine("memory.recall", personaName(p), [o.surface, o.phase, recall.count ? `self ${n(recall.self)} · board ${n(recall.board)}` : "hakuna memory inayohusiana", recall.count ? fmtChars(recall.chars) : ""], Date.now() - tr));
+      o.blog?.("info", brainLine("memory.recall", personaName(p), [o.surface, o.phase, recall.count ? `self ${n(recall.self)} · board ${n(recall.board)}` : "hakuna memory inayohusiana", recall.count ? fmtChars(recall.chars) : "", traceTag(recall.trace)], Date.now() - tr));
     } catch (err: any) {
       /* memory haipatikani → prompt inaendelea bila hiyo */
       o.blog?.("warning", brainLine("memory.recall", personaName(p), [o.surface, `FAILED: ${String(err?.message || err).slice(0, 80)}`], Date.now() - tr));
     }
   }
+
+  // 5c) T36: orodha ya "usirudie" — mwonekano/stack ya miradi ya karibuni (Board tu; si kumbukumbu ya kunakili)
+  const avoid = wantsMemory && memoryOn() ? await avoidBlock({ persona: p, surface: o.surface, phase: o.phase, sessionId: o.sessionId }) : "";
 
   // 6) skills — modules za wakati huu tu (kamili, hazikatwi)
   const sel = selectSkills({ persona: p, surface: o.surface, phase: o.phase, text: `${o.agenda?.item || ""}\n${o.task || ""}`, need: o.need, scope });
@@ -97,6 +109,7 @@ export async function buildAgentPrompt(o: BuildOpts): Promise<BuiltPrompt> {
     o.surface === "board" ? TOOLING_BOARD : "",
     searchPolicyBlock(o.surface, o.phase),
     memoryBlock(recall), // 5
+    avoid, // 5c (T36)
     o.rolling || "", // 5b (chat: rolling checkpoint ya thread)
     skillText, // 6
     o.extra || "", // 6b (WEBSITE DATA)
@@ -111,6 +124,7 @@ export async function buildAgentPrompt(o: BuildOpts): Promise<BuiltPrompt> {
       o.phase,
       o.agenda ? `Agenda ${o.agenda.index}` : "",
       `memory ${recall.count}`,
+      avoid ? "avoid-list ✓" : "",
       `skills [${selectionTag(sel) || "—"}]`,
       fmtChars(system.length),
     ], ms),

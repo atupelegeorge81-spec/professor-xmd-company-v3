@@ -518,3 +518,11 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Gharama: Computer iliyoripotiwa 1.02B ≈ **~129M halisi** (bug ya metering, haijarekebishwa: QUESTIONS #1).
 - Baselines: tsc 0 · vitest 838 + 2 skipped · eslint 29 · pytest 346.
 - 2026-10-22 14:06 UTC: CEO ameagiza milestone mode iwashwe kwenye production (`XMD_MILESTONES=1`) ili atest mwenyewe.
+
+## Task 36 — Kumbukumbu zisiingiliane kati ya miradi + ubunifu + picha za mfano · **DONE (real-data + unit tests; real run: CEO)**
+- Branch `task/36-memory-scope-creativity` · mpango: `task-docs/MPANGO-KUMBUKUMBU-NA-UBUNIFU.md` · agizo la CEO 2026-10-22 (agents wote; hakuna kufuta).
+- Chanzo: `recall.ts` iliingiza hadi mistari 6 ya miradi mingine kwa neno 1 la uhusiano; mask iliondoa hex/px tu → "editorial · zero-radius · hairline · cyan · Next.js+Supabase+Zod" zilirudi kila kikao kipya.
+- Mpya: `brain/memory/scope.ts` (design/pref iliyokisiwa haivuki · tech inavuka ikiwa kwenye kazi hii tu · funzo ≥2 maneno · upeo 3 · trace kwenye logs), `brain/memory/avoid.ts` (FRESH START — DO NOT REPEAT: mwonekano/stack ya miradi 5 ya karibuni kwa maneno + onyo la utofauti baada ya plan), `imageSearch.ts` (`RESEARCH_REQUEST: images: …` → Wikimedia Commons/Openverse, IMAGE_URL + leseni + credit).
+- Prompts za kuandika memory: mtindo/stack si sheria; "Mkuu prefers" ni nukuu tu. Skill frontend-design: mielekeo 3 → chagua 1; picha za hero. Ultron temperature 0.8.
+- Data halisi: mistari 121 ya agent_memory → Ultron 22/22 na Vextron 24/24 zinazuiwa kuvuka; mafunzo ya utaratibu yanabaki. Backup: `xmdtest/t36/`.
+- Baselines: tsc 0 · vitest 856 + 2 skipped (+18) · eslint 29 = kabla · pytest 346. Ushahidi: docs/tests/task-36.md.

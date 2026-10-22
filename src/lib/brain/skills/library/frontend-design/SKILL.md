@@ -14,4 +14,6 @@ PROFESSOR-XMD edition of Anthropic "frontend-design" (the anthropics/skills copy
 - "confirm with the client" = state it as a proposal in the Board (or `CLARIFY: @Agent`), then lock it.
 - Ultron proposes the design plan (tokens, palette, type, layout); Vextron builds it in code; both critique.
 - "take screenshots" = there is no browser here — use the STATIC PROBE facts the system gives the reviewer, and self-critique against this checklist.
-- "jot down notes about what you've tried" = your private agent memory does this for you after each agenda.
+- "jot down notes about what you've tried" = your private agent memory does this for you after each agenda. T36: memory NEVER carries the look of other projects — what the company already shipped is given to you as the "FRESH START — DO NOT REPEAT" list, so you avoid it instead of copying it.
+- "Mkuu's preferences" = only what Mkuu himself wrote in his brief or chat. A line that guesses his taste is not a preference.
+- T36: for the hero and other visual sections you may fetch REAL sample photos with `RESEARCH_REQUEST: images: <subject keywords>` (results carry IMAGE_URL, licence, credit).

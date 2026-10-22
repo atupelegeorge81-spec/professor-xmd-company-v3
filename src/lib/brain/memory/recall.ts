@@ -3,6 +3,7 @@ import { readMemory, COMPANY_DOC } from "./store";
 import { parseLines, renderLine, type MemLine } from "./format";
 import type { Persona } from "../ids";
 import { maskPastValues, rememberPastProject } from "../../board/memoryAuthority";
+import { crossProjectVerdict, lineId, type LineKind } from "./scope";
 
 const STOP = new Set("the a an and or for to of in on at by with from is are be this that it as we you our your yake kwa na ya wa la za ni katika hii huo hiyo".split(" "));
 const words = (s: string) => new Set(String(s || "").toLowerCase().split(/[^a-z0-9\u00c0-\u024f#]+/).filter((w) => w.length > 2 && !STOP.has(w)));
@@ -32,7 +33,12 @@ function pick(col: string, q: Set<string>, project: string, budget: number): Mem
   return out;
 }
 
-export interface Recall { self: string; board: string; count: number; chars: number; past?: string }
+/** T36: trace — mistari ipi ya miradi mingine iliingia (vitambulisho + aina) na ngapi zilizuiwa kwa sababu gani */
+export interface RecallTrace { past: { id: string; kind: LineKind; project: string }[]; blocked: Partial<Record<LineKind | "weak", number>> }
+export interface Recall { self: string; board: string; count: number; chars: number; past?: string; trace?: RecallTrace }
+
+/** T36: upeo wa mafunzo ya miradi mingine kwa prompt moja (ilikuwa 6) */
+export const PAST_MAX = 3;
 
 // R27: lebo ya Board ni ya KIKAO (jina + #kitambulisho, board/memoryAuthority.sessionLabel) — vikao viwili vya brief moja
 // vina jina moja; renderLine inakata lebo kwenye herufi 60 → linganisha herufi 60 za kwanza pande zote mbili
@@ -41,7 +47,7 @@ const sameProject = (l: MemLine, project: string) => !!project && !!l.project &&
 /** R26 (C1): mstari wa mradi MWINGINE — "locked/imefungwa" inaondolewa (si uamuzi wa mradi huu) */
 const asLesson = (l: MemLine): MemLine => ({ ...l, text: maskPastValues(l.text).replace(/\b(locked|finali[sz]ed|approved)\b\s*:?/gi, "used:").replace(/\b(imefungwa|iliyofungwa|zilizofungwa)\b/gi, "ilitumika") });
 
-export async function recallMemory(p: Persona, o: { query: string; project?: string; surface: "chat" | "board" }): Promise<Recall> {
+export async function recallMemory(p: Persona, o: { query: string; project?: string; surface: "chat" | "board"; context?: string }): Promise<Recall> {
   // R18: SELF = doc ya agent mwenyewe · BOARD = memory MOJA ya kampuni (agent_memory/company) — wote wanaisoma.
   // board_memory ya zamani ya agent (kabla ya R18) bado inasomwa kama akiba ikiwa company haina kitu.
   const [doc, company] = await Promise.all([readMemory(p), readMemory(COMPANY_DOC)]);
@@ -55,21 +61,36 @@ export async function recallMemory(p: Persona, o: { query: string; project?: str
   // "Target <50KB" ya Mama Lishe ilitajwa kama "locked" kwenye Saluni). Chat haina mradi → kama zamani.
   if (o.surface === "board" && project) {
     const mine = [...s, ...b].filter((l) => sameProject(l, project));
-    const othersAll = [...s, ...b].filter((l) => !sameProject(l, project));
+    // T36: mistari ya miradi mingine inapangwa kutoka memory NZIMA (si baada ya budget) — design zilizozuiwa hazila nafasi ya mafunzo
+    const selfAll = pick(doc?.self_memory || "", q, project, Number.MAX_SAFE_INTEGER);
+    const boardAll = pick(company?.board_memory || doc?.board_memory || "", q, project, Number.MAX_SAFE_INTEGER);
+    const othersAll = [...selfAll, ...boardAll].filter((l) => !sameProject(l, project));
     // R28: jina la kila mradi wa zamani → gate ya pendekezo (hii ni orodha ya mamluki, si maudhui ya prompt)
     for (const l of othersAll) if (l.project) rememberPastProject(l.project);
-    // R30.1 (E3b): funzo za miradi mingine zinaingia prompt ZIKIWA tu zina neno moja+ la uhusiano na agenda/mradi
-    // wa SASA — si kila prompt kwa kila agent (kelele za kumbukumbu hazitasombwa tena bila sababu).
-    const relHit = (l: MemLine) => {
+    // R30.1 (E3b) → T36: funzo la mradi mwingine linaingia TU likipita lango la mipaka (scope.ts): design na upendeleo
+    // uliokisiwa havivuki kamwe · teknolojia mahususi zinavuka tu zikiwa kwenye kazi hii · funzo linahitaji maneno 2+
+    // ya uhusiano (zamani: neno 1 — ndiyo maana design ileile ilirudi kila mradi mpya). Hakuna mstari unaofutwa.
+    const relHits = (l: MemLine) => {
       const lw = words(`${l.project} ${l.text}`);
-      for (const w of q) if (lw.has(w)) return true;
-      return false;
+      let n = 0;
+      for (const w of q) if (lw.has(w)) n++;
+      return n;
     };
-    const other = othersAll.filter(relHit).slice(0, 6).map(asLesson);
+    const ctx = `${o.context || ""} ${o.query} ${project}`;
+    const blocked: RecallTrace["blocked"] = {};
+    const allowed: { l: MemLine; kind: LineKind }[] = [];
+    for (const l of othersAll) {
+      const v = crossProjectVerdict(l, ctx, relHits(l));
+      if (v.ok) allowed.push({ l, kind: v.kind });
+      else { const k = v.why === "uhusiano mdogo" ? "weak" : v.kind; blocked[k] = (blocked[k] || 0) + 1; }
+    }
+    const picked = allowed.slice(0, PAST_MAX);
+    const other = picked.map((x) => asLesson(x.l));
+    const trace: RecallTrace = { past: picked.map((x) => ({ id: lineId(x.l.text), kind: x.kind, project: x.l.project.slice(0, 60) })), blocked };
     const selfMine = s.filter((l) => sameProject(l, project)).map(renderLine).join("\n");
     const boardMine = b.filter((l) => sameProject(l, project)).map(renderLine).join("\n");
     const past = other.map(renderLine).join("\n");
-    return { self: selfMine, board: boardMine, past, count: mine.length + other.length, chars: selfMine.length + boardMine.length + past.length };
+    return { self: selfMine, board: boardMine, past, count: mine.length + other.length, chars: selfMine.length + boardMine.length + past.length, trace };
   }
   const self = s.map(renderLine).join("\n");
   const board = b.map(renderLine).join("\n");
@@ -78,5 +99,5 @@ export async function recallMemory(p: Persona, o: { query: string; project?: str
 
 export function memoryBlock(r: Recall): string {
   if (!r.count) return "";
-  return `=== YOUR RELEVANT MEMORY (private — use it, never recite it) ===${r.self ? `\nSELF (yours — this project):\n${r.self}` : ""}${r.board ? `\nBOARD (company-wide — this project):\n${r.board}` : ""}${r.past ? `\nPAST SESSIONS — lessons only (values removed). These are NOT decisions or evidence of the current session and are never "locked" or "verified" here — even when a past session had the same name or client. The current brief, DATA RASMI, this session's discussion and its Ledger always override them. Never cite them, never argue "continuity" with them, never say "the previous project chose/locked/verified":\n${r.past}` : ""}`;
+  return `=== YOUR RELEVANT MEMORY (private — use it, never recite it) ===${r.self ? `\nSELF (yours — this project):\n${r.self}` : ""}${r.board ? `\nBOARD (company-wide — this project):\n${r.board}` : ""}${r.past ? `\nPAST SESSIONS — lessons only (values removed). These are NOT decisions or evidence of the current session and are never "locked" or "verified" here — even when a past session had the same name or client. The current brief, DATA RASMI, this session's discussion and its Ledger always override them. Never cite them, never argue "continuity" with them, never say "the previous project chose/locked/verified". They NEVER carry a look, palette, font, layout style or tech stack — every new project decides those FRESH from its own brief:\n${r.past}` : ""}`;
 }

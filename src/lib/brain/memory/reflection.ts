@@ -49,7 +49,7 @@ BOARD:
 SKILL_NEED: <skill name> — <evidence from today why a NEW skill (not in your library) is needed>
 (or write NO_NEW_SKILL — new skills are rare; only with concrete evidence)
 
-If there is nothing worth keeping, write NO_MEMORY instead of SELF/BOARD (still answer SKILL_NEED / NO_NEW_SKILL).`,
+If there is nothing worth keeping, write NO_MEMORY instead of SELF/BOARD (still answer SKILL_NEED / NO_NEW_SKILL).\nT36 MEMORY RULES: a lesson must stay useful on a project with a COMPLETELY different look and stack — never turn this project's style or stack choice into a rule (no \"always use zero-radius/hairlines/<font>/<palette>\", no \"always pair <framework> with <database>\"); a style or stack choice is a fact of THIS project only. Never write \"Mkuu prefers/likes/approved …\" unless Mkuu himself said it in his brief or chat — then quote his words.`,
         },
       ],
       480,

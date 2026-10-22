@@ -69,7 +69,7 @@ export async function writeCheckpoint(llm: LlmFn, blog: BlogFn, c: CheckpointInp
   const t0 = Date.now();
   const name = personaName(c.persona);
   try {
-    const known = await recallMemory(c.persona, { query: c.agendaItem, project: c.project, surface: "board" }).catch(() => null);
+    const known = await recallMemory(c.persona, { query: c.agendaItem, project: c.project, surface: "board", context: c.agendaItem }).catch(() => null);
     // R20: agenda isiyofungwa haielezwi tena kama "FINAL LOCKED DECISION" (Vextron aliandika A6 "locked" wakati ilibaki OPEN)
     const locked = isLockedMini(c.miniDecision);
     const silent = stayedSilent(c.talk, name, c.role);
@@ -99,13 +99,13 @@ ${[known?.self, known?.board].filter(Boolean).join("\n") || "(nothing yet)"}
 
 Write your memory checkpoint in EXACTLY this format:
 SELF:
-- [imp:1-5] <about YOU: a lesson, a mistake you made or avoided, what worked, a preference of Mkuu you noticed> (0-2 lines, or NONE)
+- [imp:1-5] <about YOU: a lesson, a mistake you made or avoided, what worked, a preference Mkuu STATED himself (quote him — never guess)> (0-2 lines, or NONE)
 BOARD:
 - [imp:1-5] <knowledge you must carry into future Boards: the decision and its exact key values, open risks, dependencies> (0-3 lines, or NONE)
 
 If there is truly nothing worth remembering, output only: NO_MEMORY
 imp: 5 = critical, 3 = useful, 1 = minor. Each line under 220 characters.
-Never store business data values (prices, opening hours, phone numbers, emails, street addresses) — they live in the brief's DATA RASMI, not in memory.`,
+Never store business data values (prices, opening hours, phone numbers, emails, street addresses) — they live in the brief's DATA RASMI, not in memory.\nT36 MEMORY RULES: a lesson must stay useful on a project with a COMPLETELY different look and stack — never turn this project's style or stack choice into a rule (no \"always use zero-radius/hairlines/<font>/<palette>\", no \"always pair <framework> with <database>\"); a style or stack choice is a fact of THIS project only. Never write \"Mkuu prefers/likes/approved …\" unless Mkuu himself said it in his brief or chat — then quote his words.`,
         },
       ],
       900, // R26: 420 ilikata mistari ya memory katikati (thinking ya Gemini inakula bajeti)

@@ -8,6 +8,7 @@ import { GEMINI_EMBED_MODELS, GEMINI_NATIVE_URL } from "./env";
 import { GEM_ACCOUNTS, type GemAccountId } from "./usage/accounts";
 import { slotKeys } from "./server/usageKeys";
 import { gemState, noteGemError, noteGemResult } from "./server/usageLedger";
+import { imageQueryOf, searchImages } from "./imageSearch";
 
 export interface SearchResult { title: string; url: string; content: string; }
 
@@ -150,6 +151,9 @@ export async function getEmbedding(text: string): Promise<Embedded> {
 }
 
 export async function searchWeb(query: string, onEvent?: (e: AgentEvent) => void, agentName = "Agent"): Promise<SearchResult[]> {
+  // T36: "images: <subject>" → picha halisi za mfano (Commons/Openverse) — hakuna cache, hakuna SearXNG
+  const iq = imageQueryOf(query);
+  if (iq) return searchImages(iq, (t, m) => emitLog(onEvent, t, m), agentName);
   const searchQuery = normalizeSearchQuery(query);
   const normalizedQuery = searchQuery.trim().toLowerCase();
   emitLog(onEvent, "info", `🔍 ${agentName} anakagua Appwrite cache kwanza (Semantic Search)...`);
@@ -167,6 +171,8 @@ export async function searchWeb(query: string, onEvent?: (e: AgentEvent) => void
 }
 
 export async function searchWebDirect(query: string, onEvent?: (e: AgentEvent) => void, agentName = "Agent"): Promise<SearchResult[]> {
+  const iq = imageQueryOf(query); // T36
+  if (iq) return searchImages(iq, (t, m) => emitLog(onEvent, t, m), agentName);
   emitLog(onEvent, "info", `🔄 [VERIFY] ${agentName} anarudi SearXNG MOJA KWA MOJA (hakuna Appwrite check — memory ya mjadala inatosha).`);
   const searchQuery = normalizeSearchQuery(query);
   return await doFreshSearch(searchQuery, searchQuery.trim().toLowerCase(), onEvent, agentName);
