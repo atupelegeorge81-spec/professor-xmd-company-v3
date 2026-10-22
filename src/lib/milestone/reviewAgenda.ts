@@ -74,6 +74,8 @@ export interface ReviewAgendaPayload {
   participants: string[];
   /** TASK-29: wachezaji wa slots (technical → backend + qa) */
   cast?: Partial<ReviewCast>;
+  /** TASK-33 (CEO #4): kikomo cha zamu za owners — mjadala ulioombwa (requestDiscussion) katika uthibitisho ni mfupi; R0 haina kikomo hiki */
+  maxTurns?: number;
 }
 export type ReviewAgendaItem = AgendaItem & { kind: typeof REVIEW_KIND; reviewId: string; review: ReviewAgendaPayload };
 export const isReviewAgenda = (it: unknown): it is ReviewAgendaItem => (it as { kind?: string })?.kind === REVIEW_KIND && !!(it as { review?: unknown }).review;

@@ -43,6 +43,8 @@ export interface FixPackInput {
   round: number;
   /** TASK-27: maagizo ya ngazi za escalation (concrete/pair_patch/split/redecide) */
   escalation?: string[];
+  /** TASK-33 (CEO #5): historia ya kila defect — kilichojaribiwa na kwa nini kilishindwa (Computer bado anaanza na muktadha mpya) */
+  history?: string[];
 }
 
 /** TASK-27: matokeo ya harness kujaribu pair patch (`git apply --check` → `git apply`). */
@@ -79,6 +81,7 @@ export function renderFixPack(p: FixPackInput): string {
     "```",
     "",
     ...(p.escalation?.length ? [...p.escalation, ""] : []),
+    ...(p.history?.length ? ["## DEFECT HISTORY — what earlier rounds tried for these defects and why it failed (do NOT repeat a failed approach)", ...p.history, ""] : []),
     "## REPO SUMMARY (real, from the sandbox)",
     "```",
     (p.repo.tree || "(empty)").trim(),

@@ -52,7 +52,7 @@ import { milestonesEnabled, milestoneResumeBlocked } from "./milestone/flag"; //
 import { generateMilestoneMap, detectHasUI } from "./milestone/map"; // TASK-12
 import { putRecord, getRecord, msChip, readMsMap, MAP_KEY, MS_PREFIX } from "./milestone/store"; // TASK-12/13 (getRecord: TASK-16)
 import { activeAgentsFor, rosterOwners, participantNames, milestoneOf } from "./milestone/roster"; // TASK-13
-import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks, applyEscalation, escalateLlm, fixRoundHeader, freshMilestoneState, recordLaneUse } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16) · TASK-30: recordLaneUse
+import { maybeCloseMilestones, milestonesDoneFromChips, buildKey, msUpdate, planKey, type LoopHooks, applyEscalation, escalateLlm, memoLlm, fixRoundHeader, freshMilestoneState, recordLaneUse } from "./milestone/loop"; // TASK-24: msUpdate/planKey // TASK-14 (buildKey: TASK-16) · TASK-30: recordLaneUse
 import { laneUseOf } from "./milestone/judge"; // TASK-30
 import { laneCallOf } from "./broker"; // TASK-30
 import { buildOCB, buildOCBForComputer, withOCB, type OcbSelf } from "./milestone/ocb"; // TASK-14 (Computer OCB: TASK-16)
@@ -1619,6 +1619,8 @@ async function run(runner: Runner) {
       bcast: (e) => bcast(e as BoardEvent), addChip, blog: (lvl, t) => blog(lvl, t),
       persist: () => persist(status, conversationTitle),
       resolvedAgendas: async () => new Set((await finalBoardResolution(runner.id)).map((e) => e.agenda_index)),
+      // TASK-33: Optimus anaandika mini-report ya review (rolling) + reviewers wanathibitisha R0 — LLM halisi ya broker
+      memo: { complete: (agent, purpose, messages) => memoLlm(sessionId || runner.id, agent, purpose, messages) },
       // TASK-15: plan ya milestone MOJA — mashine ya plan ya Board (lanes za plan, Data Guard, lango la Task 4)
       plan: async (m) => {
         brain.state({ phase: "plan" });
@@ -1713,7 +1715,9 @@ async function run(runner: Runner) {
         },
         context: async (m, round, openDefects) => {
           const all = testVerify?.ledger ?? testFix?.ledger ?? await finalBoardResolution(runner.id);
+          const mine = all.filter((e) => e.agenda_index >= m.agendas.from && e.agenda_index <= m.agendas.to); // TASK-33: mini-reports za agenda za milestone
           return {
+            miniReports: await Promise.all(mine.map(async (e) => ({ agendaIndex: e.agenda_index, title: e.agenda_item, detail: testVerify ? String(e.decision_detail || e.decision_summary || "") : await miniDetailOf(e) }))),
             ocb: { project: { name: conversationTitle, summary: runner.project }, map: runner.msMap!, milestoneId: m.id, round: { current: round, max: MAX_ROUNDS },
               counts: { lockedDecisions: lockedCount() || all.length, milestonesDone: milestonesDoneFromChips(runner.msChips), openDefects, waivers: 0 } },
             ledger: all,
@@ -1954,12 +1958,13 @@ ${runner.project}`;
       // ========================================================
       // OWNER DISCUSSION — R12: deliberation guard (anti-loop) + dawati la hati (READ_SOURCE)
       // ========================================================
-      const delib = createDeliberation({ owners: ownerAgents.map((a) => ({ id: a.id, name: a.name })), chairId: "pm" });
+      const reviewCap = rv?.review.maxTurns; // TASK-33: mjadala ulioombwa katika uthibitisho — mfupi na wenye kikomo
+      const delib = createDeliberation({ owners: ownerAgents.map((a) => ({ id: a.id, name: a.name })), chairId: "pm", ...(reviewCap ? { maxTurns: reviewCap } : {}) });
       const desk = createSourceDesk({ blog, bcast, addMsg, setItemContent });
       const syncDelib = () => brain.state({ delib: { ...delib.snapshot(), docsRead: desk.count } });
       // R37: reserve ya Itifaki ya Kufunga (chair → kura → marekebisho → kura ya pili → fallback) —
       // consensus ya kawaida bado inafunga mapema; reserve inatumika tu kwenye agenda iliyokwama.
-      const HARD_TURNS = Math.min(MAX_TURNS, delib.maxTurns + ownerAgents.length * 2 + 6);
+      const HARD_TURNS = reviewCap ? Math.min(MAX_TURNS, reviewCap + ownerAgents.length) : Math.min(MAX_TURNS, delib.maxTurns + ownerAgents.length * 2 + 6);
       for (let turn = 0; turn < HARD_TURNS && !decision && !delib.closed(); turn++) {
         // CLARIFY: @Owner inampa owner huyo zamu hii; CHAIR/VOTE (deliberation) inalazimisha mzungumzaji
         const forcedId = delib.forcedSpeaker();

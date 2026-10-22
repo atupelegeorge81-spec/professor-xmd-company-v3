@@ -312,7 +312,17 @@ export interface VerifyContext {
   /** TASK-29: technical → slots zinachezwa na wataalamu wa roster (backend + qa) */
   cast?: Partial<ReviewCast>;
   reviewMode?: ReviewMode;
+  /** TASK-33 (CEO #3): mini-report ya review inayokua — ingizo 3 za mwisho kamili, za zamani zimefupishwa (renderMemo) */
+  memo?: string;
+  /** TASK-33: findings ZAKE kamili za R0 kwa kila reviewer (ownR0Findings) */
+  ownR0?: Partial<Record<ReviewerId, string>>;
+  /** TASK-33: historia ya kila defect (majaribio, sababu za kushindwa, COs zilizopita) */
+  defectHistory?: string[];
+  /** TASK-33: mini-reports za agenda za milestone hii (context pack ya awali) */
+  agendaMiniReports?: { agendaIndex: number; title: string; detail: string }[];
 }
+/** TASK-33: kikomo cha kila mini-report ya agenda kwenye prompt ya uthibitisho */
+export const VERIFY_MINI_CHARS = 2500;
 const agentFor = (r: ReviewerId, cast?: Partial<ReviewCast>) => AGENTS.find((x) => x.id === castAgentId(cast, r)) || AGENTS.find((x) => x.id === r)!;
 const TECH_VERIFY_NOTE = `TECHNICAL MODE: there are NO screenshots. PASS = the change order's "desired" state is proven by the evidence (command output, http status incl. negative/unauthenticated checks, db check, secrets scan). Cite "check:<id>" (e.g. check:CO-001/c1, check:tech/secrets). A Build Report / receipt claim that a check contradicts is a FAIL.`;
 
@@ -333,7 +343,7 @@ const VERIFY_SPEC = `OUTPUT: ONE JSON object, nothing else (a \`\`\`json fence i
   "cos": [ { "orderId": "CO-001", "verdict": "PASS|FAIL|PARTIAL", "evidence": ["S-002", "S-002 dom: <selector> <property>=<value>", "check:CO-001/c1"], "note": "why (cite numbers)" } ],   // EVERY change order of this round, once
   "regressions": [ { "title", "area", "severity": "blocker|major|medium|minor", "kind": "broken", "evidence": [...], "expected", "actual" } ],   // things that worked before this round and are broken now
   "newDefects":  [ { "title", "area", "severity", "kind": "violation|broken", "decisionRef?": "A2", "evidence": [...], "expected", "actual" } ],   // problems NOT already listed in the DEFECT LEDGER below (never re-report a listed defect)
-  "requestDiscussion": null,   // or { "reason": "..." } ONLY if the whole team must discuss something before the next round
+  "requestDiscussion": null,   // or { "reason": "..." } ONLY if the whole team must decide something new before the next round (a requirement conflict, a ledger question) — NEVER just because another fix round is needed
   "notes": "overall verdict"
 }
 RULES: PASS = the change order's "desired" state is visibly and measurably there. PARTIAL = some of it. FAIL = not there or wrong.
@@ -417,7 +427,10 @@ acceptance checks (decided by code): ${ck.map((x) => `check:${x.id} ${x.result} 
     `${ocb}\n${formatRoundHeader(ctx.roundHeader)}`,
     ...(ctx.notes?.length ? [`## NOTES FROM THE HARNESS\n${ctx.notes.map((n) => `- ${n}`).join("\n")}`] : []),
     `## LEDGER (locked decisions)\n${ledger}`,
+    ...(ctx.agendaMiniReports?.length ? [`## AGENDA MINI-REPORTS OF THIS MILESTONE (Optimus)\n${ctx.agendaMiniReports.map((r) => `### A${r.agendaIndex} ${r.title}\n${cap(r.detail, VERIFY_MINI_CHARS)}`).join("\n\n")}`] : []),
     ...(ctx.planGoal ? [`## PLAN GOAL (what the product must contain)\n${ctx.planGoal}`] : []),
+    ...(ctx.memo ? [`## REVIEW MINI-REPORT (the team's written memory of R0 and every round since — last 3 entries full, older ones compressed)\n${ctx.memo}`] : []),
+    ...(ctx.ownR0?.[reviewer] ? [`## YOUR OWN R0 FINDINGS (what you reported in the blind review)\n${ctx.ownR0[reviewer]}`] : []),
     `## CHANGE ORDERS OF ROUND ${ctx.roundHeader.round} (verify EVERY one)\n${cos}`,
     `## GLOBAL CHECKS (decided by code)\n${global}`,
     ...(tech ? [`## FRESH TECHNICAL EVIDENCE (decided by code — no screenshots)\n${techLines}`] : []),
@@ -433,6 +446,7 @@ GIT DIFF SUMMARY:
 ${cap(pack.gitDiffSummary || "(none)", 3000)}
 PICTURES: ${imgs.length ? `${imgs.length} attached after this text: ${imgs.map((i) => i.id).join(", ")}` : "none attached — use the DOM metrics"}`,
     `## DEFECT LEDGER OF THIS MILESTONE\n${defects}`,
+    ...(ctx.defectHistory?.length ? [`## DEFECT HISTORY (attempts, why they failed, previous change orders)\n${ctx.defectHistory.join("\n")}`] : []),
     `## YOUR TASK\nVerify round ${ctx.roundHeader.round} of ${ctx.roundHeader.milestoneId} as ${agentFor(reviewer, ctx.cast).name} (reviewer id "${reviewer}"): one verdict per change order (${ctx.changeOrders.map((c) => c.id).join(", ")}), then regressions and new defects. JSON only.`,
   ].join("\n\n");
   const system = verifySystem(reviewer, ctx);

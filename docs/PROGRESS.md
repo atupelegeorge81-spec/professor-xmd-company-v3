@@ -492,3 +492,10 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Gharama: Computer 3 492 requests / ~1.02 B tokens · judges 2.18 M in / 98 k out · ujumbe 729. Pendekezo: **usiwashe flag kwenye prod**.
 - Usafi: sessions 8 + screenshots 189 zimefutwa, sandbox ya E8 imeuawa; QUESTIONS.md (maswali 3 + majibu ya CEO).
 - Baselines: tsc 0 · vitest 786 + 2 skipped (+32) · pytest 346 + 3 · eslint (bila backups/) 29 = kabla. Ushahidi: docs/tests/task-32.md + docs/tests/task-32/shots/ (bila `.log`).
+
+## Task 33 — MISSION ONE: kumbukumbu ya review (mini-report inayokua) · **DONE (mock/unit tests)**
+- Branch `task/33-review-memory` · spec: `task-docs/NEXT-STEP.md` (CEO 2026-10-22) · REAL test imeahirishwa kwa agizo la CEO.
+- Mpya: `src/lib/milestone/reviewMemory.ts` — rekodi `memo:Mk` yenye sehemu 8 (review R0 · fix · verify · sync · discussion · redecide · escalation · close); facts za code + maelezo ya Optimus; ukaguzi wa code wa kila D/P/CO; reviewers 2 wanathibitisha R0 mara moja (CONFIRM/AMEND).
+- Uthibitisho (`buildVerifyPrompt`): mini-report (3 kamili / za zamani zimefupishwa) + findings za R0 za reviewer mwenyewe + historia ya defects + mini-reports za agenda — bila transcript. Computer: historia ya defects kwenye fix pack.
+- requestDiscussion ≤6 zamu (sync 1 / redecide ≤4 kama zilivyokuwa); matokeo yote kwenye mini-report. UI: badge ya "mini report imeandikwa" tu.
+- Baselines: tsc 0 · vitest 804 + 2 skipped (+18) · eslint 29 = kabla. Ushahidi: docs/tests/task-33.md.

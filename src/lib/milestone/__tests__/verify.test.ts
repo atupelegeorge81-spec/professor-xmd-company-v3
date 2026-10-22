@@ -32,7 +32,8 @@ import {
   verifyKey, cosRoundKey, type DecideInput, type NextState, type VerifyContext, type VerifyFindings, type VerifyVerdict,
 } from "../verify";
 import { nextCoNumber } from "../reviewAgenda";
-import { maybeCloseMilestones, type BuildOutcome, type LoopHooks, type LoopRunner } from "../loop";
+import { maybeCloseMilestones, writeR0Memo, type BuildOutcome, type LoopHooks, type LoopRunner } from "../loop";
+import { checkR0Coverage, memoKey, type MemoComplete, type MemoRecord } from "../reviewMemory"; // TASK-33
 import { newMilestoneState, planSteps, setStep, stepIdOf, transition } from "../state";
 import { stateKey } from "../store";
 import type { ConsolidateInput, ConsolidateResult } from "../reviewAgenda";
@@ -592,5 +593,187 @@ describe("TASK-28 sign-off / cap (loop)", () => {
     expect(db.get(`${SID}|decisions`)!.data.decisions.filter((x: any) => x.id === "MS-M1")).toHaveLength(1);
     expect(db.get(`${SID}|finalReport`)!.data.milestones).toHaveLength(1);
     expect(ev.filter((e) => e.type === "milestoneSignedOff")).toHaveLength(1);
+  });
+});
+
+// ── TASK-33 (MISSION ONE): mini-report ya review inayokua — kupitia loop halisi (maybeCloseMilestones) ──
+type MemoCall = { agent: string; purpose: string; user: string };
+const memoStub = (calls: MemoCall[], o: { omit?: string; amend?: boolean } = {}): MemoComplete => async (agent, purpose, messages) => {
+  calls.push({ agent, purpose, user: messages[1].content });
+  if (purpose.startsWith("memo-confirm:")) return /:designer$/.test(purpose) && o.amend ? "AMEND: D-001 contrast target is 4.5:1, not 3:1" : "CONFIRM";
+  const ids = (/REQUIRED IDS: (.*)/.exec(messages[1].content)?.[1] || "").split(", ").filter((x) => x && x !== o.omit);
+  return `Optimus note: ${ids.join(", ") || "round summary"} — because the receipts and the reviewers say so.`;
+};
+const R0_TABLE = {
+  reviewId: "R-M1-0", milestoneId: "M1", round: 0, decisionRefs: {},
+  defects: [D("D-001", { reportedBy: ["designer"], status: "OPEN", attempts: 0, title: "Menu text contrast too low", expected: "menu text contrast at least 4.5:1", actual: "measured 2.1:1 on S-001" })],
+  proposals: [{ id: "P-01", by: "frontend", title: "Sticky header", detail: "make the header sticky on scroll", rationale: "navigation reach on mobile", evidence: ["S-001"] }],
+  notes: { designer: "designer R0 notes: palette is fine apart from the menu", frontend: "frontend R0 notes: layout holds at 375" },
+};
+function seedR0Memory() {
+  db.set(`${SID}|review:M1:R0`, { version: 1, data: { version: 1, reviewId: "R-M1-0", table: R0_TABLE } });
+  const rec: MemoRecord = { version: 1, milestoneId: "M1", entries: [{
+    id: "review:R0", kind: "review", milestoneId: "M1", round: 0, at: "2026-10-22T08:00:00.000Z", head: "M1 · R0 · review (team discussion) · 08:00 UTC",
+    facts: "DEFECTS:\n- D-001 [major] Menu text contrast too low — OPEN → fix\nACCEPTED PROPOSALS:\n- P-01 Sticky header\nCHANGE ORDERS:\n- CO-001 → D-001", note: "Agreed: D-001 must reach 4.5:1; P-01 accepted. CO-001 targets D-001.",
+    ids: ["D-001", "P-01", "CO-001"], missing: [], by: "optimus",
+  }], confirmations: [{ reviewer: "designer", agent: "designer", name: "Ultron", verdict: "CONFIRM", note: "" }, { reviewer: "frontend", agent: "frontend", name: "Vextron", verdict: "CONFIRM", note: "" }] };
+  db.set(`${SID}|${memoKey("M1")}`, { version: 1, data: rec });
+}
+function capturePrompts(h: ReturnType<typeof harness>) {
+  const prompts: { purpose: string; reviewer: string; text: string }[] = [];
+  const packs: { round: number; pack: string }[] = [];
+  const vb = h.hooks.verify!.deps!.complete!;
+  h.hooks.verify!.deps!.complete = async (o) => { prompts.push({ purpose: o.purpose, reviewer: o.reviewer, text: String((o.messages[1].content as any[])[0]?.text ?? o.messages[1].content) }); return vb(o); };
+  const fb = h.hooks.fix!.run;
+  h.hooks.fix!.run = async (m, p, fix) => { packs.push({ round: fix.round, pack: fix.render({ tree: "src/styles.css", gitLog: "abc init" }) }); return fb(m, p, fix); };
+  return { prompts, packs };
+}
+const memoOf = () => db.get(`${SID}|${memoKey("M1")}`)?.data as MemoRecord | undefined;
+
+describe("TASK-33: mini-report ya review (rolling) — loop", () => {
+  it("(a) prompt ya verifier ina mini-report + findings ZAKE kamili za R0 (si za mwenzake) · (e) fix + verify zinaongeza sehemu zenye COs zote", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0, title: "Menu text contrast too low" })]);
+    seedR0Memory();
+    const h = harness({ 1: { designer: { cos: { "CO-001": "FAIL" } }, frontend: { cos: { "CO-001": "FAIL" } } }, 2: { designer: { cos: { "CO-002": "PASS" } }, frontend: { cos: { "CO-002": "PASS" } } } }, { checkFail: (id, r) => r === 1 && id.startsWith("CO-") });
+    const calls: MemoCall[] = [];
+    h.hooks.memo = { complete: memoStub(calls) };
+    const { prompts } = capturePrompts(h);
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data).toMatchObject({ status: "SIGNED_OFF", round: 2 });
+    const r1d = prompts.find((p) => p.purpose.startsWith("review-verify:") && /:R1:/.test(p.purpose) && p.reviewer === "designer")!.text;
+    const r1f = prompts.find((p) => p.purpose.startsWith("review-verify:") && /:R1:/.test(p.purpose) && p.reviewer === "frontend")!.text;
+    expect(r1d).toContain("## REVIEW MINI-REPORT");
+    expect(r1d).toContain("M1 · R0 · review (team discussion)");
+    expect(r1d).toContain("Agreed: D-001 must reach 4.5:1");
+    expect(r1d).toContain("## YOUR OWN R0 FINDINGS");
+    expect(r1d).toContain("expected: menu text contrast at least 4.5:1");
+    expect(r1d).toContain("designer R0 notes");
+    expect(r1d).not.toContain("make the header sticky on scroll"); // pendekezo la Vextron si lake
+    expect(r1f).toContain("make the header sticky on scroll");
+    expect(r1f).not.toContain("expected: menu text contrast at least 4.5:1");
+    expect(r1d).not.toMatch(/TRANSCRIPT|TEAM DISCUSSION \(/); // hakuna transcript
+    // R2: mini-report sasa ina sehemu za R1 (fix + verify)
+    const r2 = prompts.find((p) => p.purpose.startsWith("review-verify:") && /:R2:/.test(p.purpose))!.text;
+    expect(r2).toContain("M1 · R1 · fix");
+    expect(r2).toContain("M1 · R1 · verify");
+    // (e) sehemu za aina 2 na 3 zenye COs zote za raundi
+    const ids = memoOf()!.entries.map((e) => e.id);
+    expect(ids).toEqual(expect.arrayContaining(["review:R0", "fix:R1", "verify:R1", "fix:R2", "verify:R2", "close:R2:SIGNED_OFF"]));
+    expect(ids.indexOf("fix:R1")).toBeLessThan(ids.indexOf("verify:R1"));
+    const e = (id: string) => memoOf()!.entries.find((x) => x.id === id)!;
+    expect(e("fix:R1").facts).toMatch(/- CO-001: APPLIED · receipt DONE/);
+    expect(e("verify:R1").facts).toMatch(/- CO-001: FAIL/);
+    expect(e("verify:R1").facts).toMatch(/Ultron: FAIL/);
+    expect(e("verify:R2").facts).toMatch(/- CO-002: PASS/);
+    expect(e("verify:R1")).toMatchObject({ by: "optimus", missing: [], ids: ["CO-001"] });
+    expect(e("verify:R1").note).toContain("CO-001");
+    expect(e("close:R2:SIGNED_OFF").facts).toMatch(/Milestone closed: SIGNED_OFF after round 2/);
+    // badge "mini report imeandikwa" (activity) — maandishi yenyewe hayatumwi kwa UI
+    const acts = h.events.filter((x) => x.type === "activity" && x.state === "start" && /mini report/i.test(x.text));
+    expect(acts.length).toBeGreaterThanOrEqual(5);
+    expect(h.events.filter((x) => x.type === "activity" && x.state === "end").length).toBe(acts.length);
+    expect(calls.every((c) => c.agent === "pm")).toBe(true);
+  });
+  it("(c) defect iliyoshindwa mara 2 → historia yake inaonekana kwa verifier NA kwa Computer (raundi 3)", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    seedR0Memory();
+    const h = harness({
+      1: { designer: { cos: { "CO-001": "FAIL" } }, frontend: { cos: { "CO-001": "FAIL" } } },
+      2: { designer: { cos: { "CO-002": "FAIL" } }, frontend: { cos: { "CO-002": "FAIL" } } },
+      3: { designer: { cos: { "CO-003": "PASS" } }, frontend: { cos: { "CO-003": "PASS" } } },
+    }, { checkFail: (id, r) => r < 3 && id.startsWith("CO-") });
+    const { prompts, packs } = capturePrompts(h);
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data).toMatchObject({ status: "SIGNED_OFF", round: 3 });
+    const p1 = packs.find((x) => x.round === 1)!.pack, p3 = packs.find((x) => x.round === 3)!.pack;
+    expect(p1).not.toContain("## DEFECT HISTORY"); // raundi ya kwanza: hakuna historia
+    expect(p3).toContain("## DEFECT HISTORY");
+    expect(p3).toMatch(/- D-001 \[[A-Z_]+, major, attempts 2\]/);
+    expect(p3).toMatch(/· R1: verify: CO-001 FAIL/);
+    expect(p3).toMatch(/· R2: verify: CO-002 FAIL/);
+    expect(p3).toMatch(/· CO-001 \(attempt 1/);
+    expect(p3).toMatch(/· CO-002 \(attempt 2, concrete\)/);
+    const v3 = prompts.find((p) => p.purpose.startsWith("review-verify:") && /:R3:/.test(p.purpose))!.text;
+    expect(v3).toContain("## DEFECT HISTORY");
+    expect(v3).toMatch(/· R1: verify: CO-001 FAIL/);
+    expect(v3).toMatch(/· R2: verify: CO-002 FAIL/);
+    // bila hook ya memo (LLM) → sehemu zinaandikwa na code peke yake
+    expect(memoOf()!.entries.filter((e) => e.id !== "review:R0").every((e) => e.by === "code" && e.note === "")).toBe(true);
+  });
+  it("sync (wanatofautiana) na mjadala ulioombwa (kikomo cha zamu 6) zinaongeza sehemu zake", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    seedR0Memory();
+    const h = harness({ 1: { designer: { cos: { "CO-001": "PASS" } }, frontend: { cos: { "CO-001": "FAIL" } } } }, { checkFail: (id, r) => r === 1 && id.startsWith("CO-") });
+    const vb = h.hooks.verify!.deps!.complete!;
+    h.hooks.verify!.deps!.complete = async (o) => {
+      const r = await vb(o);
+      if (o.purpose.startsWith("review-verify:") && /:R1:/.test(o.purpose) && o.reviewer === "frontend") return { ...r, text: JSON.stringify({ ...JSON.parse(r.text), requestDiscussion: { reason: "the contrast target conflicts with locked decision A1" } }) };
+      return r;
+    };
+    const items: any[] = [];
+    h.hooks.review = {
+      context: async () => { throw new Error("not used"); },
+      discuss: async (item) => { items.push(item); return { consensus: true, decision: "Keep A1; raise menu text to the ink token", closeReason: "consensus", transcript: [{ name: "Ultron", text: "agree" }], searches: [], turns: 3 }; },
+    };
+    h.hooks.verify!.stopAfterRound = 1;
+    h.hooks.memo = { complete: memoStub([]) };
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(items).toHaveLength(1);
+    expect(items[0].review.maxTurns).toBe(6);
+    const ids = memoOf()!.entries.map((e) => e.id);
+    expect(ids).toEqual(expect.arrayContaining(["sync:R1", "discussion:R1", "verify:R1"]));
+    const sync = memoOf()!.entries.find((e) => e.id === "sync:R1")!;
+    expect(sync.facts).toMatch(/CO-001: Ultron PASS .* vs Vextron FAIL/);
+    expect(sync.ids).toEqual(["CO-001"]);
+    const disc = memoOf()!.entries.find((e) => e.id === "discussion:R1")!;
+    expect(disc.facts).toMatch(/requested in round 1 by Vextron \("the contrast target conflicts with locked decision A1"\) — max 6 turns/);
+    expect(disc.facts).toMatch(/consensus after 3 turns .* decided: Keep A1/);
+  });
+  it("redecide (jaribio 5, WAIVE) na escalation zinaandikwa; kufunga: SIGNED_OFF_WITH_WAIVERS", async () => {
+    await seed([CO("CO-001", ["D-001"])], [D("D-001", { status: "OPEN", attempts: 0 })]);
+    const h = harness({}, { allFail: true, checkFail: (id) => id.startsWith("CO-"), esc: escStub("WAIVE"), patches: [] });
+    h.hooks.memo = { complete: memoStub([]) };
+    await maybeCloseMilestones(h.runner, h.hooks);
+    expect(db.get(`${SID}|state:M1`)!.data.status).toBe("SIGNED_OFF_WITH_WAIVERS");
+    const es = memoOf()!.entries;
+    expect(es.map((e) => e.id)).toEqual(expect.arrayContaining(["escalation:R1", "escalation:R2", "escalation:R3", "redecide:R4", "close:R4:SIGNED_OFF_WITH_WAIVERS"]));
+    const red = es.find((e) => e.id === "redecide:R4")!;
+    expect(red.facts).toMatch(/D-001 \(CO-\d+\): WAIVE after \d+ turns/);
+    expect(red.ids).toEqual(["D-001"]);
+    expect(es.find((e) => e.id === "escalation:R1")!.facts).toMatch(/attempt 2 → concrete · diagnosis ATTEMPTED_WRONG/);
+    expect(es.find((e) => e.id.startsWith("close:"))!.facts).toMatch(/waived: D-001/);
+  });
+  it("(b) R0: Optimus akiacha pointi iliyokubaliwa → ukaguzi wa code unashindwa (majaribio 2) · reviewers wote 2 wanathibitisha MARA MOJA (AMEND inahifadhiwa)", async () => {
+    const runner: LoopRunner = { id: SID, sessionId: SID, msMap: MAP, msChips: [] };
+    const logs: string[] = [];
+    const calls: MemoCall[] = [];
+    const hooks = { bcast: () => {}, addChip: () => {}, blog: (_l: string, t: string) => logs.push(t), persist: async () => {}, resolvedAgendas: async () => new Set<number>(), memo: { complete: memoStub(calls, { omit: "P-02", amend: true }) } } as unknown as LoopHooks;
+    const m = MAP.milestones[0];
+    const result: any = {
+      status: "CHANGES", reviewId: "R-M1-0", table: { ...R0_TABLE, proposals: [...R0_TABLE.proposals, { id: "P-02", by: "designer", title: "Bigger hero type", detail: "hero h1 48px", rationale: "hierarchy", evidence: ["S-001"] }] },
+      rules: { consensus: true, acceptedProposals: [{ id: "P-01", by: "frontend", title: "Sticky header", detail: "sticky", rationale: "", evidence: [] }, { id: "P-02", by: "designer", title: "Bigger hero type", detail: "hero h1 48px", rationale: "", evidence: [] }], rejectedProposals: [], invalidDefects: [], changeRequests: [], openDefects: [], warnings: [] },
+      discussion: { consensus: true, decision: "accept both", closeReason: "consensus", transcript: [{ name: "Optimus", text: "We accept P-01 and P-02." }], searches: [], turns: 4 },
+      decisions: [], changeRequests: [], changeOrders: [CO("CO-001", ["D-001"]), CO("CO-002", [], { decisionIds: ["R-M1-0/P-01"] }), CO("CO-003", [], { decisionIds: ["R-M1-0/P-02"] })], consolidation: null, reason: "x",
+    };
+    await writeR0Memo(runner, m, hooks, result);
+    const rec = memoOf()!;
+    const r0 = rec.entries.find((e) => e.id === "review:R0")!;
+    expect(r0.ids).toEqual(["D-001", "P-01", "P-02", "CO-001", "CO-002", "CO-003"]);
+    expect(r0.missing).toEqual(["P-02"]); // ukaguzi wa code umeshindwa
+    expect(checkR0Coverage(r0.note, { defects: result.table.defects, accepted: result.rules.acceptedProposals, changeOrders: result.changeOrders })).toEqual({ ok: false, missing: ["P-02"] });
+    expect(r0.facts).toContain("P-02 Bigger hero type"); // data za code hazipotei
+    const writes = calls.filter((c) => c.purpose.startsWith("memo:review:"));
+    expect(writes.map((c) => c.purpose)).toEqual(["memo:review:M1:R0:a1", "memo:review:M1:R0:a2"]);
+    expect(writes[1].user).toContain("YOUR PREVIOUS ANSWER OMITTED: P-02");
+    expect(logs.some((t) => /hakutaja P-02/.test(t))).toBe(true);
+    // uthibitisho MARA MOJA kwa kila reviewer
+    expect(calls.filter((c) => c.purpose.startsWith("memo-confirm:")).map((c) => [c.agent, c.purpose])).toEqual([["designer", "memo-confirm:M1:R0:designer"], ["frontend", "memo-confirm:M1:R0:frontend"]]);
+    expect(calls.find((c) => c.purpose.endsWith(":designer"))!.user).toContain("DEFECTS YOU REPORTED:\n- D-001");
+    expect(rec.confirmations!.map((c) => [c.name, c.verdict])).toEqual([["Ultron", "AMEND"], ["Vextron", "CONFIRM"]]);
+    expect(rec.confirmations![0].note).toContain("4.5:1");
+    // resume: haiandiki upya wala haithibitishi tena
+    await writeR0Memo(runner, m, hooks, result);
+    expect(calls.filter((c) => c.purpose.startsWith("memo-confirm:"))).toHaveLength(2);
+    expect(memoOf()!.entries.filter((e) => e.id === "review:R0")).toHaveLength(1);
   });
 });

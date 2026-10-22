@@ -32,6 +32,10 @@ import { buildOCB } from "./ocb";
 import { maybeCapturePrompt } from "./testHooks";
 import { allowedOpenAtSignoff, applyInheritedResults, closeOutMilestone, CLOSE_STATUSES, baselineRound, inheritedChecks, isInheritedCheck, signoffStatus, type CloseoutDeps } from "./signoff"; // TASK-28
 import { testCrashAfterSignoffGit, testMaxRounds } from "./testHooks"; // TASK-28
+import {
+  addMemoEntry, checkR0Coverage, closeFacts, confirmR0, defectHistoryLines, discussionFacts, entryText, escalationFactsText, fixFacts, memoEntryId, memoKey, ownR0Findings, r0Facts, r0RequiredIds,
+  redecideFactsText, renderMemo, REQUESTED_DISCUSSION_MAX_TURNS, saveConfirmations, syncFacts, verifyFacts, type MemoComplete, type MemoKind, type MemoMsg, type MemoRecord, type MemoStore, type R0MemoInput,
+} from "./reviewMemory"; // TASK-33 (MISSION ONE)
 import { amendmentLine, applyEscalationToDefects, escalateChangeOrders, escalationChip, requirementChecksOf, type Amendment, type EscalateDeps, type EscalateResult, type Msg as EscMsg, type PrevAttemptFact, type Waiver } from "./escalation"; // TASK-27
 
 export interface LoopRunner {
@@ -81,8 +85,8 @@ export interface LoopHooks {
   /** TASK-26: raundi ya uthibitisho — evidence upya (tasks 19–22) → reviewers 2 → decide → git → Optimus COs. */
   verify?: {
     evidence: (m: Milestone, round: number, planMarkdown: string, cos: ChangeOrder[]) => Promise<NonNullable<BuildOutcome["evidence"]>>;
-    /** OCB (bila stage/self) + ledger kwa reviewers */
-    context: (m: Milestone, round: number, openDefects: number) => Promise<{ ocb: VerifyContext["ocb"]; ledger: VerifyContext["ledger"]; ledgerLines: string[] }>;
+    /** OCB (bila stage/self) + ledger kwa reviewers · TASK-33: mini-reports za agenda za milestone (hiari) */
+    context: (m: Milestone, round: number, openDefects: number) => Promise<{ ocb: VerifyContext["ocb"]; ledger: VerifyContext["ledger"]; ledgerLines: string[]; miniReports?: VerifyContext["agendaMiniReports"] }>;
     git: (m: Milestone, op: { kind: "tag"; name: string } | { kind: "revert"; from: string; message: string; label: string } | { kind: "signoff"; tag: string; message: string }) => Promise<{ ok: boolean; sha: string; detail: string }>;
     /** TASK-28 (sign-off, task 22): screenshots zilizoidhinishwa za raundi hii → baselines (sandbox + storage) */
     saveBaselines?: (m: Milestone, round: number) => Promise<{ uploaded: number; entries: number; errors: string[]; manifestUrl?: string }>;
@@ -95,6 +99,8 @@ export interface LoopHooks {
     /** test hook (XMD_TEST_STOP_AFTER_ROUND): simama baada ya uthibitisho wa raundi hii */
     stopAfterRound?: number;
   };
+  /** TASK-33: Optimus anaandika maelezo ya mini-report ya review + reviewers wanathibitisha R0 (bila hook → data za code peke yake) */
+  memo?: { complete?: MemoComplete };
 }
 
 /** TASK-16: matokeo ya awamu ya Computer (engine.MilestoneBuildOutcome — bila ku-import engine hapa). */
@@ -271,6 +277,7 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
         hooks.blog("warning", `🔁 ${m.id}: BLOCKED (${step}) → PLANNING — retry ${1}/${BLOCKED_RETRY_MAX} (re-plan kamili ya R0).`);
         await hooks.persist();
         await runMilestoneBuild(runner, m, hooks);
+        await memoClose(runner, m, hooks, true); // TASK-33 (sehemu 8)
         done.push(m.id);
         continue;
       }
@@ -295,6 +302,7 @@ export async function maybeCloseMilestones(runner: LoopRunner, hooks: LoopHooks)
         hooks.blog("info", `♻️ Milestone ${m.id} iko ${status} — inaendelea pale ilipoachwa (resume).`);
       }
       await runMilestoneBuild(runner, m, hooks);
+      await memoClose(runner, m, hooks); // TASK-33 (sehemu 8)
       done.push(m.id);
     } finally {
       running.delete(lockKey);
@@ -544,6 +552,7 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
     return { ok: false, state: rec.data, result };
   }
   if (result.status === "CHANGES") {
+    await writeR0Memo(runner, m, hooks, result); // TASK-33: mini-report ya R0 + uthibitisho wa reviewers (MARA MOJA)
     const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "DONE")), { type: "GOTO", to: "FIXING" })));
     hooks.blog("info", `🔧 ${m.id} → FIXING (round ${rec.data.round}) — COs ${result.changeOrders.length} zinasubiri raundi za marekebisho (tasks 25+).`);
     await hooks.persist();
@@ -562,6 +571,7 @@ async function runReviewStep(runner: LoopRunner, m: Milestone, hooks: LoopHooks,
       return runReviewStep(runner, m, hooks, id);
     }
   }
+  await writeR0Memo(runner, m, hooks, result); // TASK-33
   await emitLaneDigest(runner, m, hooks, "R0");
   const rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(setStep(s as MilestoneState, id, "DONE")));
   await hooks.persist();
@@ -791,9 +801,13 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
   const diffBase0 = /^[0-9a-f]{7,40}$/.test(patchRec?.base || "") ? patchRec!.base : undefined;
   const escLines = escalationLines(cos, patchNotes);
   const orderIds = cos.map((c) => c.id);
+  // TASK-33 (CEO #5): historia ya defects za COs hizi — Computer asirudie jaribio lililoshindwa (muktadha wake bado ni mpya kila raundi)
+  const targeted = new Set(cos.flatMap((c) => c.defectIds));
+  const allCos = (await getRecord<{ changeOrders?: ChangeOrder[] }>(sid, cosKey(m.id)))?.data?.changeOrders || [];
+  const history = defectHistoryLines(defects0.filter((d) => targeted.has(d.id)), m.id, allCos.filter((c) => !orderIds.includes(c.id)));
   let captured = false;
   const render = (repo: { tree: string; gitLog: string }) => {
-    const pack = renderFixPack({ roundHeader: header, ocb, changeOrders: cos, repo, prevChanges: prevChangesLines(prev), milestoneId: m.id, round, escalation: escLines });
+    const pack = renderFixPack({ roundHeader: header, ocb, changeOrders: cos, repo, prevChanges: prevChangesLines(prev), milestoneId: m.id, round, escalation: escLines, history });
     if (!captured) { captured = true; maybeCapturePrompt({ sessionId: sid, agent: "computer", agenda: 0, phase: `fix:${m.id}:R${round}`, system: pack }); } // TASK-26 T3
     return pack;
   };
@@ -871,6 +885,11 @@ export async function runFixRound(runner: LoopRunner, m: Milestone, round: numbe
     if (await holdForBuildQuota(runner, m, hooks, id, out.reason || "paused (quota)")) return runFixRound(runner, m, round, hooks);
     return ((await getRecord<MilestoneState>(sid, stateKey(m.id)))?.data ?? newMilestoneState(m.id)) as MilestoneState;
   }
+  // TASK-33 (sehemu 2): kila raundi ya marekebisho → data za code + "kwa nini" ya Optimus
+  await memoAdd(runner, m, hooks, { round, kind: "fix", facts: fixFacts({
+    round, finalState: out.finalState, ok: out.ok, reason: out.reason, unlisted: v.unlisted, flags: v.flags, notAttempted: v.notAttempted, global: perCo.global,
+    cos: v.cos.map((c) => ({ orderId: c.orderId, verdict: c.verdict, receiptStatus: c.receiptStatus, receipt: c.receipt, touched: c.touched, phantom: c.phantom, diff: c.diff, blockedReason: c.blockedReason, checks: perCo[c.orderId] })),
+  }) });
   if (!out.ok) return fail("BLOCKED", `${out.finalState}${out.reason ? ` — ${out.reason}` : ""} (XMD Computer, raundi ya marekebisho) · ${verificationLine(v)}`);
   const done = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, id, "DONE")), { type: "GOTO", to: "VERIFYING" })));
   hooks.addChip(`🧾 ${m.id} R${round}: ${verificationLine(v)} · checks ${all.pass}P/${all.fail}F/${all.error}E`);
@@ -947,6 +966,103 @@ async function occlusionRegressions(sid: string, m: Milestone, round: number, af
     return { meta: { route: sh.route, viewport: sh.viewport, state: sh.state, screenshotId: sh.id }, dom: dm ? await load(dm).catch(() => null) : null };
   }));
   return newlyOccluded(await side(before), await side(after));
+}
+
+/* ============================ TASK-33: mini-report ya review (rolling) ============================ */
+
+const memoStoreOf = (runner: LoopRunner): MemoStore => ({
+  get: async <T,>(key: string) => ((await getRecord<T>(runner.sessionId as string, key))?.data ?? null),
+  update: async <T,>(key: string, mutate: (cur: T | null) => T) => (await msUpdate<T>(runner, key, mutate)).data,
+});
+const reviewerNames = (m: Milestone): Record<ReviewerId, string> => {
+  const c = milestoneCast(m);
+  return Object.fromEntries(REVIEWERS.map((r) => [r, AGENTS.find((a) => a.id === castAgentId(c, r))?.name || r])) as Record<ReviewerId, string>;
+};
+
+/** Optimus (LLM) wa mini-report — lane ya kawaida, si critical (sehemu ikishindikana, data za code zinabaki). */
+export async function memoLlm(sid: string, agent: string, purpose: string, messages: MemoMsg[]): Promise<string> {
+  if (/:a1$|^memo-confirm:/.test(purpose)) maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase: purpose.replace(/:a1$/, ""), system: messages.map((x) => x.content).join("\n\n") });
+  return (await brokerComplete({ agentId: agent, purpose, messages: messages as never, maxOut: 4000, cls: "normal", temperature: 0.2, priority: "background", waitMs: 120_000, maxHops: 16 })).text;
+}
+
+/** Inaongeza sehemu (idempotent) + badge ya "mini report imeandikwa" (activity — maandishi yenyewe hayaonyeshwi kwenye UI). Haisimamishi loop kamwe. */
+async function memoAdd(runner: LoopRunner, m: Milestone, hooks: LoopHooks, o: { round: number; kind: MemoKind; facts: string; ids?: string[]; idSuffix?: string; context?: string }): Promise<void> {
+  if (!runner.sessionId) return;
+  const store = memoStoreOf(runner);
+  try {
+    if ((await store.get<MemoRecord>(memoKey(m.id)))?.entries.some((e) => e.id === memoEntryId(o.kind, o.round, o.idSuffix))) return; // resume
+  } catch { /* addMemoEntry inasoma tena */ }
+  const act = `memo-${m.id}-${o.kind}-R${o.round}-${Date.now().toString(36)}`;
+  hooks.bcast({ type: "activity", id: act, text: `Optimus anaandika mini report ya review (${m.id} · R${o.round} · ${o.kind})…`, state: "start" });
+  try {
+    const r = await addMemoEntry(store, { milestoneId: m.id, ...o, complete: hooks.memo?.complete, log: (l, t) => hooks.blog(l, t) });
+    if (r.created) hooks.blog("info", `📝 ${r.entry.head}: mini report ya review imeongezwa (${r.entry.by}${r.entry.missing.length ? ` · ukaguzi wa code: haikutaja ${r.entry.missing.join(", ")}` : ""}).`);
+  } catch (e: any) { hooks.blog("warning", `📝 ${m.id} R${o.round} ${o.kind}: mini report haikuandikwa: ${String(e?.message || e).slice(0, 160)}`); }
+  finally { hooks.bcast({ type: "activity", id: act, state: "end" }); }
+}
+
+/** Sehemu 1: baada ya mjadala wa timu R0 — Optimus anaandika, code inakagua kila D/P/CO, reviewers wote 2 wanathibitisha MARA MOJA. */
+export async function writeR0Memo(runner: LoopRunner, m: Milestone, hooks: LoopHooks, result: ReviewRoundResult): Promise<void> {
+  if (!runner.sessionId) return;
+  const i: R0MemoInput = {
+    milestoneId: m.id, reviewId: result.reviewId, consensus: result.rules.consensus, closeReason: result.discussion.closeReason,
+    defects: result.table.defects, invalidDefects: result.rules.invalidDefects, rejected: result.rules.rejectedProposals, changeRequests: result.rules.changeRequests,
+    accepted: result.rules.acceptedProposals.map((p) => ({ id: p.id, title: p.title, detail: p.detail, by: p.by })), changeOrders: result.changeOrders,
+  };
+  await memoAdd(runner, m, hooks, { round: 0, kind: "review", facts: r0Facts(i), ids: r0RequiredIds(i), context: result.discussion.transcript.map((t) => `${t.name}: ${t.text}`).join("\n\n").slice(-12_000) });
+  try {
+    const store = memoStoreOf(runner);
+    const memo = await store.get<MemoRecord>(memoKey(m.id));
+    const e = memo?.entries.find((x) => x.id === memoEntryId("review", 0));
+    if (!e || memo?.confirmations) return;
+    const cov = checkR0Coverage(e.note, i);
+    if (e.note && !cov.ok) hooks.blog("warning", `📝 ${m.id} R0 mini report: Optimus hakutaja ${cov.missing.join(", ")} — data za code zinazo, reviewers wanaambiwa.`);
+    const cast = milestoneCast(m);
+    const list = await confirmR0({
+      memoText: entryText(e), milestoneId: m.id, complete: hooks.memo?.complete,
+      reviewers: REVIEWERS.map((r) => { const a = AGENTS.find((x) => x.id === castAgentId(cast, r)); return { reviewer: r, agent: a?.id || r, name: a?.name || r, role: a?.role || r, own: ownR0Findings(result.table, r, castAgentId(cast, r)) }; }),
+    });
+    await saveConfirmations(store, m.id, e.id, list);
+    hooks.blog(list.some((x) => x.verdict === "AMEND") ? "warning" : "info", `📝 ${m.id} R0 mini report — uthibitisho: ${list.map((x) => `${x.name} ${x.verdict}${x.verdict === "AMEND" ? ` (${x.note.slice(0, 120)})` : ""}`).join(" · ")}`);
+  } catch (err: any) { hooks.blog("warning", `📝 ${m.id} R0: uthibitisho wa mini report haukufanyika: ${String(err?.message || err).slice(0, 160)}`); }
+}
+
+/** Sehemu 6/7: redecide (KEEP/MODIFY/WAIVE) na escalation (diagnose/split/patch) baada ya raundi. */
+async function memoEscalation(runner: LoopRunner, m: Milestone, round: number, hooks: LoopHooks, ex: Pick<EscalateResult, "events" | "amendments">): Promise<void> {
+  const red = ex.events.filter((e) => e.redecide);
+  const rest = ex.events.filter((e) => !e.redecide);
+  if (rest.length) await memoAdd(runner, m, hooks, { round, kind: "escalation", ids: [...new Set(rest.flatMap((e) => [e.coId, ...e.defectIds, ...e.resultIds]))], facts: escalationFactsText(round, rest) });
+  if (red.length) await memoAdd(runner, m, hooks, { round, kind: "redecide", ids: [...new Set(red.flatMap((e) => e.defectIds))], facts: redecideFactsText(round, red, ex.amendments) });
+}
+
+/** Sehemu 8: milestone ikifungwa (SIGNED_OFF / WITH_WAIVERS / CAP_REACHED / BLOCKED) — tu ikiwa ilipitia review (memo ipo). */
+async function memoClose(runner: LoopRunner, m: Milestone, hooks: LoopHooks, retried = false): Promise<void> {
+  if (!runner.sessionId) return;
+  try {
+    const sid = runner.sessionId;
+    if (!(await getRecord<MemoRecord>(sid, memoKey(m.id)))?.data?.entries?.length) return;
+    const st = (await getRecord<MilestoneState>(sid, stateKey(m.id)))?.data;
+    if (!st || !["SIGNED_OFF", "SIGNED_OFF_WITH_WAIVERS", "CAP_REACHED", "BLOCKED"].includes(st.status)) return;
+    const ds = ((await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || []).filter((d) => d.milestoneId === m.id);
+    const vr = (await getRecord<{ next?: { reason?: string } }>(sid, verifyKey(m.id, st.round)))?.data;
+    const open = ds.filter((d) => isOpenDefect(d));
+    await memoAdd(runner, m, hooks, { round: st.round, kind: "close", idSuffix: st.status, ids: open.map((d) => d.id), facts: closeFacts({
+      status: st.status, round: st.round, reason: vr?.next?.reason || "", retried,
+      open: open.map((d) => ({ id: d.id, severity: d.severity })), waived: ds.filter((d) => d.status === "WAIVED").map((d) => d.id),
+    }) });
+  } catch (e: any) { hooks.blog("warning", `📝 ${m.id}: sehemu ya kufunga mini report haikuandikwa: ${String(e?.message || e).slice(0, 160)}`); }
+}
+
+/** CEO #3: kumbukumbu ya reviewers wa uthibitisho — mini-report (3 kamili) + findings zao za R0 + historia ya defects + mini-reports za agenda. Hakuna transcript. */
+export async function verifyMemory(sid: string, m: Milestone, defects: Defect[], roundCos: ChangeOrder[], miniReports?: VerifyContext["agendaMiniReports"]): Promise<Pick<VerifyContext, "memo" | "ownR0" | "defectHistory" | "agendaMiniReports">> {
+  const memo = renderMemo((await getRecord<MemoRecord>(sid, memoKey(m.id)))?.data);
+  const table = (await getRecord<{ table?: ReviewRoundResult["table"] }>(sid, reviewKey(m.id, 0)))?.data?.table;
+  const cast = milestoneCast(m);
+  const ownR0 = Object.fromEntries(REVIEWERS.map((r) => [r, ownR0Findings(table, r, castAgentId(cast, r))]).filter(([, t]) => t)) as Partial<Record<ReviewerId, string>>;
+  const allCos = (await getRecord<{ changeOrders?: ChangeOrder[] }>(sid, cosKey(m.id)))?.data?.changeOrders || [];
+  const ids = new Set(roundCos.map((c) => c.id));
+  const defectHistory = defectHistoryLines(defects, m.id, allCos.filter((c) => !ids.has(c.id)));
+  return { ...(memo ? { memo } : {}), ...(Object.keys(ownR0).length ? { ownR0 } : {}), ...(defectHistory.length ? { defectHistory } : {}), ...(miniReports?.length ? { agendaMiniReports: miniReports } : {}) };
 }
 
 /* ============================ TASK-27: escalation ladder ============================ */
@@ -1059,6 +1175,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
     ocb: base.ocb, roundHeader: header, ledger: base.ledger, pack, changeOrders: cos, checkResults: results, defects: defectsNow, planGoal: planGoalOf(plan),
     receipts: (fixRec?.verification?.cos || []).map((c) => ({ orderId: c.orderId, verdict: c.verdict, receipt: c.receipt, receiptStatus: c.receiptStatus, touched: c.touched, diff: c.diff })),
     cast: milestoneCast(m), reviewMode: m.reviewMode, // TASK-29
+    ...(await verifyMemory(sid, m, defectsNow, cos, base.miniReports)), // TASK-33: mini-report · findings zake za R0 · historia ya defects · mini-reports za agenda
   };
   const deps: VerifyDeps = { log: (l, t) => hooks.blog(l, t), capture: (agent, phase, text) => { maybeCapturePrompt({ sessionId: sid, agent, agenda: 0, phase, system: text }); }, onLane: laneSink(runner, m, stepIdOf(m.id, round, "verify")), ...(vh.deps || {}) };
   const now = () => new Date().toISOString();
@@ -1085,6 +1202,13 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
       const ocbOf = (r: ReviewerId) => buildOCB({ ...vctx.ocb, stage: "REVIEW_VERIFY", self: castAgentId(vctx.cast, r) as Parameters<typeof buildOCB>[0]["self"] });
       const st = await syncTurn(header, ocbOf, vr.runs.designer.findings, vr.runs.frontend.findings, vr.disputed, deps, vctx.cast);
       vr = (await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), sync: st.sync, syncTranscript: st.transcript }))).data;
+    }
+    if (vr.disputed.length && vr.sync && vr.runs.designer.findings && vr.runs.frontend.findings) { // TASK-33 (sehemu 4)
+      const fd = vr.runs.designer.findings, ff = vr.runs.frontend.findings;
+      const pick = (f: VerifyFindings, id: string) => f.cos.find((c) => c.orderId === id);
+      await memoAdd(runner, m, hooks, { round, kind: "sync", ids: vr.disputed, facts: syncFacts(round, reviewerNames(m), vr.disputed.map((id) => ({
+        orderId: id, designer: pick(fd, id)?.verdict || "-", frontend: pick(ff, id)?.verdict || "-", designerNote: pick(fd, id)?.note, frontendNote: pick(ff, id)?.note,
+      })), vr.sync) });
     }
     if (!done(vId)) await stepDone(vId);
   }
@@ -1155,6 +1279,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
       const findLines = [designer, frontend].filter(Boolean).map((f) => `${f!.reviewer}: ${f!.cos.map((c) => `${c.orderId} ${c.verdict} (${c.note.slice(0, 200)})`).join("; ")} · notes: ${f!.notes.slice(0, 600)}`);
       let discussion = [`VERIFICATION OF ROUND ${round}:`, ...verdictLines, ...findLines, ...(vr.syncTranscript || []).map((t) => `sync ${t.reviewer}: ${t.text.slice(0, 600)}`)].join("\n");
       let discussed = false;
+      let dOut: DiscussionOutcome | null = null;
       const asked = [designer, frontend].filter((f) => f?.requestDiscussion);
       if (asked.length && hooks.review?.discuss) {
         // mjadala wa timu TU reviewer akiomba (maelezo26 #2)
@@ -1165,12 +1290,18 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
             table: { reviewId, milestoneId: m.id, round, defects: openList, proposals: [], decisionRefs: {}, notes: { designer: designer?.notes, frontend: frontend?.notes } },
             ledgerLines: base.ledgerLines, checkLines: results.map((c) => `- check:${c.id} [${c.type}] ${c.result} — ${c.detail.slice(0, 160)}`),
             evidenceRefs: pack.screenshots.map((x) => `- ${x.id}: ${x.route} @${x.viewport} ${x.state}`), participants: reviewParticipants([], vctx.cast), cast: vctx.cast,
+            maxTurns: REQUESTED_DISCUSSION_MAX_TURNS, // TASK-33 (CEO #4): mfupi na wenye kikomo — mjadala kamili ni R0 tu
           });
           hooks.addChip(`🧑‍⚖️ ${reviewId}: mjadala wa timu umeombwa na ${asked.map((f) => f!.reviewer).join(" + ")}`);
           const d = await hooks.review.discuss(item);
           discussion += `\n\nTEAM DISCUSSION (requested: ${asked.map((f) => `${f!.reviewer} — ${f!.requestDiscussion!.reason}`).join("; ")}):\n${d.transcript.map((t) => `${t.name}: ${t.text}`).join("\n\n")}`;
           discussed = true;
+          dOut = d;
         } catch (e: any) { hooks.blog("warning", `🧑‍⚖️ ${m.id} R${round}: mjadala ulioombwa haukufanyika: ${String(e?.message || e).slice(0, 160)}`); }
+        const names = reviewerNames(m);
+        await memoAdd(runner, m, hooks, { round, kind: "discussion", ids: openList.map((d) => d.id),
+          facts: discussionFacts(round, asked.map((f) => ({ name: names[f!.reviewer], reason: f!.requestDiscussion!.reason })), dOut, REQUESTED_DISCUSSION_MAX_TURNS),
+          context: dOut ? dOut.transcript.map((t) => `${t.name}: ${t.text}`).join("\n\n").slice(-12_000) : "" }); // TASK-33 (sehemu 5)
       }
       const prevAll = (await getRecord<{ changeOrders?: ChangeOrder[] }>(sid, cosKey(m.id)))?.data?.changeOrders || [];
       const nowHeader = fixRoundHeader(m, round, rec.data.maxRounds, res.defects); // raundi ya SASA, counts mpya kutoka DB
@@ -1203,6 +1334,7 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
       newCos = cons.changeOrders;
       if (cons.escalation) {
         const esc = await applyEscalation(runner, m, round, hooks, cons.escalation);
+        await memoEscalation(runner, m, round, hooks, cons.escalation); // TASK-33 (sehemu 6/7)
         if (!newCos.length && !mineOpen(esc).length && cons.escalation.waivers.length) nd = { ...nd, next: "SIGN_OFF", reason: `all remaining defects waived by redecide (${cons.escalation.waivers.map((w) => w.defectId).join(", ")})` };
       }
       // hakuna defect wazi wala CO lakini bado si SIGN_OFF (mf. receipts ≠ diffs) → raundi tupu haina maana: BLOCKED yenye sababu ya wazi
@@ -1238,6 +1370,15 @@ export async function runVerifyRound(runner: LoopRunner, m: Milestone, round: nu
   }
   await msUpdate<VerifyRecord>(runner, verifyKey(m.id, round), (cur) => ({ ...(cur as VerifyRecord), decision, next: nd, added: res.added.map((d) => d.id), duplicates: trial.duplicates, at: now() }));
   rec = await msUpdate<MilestoneState>(runner, stateKey(m.id), (s) => must(transition(must(setStep(s as MilestoneState, dId, to === "BLOCKED" ? "FAILED" : "DONE")), { type: "GOTO", to })));
+  { // TASK-33 (sehemu 3): kila uthibitisho → data za code + "kwa nini" ya Optimus
+    const notesOf = (f: VerifyFindings | null) => Object.fromEntries((f?.cos || []).map((c) => [c.orderId, c.note]));
+    const left = ((await getRecord<{ defects?: Defect[] }>(sid, "defects"))?.data?.defects || []).filter((d) => d.milestoneId === m.id && isOpenDefect(d));
+    await memoAdd(runner, m, hooks, { round, kind: "verify", ids: orderIds, facts: verifyFacts({
+      round, names: reviewerNames(m), cos: decision.cos, notes: { designer: notesOf(designer), frontend: notesOf(frontend) },
+      added: res.added, fixed: res.fixed, reopened: res.reopened, regressions, reverted, outcome: outcome.outcome, next: nd,
+      open: left.map((d) => ({ id: d.id, severity: d.severity, attempts: d.attempts })), newCos: newCos.map((c) => c.id),
+    }) });
+  }
   hooks.bcast({
     type: "verifyRound", id: m.id, round, next: nd.next, status: to, reason: nd.reason, outcome: outcome.outcome, git: { op: git.op, ok: git.ok, sha: git.sha.slice(0, 12), detail: git.detail },
     cos: decision.cos.map((c) => ({ orderId: c.orderId, verdict: c.verdict, designer: c.designer, frontend: c.frontend, disagreement: c.disagreement, checkOverride: c.checkOverride })),
