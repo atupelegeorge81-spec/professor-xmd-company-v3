@@ -507,3 +507,14 @@ $ npm run cu:test        → Ran 186 tests — OK
   card ya Milestones (progress live), Mpango Kazi kwa kila milestone, card ya marekebisho ya Optimus, card ya ripoti ya CEO; **"Pakua" imeondolewa**; chips 7 za kiufundi → Overview › Logs.
 - Export: items mpya + mini-report ya review kamili (`memo:Mk`). Non-milestone mode haijaguswa (test).
 - Baselines: tsc 0 · vitest 828 + 2 skipped (+24) · eslint 29 = kabla. Ushahidi: docs/tests/task-34.md.
+
+## Task 35 — T32 follow-up (ripoti ya CEO, pointi 1–5)
+- Ripoti: `docs/REPORT-task32-followup.md`. Maswali ya ruhusa: `QUESTIONS.md` (sehemu ya TASK 35).
+- `plan.ts`:
+  - (a) `SANDBOX_CAPABILITIES` (block ya uwezo halisi wa sandbox) inaingia kwenye prompts zote za plan;
+  - (b) preflight ya `command -v` dhidi ya `SANDBOX_BIN_MANIFEST` (binaries 53 zilizothibitishwa kwenye probe) kwa Build/Test/Start/Lint/Typecheck/Migration na kila check ya aina `command`;
+  - plan inarudishwa kwa Optimus hadi mara 3, kisha `structure_failed` (kosa halitupwi).
+- Plans 5 halisi: amri zisizowezekana 8 → 0. Kwenye plans 15 za production, preflight ingezikamata 29.
+- Gharama: Computer iliyoripotiwa 1.02B ≈ **~129M halisi** (bug ya metering, haijarekebishwa: QUESTIONS #1).
+- Baselines: tsc 0 · vitest 838 + 2 skipped · eslint 29 · pytest 346.
+- 2026-10-22 14:06 UTC: CEO ameagiza milestone mode iwashwe kwenye production (`XMD_MILESTONES=1`) ili atest mwenyewe.
