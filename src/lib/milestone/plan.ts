@@ -53,6 +53,82 @@ export interface MilestonePlanValidation {
 
 /** TASK-32: huduma zisizopo kwenye sandbox ya build (Docker / Postgres ya ndani / Supabase CLI ya local stack) */
 export const SANDBOX_UNAVAILABLE_RE = /\b(?:docker(?:-compose)?|podman|supabase\s+(?:start|stop|status|test|db\s+(?:reset|start|test|lint|push|diff|dump))|psql|pg_prove|pg_ctl|(?:localhost|127\.0\.0\.1):5432)\b/i;
+const cap = (s: unknown, n: number) => (String(s ?? "").length > n ? `${String(s).slice(0, n)} […]` : String(s ?? ""));
+
+/** TASK-35 (T32 follow-up): binaries zilizothibitishwa kwa `command -v` kwenye template ya build `professor-xmd-browser-v3`
+ *  (sandbox halisi ya E2B, 2026-10-22; PATH ya bridge = /home/user/.local/bin:/home/user/node_modules/.bin:/usr/local/bin:/usr/bin:/bin).
+ *  HAZIPO: docker, podman, psql, pg_prove, supabase, vercel, pnpm, yarn, bun, tsc, next, eslint, vitest, vite, prettier, serve. */
+export const SANDBOX_BIN_MANIFEST: readonly string[] = [
+  "bash", "sh", "node", "npm", "npx", "python3", "python", "pip", "pip3", "git", "curl", "wget", "jq", "sed", "awk", "grep", "find",
+  "xargs", "tar", "gzip", "make", "gcc", "g++", "test", "sleep", "timeout", "cat", "ls", "mkdir", "rm", "cp", "mv", "chmod", "touch",
+  "head", "tail", "wc", "sort", "uniq", "diff", "env", "tee", "date", "du", "kill", "ps", "ss", "which", "openssl", "sha256sum", "base64",
+  "ssh", "playwright",
+];
+
+/** TASK-35 (a): uwezo halisi wa sandbox ya build — unaingia kwenye kila prompt ya plan (PART 1, PART 2 na marekebisho). */
+export const SANDBOX_CAPABILITIES = `=== BUILD SANDBOX CAPABILITIES (verified with \`command -v\` — anything not listed does NOT exist) ===
+- Linux (E2B) with Node 20 + npm 10 + npx, Python 3.12 + pip, git, bash, curl, Playwright (Chromium is used by the harness).
+- Available commands: ${SANDBOX_BIN_MANIFEST.join(", ")}.
+- NOT available: Docker / docker-compose / podman, any local Postgres server, psql / pg_prove, the Supabase CLI (so never \`supabase start\`, \`supabase test db\`, \`supabase db reset\`), the Vercel CLI, pnpm, yarn, bun.
+- Tools that come from npm packages (next, tsc, eslint, vitest, vite, prettier, serve …) are NOT on PATH: run them through an npm script (\`npm run build\`) or \`npx <tool>\`, with the package listed in package.json.
+- Database: the real Supabase project is reached over HTTPS by the harness — "db" checks run OUTSIDE the sandbox; every table created for tests must be prefixed \`xmdtest_\`. Inside the sandbox there is no database server and no database credentials: verify SQL/migrations statically (file_contains / grep checks) or with a Node script that needs no database.
+- Every command you write (Build / Test / Start / Lint / Typecheck / Migration Status lines and every "command" check) is preflighted with \`command -v\` against this list; a plan that uses a missing command is rejected and sent back to you.`;
+
+/** TASK-35 (b): marudio ya kuandika upya plan yenye amri zisizopo kwenye sandbox (preflight ya `command -v`). */
+export const PREFLIGHT_REPAIR_MAX = 3;
+const SHELL_BUILTINS = new Set(["cd", "test", "[", "[[", "echo", "true", "false", "export", "set", "unset", "exit", "source", ".", "printf", "read", "wait", "shift", "type", "command", "exec", "eval", "pwd", "ulimit", "umask", "trap", "!", "if", "then", "else", "elif", "fi", "for", "do", "done", "while", "until", "case", "esac", "{", "}", "in", "return", "local", "let"]);
+const CMD_WRAPPERS = new Set(["sudo", "env", "timeout", "nohup", "time", "exec"]);
+
+/** Binaries ambazo amri ya shell inaziita (neno la kwanza la kila kipande kati ya && || ; | & ( ) na mstari mpya; nje ya quotes).
+ *  Builtins, njia (./x, scripts/x.sh), VAR=val na wrappers (sudo/env/timeout N/nohup/time) zinarukwa. */
+export function commandBinaries(cmd: string): string[] {
+  const segs: string[] = [];
+  let cur = "", q: string | null = null;
+  const s = String(cmd || "");
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) { cur += c; if (c === "\\" && q === '"') { cur += s[++i] ?? ""; } else if (c === q) q = null; continue; }
+    if (c === "'" || c === '"' || c === "`") { q = c; cur += c; continue; }
+    const redirect = c === "&" && (s[i - 1] === ">" || s[i - 1] === "<" || s[i + 1] === ">");
+    if (!redirect && (c === ";" || c === "|" || c === "&" || c === "\n" || c === "(" || c === ")")) { segs.push(cur); cur = ""; continue; }
+    cur += c;
+  }
+  segs.push(cur);
+  const out: string[] = [];
+  for (const seg of segs) {
+    const words = seg.trim().replace(/^\$/, "").trim().split(/\s+/).filter(Boolean);
+    let i = 0;
+    while (i < words.length) {
+      const w = words[i];
+      if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) { i++; continue; }
+      if (CMD_WRAPPERS.has(w)) { i++; if (w === "timeout") while (i < words.length && /^(-\S+|\d+[smhd]?)$/.test(words[i])) i++; if (w === "env") while (i < words.length && /^-/.test(words[i])) i++; continue; }
+      break;
+    }
+    const b = (words[i] || "").replace(/^["'`]+|["'`]+$/g, "");
+    if (!b || SHELL_BUILTINS.has(b) || b.includes("/") || /^[-<>0-9$&]/.test(b)) continue;
+    if (!out.includes(b)) out.push(b);
+  }
+  return out;
+}
+
+/** Binaries za amri ambazo hazipo kwenye manifest (`command -v <bin>` → not found). */
+export function missingBinaries(cmd: string, manifest: readonly string[] = SANDBOX_BIN_MANIFEST): string[] {
+  return commandBinaries(cmd).filter((b) => !manifest.includes(b));
+}
+
+/** Kosa la preflight (lina sababu kamili) — linarudishwa kwa Optimus, halitupwi kimya kimya. */
+export function preflightError(where: string, label: string, cmd: string, manifest: readonly string[] = SANDBOX_BIN_MANIFEST): string | null {
+  const miss = missingBinaries(cmd, manifest);
+  const hit = cmd.match(SANDBOX_UNAVAILABLE_RE);
+  if (!miss.length && !hit) return null;
+  const why = [
+    ...miss.map((b) => `\`${b}\` (command -v ${b} → not found)`),
+    ...(hit && !miss.some((b) => hit[0].toLowerCase().startsWith(b.toLowerCase())) ? [`\`${hit[0]}\` (needs Docker / a local Postgres, which the sandbox does not have)`] : []),
+  ];
+  return `${where}: ${label} \`${cap(cmd, 160)}\` cannot run in the build sandbox — preflight: ${why.join(", ")}. Rewrite it with available commands only (see BUILD SANDBOX CAPABILITIES; npm tools via \`npm run …\` or \`npx <tool>\`).`;
+}
+export const isPreflightError = (e: string): boolean => /cannot run in the build sandbox/.test(e);
+
 const STYLING_RE = /Styling\s*\+\s*Dependencies\s*\**\s*:\s*\**\s*(.*)$/im;
 const ROUTE_RE = /route\s*:\s*`?(\/[^\s`·|;,]*)`?\s*[·|;,]\s*states?\s*:\s*([^·|;]+?)\s*[·|;]\s*viewports?\s*:\s*(.+)$/gim;
 const NO_FILES = /^(none|n\/a|-|—|no files?|not applicable)\b/i;
@@ -103,9 +179,10 @@ export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "rev
   // 1b. TASK-18: Build Command (lango la kumaliza linaiendesha — lazima exit 0)
   // TASK-32 (E2E halisi run 5): `Test Command: supabase test db` haiwezi kupita kwenye sandbox (hakuna Docker/Postgres)
   // → lango PARTIAL → M1 BLOCKED. Amri kama hizi zinakataliwa hapa → Optimus anaandika upya (jaribio la muundo).
+  // TASK-35 (b): preflight ya `command -v` kwa kila binary (si regex ya Docker/Postgres pekee) — kosa linarudi kwa Optimus.
   for (const [label, cmd] of [["Build Command", planGateCommands(md).buildCommand], ["Test Command", planGateCommands(md).testCommand]] as const) {
-    const hit = cmd ? cmd.match(SANDBOX_UNAVAILABLE_RE) : null;
-    if (hit) errors.push(`${m.id} plan §4: "${label}:" uses \`${hit[0]}\`, which cannot run in the build sandbox (no Docker, no local Postgres) — the completion gate would fail forever. Use a command that runs with Node/npm/Python only (static file/SQL checks or a Node script).`);
+    const pe = cmd ? preflightError(`${m.id} plan §4`, `"${label}:"`, cmd) : null;
+    if (pe) errors.push(pe);
   }
   if (!planGateCommands(md).buildCommand) errors.push(`${m.id} plan §4: missing the "Build Command:" line — one shell command run from the workspace root that exits 0 only when this milestone builds (e.g. "Build Command: \`npm run build\`" or, for a docs-only milestone, "Build Command: \`test -s README.md\`")`);
 
@@ -137,6 +214,10 @@ export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "rev
       const id = (c as Check).id;
       if (ids.has(id)) { errors.push(`${m.id} plan Step ${s.n} check[${i}].id: duplicate id ${JSON.stringify(id)} (ids must be unique in the plan)`); return; }
       ids.add(id);
+      if ((c as Check).type === "command") { // TASK-35 (b)
+        const pe = preflightError(`${m.id} plan Step ${s.n} check[${i}] (${id})`, "command", String((c as any).cmd || ""));
+        if (pe) { errors.push(pe); return; }
+      }
       checks.push(c as Check);
       valid++;
     });
@@ -158,6 +239,13 @@ export function validateMilestonePlan(md: string, m: Pick<Milestone, "id" | "rev
     // TASK-32 (E2E run 8 M2): plan bila Start Command ilipita validator → harness haikuweza kuwasha app → sign-off imekataliwa → BLOCKED
     if (!cmdLine(md, "Start Command")) errors.push(`${m.id} plan §7: missing the "Start Command:" line (reviewMode ${m.reviewMode}) — add one line \`Start Command: <command that builds and serves the app on port ${EVIDENCE_PORT}>\`, e.g. \`npm run build && npm run start -- -p ${EVIDENCE_PORT}\` (the harness runs it to take the screenshots)`);
     if (!routes) errors.push(`${m.id} plan §7: missing the screenshot matrix (reviewMode ${m.reviewMode}) — add lines like "- route: / · states: default, error · viewports: ${PLAN_VIEWPORTS.join(", ")}"`);
+  }
+
+  // 3b. TASK-35 (b): preflight ya mistari ya amri ya §7 (harness inaziendesha ndani ya sandbox)
+  for (const label of ["Start Command", "Lint Command", "Typecheck Command", "Migration Status Command"]) {
+    const cmd = cmdLine(md, label);
+    const pe = cmd ? preflightError(`${m.id} plan §7`, `"${label}:"`, cmd) : null;
+    if (pe) errors.push(pe);
   }
 
   // 4. Uthibitisho wa technical: command/http Check
@@ -220,8 +308,6 @@ export interface MilestonePlanResult {
   guardHits: { found: string; expected: string }[];
   repairs: { structure: number; guard: number };
 }
-
-const cap = (s: unknown, n: number) => (String(s ?? "").length > n ? `${String(s).slice(0, n)} […]` : String(s ?? ""));
 
 function sectionsSpec(part: 1 | 2, m: Milestone, max: number): string {
   if (part === 1)
@@ -310,6 +396,8 @@ Write PART ${part} of the MILESTONE PLAN for ${m.id} in English. XMD Computer (a
 
 ${sectionsSpec(part, m, max)}
 
+${SANDBOX_CAPABILITIES}
+
 ${RULES}`;
 
   const planTexts: string[] = [];
@@ -331,11 +419,15 @@ ${RULES}`;
   // TASK-32 (E2E run 8 M1): makosa ya §1–§4 (mf. "Styling + Dependencies:" / Build Command) yako PART 1 — zamani PART 2 tu
   // ndiyo iliandikwa upya, kwa hiyo kosa la §4 halingeweza kurekebishwa kamwe → structure_failed → BLOCKED.
   const structErrs = () => [...cur.a.problems.filter((p) => /hatua \d+ > kubwa|sehemu ya 6|Work Steps/.test(p)), ...cur.v.errors];
-  for (let attempt = 1; attempt <= PLAN_REPAIR_MAX && structErrs().length; attempt++) {
+  // TASK-35 (b): makosa ya preflight (amri isiyopo) yanapata hadi PREFLIGHT_REPAIR_MAX marudio; yakibaki → structure_failed (hayatupwi).
+  const repairMax = () => (structErrs().some(isPreflightError) ? PREFLIGHT_REPAIR_MAX : PLAN_REPAIR_MAX);
+  for (let attempt = 1; attempt <= repairMax() && structErrs().length; attempt++) {
     const errs = structErrs();
+    const pf = errs.filter(isPreflightError);
+    if (pf.length) log("warning", `🧰 Preflight ${m.id}: amri ${pf.length} hazipo kwenye sandbox — zimerudishwa kwa Optimus (jaribio ${attempt}/${PREFLIGHT_REPAIR_MAX}): ${pf.map((e) => (e.match(/`([^`]+)` \(command -v/g) || []).map((x) => x.split("`")[1]).join(",")).filter(Boolean).join(" · ").slice(0, 200)}`);
     if (errs.some(isPart1Error)) {
       repairs.structure++;
-      log("warning", `🗺️ Plan ${m.id}: validator imekataa §1–§4 (${errs.filter(isPart1Error).length}) — Optimus anaandika upya kipande 1 (jaribio ${attempt}/${PLAN_REPAIR_MAX})…`);
+      log("warning", `🗺️ Plan ${m.id}: validator imekataa §1–§4 (${errs.filter(isPart1Error).length}) — Optimus anaandika upya kipande 1 (jaribio ${attempt}/${repairMax()})…`);
       const fixed1 = await deps.write({
         label: `${m.id} rekebisha kipande 1 (${attempt})`,
         user: `${task(1)}\n\n=== VALIDATOR FEEDBACK ===\nThe code validator REJECTED your previous PART 1 of the ${m.id} plan:\n${errs.filter(isPart1Error).map((e) => `- ${e}`).join("\n")}\n\nRewrite PART 1 COMPLETELY (sections 1, 2, 3 and 4) and fix EVERY point above. Output ONLY PART 1.`,
@@ -347,10 +439,10 @@ ${RULES}`;
     }
     if (!structErrs().filter((e) => !isPart1Error(e)).length) continue;
     repairs.structure++;
-    log("warning", `🗺️ Plan ${m.id}: validator imekataa (${structErrs().length}) — Optimus anaandika upya kipande 2 (jaribio ${attempt}/${PLAN_REPAIR_MAX})…`);
+    log("warning", `🗺️ Plan ${m.id}: validator imekataa (${structErrs().length}) — Optimus anaandika upya kipande 2 (jaribio ${attempt}/${repairMax()})…`);
     const fixed = await deps.write({
       label: `${m.id} rekebisha muundo${attempt > 1 ? ` (${attempt})` : ""}`,
-      user: `${ctx}\n\n=== YOUR TASK ===\nThe code validator REJECTED your ${m.id} plan:\n${structErrs().map((e) => `- ${e}`).join("\n")}\n\nRewrite PART 2 COMPLETELY (sections 5, 6, 7 and 8 — same headings) fixing every error above. Same step template.\n\n${sectionsSpec(2, m, max)}\n\n${RULES}`,
+      user: `${ctx}\n\n=== YOUR TASK ===\nThe code validator REJECTED your ${m.id} plan:\n${structErrs().map((e) => `- ${e}`).join("\n")}\n\nRewrite PART 2 COMPLETELY (sections 5, 6, 7 and 8 — same headings) fixing every error above. Same step template.\n\n${sectionsSpec(2, m, max)}\n\n${SANDBOX_CAPABILITIES}\n\n${RULES}`,
       maxOut: 24000,
     });
     planTexts.splice(0, planTexts.length, ...replacePlanStepsPart(planTexts, fixed));

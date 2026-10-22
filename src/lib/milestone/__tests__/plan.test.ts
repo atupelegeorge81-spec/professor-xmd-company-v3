@@ -229,7 +229,7 @@ describe("TASK-32: amri za lango zisizowezekana kwenye sandbox (E2E run 5: `supa
   it("validateMilestonePlan inakataa Test Command ya `supabase test db` (plan halisi ya E5 M1, mstari huu tu umebadilika)", () => {
     const md = `## 4. Tech Stack\nStyling + Dependencies: plain CSS in styles.css ; packages: none\nBuild Command: \`npm run build\`\nTest Command: \`supabase test db\`\n`;
     const v = validateMilestonePlan(md, { id: "M1", reviewMode: "mixed" });
-    expect(v.errors.some((e) => /"Test Command:" uses `supabase test`.*cannot run in the build sandbox/.test(e))).toBe(true);
+    expect(v.errors.some((e) => /"Test Command:" `supabase test db` cannot run in the build sandbox — preflight: `supabase` \(command -v supabase → not found\)/.test(e))).toBe(true); // TASK-35: ujumbe wa preflight
     const ok = validateMilestonePlan(md.replace("supabase test db", "node scripts/check-sql.mjs"), { id: "M1", reviewMode: "mixed" });
     expect(ok.errors.some((e) => /cannot run in the build sandbox/.test(e))).toBe(false);
   });
