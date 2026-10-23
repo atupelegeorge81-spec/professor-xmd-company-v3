@@ -526,3 +526,9 @@ $ npm run cu:test        → Ran 186 tests — OK
 - Prompts za kuandika memory: mtindo/stack si sheria; "Mkuu prefers" ni nukuu tu. Skill frontend-design: mielekeo 3 → chagua 1; picha za hero. Ultron temperature 0.8.
 - Data halisi: mistari 121 ya agent_memory → Ultron 22/22 na Vextron 24/24 zinazuiwa kuvuka; mafunzo ya utaratibu yanabaki. Backup: `xmdtest/t36/`.
 - Baselines: tsc 0 · vitest 856 + 2 skipped (+18) · eslint 29 = kabla · pytest 346. Ushahidi: docs/tests/task-36.md.
+
+## Task 38 — Muundo kamili wa Supabase (bila data) · **DONE (docs tu; DB haijaguswa)**
+- Sababu: onyo la Supabase — egress 11.46 GB / 5.5 GB; vizuizi 2026-10-25.
+- `docs/SUPABASE-SCHEMA.md`: tables 13 (kila column: aina, null, default, maelezo), keys za JSONB, muundo wa `items`, PK/indexes, RLS/grants, functions 3, buckets 2, extensions, env, hatua za kuhamia, dalili ya egress.
+- `docs/sql/supabase-schema-recreate.sql`: script moja ya kujenga upya — imejaribiwa (73/73 cols, 22/22 idx, 13/13 cons, 13/13 RLS, 39/39 grants, 3/3 fn; mara 2 bila kosa; rollback). `docs/sql/supabase-schema.json`: catalog ghafi.
+- Ushahidi: docs/tests/task-38.md. Uamuzi unasubiriwa: (a) Pro / (b) kupunguza egress kwenye code / (c) kuhamia.

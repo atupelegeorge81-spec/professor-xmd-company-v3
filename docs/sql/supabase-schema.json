@@ -1,0 +1,2154 @@
+{
+ "meta": {
+  "db": "postgres",
+  "v": "PostgreSQL 17.11 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+  "at_utc": "2026-10-23T08:45:43.914Z"
+ },
+ "extensions": [
+  {
+   "extname": "pg_stat_statements",
+   "extversion": "1.11",
+   "schema": "extensions"
+  },
+  {
+   "extname": "pgcrypto",
+   "extversion": "1.3",
+   "schema": "extensions"
+  },
+  {
+   "extname": "plpgsql",
+   "extversion": "1.0",
+   "schema": "pg_catalog"
+  },
+  {
+   "extname": "supabase_vault",
+   "extversion": "0.3.1",
+   "schema": "vault"
+  },
+  {
+   "extname": "uuid-ossp",
+   "extversion": "1.1",
+   "schema": "extensions"
+  }
+ ],
+ "tables": [
+  {
+   "name": "agent_conversations",
+   "rls": true,
+   "rls_forced": false,
+   "comment": null,
+   "rows": 7,
+   "bytes": 180224,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "agent_id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "thread_id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 4,
+     "name": "seq",
+     "type": "integer",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 5,
+     "name": "role",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 6,
+     "name": "content",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 7,
+     "name": "thinking",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 8,
+     "name": "search_query",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 9,
+     "name": "sources",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 10,
+     "name": "status",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 11,
+     "name": "seconds",
+     "type": "integer",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 12,
+     "name": "feedback",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 13,
+     "name": "model",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 14,
+     "name": "prompt_tokens",
+     "type": "integer",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 15,
+     "name": "completion_tokens",
+     "type": "integer",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 16,
+     "name": "total_tokens",
+     "type": "integer",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 17,
+     "name": "tokens_exact",
+     "type": "boolean",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 18,
+     "name": "requests",
+     "type": "integer",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 19,
+     "name": "created_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "agent_conversations_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "agent_conversations_pkey",
+     "def": "CREATE UNIQUE INDEX agent_conversations_pkey ON public.agent_conversations USING btree (id)"
+    },
+    {
+     "name": "idx_agent_created",
+     "def": "CREATE INDEX idx_agent_created ON public.agent_conversations USING btree (created_at)"
+    },
+    {
+     "name": "idx_agent_thread_seq",
+     "def": "CREATE INDEX idx_agent_thread_seq ON public.agent_conversations USING btree (agent_id, thread_id, seq)"
+    },
+    {
+     "name": "idx_role_created",
+     "def": "CREATE INDEX idx_role_created ON public.agent_conversations USING btree (role, created_at)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {},
+   "packed": {}
+  },
+  {
+   "name": "agent_memory",
+   "rls": true,
+   "rls_forced": false,
+   "comment": null,
+   "rows": 6,
+   "bytes": 221184,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "agent_id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "data",
+     "type": "jsonb",
+     "not_null": true,
+     "default": "'{}'::jsonb",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "updated_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "agent_memory_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (agent_id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "agent_memory_pkey",
+     "def": "CREATE UNIQUE INDEX agent_memory_pkey ON public.agent_memory USING btree (agent_id)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {
+    "data": {
+     "top": [
+      {
+       "t": "object",
+       "n": 6
+      }
+     ],
+     "keys": [
+      {
+       "key": "board_memory",
+       "jtype": "string",
+       "n": 6
+      },
+      {
+       "key": "board_updated_at",
+       "jtype": "string",
+       "n": 6
+      },
+      {
+       "key": "last_project",
+       "jtype": "string",
+       "n": 6
+      },
+      {
+       "key": "self_memory",
+       "jtype": "string",
+       "n": 6
+      },
+      {
+       "key": "self_updated_at",
+       "jtype": "string",
+       "n": 6
+      }
+     ]
+    }
+   },
+   "packed": {}
+  },
+  {
+   "name": "board_items",
+   "rls": true,
+   "rls_forced": false,
+   "comment": "DISCUSSION conversation storage — kila item ya mjadala = row moja (session_id,seq,item). Column ya item: jsonb — HAKUNA kikomo cha herufi (hadi 1GB kwa kila value; proof: 2,000,000 chars tested 2026-10-09). Mwenge wa Mkuu R42.",
+   "rows": 508,
+   "bytes": 2146304,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "session_id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "seq",
+     "type": "integer",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "item",
+     "type": "jsonb",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "board_items_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (session_id, seq)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "board_items_pkey",
+     "def": "CREATE UNIQUE INDEX board_items_pkey ON public.board_items USING btree (session_id, seq)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {
+    "item": {
+     "top": [
+      {
+       "t": "object",
+       "n": 508
+      }
+     ],
+     "keys": [
+      {
+       "key": "agentId",
+       "jtype": "string",
+       "n": 136
+      },
+      {
+       "key": "content",
+       "jtype": "string",
+       "n": 136
+      },
+      {
+       "key": "done",
+       "jtype": "boolean",
+       "n": 136
+      },
+      {
+       "key": "id",
+       "jtype": "string",
+       "n": 508
+      },
+      {
+       "key": "kind",
+       "jtype": "string",
+       "n": 508
+      },
+      {
+       "key": "sources",
+       "jtype": "array",
+       "n": 136
+      },
+      {
+       "key": "text",
+       "jtype": "string",
+       "n": 372
+      },
+      {
+       "key": "thinking",
+       "jtype": "string",
+       "n": 136
+      }
+     ]
+    }
+   },
+   "packed": {}
+  },
+  {
+   "name": "board_ledger",
+   "rls": true,
+   "rls_forced": false,
+   "comment": null,
+   "rows": 278,
+   "bytes": 1081344,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "status",
+     "type": "text",
+     "not_null": false,
+     "default": "'ACTIVE'::text",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "data",
+     "type": "jsonb",
+     "not_null": true,
+     "default": "'{}'::jsonb",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 4,
+     "name": "created_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "board_ledger_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "board_ledger_pkey",
+     "def": "CREATE UNIQUE INDEX board_ledger_pkey ON public.board_ledger USING btree (id)"
+    },
+    {
+     "name": "idx_ledger_status",
+     "def": "CREATE INDEX idx_ledger_status ON public.board_ledger USING btree (status)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {
+    "data": {
+     "top": [
+      {
+       "t": "object",
+       "n": 278
+      }
+     ],
+     "keys": [
+      {
+       "key": "agenda_index",
+       "jtype": "number",
+       "n": 278
+      },
+      {
+       "key": "agenda_item",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "approved_code",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "carried_constraints",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "decision_detail",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "decision_summary",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "evidence",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "locked_at",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "objections",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "owners",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "project_id",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "rationale",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "session_id",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "sources",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "supersedes",
+       "jtype": "string",
+       "n": 278
+      },
+      {
+       "key": "trade_off",
+       "jtype": "string",
+       "n": 278
+      }
+     ]
+    }
+   },
+   "packed": {}
+  },
+  {
+   "name": "boardroom_sessions",
+   "rls": true,
+   "rls_forced": false,
+   "comment": "Session META tu (project/title/status). Discussion items -> board_items. Computer events -> cu_events. Legacy packed items column: text (∞) kwa sessions za zamani za Appwrite.",
+   "rows": 10,
+   "bytes": 2990080,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "project",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "title",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 4,
+     "name": "status",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 5,
+     "name": "mode",
+     "type": "text",
+     "not_null": false,
+     "default": "'code'::text",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 6,
+     "name": "items",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 7,
+     "name": "created_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 8,
+     "name": "updated_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "boardroom_sessions_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "boardroom_sessions_pkey",
+     "def": "CREATE UNIQUE INDEX boardroom_sessions_pkey ON public.boardroom_sessions USING btree (id)"
+    },
+    {
+     "name": "idx_brs_status",
+     "def": "CREATE INDEX idx_brs_status ON public.boardroom_sessions USING btree (status)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {},
+   "packed": {
+    "items": {
+     "gz": 10,
+     "json": 0,
+     "nn": 10
+    }
+   }
+  },
+  {
+   "name": "cu_events",
+   "rls": true,
+   "rls_forced": false,
+   "comment": "XMD COMPUTER conversation storage (collection MPYA) — kila event ya Computer = row moja (session_id,seq,ev). Column ya ev: jsonb — HAKUNA kikomo (hadi 1GB kwa value; proof: 2,000,000 chars tested 2026-10-09). Sep na discussion: R42.",
+   "rows": 783,
+   "bytes": 843776,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "session_id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "seq",
+     "type": "integer",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "ev",
+     "type": "jsonb",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "cu_events_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (session_id, seq)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "cu_events_pkey",
+     "def": "CREATE UNIQUE INDEX cu_events_pkey ON public.cu_events USING btree (session_id, seq)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {
+    "ev": {
+     "top": [
+      {
+       "t": "object",
+       "n": 783
+      }
+     ],
+     "keys": [
+      {
+       "key": "account",
+       "jtype": "string",
+       "n": 315
+      },
+      {
+       "key": "bucketId",
+       "jtype": "string",
+       "n": 4
+      },
+      {
+       "key": "budget",
+       "jtype": "object",
+       "n": 1
+      },
+      {
+       "key": "chars",
+       "jtype": "number",
+       "n": 163
+      },
+      {
+       "key": "command",
+       "jtype": "string",
+       "n": 250
+      },
+      {
+       "key": "cu",
+       "jtype": "string",
+       "n": 783
+      },
+      {
+       "key": "execId",
+       "jtype": "string",
+       "n": 163
+      },
+      {
+       "key": "exit",
+       "jtype": "number",
+       "n": 163
+      },
+      {
+       "key": "fileId",
+       "jtype": "string",
+       "n": 4
+      },
+      {
+       "key": "files",
+       "jtype": "array",
+       "n": 27
+      },
+      {
+       "key": "filesCount",
+       "jtype": "number",
+       "n": 27
+      },
+      {
+       "key": "hookKind",
+       "jtype": "string",
+       "n": 87
+      },
+      {
+       "key": "i",
+       "jtype": "number",
+       "n": 782
+      },
+      {
+       "key": "id",
+       "jtype": "string",
+       "n": 783
+      },
+      {
+       "key": "kind",
+       "jtype": "string",
+       "n": 783
+      },
+      {
+       "key": "kindX",
+       "jtype": "string",
+       "n": 163
+      },
+      {
+       "key": "label",
+       "jtype": "string",
+       "n": 4
+      },
+      {
+       "key": "lane",
+       "jtype": "string",
+       "n": 315
+      },
+      {
+       "key": "lines",
+       "jtype": "number",
+       "n": 90
+      },
+      {
+       "key": "model",
+       "jtype": "string",
+       "n": 316
+      },
+      {
+       "key": "ms",
+       "jtype": "number",
+       "n": 296
+      },
+      {
+       "key": "newStr",
+       "jtype": "string",
+       "n": 9
+      },
+      {
+       "key": "ok",
+       "jtype": "boolean",
+       "n": 315
+      },
+      {
+       "key": "oldStr",
+       "jtype": "string",
+       "n": 9
+      },
+      {
+       "key": "output",
+       "jtype": "string",
+       "n": 163
+      },
+      {
+       "key": "path",
+       "jtype": "null",
+       "n": 64
+      },
+      {
+       "key": "path",
+       "jtype": "string",
+       "n": 103
+      },
+      {
+       "key": "preview",
+       "jtype": "string",
+       "n": 163
+      },
+      {
+       "key": "provider",
+       "jtype": "string",
+       "n": 315
+      },
+      {
+       "key": "step",
+       "jtype": "number",
+       "n": 300
+      },
+      {
+       "key": "streak",
+       "jtype": "number",
+       "n": 87
+      },
+      {
+       "key": "summary",
+       "jtype": "string",
+       "n": 163
+      },
+      {
+       "key": "task",
+       "jtype": "string",
+       "n": 1
+      },
+      {
+       "key": "text",
+       "jtype": "string",
+       "n": 220
+      },
+      {
+       "key": "tool",
+       "jtype": "string",
+       "n": 163
+      },
+      {
+       "key": "total",
+       "jtype": "number",
+       "n": 315
+      },
+      {
+       "key": "tree",
+       "jtype": "array",
+       "n": 52
+      }
+     ]
+    }
+   },
+   "packed": {}
+  },
+  {
+   "name": "cu_files",
+   "rls": false,
+   "rls_forced": false,
+   "comment": "R44-A: kiovu cha faili za agent (kila write/edit mara moja) — restore ya sandbox mpya",
+   "rows": 367,
+   "bytes": 532480,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "session_id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "path",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "content",
+     "type": "text",
+     "not_null": true,
+     "default": "''::text",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 4,
+     "name": "bytes",
+     "type": "integer",
+     "not_null": true,
+     "default": "0",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 5,
+     "name": "updated_at",
+     "type": "timestamp with time zone",
+     "not_null": true,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "cu_files_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (session_id, path)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "cu_files_pkey",
+     "def": "CREATE UNIQUE INDEX cu_files_pkey ON public.cu_files USING btree (session_id, path)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {},
+   "packed": {
+    "content": {
+     "gz": 0,
+     "json": 67,
+     "nn": 367
+    }
+   }
+  },
+  {
+   "name": "cu_state",
+   "rls": true,
+   "rls_forced": false,
+   "comment": "XMD COMPUTER state chip (sandbox/token/maxI/snapshot) — row MOJA kwa session, inayoupdate.",
+   "rows": 1,
+   "bytes": 147456,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "session_id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "chip",
+     "type": "jsonb",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "updated_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "cu_state_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (session_id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "cu_state_pkey",
+     "def": "CREATE UNIQUE INDEX cu_state_pkey ON public.cu_state USING btree (session_id)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {
+    "chip": {
+     "top": [
+      {
+       "t": "object",
+       "n": 1
+      }
+     ],
+     "keys": [
+      {
+       "key": "done",
+       "jtype": "boolean",
+       "n": 1
+      },
+      {
+       "key": "files",
+       "jtype": "array",
+       "n": 1
+      },
+      {
+       "key": "maxI",
+       "jtype": "number",
+       "n": 1
+      },
+      {
+       "key": "pausedOnce",
+       "jtype": "boolean",
+       "n": 1
+      },
+      {
+       "key": "report",
+       "jtype": "string",
+       "n": 1
+      },
+      {
+       "key": "sandboxId",
+       "jtype": "string",
+       "n": 1
+      },
+      {
+       "key": "token",
+       "jtype": "string",
+       "n": 1
+      },
+      {
+       "key": "v",
+       "jtype": "number",
+       "n": 1
+      }
+     ]
+    }
+   },
+   "packed": {}
+  },
+  {
+   "name": "memory_events",
+   "rls": true,
+   "rls_forced": false,
+   "comment": null,
+   "rows": 1925,
+   "bytes": 2859008,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "agent_id",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "data",
+     "type": "jsonb",
+     "not_null": true,
+     "default": "'{}'::jsonb",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 4,
+     "name": "created_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "memory_events_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_me_agent",
+     "def": "CREATE INDEX idx_me_agent ON public.memory_events USING btree (agent_id)"
+    },
+    {
+     "name": "memory_events_pkey",
+     "def": "CREATE UNIQUE INDEX memory_events_pkey ON public.memory_events USING btree (id)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {
+    "data": {
+     "top": [
+      {
+       "t": "object",
+       "n": 1925
+      }
+     ],
+     "keys": [
+      {
+       "key": "agenda_index",
+       "jtype": "number",
+       "n": 1278
+      },
+      {
+       "key": "agenda_item",
+       "jtype": "string",
+       "n": 1278
+      },
+      {
+       "key": "board_note",
+       "jtype": "string",
+       "n": 1615
+      },
+      {
+       "key": "kind",
+       "jtype": "string",
+       "n": 1925
+      },
+      {
+       "key": "model",
+       "jtype": "string",
+       "n": 1909
+      },
+      {
+       "key": "ms",
+       "jtype": "number",
+       "n": 1914
+      },
+      {
+       "key": "project",
+       "jtype": "string",
+       "n": 1925
+      },
+      {
+       "key": "self_note",
+       "jtype": "string",
+       "n": 1852
+      },
+      {
+       "key": "session_id",
+       "jtype": "string",
+       "n": 1925
+      },
+      {
+       "key": "status",
+       "jtype": "string",
+       "n": 1925
+      },
+      {
+       "key": "tokens",
+       "jtype": "number",
+       "n": 1273
+      }
+     ]
+    }
+   },
+   "packed": {}
+  },
+  {
+   "name": "mini_reports",
+   "rls": true,
+   "rls_forced": false,
+   "comment": null,
+   "rows": 162,
+   "bytes": 737280,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "session_id",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "data",
+     "type": "jsonb",
+     "not_null": true,
+     "default": "'{}'::jsonb",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 4,
+     "name": "created_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "mini_reports_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "mini_reports_pkey",
+     "def": "CREATE UNIQUE INDEX mini_reports_pkey ON public.mini_reports USING btree (id)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {
+    "data": {
+     "top": [
+      {
+       "t": "object",
+       "n": 162
+      }
+     ],
+     "keys": [
+      {
+       "key": "agenda_index",
+       "jtype": "number",
+       "n": 162
+      },
+      {
+       "key": "agenda_item",
+       "jtype": "string",
+       "n": 162
+      },
+      {
+       "key": "carried_constraints",
+       "jtype": "string",
+       "n": 162
+      },
+      {
+       "key": "decision_summary",
+       "jtype": "string",
+       "n": 162
+      },
+      {
+       "key": "detail",
+       "jtype": "string",
+       "n": 162
+      },
+      {
+       "key": "project_id",
+       "jtype": "string",
+       "n": 162
+      },
+      {
+       "key": "status",
+       "jtype": "string",
+       "n": 162
+      },
+      {
+       "key": "updated_at",
+       "jtype": "string",
+       "n": 162
+      }
+     ]
+    }
+   },
+   "packed": {}
+  },
+  {
+   "name": "project_plans",
+   "rls": true,
+   "rls_forced": false,
+   "comment": null,
+   "rows": 12,
+   "bytes": 434176,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "session_id",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "data",
+     "type": "jsonb",
+     "not_null": true,
+     "default": "'{}'::jsonb",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 4,
+     "name": "created_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 5,
+     "name": "updated_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "project_plans_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_plans_session",
+     "def": "CREATE UNIQUE INDEX idx_plans_session ON public.project_plans USING btree (session_id)"
+    },
+    {
+     "name": "project_plans_pkey",
+     "def": "CREATE UNIQUE INDEX project_plans_pkey ON public.project_plans USING btree (id)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {
+    "data": {
+     "top": [
+      {
+       "t": "object",
+       "n": 12
+      }
+     ],
+     "keys": [
+      {
+       "key": "constraints",
+       "jtype": "string",
+       "n": 12
+      },
+      {
+       "key": "objective",
+       "jtype": "string",
+       "n": 12
+      },
+      {
+       "key": "official_data",
+       "jtype": "string",
+       "n": 12
+      },
+      {
+       "key": "plan_content",
+       "jtype": "string",
+       "n": 12
+      },
+      {
+       "key": "project_id",
+       "jtype": "string",
+       "n": 12
+      },
+      {
+       "key": "status",
+       "jtype": "string",
+       "n": 12
+      },
+      {
+       "key": "title",
+       "jtype": "string",
+       "n": 12
+      },
+      {
+       "key": "total_steps",
+       "jtype": "number",
+       "n": 12
+      },
+      {
+       "key": "warnings",
+       "jtype": "array",
+       "n": 3
+      }
+     ]
+    }
+   },
+   "packed": {}
+  },
+  {
+   "name": "reports",
+   "rls": true,
+   "rls_forced": false,
+   "comment": null,
+   "rows": 16,
+   "bytes": 573440,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "session_id",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "data",
+     "type": "jsonb",
+     "not_null": true,
+     "default": "'{}'::jsonb",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 4,
+     "name": "created_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "reports_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_reports_created",
+     "def": "CREATE INDEX idx_reports_created ON public.reports USING btree (created_at DESC)"
+    },
+    {
+     "name": "reports_pkey",
+     "def": "CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {
+    "data": {
+     "top": [
+      {
+       "t": "object",
+       "n": 16
+      }
+     ],
+     "keys": [
+      {
+       "key": "agents",
+       "jtype": "string",
+       "n": 16
+      },
+      {
+       "key": "content",
+       "jtype": "string",
+       "n": 16
+      },
+      {
+       "key": "project",
+       "jtype": "string",
+       "n": 16
+      },
+      {
+       "key": "title",
+       "jtype": "string",
+       "n": 16
+      }
+     ]
+    }
+   },
+   "packed": {}
+  },
+  {
+   "name": "search_cache",
+   "rls": true,
+   "rls_forced": false,
+   "comment": null,
+   "rows": 128,
+   "bytes": 966656,
+   "columns": [
+    {
+     "attnum": 1,
+     "name": "id",
+     "type": "text",
+     "not_null": true,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 2,
+     "name": "space",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 3,
+     "name": "query",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 4,
+     "name": "vector",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 5,
+     "name": "results",
+     "type": "text",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 6,
+     "name": "hits",
+     "type": "integer",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 7,
+     "name": "dims",
+     "type": "integer",
+     "not_null": false,
+     "default": null,
+     "identity": "",
+     "generated": "",
+     "comment": null
+    },
+    {
+     "attnum": 8,
+     "name": "created_at",
+     "type": "timestamp with time zone",
+     "not_null": false,
+     "default": "now()",
+     "identity": "",
+     "generated": "",
+     "comment": null
+    }
+   ],
+   "constraints": [
+    {
+     "name": "search_cache_pkey",
+     "type": "p",
+     "def": "PRIMARY KEY (id)"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_sc_space",
+     "def": "CREATE INDEX idx_sc_space ON public.search_cache USING btree (space, created_at DESC)"
+    },
+    {
+     "name": "search_cache_pkey",
+     "def": "CREATE UNIQUE INDEX search_cache_pkey ON public.search_cache USING btree (id)"
+    }
+   ],
+   "policies": [],
+   "triggers": [],
+   "grants": [
+    {
+     "grantee": "anon",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "authenticated",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "postgres",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+     "grantee": "service_role",
+     "privs": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    }
+   ],
+   "jsonb": {},
+   "packed": {
+    "vector": {
+     "gz": 0,
+     "json": 128,
+     "nn": 128
+    },
+    "results": {
+     "gz": 0,
+     "json": 128,
+     "nn": 128
+    }
+   }
+  }
+ ],
+ "views": [],
+ "functions": [
+  {
+   "name": "db_size",
+   "args": "",
+   "def": "CREATE OR REPLACE FUNCTION public.db_size()\n RETURNS bigint\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$ SELECT pg_database_size(current_database()) $function$\n",
+   "security_definer": true
+  },
+  {
+   "name": "storage_stats",
+   "args": "",
+   "def": "CREATE OR REPLACE FUNCTION public.storage_stats()\n RETURNS json\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'storage'\nAS $function$ SELECT json_build_object(\n  'bytes', (SELECT coalesce(sum((metadata->>'size')::bigint), 0) FROM storage.objects),\n  'count', (SELECT count(*) FROM storage.objects),\n  'buckets', (SELECT count(*) FROM storage.buckets)\n) $function$\n",
+   "security_definer": true
+  },
+  {
+   "name": "xmd_table_security",
+   "args": "p_schema text, p_table text",
+   "def": "CREATE OR REPLACE FUNCTION public.xmd_table_security(p_schema text, p_table text)\n RETURNS TABLE(table_exists boolean, rls_enabled boolean, rls_forced boolean)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\n  select count(*) > 0,\n         coalesce(bool_or(c.relrowsecurity), false),\n         coalesce(bool_or(c.relforcerowsecurity), false)\n  from pg_class c\n  join pg_namespace n on n.oid = c.relnamespace\n  where n.nspname = p_schema and c.relname = p_table and c.relkind in ('r', 'p');\n$function$\n",
+   "security_definer": true
+  }
+ ],
+ "function_grants": [
+  {
+   "routine_name": "db_size",
+   "grantee": "PUBLIC",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "routine_name": "db_size",
+   "grantee": "anon",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "routine_name": "db_size",
+   "grantee": "authenticated",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "routine_name": "db_size",
+   "grantee": "service_role",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "routine_name": "storage_stats",
+   "grantee": "PUBLIC",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "routine_name": "storage_stats",
+   "grantee": "anon",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "routine_name": "storage_stats",
+   "grantee": "authenticated",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "routine_name": "storage_stats",
+   "grantee": "service_role",
+   "privilege_type": "EXECUTE"
+  },
+  {
+   "routine_name": "xmd_table_security",
+   "grantee": "service_role",
+   "privilege_type": "EXECUTE"
+  }
+ ],
+ "sequences": [],
+ "types": [],
+ "buckets": [
+  {
+   "id": "6ac2935d0038fbd47d5d",
+   "name": "6ac2935d0038fbd47d5d",
+   "public": true,
+   "file_size_limit": "52428800",
+   "allowed_mime_types": null,
+   "created_at": "2026-10-09T17:02:24.458Z"
+  },
+  {
+   "id": "professor-xmd-files",
+   "name": "professor-xmd-files",
+   "public": true,
+   "file_size_limit": "52428800",
+   "allowed_mime_types": null,
+   "created_at": "2026-10-09T12:19:30.909Z"
+  }
+ ],
+ "bucket_objects": [
+  {
+   "bucket_id": "6ac2935d0038fbd47d5d",
+   "n": 3,
+   "bytes": "234252",
+   "top_folders": null
+  },
+  {
+   "bucket_id": "professor-xmd-files",
+   "n": 500,
+   "bytes": "674484620",
+   "top_folders": null
+  }
+ ],
+ "storage_policies": [],
+ "publications": [
+  {
+   "pubname": "supabase_realtime",
+   "puballtables": false,
+   "tables": []
+  }
+ ],
+ "auth_users": 0,
+ "cron": [],
+ "vault_secrets": 0,
+ "realtime_policies": [],
+ "db_size": "26154675"
+}
